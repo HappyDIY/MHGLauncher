@@ -128,9 +128,30 @@ class MihoyoAPI:
         response.raise_for_status()
         payload = response.json()
         if payload.get("retcode", 0) != 0:
-            raise AppError("mihoyo_error", str(payload.get("message", "米游社请求失败")), 502)
+            raise AppError(
+                "mihoyo_error",
+                MihoyoAPI._error_message(payload),
+                502,
+                {"retcode": str(payload.get("retcode", "unknown"))},
+            )
         data: dict[str, Any] = payload.get("data") or {}
         return data
+
+    @staticmethod
+    def _error_message(payload: dict[str, Any]) -> str:
+        retcode = payload.get("retcode")
+        message = payload.get("message")
+        if retcode in {-100, 10001}:
+            return "米游社登录已失效，请退出账号后重新扫码登录"
+        if retcode in {-10102, 10102}:
+            return "请先在米游社中公开实时便笺数据"
+        if retcode == 5003:
+            return "米游社设备验证失败，请退出账号后重新扫码登录"
+        if isinstance(message, str):
+            normalized = message.strip()
+            if normalized and not normalized.lstrip("-").isdigit():
+                return normalized
+        return f"米游社请求失败（错误码 {retcode if retcode is not None else '未知'}）"
 
     @staticmethod
     def _wish(uid: str, item: dict[str, Any]) -> WishRecord:
@@ -144,4 +165,3 @@ class MihoyoAPI:
             rank=int(item["rank_type"]),
             time=datetime.strptime(item["time"], "%Y-%m-%d %H:%M:%S"),
         )
-

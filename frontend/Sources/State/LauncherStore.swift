@@ -48,10 +48,18 @@ final class LauncherStore {
         do {
             try await operation()
         } catch let error as APIErrorPayload {
-            message = error.message
+            message = Self.presentableMessage(error.message)
         } catch {
-            message = error.localizedDescription
+            message = Self.presentableMessage(error.localizedDescription)
         }
+    }
+
+    nonisolated static func presentableMessage(_ value: String) -> String {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty, !normalized.allSatisfy(\.isNumber) else {
+            return "操作失败，请稍后重试"
+        }
+        return normalized
     }
 
     func requireClient() throws -> APIClient {

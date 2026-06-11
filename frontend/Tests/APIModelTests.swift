@@ -66,4 +66,11 @@ struct APIModelTests {
         #expect(account.displayName(role: role) == "旅行者")
         #expect(role.regionName == "天空岛服")
     }
+
+    @Test("无意义错误消息使用可读提示")
+    func presentableErrorMessage() {
+        #expect(LauncherStore.presentableMessage("") == "操作失败，请稍后重试")
+        #expect(LauncherStore.presentableMessage("2") == "操作失败，请稍后重试")
+        #expect(LauncherStore.presentableMessage("登录失效") == "登录失效")
+    }
 }

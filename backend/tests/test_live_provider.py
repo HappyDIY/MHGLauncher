@@ -39,6 +39,18 @@ def test_qr_identity_falls_back_for_empty_nickname() -> None:
     assert identity.nickname == "米游社用户"
 
 
+def test_numeric_upstream_message_is_readable() -> None:
+    assert LiveProvider._error_message({"retcode": -1, "message": 2}) == (
+        "米游社请求失败（错误码 -1）"
+    )
+    assert MihoyoAPI._error_message({"retcode": 10102, "message": 2}) == (
+        "请先在米游社中公开实时便笺数据"
+    )
+    assert MihoyoAPI._error_message({"retcode": 5003, "message": 2}) == (
+        "米游社设备验证失败，请退出账号后重新扫码登录"
+    )
+
+
 async def test_roles_and_note_are_parsed() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if "getUserGameRolesByStoken" in str(request.url):

@@ -92,9 +92,24 @@ class LiveProvider:
         response.raise_for_status()
         payload = response.json()
         if payload.get("retcode", 0) != 0:
-            raise AppError("mihoyo_error", payload.get("message", "米游社请求失败"), 502)
+            raise AppError(
+                "mihoyo_error",
+                LiveProvider._error_message(payload),
+                502,
+                {"retcode": str(payload.get("retcode", "unknown"))},
+            )
         data: dict[str, Any] = payload["data"]
         return data
+
+    @staticmethod
+    def _error_message(payload: dict[str, Any]) -> str:
+        retcode = payload.get("retcode")
+        message = payload.get("message")
+        if isinstance(message, str):
+            normalized = message.strip()
+            if normalized and not normalized.lstrip("-").isdigit():
+                return normalized
+        return f"米游社请求失败（错误码 {retcode if retcode is not None else '未知'}）"
 
     @staticmethod
     def _qr_status(value: str) -> QRStatus:
