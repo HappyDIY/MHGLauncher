@@ -2,9 +2,22 @@
 
 ## Project Overview
 
+
 MHGLauncher is an Apple Silicon macOS 26+ application. The UI is native
 SwiftUI. A bundled Python 3.12.10 service owns persistence, miHoYo network
 integration, game-package operations, wish records, and real-time notes.
+
+## Reference Implementation
+- The Windows .NET/C# project
+  [Snap.Hutao.Remastered](${HOME}/Documents/Snap.Hutao.Remastered)
+  serves as the primary reference implementation for MHGLauncher.
+- A significant portion of MHGLauncher's business logic is derived from the
+  reference project.
+- When implementation details are unclear or bugs occur, developers should
+  investigate the corresponding implementation in the reference project before
+  introducing new behavior.
+- Unless platform-specific requirements dictate otherwise, maintain behavioral
+  compatibility with the reference implementation.
 
 ## Repository Layout
 
