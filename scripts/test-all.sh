@@ -8,5 +8,5 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 "$root/scripts/test-frontend.sh"
 "$root/scripts/build-app.sh"
 "$root/scripts/smoke-backend.sh"
+"$root/scripts/test-features.sh"
 "$root/scripts/smoke-app.sh"
-

@@ -3,15 +3,14 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 app="$root/dist/MHGLauncher.app"
+executable="$app/Contents/MacOS/MHGLauncher"
 log="$(mktemp)"
 data="$(mktemp -d)"
 
 cleanup() {
-  if [[ -n "${pid:-}" ]]; then
-    pkill -TERM -P "$pid" 2>/dev/null || true
-    kill "$pid" 2>/dev/null || true
-    wait "$pid" 2>/dev/null || true
-  fi
+  [[ -n "${backend_pid:-}" ]] && kill "$backend_pid" 2>/dev/null || true
+  [[ -n "${app_pid:-}" ]] && kill "$app_pid" 2>/dev/null || true
+  [[ -n "${launcher_pid:-}" ]] && kill "$launcher_pid" 2>/dev/null || true
   rm -f "$log"
   rm -rf "$data"
 }
@@ -20,27 +19,28 @@ trap cleanup EXIT
 MHG_DATA_DIR="$data" \
 MHG_PROVIDER_MODE=fixture \
 MHG_FIXTURE_DIR="$root/backend/fixtures" \
-"$app/Contents/MacOS/MHGLauncher" >"$log" 2>&1 &
-pid=$!
+"$executable" >"$log" 2>&1 &
+launcher_pid=$!
 
 sleep 3
-if ! kill -0 "$pid" 2>/dev/null; then
+app_pid="$(pgrep -f "^$executable$" | tail -n 1 || true)"
+if [[ -z "$app_pid" ]] || ! kill -0 "$app_pid" 2>/dev/null; then
   cat "$log" >&2
   exit 1
 fi
 
-child="$(pgrep -P "$pid" -f MHGLauncherBackend | head -n 1 || true)"
-kill "$pid"
-wait "$pid" 2>/dev/null || true
-pid=""
+backend_pid="$(pgrep -P "$app_pid" -f MHGLauncherBackend | head -n 1 || true)"
+test -n "$backend_pid"
+kill "$app_pid"
 
-if [[ -n "$child" ]]; then
-  for _ in {1..50}; do
-    if ! kill -0 "$child" 2>/dev/null; then
-      exit 0
-    fi
-    sleep 0.1
-  done
-  printf '后端进程未随 App 退出：%s\n' "$child" >&2
-  exit 1
-fi
+for _ in {1..50}; do
+  if ! kill -0 "$app_pid" 2>/dev/null && ! kill -0 "$backend_pid" 2>/dev/null; then
+    app_pid=""
+    backend_pid=""
+    exit 0
+  fi
+  sleep 0.1
+done
+
+printf 'App 或后端进程未正常退出：%s %s\n' "$app_pid" "$backend_pid" >&2
+exit 1
