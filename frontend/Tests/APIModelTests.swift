@@ -39,6 +39,29 @@ struct APIModelTests {
         #expect(account.aid == "1001")
     }
 
+    @Test("解码不带时区的祈愿时间")
+    func decodeWishTimeWithoutTimeZone() throws {
+        let data = Data(
+            """
+            {
+              "id": "1001",
+              "uid": "230289829",
+              "gacha_type": "200",
+              "item_id": "",
+              "name": "笛剑",
+              "item_type": "武器",
+              "rank": 4,
+              "time": "2026-05-26T13:50:30"
+            }
+            """.utf8
+        )
+        let record = try JSONDecoder.api.decode(WishRecord.self, from: data)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 8 * 60 * 60))
+        #expect(calendar.component(.hour, from: record.time) == 13)
+        #expect(calendar.component(.minute, from: record.time) == 50)
+    }
+
     @Test("解码统一错误")
     func decodeError() throws {
         let data = Data(

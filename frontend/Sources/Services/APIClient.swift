@@ -98,6 +98,14 @@ extension JSONDecoder {
             if let date = formatter.date(from: value) {
                 return date
             }
+            let localFormatter = DateFormatter()
+            localFormatter.calendar = Calendar(identifier: .gregorian)
+            localFormatter.locale = Locale(identifier: "en_US_POSIX")
+            localFormatter.timeZone = TimeZone(secondsFromGMT: 8 * 60 * 60)
+            localFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+            if let date = localFormatter.date(from: value) {
+                return date
+            }
             throw DecodingError.dataCorruptedError(
                 in: container,
                 debugDescription: "无效的 ISO 8601 日期：\(value)"
