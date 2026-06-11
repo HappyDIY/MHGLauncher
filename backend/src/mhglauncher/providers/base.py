@@ -15,9 +15,26 @@ class PackageSegment(BaseModel):
     filename: str
 
 
+class SophonChunk(BaseModel):
+    name: str
+    decompressed_md5: str
+    offset: int
+    size: int
+    decompressed_size: int
+    url: str
+
+
+class GameAsset(BaseModel):
+    name: str
+    size: int
+    md5: str
+    chunks: list[SophonChunk]
+
+
 class GameBuild(BaseModel):
     version: str
-    segments: list[PackageSegment]
+    segments: list[PackageSegment] = []
+    assets: list[GameAsset] = []
     deprecated_files: list[str] = []
 
 

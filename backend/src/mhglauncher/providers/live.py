@@ -1,34 +1,37 @@
 from __future__ import annotations
 
+import secrets
+import string
+import time
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from urllib.parse import urlencode
-from uuid import uuid4
 
 import httpx
 
 from mhglauncher.errors import AppError
 from mhglauncher.models import DailyNote, GameRole, QRSession, QRStatus, WishRecord
-from mhglauncher.providers.base import AccountIdentity, GameBuild, PackageSegment
+from mhglauncher.providers.base import AccountIdentity, GameBuild
 from mhglauncher.providers.mihoyo import MihoyoAPI
+from mhglauncher.providers.sophon import SophonAPI
 
 
 class LiveProvider:
     QR_CREATE = "https://passport-api.mihoyo.com/account/ma-cn-passport/app/createQRLogin"
     QR_QUERY = "https://passport-api.mihoyo.com/account/ma-cn-passport/app/queryQRLoginStatus"
-    PACKAGES = "https://hyp-api.mihoyo.com/hyp/hyp-connect/api/getGamePackages"
-
     def __init__(self, client: httpx.AsyncClient) -> None:
         self.client = client
-        self.device_id = str(uuid4())
+        alphabet = string.ascii_lowercase + string.digits
+        self.device_id = "".join(secrets.choice(alphabet) for _ in range(53))
         self.api = MihoyoAPI(client, self.device_id)
+        self.sophon = SophonAPI(client)
         self.sessions: dict[str, QRSession] = {}
+        self.build_cache: tuple[float, GameBuild] | None = None
 
     async def create_qr_session(self) -> QRSession:
         response = await self.client.post(
             self.QR_CREATE,
-            headers={"x-rpc-device_id": self.device_id},
+            headers=self._qr_headers(),
             json={},
         )
         data = self._data(response)
@@ -44,7 +47,7 @@ class LiveProvider:
     async def query_qr_session(self, session_id: str) -> tuple[QRSession, AccountIdentity | None]:
         response = await self.client.post(
             self.QR_QUERY,
-            headers={"x-rpc-device_id": self.device_id},
+            headers=self._qr_headers(),
             json={"ticket": session_id},
         )
         data = self._data(response)
@@ -66,20 +69,11 @@ class LiveProvider:
 
     async def get_build(self, installed_version: str = "") -> GameBuild:
         del installed_version
-        params = {"game_ids[]": "1Z8W5NHUQb", "launcher_id": "VYTpXlbWo8"}
-        response = await self.client.get(f"{self.PACKAGES}?{urlencode(params)}")
-        data = self._data(response)
-        package = data["game_packages"][0]["main"]["major"]
-        segments = [
-            PackageSegment(
-                url=item["url"],
-                md5=item["md5"],
-                size=item["size"],
-                filename=item["url"].rsplit("/", 1)[-1],
-            )
-            for item in package["game_pkgs"] + package.get("audio_pkgs", [])
-        ]
-        return GameBuild(version=package["version"], segments=segments)
+        if self.build_cache and time.monotonic() - self.build_cache[0] < 300:
+            return self.build_cache[1]
+        build = await self.sophon.build()
+        self.build_cache = (time.monotonic(), build)
+        return build
 
     async def iter_wishes(
         self,
@@ -111,6 +105,15 @@ class LiveProvider:
         if value in {"expired", "4"}:
             return QRStatus.EXPIRED
         return QRStatus.CREATED
+
+    def _qr_headers(self) -> dict[str, str]:
+        return {
+            "User-Agent": "HYPContainer/1.1.4.133",
+            "Accept": "application/json",
+            "x-rpc-app_id": "ddxf5dufpuyo",
+            "x-rpc-client_type": "3",
+            "x-rpc-device_id": self.device_id,
+        }
 
     @staticmethod
     def _identity(data: dict[str, Any]) -> AccountIdentity:

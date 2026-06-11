@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,9 +12,10 @@ import httpx
 from mhglauncher.database import Database
 from mhglauncher.errors import AppError
 from mhglauncher.models import GameJob, GameState, GameStatus, JobKind, JobStatus
-from mhglauncher.providers.base import Provider
+from mhglauncher.providers.base import GameBuild, Provider
 from mhglauncher.services.downloader import DownloadControl, Downloader
 from mhglauncher.services.installer import Installer
+from mhglauncher.services.sophon_installer import SophonInstaller
 
 
 class GameService:
@@ -28,6 +30,7 @@ class GameService:
         self.provider = provider
         self.downloader = Downloader(client)
         self.installer = Installer()
+        self.sophon_installer = SophonInstaller(client)
         self.data_dir = data_dir
         self.jobs: dict[str, GameJob] = {}
         self.controls: dict[str, DownloadControl] = {}
@@ -58,12 +61,13 @@ class GameService:
             id=str(uuid4()),
             kind=kind,
             status=JobStatus.QUEUED,
-            total_bytes=sum(item.size for item in build.segments),
+            total_bytes=sum(item.size for item in build.segments)
+            + sum(chunk.size for asset in build.assets for chunk in asset.chunks),
         )
         control = DownloadControl()
         self.jobs[job.id] = job
         self.controls[job.id] = control
-        task = asyncio.create_task(self._run(job, control, install_path, build.version))
+        task = asyncio.create_task(self._run(job, control, install_path, build))
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
         return job
@@ -93,32 +97,45 @@ class GameService:
         job: GameJob,
         control: DownloadControl,
         install_path: Path,
-        version: str,
+        build: GameBuild,
     ) -> None:
-        cache = self.data_dir / "downloads" / version
+        cache = self.data_dir / "downloads" / build.version
         staging = install_path.with_name(install_path.name + ".staging")
         try:
             job.status = JobStatus.RUNNING
-            build = await self.provider.get_build()
-            archives = []
-            for segment in build.segments:
-                archive = cache / segment.filename
-                archives.append(
-                    await self.downloader.download(
-                        segment,
-                        archive,
-                        control,
-                        lambda size: self._advance(job, size),
-                    )
-                )
             shutil.rmtree(staging, ignore_errors=True)
             if job.kind is JobKind.UPDATE and install_path.exists():
                 shutil.copytree(install_path, staging)
-            self.installer.extract(archives, staging)
-            self.installer.verify(staging)
-            (staging / ".mhg-version").write_text(version)
+                self._remove_retired_assets(staging, build)
+            if build.assets:
+                await self.sophon_installer.install(
+                    build.assets,
+                    staging,
+                    cache,
+                    control,
+                    lambda size: self._advance(job, size),
+                )
+            else:
+                archives = []
+                for segment in build.segments:
+                    archive = cache / segment.filename
+                    archives.append(
+                        await self.downloader.download(
+                            segment,
+                            archive,
+                            control,
+                            lambda size: self._advance(job, size),
+                        )
+                    )
+                self.installer.extract(archives, staging)
+                self.installer.verify(staging)
+            (staging / ".mhg-version").write_text(build.version)
+            if build.assets:
+                (staging / ".mhg-assets.json").write_text(
+                    json.dumps([asset.name for asset in build.assets])
+                )
             self.installer.activate(staging, install_path)
-            await self._save_state(install_path, version)
+            await self._save_state(install_path, build.version)
             job.status = JobStatus.COMPLETED
         except asyncio.CancelledError:
             job.status = JobStatus.CANCELLED
@@ -144,6 +161,19 @@ class GameService:
             """,
             (str(path), version, now),
         )
+
+    @staticmethod
+    def _remove_retired_assets(staging: Path, build: GameBuild) -> None:
+        manifest = staging / ".mhg-assets.json"
+        if not manifest.is_file():
+            return
+        current = {asset.name for asset in build.assets}
+        previous: list[str] = json.loads(manifest.read_text())
+        root = staging.resolve()
+        for relative in set(previous) - current:
+            target = staging / relative.replace("\\", "/")
+            if root in target.resolve().parents:
+                target.unlink(missing_ok=True)
 
     async def shutdown(self) -> None:
         for control in self.controls.values():
