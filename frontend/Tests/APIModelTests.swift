@@ -22,6 +22,23 @@ struct APIModelTests {
         #expect(account.credentialRef == "keychain:current")
     }
 
+    @Test("解码后端生成的带小数秒时间")
+    func decodeAccountWithFractionalSeconds() throws {
+        let data = Data(
+            """
+            {
+              "aid": "1001",
+              "mid": "mid",
+              "nickname": "旅行者",
+              "credential_ref": "keychain:current",
+              "updated_at": "2026-06-11T08:00:00.123456Z"
+            }
+            """.utf8
+        )
+        let account = try JSONDecoder.api.decode(Account.self, from: data)
+        #expect(account.aid == "1001")
+    }
+
     @Test("解码统一错误")
     func decodeError() throws {
         let data = Data(

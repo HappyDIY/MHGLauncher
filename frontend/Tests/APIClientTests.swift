@@ -27,6 +27,20 @@ struct APIClientTests {
         #expect(state.availableVersion == "5.8.0")
     }
 
+    @Test("解码未登录账号响应")
+    func emptyAccountResponse() async throws {
+        let session = makeSession { request in
+            response(request, status: 200, body: "null")
+        }
+        let client = APIClient(
+            baseURL: URL(string: "http://127.0.0.1:1234")!,
+            token: "token",
+            session: session
+        )
+        let account: Account? = try await client.get("/v1/account")
+        #expect(account == nil)
+    }
+
     @Test("将错误响应转换为统一错误")
     func errorResponse() async {
         let session = makeSession { request in
@@ -96,4 +110,3 @@ private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
 
     override func stopLoading() {}
 }
-
