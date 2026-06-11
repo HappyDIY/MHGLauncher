@@ -14,13 +14,15 @@ struct APIClient: Sendable {
 
     func post<T: Decodable, Body: Encodable>(
         _ path: String,
-        body: Body
+        body: Body,
+        timeout: TimeInterval = 60
     ) async throws -> T {
         let data = try JSONEncoder.api.encode(body)
         return try await send(
             url: baseURL.appending(path: path),
             method: "POST",
-            body: data
+            body: data,
+            timeout: timeout
         )
     }
 
@@ -28,7 +30,8 @@ struct APIClient: Sendable {
         try await send(
             url: baseURL.appending(path: path),
             method: "POST",
-            body: Data("{}".utf8)
+            body: Data("{}".utf8),
+            timeout: 60
         )
     }
 
@@ -36,7 +39,8 @@ struct APIClient: Sendable {
         try await send(
             url: baseURL.appending(path: path),
             method: "POST",
-            body: json
+            body: json,
+            timeout: 60
         )
     }
 
@@ -58,16 +62,28 @@ struct APIClient: Sendable {
     private func send<T: Decodable>(
         url: URL,
         method: String,
-        body: Data?
+        body: Data?,
+        timeout: TimeInterval = 60
     ) async throws -> T {
-        let data = try await raw(url: url, method: method, body: body)
+        let data = try await raw(
+            url: url,
+            method: method,
+            body: body,
+            timeout: timeout
+        )
         return try JSONDecoder.api.decode(T.self, from: data)
     }
 
-    private func raw(url: URL, method: String, body: Data?) async throws -> Data {
+    private func raw(
+        url: URL,
+        method: String,
+        body: Data?,
+        timeout: TimeInterval = 60
+    ) async throws -> Data {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.httpBody = body
+        request.timeoutInterval = timeout
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let (data, response) = try await session.data(for: request)

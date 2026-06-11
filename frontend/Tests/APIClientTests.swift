@@ -27,6 +27,25 @@ struct APIClientTests {
         #expect(state.availableVersion == "5.8.0")
     }
 
+    @Test("长任务使用指定超时时间")
+    func customRequestTimeout() async throws {
+        let session = makeSession { request in
+            #expect(request.timeoutInterval == 300)
+            return response(request, status: 200, body: "{\"inserted\":0}")
+        }
+        let client = APIClient(
+            baseURL: URL(string: "http://127.0.0.1:1234")!,
+            token: "token",
+            session: session
+        )
+        let result: CountResponse = try await client.post(
+            "/v1/wishes/sync",
+            body: CredentialRequest(credential: "credential"),
+            timeout: 300
+        )
+        #expect(result.inserted == 0)
+    }
+
     @Test("解码未登录账号响应")
     func emptyAccountResponse() async throws {
         let session = makeSession { request in

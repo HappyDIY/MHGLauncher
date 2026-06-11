@@ -63,6 +63,24 @@ async def test_rate_limit_is_retried() -> None:
     assert attempts == 6
 
 
+async def test_request_timeout_is_retried() -> None:
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise httpx.ReadTimeout("timeout", request=request)
+        return httpx.Response(200, json={"retcode": 0, "data": {"list": []}})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        gacha = GachaLogClient(client, delay=False)
+        pages = [page async for page in gacha.pages("authkey", _role(), {})]
+
+    assert pages == []
+    assert attempts == 6
+
+
 def _item(identifier: str, name: str) -> dict[str, str]:
     return {
         "id": identifier,

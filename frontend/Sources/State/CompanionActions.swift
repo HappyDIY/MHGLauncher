@@ -24,7 +24,11 @@ extension LauncherStore {
             let client = try requireClient()
             let body = CredentialRequest(credential: try requireCredential())
             updateWishOperation(0.28, "已连接米游社，开始增量扫描卡池")
-            let result: CountResponse = try await client.post("/v1/wishes/sync", body: body)
+            let result: CountResponse = try await client.post(
+                "/v1/wishes/sync",
+                body: body,
+                timeout: 300
+            )
             updateWishOperation(0.76, "同步完成，新增 \(result.inserted ?? 0) 条记录", true)
             try await reloadWishes(client: client)
             finishWishOperation("本地祈愿统计已更新")

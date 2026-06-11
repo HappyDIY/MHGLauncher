@@ -58,7 +58,21 @@ class GachaLogClient:
             "end_id": end_id,
         }
         for attempt in range(3):
-            response = await self.client.get(self.URL, params=query)
+            try:
+                response = await self.client.get(
+                    self.URL,
+                    params=query,
+                    timeout=15,
+                )
+            except httpx.TimeoutException:
+                if attempt < 2:
+                    await self._sleep(2 ** (attempt + 1))
+                    continue
+                raise AppError(
+                    "mihoyo_timeout",
+                    "米游社响应超时，请检查网络后重试",
+                    504,
+                ) from None
             response.raise_for_status()
             payload = response.json()
             if payload.get("retcode", 0) == 0:
