@@ -77,9 +77,9 @@ class LiveProvider:
         self,
         credential: str,
         role: GameRole,
-        end_id: str = "0",
+        newest_ids: dict[str, str] | None = None,
     ) -> AsyncIterator[list[WishRecord]]:
-        async for page in self.api.wishes(credential, role, end_id):
+        async for page in self.api.wishes(credential, role, newest_ids or {}):
             yield page
 
     async def get_daily_note(

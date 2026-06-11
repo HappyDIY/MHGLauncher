@@ -11,7 +11,7 @@ import httpx
 from mhglauncher.errors import AppError
 from mhglauncher.models import DailyNote, GameRole, WishRecord
 from mhglauncher.providers.device import DeviceIdentity
-from mhglauncher.providers.parsing import wish_record
+from mhglauncher.providers.gacha import GachaLogClient
 from mhglauncher.providers.signing import cookie_map, data_sign
 from mhglauncher.providers.verification import MihoyoVerification
 
@@ -21,6 +21,7 @@ class MihoyoAPI:
     def __init__(self, client: httpx.AsyncClient, device: DeviceIdentity) -> None:
         self.client = client
         self.device = device
+        self.gacha = GachaLogClient(client)
         self.verification = MihoyoVerification(client, device)
 
     async def enrich_credential(self, credential: str) -> str:
@@ -52,31 +53,11 @@ class MihoyoAPI:
         self,
         credential: str,
         role: GameRole,
-        end_id: str,
+        newest_ids: dict[str, str],
     ) -> AsyncIterator[list[WishRecord]]:
         authkey = await self._authkey(credential, role)
-        for gacha_type in ("100", "200", "301", "302"):
-            current = end_id
-            while True:
-                query = {
-                    "auth_appid": "webview_gacha",
-                    "authkey_ver": "1",
-                    "sign_type": "2",
-                    "authkey": authkey,
-                    "lang": "zh-cn",
-                    "gacha_type": gacha_type,
-                    "size": "20",
-                    "end_id": current,
-                }
-                url = "https://public-operation-hk4e.mihoyo.com/gacha_info/api/getGachaLog"
-                data = self._data(await self.client.get(url, params=query))
-                records = [wish_record(role.uid, item) for item in data.get("list", [])]
-                if not records:
-                    break
-                yield records
-                current = records[-1].id
-                if len(records) < 20:
-                    break
+        async for page in self.gacha.pages(authkey, role, newest_ids):
+            yield page
 
     async def note(
         self,

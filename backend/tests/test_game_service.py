@@ -39,7 +39,7 @@ class GameProvider:
         self,
         credential: str,
         role: GameRole,
-        end_id: str = "0",
+        newest_ids: dict[str, str] | None = None,
     ) -> AsyncIterator[list[WishRecord]]:
         raise NotImplementedError
         yield []
@@ -83,4 +83,3 @@ async def test_install_job_downloads_and_activates(tmp_path: Path) -> None:
         state = await service.state()
         assert state.installed_version == "5.8.0"
         await service.shutdown()
-

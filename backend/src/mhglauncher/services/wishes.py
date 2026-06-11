@@ -15,11 +15,22 @@ class WishService:
 
     async def sync(self, credential: str, role: GameRole) -> int:
         inserted = 0
-        async for page in self.provider.iter_wishes(credential, role):
+        newest_ids = await self._newest_ids(role.uid)
+        async for page in self.provider.iter_wishes(credential, role, newest_ids):
             before = await self._count(role.uid)
             await self.save(page)
             inserted += await self._count(role.uid) - before
         return inserted
+
+    async def _newest_ids(self, uid: str) -> dict[str, str]:
+        rows = await self.database.fetch_all(
+            """
+            SELECT gacha_type, MAX(id) AS id
+            FROM wishes WHERE uid=? GROUP BY gacha_type
+            """,
+            (uid,),
+        )
+        return {str(row["gacha_type"]): str(row["id"]) for row in rows}
 
     async def save(self, records: list[WishRecord]) -> None:
         values = [

@@ -61,7 +61,7 @@ class Provider(Protocol):
         self,
         credential: str,
         role: GameRole,
-        end_id: str = "0",
+        newest_ids: dict[str, str] | None = None,
     ) -> AsyncIterator[list[WishRecord]]: ...
 
     async def get_daily_note(

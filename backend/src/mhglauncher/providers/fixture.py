@@ -56,9 +56,9 @@ class FixtureProvider:
         self,
         credential: str,
         role: GameRole,
-        end_id: str = "0",
+        newest_ids: dict[str, str] | None = None,
     ) -> AsyncIterator[list[WishRecord]]:
-        del credential, role, end_id
+        del credential, role, newest_ids
         payload = json.loads((self.root / "wishes.json").read_text())
         yield [WishRecord.model_validate(item) for item in payload]
 
