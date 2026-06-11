@@ -16,10 +16,13 @@ struct WishesView: View {
                     Task { await store.syncWishes() }
                 }
                 .buttonStyle(.glassProminent)
+                .disabled(store.wishOperation != nil)
                 Button("导入 UIGF") { importFile() }
                     .buttonStyle(.glass)
+                    .disabled(store.wishOperation != nil)
                 Button("导出 UIGF") { exportFile() }
                     .buttonStyle(.glass)
+                    .disabled(store.wishOperation != nil)
             }
             if !store.wishStatistics.isEmpty {
                 statistics
@@ -40,6 +43,14 @@ struct WishesView: View {
                 .frame(minHeight: 360)
             }
         }
+        .overlay {
+            if let operation = store.wishOperation {
+                WishOperationOverlay(operation: operation) {
+                    store.wishOperation = nil
+                }
+            }
+        }
+        .animation(.spring(duration: 0.45), value: store.wishOperation?.id)
     }
 
     private var statistics: some View {
@@ -90,4 +101,3 @@ struct WishesView: View {
         }
     }
 }
-

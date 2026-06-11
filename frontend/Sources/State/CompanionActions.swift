@@ -14,29 +14,20 @@ extension LauncherStore {
     func loadCompanionData() async {
         guard let uid = selectedRole?.uid else { return }
         await perform {
-            let client = try requireClient()
-            async let records: [WishRecord] = client.get(
-                "/v1/wishes",
-                query: [URLQueryItem(name: "uid", value: uid)]
-            )
-            async let statistics: [WishStatistics] = client.get(
-                "/v1/wishes/statistics",
-                query: [URLQueryItem(name: "uid", value: uid)]
-            )
-            async let note: DailyNote? = client.get(
-                "/v1/notes",
-                query: [URLQueryItem(name: "uid", value: uid)]
-            )
-            (wishes, wishStatistics, dailyNote) = try await (records, statistics, note)
+            try await fetchCompanionData(uid: uid)
         }
     }
 
     func syncWishes() async {
-        await perform {
+        await runWishOperation(.sync) {
+            updateWishOperation(0.12, "正在验证账号与角色信息")
             let client = try requireClient()
             let body = CredentialRequest(credential: try requireCredential())
-            let _: CountResponse = try await client.post("/v1/wishes/sync", body: body)
-            await loadCompanionData()
+            updateWishOperation(0.28, "已连接米游社，开始增量扫描卡池")
+            let result: CountResponse = try await client.post("/v1/wishes/sync", body: body)
+            updateWishOperation(0.76, "同步完成，新增 \(result.inserted ?? 0) 条记录", true)
+            try await reloadWishes(client: client)
+            finishWishOperation("本地祈愿统计已更新")
         }
     }
 
@@ -99,13 +90,17 @@ extension LauncherStore {
     }
 
     func importUIGF(from url: URL) async {
-        await perform {
+        await runWishOperation(.importUIGF) {
+            updateWishOperation(0.1, "正在读取 \(url.lastPathComponent)")
             let access = url.startAccessingSecurityScopedResource()
             defer { if access { url.stopAccessingSecurityScopedResource() } }
             let data = try Data(contentsOf: url)
+            updateWishOperation(0.32, "文件读取完成，正在校验 UIGF 数据")
             let client = try requireClient()
-            let _: CountResponse = try await client.upload("/v1/wishes/import", json: data)
-            await loadCompanionData()
+            let result: CountResponse = try await client.upload("/v1/wishes/import", json: data)
+            updateWishOperation(0.76, "成功导入 \(result.imported ?? 0) 条记录", true)
+            try await reloadWishes(client: client)
+            finishWishOperation("祈愿历史与统计已重新载入")
         }
     }
 
@@ -114,13 +109,88 @@ extension LauncherStore {
             message = LauncherError.roleMissing.localizedDescription
             return
         }
-        await perform {
+        await runWishOperation(.exportUIGF) {
+            updateWishOperation(0.14, "正在整理 UID \(uid) 的祈愿记录")
             let client = try requireClient()
             let data = try await client.download(
                 "/v1/wishes/export",
                 query: [URLQueryItem(name: "uid", value: uid)]
             )
+            updateWishOperation(0.72, "UIGF v4.2 数据生成完成")
             try data.write(to: url, options: .atomic)
+            finishWishOperation("已保存到 \(url.lastPathComponent)")
         }
+    }
+
+    private func runWishOperation(
+        _ kind: WishOperationKind,
+        operation: () async throws -> Void
+    ) async {
+        isBusy = true
+        wishOperation = WishOperationState(kind: kind)
+        updateWishOperation(0.04, "任务已创建，正在初始化")
+        defer { isBusy = false }
+        do {
+            try await operation()
+            let id = wishOperation?.id
+            try? await Task.sleep(for: .seconds(1.4))
+            if wishOperation?.id == id, wishOperation?.status == .succeeded {
+                wishOperation = nil
+            }
+        } catch let error as APIErrorPayload {
+            failWishOperation(Self.presentableMessage(error.message))
+        } catch {
+            failWishOperation(Self.presentableMessage(error.localizedDescription))
+        }
+    }
+
+    private func updateWishOperation(
+        _ progress: Double,
+        _ message: String,
+        _ emphasized: Bool = false
+    ) {
+        wishOperation?.update(
+            progress: progress,
+            message: message,
+            emphasized: emphasized
+        )
+    }
+
+    private func finishWishOperation(_ message: String) {
+        wishOperation?.succeed(message)
+    }
+
+    private func failWishOperation(_ message: String) {
+        wishOperation?.fail(message)
+    }
+
+    private func reloadWishes(client: APIClient) async throws {
+        guard let uid = selectedRole?.uid else { throw LauncherError.roleMissing }
+        async let records: [WishRecord] = client.get(
+            "/v1/wishes",
+            query: [URLQueryItem(name: "uid", value: uid)]
+        )
+        async let statistics: [WishStatistics] = client.get(
+            "/v1/wishes/statistics",
+            query: [URLQueryItem(name: "uid", value: uid)]
+        )
+        (wishes, wishStatistics) = try await (records, statistics)
+    }
+
+    private func fetchCompanionData(uid: String) async throws {
+        let client = try requireClient()
+        async let records: [WishRecord] = client.get(
+            "/v1/wishes",
+            query: [URLQueryItem(name: "uid", value: uid)]
+        )
+        async let statistics: [WishStatistics] = client.get(
+            "/v1/wishes/statistics",
+            query: [URLQueryItem(name: "uid", value: uid)]
+        )
+        async let note: DailyNote? = client.get(
+            "/v1/notes",
+            query: [URLQueryItem(name: "uid", value: uid)]
+        )
+        (wishes, wishStatistics, dailyNote) = try await (records, statistics, note)
     }
 }

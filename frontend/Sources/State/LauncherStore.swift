@@ -19,6 +19,7 @@ final class LauncherStore {
     var installPath = ""
     var isBusy = false
     var message: String?
+    var wishOperation: WishOperationState?
 
     let credentialAccount = "current"
 
