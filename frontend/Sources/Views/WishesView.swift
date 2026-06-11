@@ -3,6 +3,7 @@ import SwiftUI
 
 struct WishesView: View {
     @Bindable var store: LauncherStore
+    @State private var confirmsClear = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -23,6 +24,11 @@ struct WishesView: View {
                 Button("导出 UIGF") { exportFile() }
                     .buttonStyle(.glass)
                     .disabled(store.wishOperation != nil)
+                Button("清空记录", systemImage: "trash", role: .destructive) {
+                    confirmsClear = true
+                }
+                .buttonStyle(.glass)
+                .disabled(store.wishOperation != nil || store.wishes.isEmpty)
             }
             if !store.wishStatistics.isEmpty {
                 statistics
@@ -51,6 +57,18 @@ struct WishesView: View {
             }
         }
         .animation(.spring(duration: 0.45), value: store.wishOperation?.id)
+        .confirmationDialog(
+            "永久清空全部祈愿记录？",
+            isPresented: $confirmsClear,
+            titleVisibility: .visible
+        ) {
+            Button("认证并清空", role: .destructive) {
+                Task { await store.clearAllWishes() }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("此操作无法撤销，继续后需要使用 Touch ID 或 Mac 登录密码确认。")
+        }
     }
 
     private var statistics: some View {

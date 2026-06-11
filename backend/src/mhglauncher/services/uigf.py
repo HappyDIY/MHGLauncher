@@ -8,9 +8,6 @@ from mhglauncher.models import WishRecord
 
 
 def import_uigf(payload: dict[str, Any]) -> list[WishRecord]:
-    version = str(payload.get("info", {}).get("uigf_version", ""))
-    if not version.startswith(("v4.0", "v4.1", "v4.2")):
-        raise AppError("uigf_version_unsupported", "仅支持 UIGF v4.0 至 v4.2")
     records: list[WishRecord] = []
     for account in payload.get("hk4e", []):
         uid = str(account.get("uid", ""))
@@ -69,4 +66,3 @@ def _record(uid: str, timezone: int, item: dict[str, Any]) -> WishRecord:
         )
     except (KeyError, TypeError, ValueError) as error:
         raise AppError("uigf_item_invalid", "UIGF 记录字段无效") from error
-

@@ -41,6 +41,15 @@ async def test_uigf_export_and_reimport(api_client: httpx.AsyncClient) -> None:
     assert imported.json()["imported"] == 2
 
 
+async def test_clear_all_wishes(api_client: httpx.AsyncClient) -> None:
+    credential = await _login(api_client)
+    await api_client.post("/v1/wishes/sync", json={"credential": credential})
+    cleared = await api_client.delete("/v1/wishes")
+    records = await api_client.get("/v1/wishes", params={"uid": "100000001"})
+    assert cleared.json()["deleted"] == 2
+    assert records.json() == []
+
+
 async def test_note_refresh_and_cache(api_client: httpx.AsyncClient) -> None:
     credential = await _login(api_client)
     refreshed = await api_client.post(
@@ -50,4 +59,3 @@ async def test_note_refresh_and_cache(api_client: httpx.AsyncClient) -> None:
     assert refreshed.json()["current_resin"] == 120
     cached = await api_client.get("/v1/notes", params={"uid": "100000001"})
     assert cached.json()["finished_tasks"] == 3
-

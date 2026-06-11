@@ -4,12 +4,14 @@ enum WishOperationKind: String, Sendable {
     case sync
     case importUIGF
     case exportUIGF
+    case clearAll
 
     var title: String {
         switch self {
         case .sync: "同步祈愿记录"
         case .importUIGF: "导入 UIGF 数据"
         case .exportUIGF: "导出 UIGF 数据"
+        case .clearAll: "清空全部祈愿记录"
         }
     }
 
@@ -18,6 +20,7 @@ enum WishOperationKind: String, Sendable {
         case .sync: "arrow.trianglehead.2.clockwise.rotate.90"
         case .importUIGF: "square.and.arrow.down"
         case .exportUIGF: "square.and.arrow.up"
+        case .clearAll: "trash"
         }
     }
 }

@@ -6,18 +6,13 @@ from mhglauncher.errors import AppError
 from mhglauncher.services.uigf import import_uigf
 
 
-def test_rejects_uigf_v3() -> None:
-    with pytest.raises(AppError, match="仅支持 UIGF"):
-        import_uigf({"info": {"uigf_version": "v3.0"}, "hk4e": []})
-
-
 def test_rejects_empty_hk4e_data() -> None:
     with pytest.raises(AppError, match="不包含"):
         import_uigf({"info": {"uigf_version": "v4.2"}, "hk4e": []})
 
 
-@pytest.mark.parametrize("version", ["v4.0", "v4.1", "v4.2"])
-def test_imports_supported_uigf_versions(version: str) -> None:
+@pytest.mark.parametrize("version", ["v3.0", "v4.2", "v5.0", "unknown"])
+def test_import_ignores_uigf_version(version: str) -> None:
     records = import_uigf(
         {
             "info": {"uigf_version": version},

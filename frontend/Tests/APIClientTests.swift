@@ -46,6 +46,21 @@ struct APIClientTests {
         #expect(result.inserted == 0)
     }
 
+    @Test("解码清空记录结果")
+    func deleteResponse() async throws {
+        let session = makeSession { request in
+            #expect(request.httpMethod == "DELETE")
+            return response(request, status: 200, body: "{\"deleted\":42}")
+        }
+        let client = APIClient(
+            baseURL: URL(string: "http://127.0.0.1:1234")!,
+            token: "token",
+            session: session
+        )
+        let result: CountResponse = try await client.deleteResponse("/v1/wishes")
+        #expect(result.deleted == 42)
+    }
+
     @Test("解码未登录账号响应")
     func emptyAccountResponse() async throws {
         let session = makeSession { request in

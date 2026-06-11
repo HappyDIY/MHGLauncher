@@ -59,10 +59,16 @@ async def import_records(
     return {"imported": len(records)}
 
 
+@router.delete("")
+async def clear_records(
+    service: Annotated[WishService, Depends(wishes)],
+) -> dict[str, int]:
+    return {"deleted": await service.clear()}
+
+
 @router.get("/export")
 async def export_records(
     uid: str,
     service: Annotated[WishService, Depends(wishes)],
 ) -> dict[str, Any]:
     return export_uigf(uid, await service.list(uid))
-

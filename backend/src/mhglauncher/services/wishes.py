@@ -58,6 +58,11 @@ class WishService:
                 values,
             )
 
+    async def clear(self) -> int:
+        async with self.database.connect() as connection:
+            cursor = await connection.execute("DELETE FROM wishes")
+            return max(cursor.rowcount, 0)
+
     async def list(self, uid: str, gacha_type: str | None = None) -> list[WishRecord]:
         sql = "SELECT * FROM wishes WHERE uid=?"
         values: list[str] = [uid]

@@ -52,6 +52,14 @@ struct APIClient: Sendable {
         )
     }
 
+    func deleteResponse<T: Decodable>(_ path: String) async throws -> T {
+        try await send(
+            url: baseURL.appending(path: path),
+            method: "DELETE",
+            body: nil
+        )
+    }
+
     func download(_ path: String, query: [URLQueryItem]) async throws -> Data {
         var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)
         components?.queryItems = query

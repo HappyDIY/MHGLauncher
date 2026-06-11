@@ -6,6 +6,7 @@ import Observation
 final class LauncherStore {
     let backend = BackendProcess()
     let keychain = KeychainStore()
+    let deviceOwnerAuthenticator = DeviceOwnerAuthenticator()
 
     var account: Account?
     var roles: [GameRole] = []

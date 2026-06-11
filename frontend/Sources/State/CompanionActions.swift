@@ -126,61 +126,6 @@ extension LauncherStore {
         }
     }
 
-    private func runWishOperation(
-        _ kind: WishOperationKind,
-        operation: () async throws -> Void
-    ) async {
-        isBusy = true
-        wishOperation = WishOperationState(kind: kind)
-        updateWishOperation(0.04, "任务已创建，正在初始化")
-        defer { isBusy = false }
-        do {
-            try await operation()
-            let id = wishOperation?.id
-            try? await Task.sleep(for: .seconds(1.4))
-            if wishOperation?.id == id, wishOperation?.status == .succeeded {
-                wishOperation = nil
-            }
-        } catch let error as APIErrorPayload {
-            failWishOperation(Self.presentableMessage(error.message))
-        } catch {
-            failWishOperation(Self.presentableMessage(error.localizedDescription))
-        }
-    }
-
-    private func updateWishOperation(
-        _ progress: Double,
-        _ message: String,
-        _ emphasized: Bool = false
-    ) {
-        wishOperation?.update(
-            progress: progress,
-            message: message,
-            emphasized: emphasized
-        )
-    }
-
-    private func finishWishOperation(_ message: String) {
-        wishOperation?.succeed(message)
-    }
-
-    private func failWishOperation(_ message: String) {
-        wishOperation?.fail(message)
-    }
-
-    private func reloadWishes(client: APIClient) async throws {
-        guard let uid = selectedRole?.uid else { throw LauncherError.roleMissing }
-        async let records: [WishRecord] = client.get(
-            "/v1/wishes",
-            query: [URLQueryItem(name: "uid", value: uid)]
-        )
-        async let statistics: [WishStatistics] = client.get(
-            "/v1/wishes/statistics",
-            query: [URLQueryItem(name: "uid", value: uid)]
-        )
-        (wishes, wishStatistics) = try await (records, statistics)
-    }
-
     private func fetchCompanionData(uid: String) async throws {
         let client = try requireClient()
         async let records: [WishRecord] = client.get(
