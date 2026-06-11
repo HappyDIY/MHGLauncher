@@ -1,0 +1,12 @@
+{
+  "version": "5.8.0",
+  "segments": [
+    {
+      "url": "https://example.invalid/game.zip",
+      "md5": "00000000000000000000000000000000",
+      "size": 1,
+      "filename": "game.zip"
+    }
+  ],
+  "deprecated_files": []
+}
