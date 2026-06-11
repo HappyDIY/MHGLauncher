@@ -60,4 +60,23 @@ struct FeatureSurfaceTests {
         try store.delete(account: account)
         #expect(try store.read(account: account) == nil)
     }
+
+    @Test("后端端口握手支持分段输出")
+    func splitBackendReadyFrame() async throws {
+        let pipe = Pipe()
+        let writer = pipe.fileHandleForWriting
+
+        Task.detached {
+            writer.write(Data(#"{"event":"rea"#.utf8))
+            try await Task.sleep(for: .milliseconds(10))
+            writer.write(Data(#"dy","port":54321}"#.utf8))
+            writer.write(Data([0x0A]))
+        }
+
+        let port = try await BackendProcess.readPort(
+            from: pipe.fileHandleForReading
+        )
+        #expect(port == 54_321)
+        try writer.close()
+    }
 }

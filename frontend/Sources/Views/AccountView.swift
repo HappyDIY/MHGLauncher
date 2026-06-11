@@ -79,7 +79,7 @@ struct AccountView: View {
                         Task { await store.beginQRLogin() }
                     }
                     .buttonStyle(.glassProminent)
-                    .disabled(store.isBusy)
+                    .disabled(store.isBusy || !store.backend.isReady)
                 }
             }
         }
@@ -91,8 +91,14 @@ struct AccountView: View {
         case "scanned": "已扫码，请在手机上确认"
         case "confirmed": "登录成功"
         case "expired": "二维码已过期"
-        default: "凭据将安全保存在 macOS 钥匙串"
+        default:
+            if store.backend.isStarting {
+                "正在启动本地服务…"
+            } else if let error = store.backend.errorMessage {
+                error
+            } else {
+                "凭据将安全保存在 macOS 钥匙串"
+            }
         }
     }
 }
-

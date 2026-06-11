@@ -6,27 +6,38 @@ import Observation
 final class BackendProcess {
     private(set) var client: APIClient?
     private(set) var errorMessage: String?
+    private(set) var isStarting = false
     private var process: Process?
 
+    var isReady: Bool { client != nil }
+
     func start() async {
-        guard process == nil else { return }
+        guard process == nil, !isStarting else { return }
+        isStarting = true
+        errorMessage = nil
+        defer { isStarting = false }
+
         do {
             let token = UUID().uuidString
             let executable = try executableURL()
             let pipe = Pipe()
+            let errorPipe = Pipe()
             let process = Process()
             process.executableURL = executable
             process.standardOutput = pipe
-            process.standardError = Pipe()
+            process.standardError = errorPipe
             process.environment = environment(token: token)
             try process.run()
             self.process = process
-            let port = try await readPort(from: pipe.fileHandleForReading)
+            let port = try await Self.readPort(from: pipe.fileHandleForReading)
             client = APIClient(
                 baseURL: URL(string: "http://127.0.0.1:\(port)")!,
                 token: token
             )
         } catch {
+            process?.terminate()
+            process = nil
+            client = nil
             errorMessage = "本地服务启动失败：\(error.localizedDescription)"
         }
     }
@@ -62,16 +73,26 @@ final class BackendProcess {
         return values
     }
 
-    private func readPort(from handle: FileHandle) async throws -> Int {
+    nonisolated static func readPort(from handle: FileHandle) async throws -> Int {
         try await Task.detached {
-            let data = try handle.read(upToCount: 4096) ?? Data()
-            let line = data.split(separator: 0x0A).first ?? data[...]
-            let object = try JSONSerialization.jsonObject(with: Data(line))
-            guard let payload = object as? [String: Any],
-                  let port = payload["port"] as? Int else {
-                throw CocoaError(.fileReadCorruptFile)
+            var data = Data()
+            while data.count <= 16_384 {
+                let chunk = handle.availableData
+                guard !chunk.isEmpty else {
+                    throw CocoaError(.fileReadCorruptFile)
+                }
+                data.append(chunk)
+                guard let newline = data.firstIndex(of: 0x0A) else { continue }
+                let line = data[..<newline]
+                let object = try JSONSerialization.jsonObject(with: Data(line))
+                guard let payload = object as? [String: Any],
+                      payload["event"] as? String == "ready",
+                      let port = payload["port"] as? Int else {
+                    throw CocoaError(.fileReadCorruptFile)
+                }
+                return port
             }
-            return port
+            throw CocoaError(.fileReadTooLarge)
         }.value
     }
 }
