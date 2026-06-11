@@ -8,7 +8,6 @@ app_pid=""
 terminal_tty="$(tty 2>/dev/null || true)"
 
 remove_artifacts() {
-  rm -rf "$built_app"
   if [[ -n "$temp_root" ]]; then
     rm -rf "$temp_root"
   fi
@@ -28,12 +27,16 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM HUP
 
+pkill -x MHGLauncher 2>/dev/null || true
+pkill -x MHGLauncherBackend 2>/dev/null || true
+sleep 1
+
 printf '正在构建 MHGLauncher.app...\n'
 "$root/scripts/build-app.sh"
 
 temp_root="$(mktemp -d "${TMPDIR:-/tmp}/MHGLauncher-debug.XXXXXX")"
 temp_app="$temp_root/MHGLauncher.app"
-mv "$built_app" "$temp_app"
+cp -R "$built_app" "$temp_app"
 
 printf '构建完成，正在临时启动：%s\n' "$temp_app"
 printf '关闭 MHGLauncher 后将自动销毁临时 App。\n'
