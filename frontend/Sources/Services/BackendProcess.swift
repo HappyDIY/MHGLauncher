@@ -54,6 +54,7 @@ final class BackendProcess {
     private func environment(token: String) -> [String: String] {
         var values = ProcessInfo.processInfo.environment
         values["MHG_API_TOKEN"] = token
+        values["MHG_PARENT_PID"] = String(ProcessInfo.processInfo.processIdentifier)
         values["MHG_DATA_DIR"] = FileManager.default
             .homeDirectoryForCurrentUser
             .appending(path: "Library/Application Support/MHGLauncher")
@@ -74,4 +75,3 @@ final class BackendProcess {
         }.value
     }
 }
-

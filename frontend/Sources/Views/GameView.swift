@@ -42,9 +42,6 @@ struct GameView: View {
                 Button("更新") {
                     Task { await store.startGameJob(.update) }
                 }
-                Button("校验") {
-                    Task { await store.startGameJob(.verify) }
-                }
                 Spacer()
             }
             .buttonStyle(.glassProminent)
@@ -92,4 +89,3 @@ struct GameView: View {
         }
     }
 }
-

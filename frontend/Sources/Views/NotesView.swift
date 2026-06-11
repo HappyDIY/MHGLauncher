@@ -62,14 +62,6 @@ struct NotesView: View {
                 }
             }
         }
-        .task {
-            while !Task.isCancelled {
-                if store.credential != nil {
-                    await store.refreshNote()
-                }
-                try? await Task.sleep(for: .seconds(300))
-            }
-        }
     }
 
     private var refreshedText: String {

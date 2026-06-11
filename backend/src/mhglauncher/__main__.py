@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import socket
 
 import uvicorn
@@ -27,7 +28,22 @@ async def serve() -> None:
             log_level="warning",
         )
     )
-    await server.serve(sockets=[sock])
+    monitor = asyncio.create_task(monitor_parent(server))
+    try:
+        await server.serve(sockets=[sock])
+    finally:
+        monitor.cancel()
+
+
+async def monitor_parent(server: uvicorn.Server) -> None:
+    raw_parent = os.environ.get("MHG_PARENT_PID")
+    if not raw_parent:
+        return
+    expected = int(raw_parent)
+    while not server.should_exit:
+        await asyncio.sleep(1)
+        if os.getppid() != expected:
+            server.should_exit = True
 
 
 def main() -> None:
@@ -36,4 +52,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

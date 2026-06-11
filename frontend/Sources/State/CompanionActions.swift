@@ -1,6 +1,16 @@
+import AppKit
 import Foundation
 
 extension LauncherStore {
+    func runNoteRefreshLoop() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(300))
+            if NSApplication.shared.isActive, credential != nil {
+                await refreshNote()
+            }
+        }
+    }
+
     func loadCompanionData() async {
         guard let uid = selectedRole?.uid else { return }
         await perform {
@@ -64,4 +74,3 @@ extension LauncherStore {
         }
     }
 }
-

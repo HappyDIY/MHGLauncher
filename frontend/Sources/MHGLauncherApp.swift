@@ -8,7 +8,10 @@ struct MHGLauncherApp: App {
         WindowGroup {
             RootView(store: store)
                 .frame(minWidth: 980, minHeight: 680)
-                .task { await store.bootstrap() }
+                .task {
+                    await store.bootstrap()
+                    await store.runNoteRefreshLoop()
+                }
                 .onDisappear { store.backend.stop() }
         }
         .windowStyle(.automatic)
@@ -17,4 +20,3 @@ struct MHGLauncherApp: App {
         }
     }
 }
-
