@@ -39,8 +39,28 @@ struct CredentialRequest: Codable {
     let credential: String
 }
 
+struct NoteRefreshRequest: Codable {
+    let credential: String
+    let xrpcChallenge: String
+}
+
+struct NoteVerificationRequest: Codable {
+    let credential: String
+    let challenge: String
+    let validate: String
+}
+
+struct NoteVerificationResponse: Codable {
+    let xrpcChallenge: String
+}
+
+struct GeetestChallenge: Identifiable {
+    var id: String { challenge }
+    let gt: String
+    let challenge: String
+}
+
 struct CountResponse: Codable {
     let inserted: Int?
     let imported: Int?
 }
-

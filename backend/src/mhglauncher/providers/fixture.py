@@ -62,8 +62,21 @@ class FixtureProvider:
         payload = json.loads((self.root / "wishes.json").read_text())
         yield [WishRecord.model_validate(item) for item in payload]
 
-    async def get_daily_note(self, credential: str, role: GameRole) -> DailyNote:
-        del credential
+    async def get_daily_note(
+        self,
+        credential: str,
+        role: GameRole,
+        xrpc_challenge: str = "",
+    ) -> DailyNote:
+        del credential, xrpc_challenge
         payload = json.loads((self.root / "note.json").read_text())
         return DailyNote.model_validate({"uid": role.uid, **payload})
 
+    async def verify_note_challenge(
+        self,
+        credential: str,
+        challenge: str,
+        validate: str,
+    ) -> str:
+        del credential, challenge, validate
+        return "fixture-xrpc-challenge"

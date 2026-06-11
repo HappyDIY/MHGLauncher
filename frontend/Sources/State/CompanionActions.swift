@@ -41,10 +41,60 @@ extension LauncherStore {
     }
 
     func refreshNote() async {
-        await perform {
+        isBusy = true
+        defer { isBusy = false }
+        do {
             let client = try requireClient()
-            let body = CredentialRequest(credential: try requireCredential())
+            let body = NoteRefreshRequest(
+                credential: try requireCredential(),
+                xrpcChallenge: ""
+            )
             dailyNote = try await client.post("/v1/notes/refresh", body: body)
+        } catch let error as APIErrorPayload {
+            if error.code == "verification_required",
+               let gt = error.details?["gt"],
+               let challenge = error.details?["challenge"] {
+                noteVerification = GeetestChallenge(
+                    gt: gt,
+                    challenge: challenge
+                )
+            } else {
+                message = Self.presentableMessage(error.message)
+            }
+        } catch {
+            message = Self.presentableMessage(error.localizedDescription)
+        }
+    }
+
+    func completeNoteVerification(
+        challenge: String,
+        validate: String
+    ) async {
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            let client = try requireClient()
+            let credential = try requireCredential()
+            let verification: NoteVerificationResponse = try await client.post(
+                "/v1/notes/verification",
+                body: NoteVerificationRequest(
+                    credential: credential,
+                    challenge: challenge,
+                    validate: validate
+                )
+            )
+            dailyNote = try await client.post(
+                "/v1/notes/refresh",
+                body: NoteRefreshRequest(
+                    credential: credential,
+                    xrpcChallenge: verification.xrpcChallenge
+                )
+            )
+            noteVerification = nil
+        } catch let error as APIErrorPayload {
+            message = Self.presentableMessage(error.message)
+        } catch {
+            message = Self.presentableMessage(error.localizedDescription)
         }
     }
 

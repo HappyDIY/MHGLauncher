@@ -15,6 +15,7 @@ final class LauncherStore {
     var wishStatistics: [WishStatistics] = []
     var dailyNote: DailyNote?
     var qrSession: QRSession?
+    var noteVerification: GeetestChallenge?
     var installPath = ""
     var isBusy = false
     var message: String?

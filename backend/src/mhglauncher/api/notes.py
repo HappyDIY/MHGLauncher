@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from mhglauncher.api.dependencies import accounts, notes
 from mhglauncher.errors import AppError
@@ -17,6 +17,17 @@ router = APIRouter(prefix="/notes", tags=["notes"], dependencies=[Depends(requir
 
 class RefreshRequest(BaseModel):
     credential: str
+    xrpc_challenge: str = ""
+
+
+class VerificationRequest(BaseModel):
+    credential: str
+    challenge: str
+    validation: str = Field(alias="validate")
+
+
+class VerificationResponse(BaseModel):
+    xrpc_challenge: str
 
 
 @router.get("", response_model=DailyNote | None)
@@ -36,5 +47,17 @@ async def refresh(
     role = await account_service.selected_role()
     if role is None:
         raise AppError("role_missing", "尚未选择原神角色", 409)
-    return await service.refresh(body.credential, role)
+    return await service.refresh(body.credential, role, body.xrpc_challenge)
 
+
+@router.post("/verification", response_model=VerificationResponse)
+async def verify(
+    body: VerificationRequest,
+    service: Annotated[NoteService, Depends(notes)],
+) -> VerificationResponse:
+    challenge = await service.verify(
+        body.credential,
+        body.challenge,
+        body.validation,
+    )
+    return VerificationResponse(xrpc_challenge=challenge)

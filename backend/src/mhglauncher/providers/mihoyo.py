@@ -10,15 +10,18 @@ import httpx
 
 from mhglauncher.errors import AppError
 from mhglauncher.models import DailyNote, GameRole, WishRecord
+from mhglauncher.providers.device import DeviceIdentity
+from mhglauncher.providers.parsing import wish_record
 from mhglauncher.providers.signing import cookie_map, data_sign
+from mhglauncher.providers.verification import MihoyoVerification
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) miHoYoBBS/2.95.1"
 
-
 class MihoyoAPI:
-    def __init__(self, client: httpx.AsyncClient, device_id: str) -> None:
+    def __init__(self, client: httpx.AsyncClient, device: DeviceIdentity) -> None:
         self.client = client
-        self.device_id = device_id
+        self.device = device
+        self.verification = MihoyoVerification(client, device)
 
     async def enrich_credential(self, credential: str) -> str:
         cookies = cookie_map(credential)
@@ -67,7 +70,7 @@ class MihoyoAPI:
                 }
                 url = "https://public-operation-hk4e.mihoyo.com/gacha_info/api/getGachaLog"
                 data = self._data(await self.client.get(url, params=query))
-                records = [self._wish(role.uid, item) for item in data.get("list", [])]
+                records = [wish_record(role.uid, item) for item in data.get("list", [])]
                 if not records:
                     break
                 yield records
@@ -75,12 +78,31 @@ class MihoyoAPI:
                 if len(records) < 20:
                     break
 
-    async def note(self, credential: str, role: GameRole) -> DailyNote:
+    async def note(
+        self,
+        credential: str,
+        role: GameRole,
+        xrpc_challenge: str = "",
+    ) -> DailyNote:
         query = urlencode({"role_id": role.uid, "server": role.region})
         url = f"https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/dailyNote?{query}"
+        await self.device.ensure_fingerprint(self.client)
         headers = self._headers(credential, data_sign("x4", query=query))
         headers["Referer"] = "https://webstatic.mihoyo.com/"
-        data = self._data(await self.client.get(url, headers=headers))
+        headers["x-rpc-tool_verison"] = "v5.0.1-ys"
+        if xrpc_challenge:
+            headers["x-rpc-challenge"] = xrpc_challenge
+        await self._prime_game_record(credential, role)
+        response = await self.client.get(url, headers=headers)
+        payload = response.json()
+        if payload.get("retcode") == 1034:
+            raise AppError(
+                "verification_required",
+                "请完成人机验证后重试",
+                428,
+                await self.verification.create(credential),
+            )
+        data = self._data(response)
         expeditions = data.get("expeditions", [])
         transformer = data.get("transformer", {})
         recovery = transformer.get("recovery_time", {})
@@ -98,6 +120,23 @@ class MihoyoAPI:
             transformer_ready=bool(recovery.get("reached", False)),
             refreshed_at=datetime.now(UTC),
         )
+
+    async def _prime_game_record(self, credential: str, role: GameRole) -> None:
+        query = urlencode({"role_id": role.uid, "server": role.region})
+        url = f"https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/index?{query}"
+        headers = self._headers(credential, data_sign("x4", query=query))
+        headers["Referer"] = "https://webstatic.mihoyo.com/"
+        response = await self.client.get(url, headers=headers)
+        if response.status_code < 500 and response.json().get("retcode") != 1034:
+            self._data(response)
+
+    async def verify_challenge(
+        self,
+        credential: str,
+        challenge: str,
+        validate: str,
+    ) -> str:
+        return await self.verification.verify(credential, challenge, validate)
 
     async def _authkey(self, credential: str, role: GameRole) -> str:
         payload = {
@@ -119,7 +158,9 @@ class MihoyoAPI:
             "User-Agent": USER_AGENT,
             "x-rpc-app_version": "2.95.1",
             "x-rpc-client_type": "5",
-            "x-rpc-device_id": self.device_id,
+            "x-rpc-device_id": self.device.device_id,
+            "x-rpc-device_fp": self.device.device_fp,
+            "X-Requested-With": "com.mihoyo.hyperion",
             "Content-Type": "application/json",
         }
 
@@ -152,16 +193,3 @@ class MihoyoAPI:
             if normalized and not normalized.lstrip("-").isdigit():
                 return normalized
         return f"米游社请求失败（错误码 {retcode if retcode is not None else '未知'}）"
-
-    @staticmethod
-    def _wish(uid: str, item: dict[str, Any]) -> WishRecord:
-        return WishRecord(
-            id=str(item["id"]),
-            uid=uid,
-            gacha_type=str(item["gacha_type"]),
-            item_id=str(item["item_id"]),
-            name=str(item["name"]),
-            item_type=str(item["item_type"]),
-            rank=int(item["rank_type"]),
-            time=datetime.strptime(item["time"], "%Y-%m-%d %H:%M:%S"),
-        )

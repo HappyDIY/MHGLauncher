@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import secrets
-import string
 import time
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
@@ -12,6 +10,7 @@ import httpx
 from mhglauncher.errors import AppError
 from mhglauncher.models import DailyNote, GameRole, QRSession, QRStatus, WishRecord
 from mhglauncher.providers.base import AccountIdentity, GameBuild
+from mhglauncher.providers.device import DeviceIdentity
 from mhglauncher.providers.mihoyo import MihoyoAPI
 from mhglauncher.providers.sophon import SophonAPI
 
@@ -19,11 +18,10 @@ from mhglauncher.providers.sophon import SophonAPI
 class LiveProvider:
     QR_CREATE = "https://passport-api.mihoyo.com/account/ma-cn-passport/app/createQRLogin"
     QR_QUERY = "https://passport-api.mihoyo.com/account/ma-cn-passport/app/queryQRLoginStatus"
-    def __init__(self, client: httpx.AsyncClient) -> None:
+    def __init__(self, client: httpx.AsyncClient, device: DeviceIdentity) -> None:
         self.client = client
-        alphabet = string.ascii_lowercase + string.digits
-        self.device_id = "".join(secrets.choice(alphabet) for _ in range(53))
-        self.api = MihoyoAPI(client, self.device_id)
+        self.device = device
+        self.api = MihoyoAPI(client, device)
         self.sophon = SophonAPI(client)
         self.sessions: dict[str, QRSession] = {}
         self.build_cache: tuple[float, GameBuild] | None = None
@@ -84,8 +82,21 @@ class LiveProvider:
         async for page in self.api.wishes(credential, role, end_id):
             yield page
 
-    async def get_daily_note(self, credential: str, role: GameRole) -> DailyNote:
-        return await self.api.note(credential, role)
+    async def get_daily_note(
+        self,
+        credential: str,
+        role: GameRole,
+        xrpc_challenge: str = "",
+    ) -> DailyNote:
+        return await self.api.note(credential, role, xrpc_challenge)
+
+    async def verify_note_challenge(
+        self,
+        credential: str,
+        challenge: str,
+        validate: str,
+    ) -> str:
+        return await self.api.verify_challenge(credential, challenge, validate)
 
     @staticmethod
     def _data(response: httpx.Response) -> dict[str, Any]:
@@ -127,7 +138,7 @@ class LiveProvider:
             "Accept": "application/json",
             "x-rpc-app_id": "ddxf5dufpuyo",
             "x-rpc-client_type": "3",
-            "x-rpc-device_id": self.device_id,
+            "x-rpc-device_id": self.device.device_id,
         }
 
     @staticmethod

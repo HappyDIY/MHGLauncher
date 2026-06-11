@@ -12,8 +12,17 @@ class NoteService:
         self.database = database
         self.provider = provider
 
-    async def refresh(self, credential: str, role: GameRole) -> DailyNote:
-        note = await self.provider.get_daily_note(credential, role)
+    async def refresh(
+        self,
+        credential: str,
+        role: GameRole,
+        xrpc_challenge: str = "",
+    ) -> DailyNote:
+        note = await self.provider.get_daily_note(
+            credential,
+            role,
+            xrpc_challenge,
+        )
         await self.database.execute(
             """
             INSERT INTO notes(uid, payload, refreshed_at) VALUES(?, ?, ?)
@@ -24,9 +33,20 @@ class NoteService:
         )
         return note
 
+    async def verify(
+        self,
+        credential: str,
+        challenge: str,
+        validate: str,
+    ) -> str:
+        return await self.provider.verify_note_challenge(
+            credential,
+            challenge,
+            validate,
+        )
+
     async def get(self, uid: str) -> DailyNote | None:
         row = await self.database.fetch_one("SELECT payload FROM notes WHERE uid=?", (uid,))
         if row is None:
             return None
         return DailyNote.model_validate(json.loads(row["payload"]))
-

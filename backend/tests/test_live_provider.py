@@ -1,8 +1,13 @@
 from __future__ import annotations
 
-import httpx
+from pathlib import Path
 
+import httpx
+import pytest
+
+from mhglauncher.errors import AppError
 from mhglauncher.models import GameRole
+from mhglauncher.providers.device import DeviceIdentity
 from mhglauncher.providers.live import LiveProvider
 from mhglauncher.providers.mihoyo import MihoyoAPI
 
@@ -51,7 +56,7 @@ def test_numeric_upstream_message_is_readable() -> None:
     )
 
 
-async def test_roles_and_note_are_parsed() -> None:
+async def test_roles_and_note_are_parsed(tmp_path: Path) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if "getUserGameRolesByStoken" in str(request.url):
             return httpx.Response(
@@ -72,6 +77,8 @@ async def test_roles_and_note_are_parsed() -> None:
                     },
                 },
             )
+        if "/index" in str(request.url):
+            return httpx.Response(200, json={"retcode": 0, "data": {}})
         return httpx.Response(
             200,
             json={
@@ -92,7 +99,9 @@ async def test_roles_and_note_are_parsed() -> None:
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        api = MihoyoAPI(client, "device")
+        device = DeviceIdentity(tmp_path / "device.json")
+        device.device_fp = "fingerprint"
+        api = MihoyoAPI(client, device)
         roles = await api.roles("stuid=1; stoken=token; mid=mid")
         note = await api.note("cookie_token=token; account_id=1", roles[0])
     assert roles == [
@@ -106,3 +115,54 @@ async def test_roles_and_note_are_parsed() -> None:
     ]
     assert note.current_resin == 80
     assert note.transformer_ready is True
+
+
+async def test_note_verification_flow(tmp_path: Path) -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        url = str(request.url)
+        if "/index" in url:
+            return httpx.Response(200, json={"retcode": 1034, "data": None})
+        if "/dailyNote" in url:
+            return httpx.Response(200, json={"retcode": 1034, "data": None})
+        if "createVerification" in url:
+            return httpx.Response(
+                200,
+                json={"retcode": 0, "data": {"gt": "gt-value", "challenge": "first"}},
+            )
+        return httpx.Response(
+            200,
+            json={"retcode": 0, "data": {"challenge": "verified-token"}},
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        device = DeviceIdentity(tmp_path / "device.json")
+        device.device_fp = "fingerprint"
+        api = MihoyoAPI(client, device)
+        role = GameRole(
+            uid="10001",
+            nickname="旅行者",
+            region="cn_gf01",
+            level=60,
+            selected=True,
+        )
+        with pytest.raises(AppError) as caught:
+            await api.note("cookie_token=token; account_id=1", role)
+        token = await api.verify_challenge(
+            "cookie_token=token; account_id=1",
+            "first",
+            "validation",
+        )
+
+    assert caught.value.code == "verification_required"
+    assert caught.value.details == {"gt": "gt-value", "challenge": "first"}
+    assert token == "verified-token"
+    verify_request = requests[-1]
+    assert verify_request.headers["x-rpc-challenge_game"] == "2"
+    assert verify_request.headers["x-rpc-device_fp"] == "fingerprint"
+    assert verify_request.content == (
+        b'{"geetest_challenge":"first","geetest_validate":"validation",'
+        b'"geetest_seccode":"validation|jordan"}'
+    )

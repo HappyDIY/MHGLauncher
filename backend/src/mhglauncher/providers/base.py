@@ -64,4 +64,16 @@ class Provider(Protocol):
         end_id: str = "0",
     ) -> AsyncIterator[list[WishRecord]]: ...
 
-    async def get_daily_note(self, credential: str, role: GameRole) -> DailyNote: ...
+    async def get_daily_note(
+        self,
+        credential: str,
+        role: GameRole,
+        xrpc_challenge: str = "",
+    ) -> DailyNote: ...
+
+    async def verify_note_challenge(
+        self,
+        credential: str,
+        challenge: str,
+        validate: str,
+    ) -> str: ...

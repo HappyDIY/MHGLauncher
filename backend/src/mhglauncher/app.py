@@ -11,6 +11,7 @@ from mhglauncher.config import Settings
 from mhglauncher.database import Database
 from mhglauncher.errors import install_error_handlers
 from mhglauncher.providers.base import Provider
+from mhglauncher.providers.device import DeviceIdentity
 from mhglauncher.providers.fixture import FixtureProvider
 from mhglauncher.providers.live import LiveProvider
 from mhglauncher.services.accounts import AccountService
@@ -36,7 +37,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             fixture_dir = effective.fixture_dir or effective.data_dir / "fixtures"
             provider = FixtureProvider(fixture_dir)
         else:
-            provider = LiveProvider(client)
+            device = DeviceIdentity(effective.data_dir / "device.json")
+            provider = LiveProvider(client, device)
         app.state.settings = effective
         app.state.database = database
         app.state.provider = provider
