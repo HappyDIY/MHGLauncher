@@ -11,7 +11,5 @@ build/
 dist/
 coverage.xml
 htmlcov/
-backend/.python-version
 backend/mhglauncher.db
 frontend/.backend-port
-
