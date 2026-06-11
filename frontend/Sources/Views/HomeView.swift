@@ -8,7 +8,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 20) {
                 PageHeader(
                     title: "欢迎回来",
-                    subtitle: store.account?.nickname ?? "登录米游社后同步旅行数据"
+                    subtitle: welcomeSubtitle
                 )
                 HStack(alignment: .top, spacing: 16) {
                     gameCard
@@ -20,6 +20,11 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    private var welcomeSubtitle: String {
+        store.account?.displayName(role: store.selectedRole)
+            ?? "登录米游社后同步旅行数据"
     }
 
     private var gameCard: some View {

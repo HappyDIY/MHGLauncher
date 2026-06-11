@@ -25,6 +25,20 @@ def test_qr_identity_uses_stoken_token_type() -> None:
     assert "stoken=secret" in identity.credential
 
 
+def test_qr_identity_falls_back_for_empty_nickname() -> None:
+    identity = LiveProvider._identity(
+        {
+            "user_info": {
+                "aid": "123",
+                "mid": "mid-123",
+                "account_name": "",
+            },
+            "tokens": [{"token_type": 1, "token": "secret"}],
+        }
+    )
+    assert identity.nickname == "米游社用户"
+
+
 async def test_roles_and_note_are_parsed() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if "getUserGameRolesByStoken" in str(request.url):
@@ -80,4 +94,3 @@ async def test_roles_and_note_are_parsed() -> None:
     ]
     assert note.current_resin == 80
     assert note.transformer_ready is True
-

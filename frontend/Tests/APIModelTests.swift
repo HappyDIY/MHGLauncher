@@ -46,5 +46,24 @@ struct APIModelTests {
         )
         #expect(object["install_path"] == "/tmp/game")
     }
-}
 
+    @Test("账号空昵称使用角色昵称")
+    func accountDisplayName() {
+        let account = Account(
+            aid: "1001",
+            mid: "mid",
+            nickname: "  ",
+            credentialRef: "keychain:current",
+            updatedAt: .now
+        )
+        let role = GameRole(
+            uid: "100000001",
+            nickname: "旅行者",
+            region: "cn_gf01",
+            level: 60,
+            selected: true
+        )
+        #expect(account.displayName(role: role) == "旅行者")
+        #expect(role.regionName == "天空岛服")
+    }
+}

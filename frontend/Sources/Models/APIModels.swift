@@ -12,6 +12,12 @@ struct Account: Codable, Sendable {
     let nickname: String
     let credentialRef: String
     let updatedAt: Date
+
+    func displayName(role: GameRole?) -> String {
+        let accountName = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+        let roleName = role?.nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+        return accountName.nonempty ?? roleName?.nonempty ?? "米游社用户"
+    }
 }
 
 struct GameRole: Codable, Sendable, Identifiable {
@@ -21,6 +27,14 @@ struct GameRole: Codable, Sendable, Identifiable {
     let region: String
     let level: Int
     let selected: Bool
+
+    var regionName: String {
+        switch region {
+        case "cn_gf01": "天空岛服"
+        case "cn_qd01": "世界树服"
+        default: region.nonempty ?? "未知服务器"
+        }
+    }
 }
 
 struct QRSession: Codable, Sendable {
@@ -51,4 +65,3 @@ struct LoginCompleteResponse: Codable {
     let account: Account
     let roles: [GameRole]
 }
-

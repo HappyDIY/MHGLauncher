@@ -127,10 +127,11 @@ class LiveProvider:
         )
         aid = str(user.get("aid", ""))
         mid = str(user.get("mid", ""))
+        nickname = str(user.get("account_name") or "").strip() or "米游社用户"
         credential = f"stuid={aid}; stoken={stoken}; mid={mid}"
         return AccountIdentity(
             aid=aid,
             mid=mid,
-            nickname=str(user.get("account_name", "米游社用户")),
+            nickname=nickname,
             credential=credential,
         )

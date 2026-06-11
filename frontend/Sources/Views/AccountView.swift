@@ -25,7 +25,7 @@ struct AccountView: View {
 
     private func accountCard(_ account: Account) -> some View {
         GlassCard("当前账号", icon: "person.crop.circle.fill") {
-            Text(account.nickname)
+            Text(account.displayName(role: store.selectedRole))
                 .font(.title2.bold())
             Text("账号 ID \(account.aid)")
                 .foregroundStyle(.secondary)
@@ -39,7 +39,7 @@ struct AccountView: View {
                     VStack(alignment: .leading) {
                         Text(role.nickname)
                             .font(.headline)
-                        Text("\(role.region) · UID \(role.uid)")
+                        Text("\(role.regionName) · UID \(role.uid)")
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
