@@ -86,6 +86,8 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 - Use `codex/backend` for backend work and `codex/frontend` for frontend work.
 - Merge both branches into `main` only after their automated tests pass.
 - Follow Conventional Commits.
+- After modifying any file other than `.gitignore`, create a commit immediately.
+- The commit message must follow the Conventional Commits specification and the subject must be written in Simplified Chinese.
 - Commit subjects must be written in Simplified Chinese, for example:
   `feat(backend): 实现游戏资源下载服务`.
 - Do not rewrite or discard unrelated user changes.
