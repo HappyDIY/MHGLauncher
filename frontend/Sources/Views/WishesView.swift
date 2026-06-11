@@ -1,0 +1,93 @@
+import AppKit
+import SwiftUI
+
+struct WishesView: View {
+    @Bindable var store: LauncherStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .bottom) {
+                PageHeader(
+                    title: "祈愿记录",
+                    subtitle: store.selectedRole.map { "UID \($0.uid)" } ?? "请先登录账号"
+                )
+                Spacer()
+                Button("同步") {
+                    Task { await store.syncWishes() }
+                }
+                .buttonStyle(.glassProminent)
+                Button("导入 UIGF") { importFile() }
+                    .buttonStyle(.glass)
+                Button("导出 UIGF") { exportFile() }
+                    .buttonStyle(.glass)
+            }
+            if !store.wishStatistics.isEmpty {
+                statistics
+            }
+            GlassCard("历史记录", icon: "clock.arrow.circlepath") {
+                Table(store.wishes) {
+                    TableColumn("时间") { item in
+                        Text(item.time.formatted(date: .abbreviated, time: .shortened))
+                    }
+                    TableColumn("名称", value: \.name)
+                    TableColumn("类型", value: \.itemType)
+                    TableColumn("星级") { item in
+                        Text(String(repeating: "★", count: item.rank))
+                            .foregroundStyle(item.rank == 5 ? .orange : .secondary)
+                    }
+                    TableColumn("卡池", value: \.gachaType)
+                }
+                .frame(minHeight: 360)
+            }
+        }
+    }
+
+    private var statistics: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 12) {
+                ForEach(store.wishStatistics) { item in
+                    GlassCard(poolName(item.gachaType), icon: "sparkles") {
+                        HStack(spacing: 22) {
+                            MetricView(value: "\(item.total)", label: "总抽数")
+                            MetricView(value: "\(item.fiveStarCount)", label: "五星")
+                            MetricView(
+                                value: "\(item.pullsSinceFiveStar)",
+                                label: "距上次五星"
+                            )
+                        }
+                    }
+                    .frame(width: 330)
+                }
+            }
+        }
+    }
+
+    private func importFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        if panel.runModal() == .OK, let url = panel.url {
+            Task { await store.importUIGF(from: url) }
+        }
+    }
+
+    private func exportFile() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "uigf-v4.2.json"
+        if panel.runModal() == .OK, let url = panel.url {
+            Task { await store.exportUIGF(to: url) }
+        }
+    }
+
+    private func poolName(_ type: String) -> String {
+        switch type {
+        case "100": "新手祈愿"
+        case "200": "常驻祈愿"
+        case "301": "角色活动祈愿"
+        case "302": "武器活动祈愿"
+        default: "卡池 \(type)"
+        }
+    }
+}
+
