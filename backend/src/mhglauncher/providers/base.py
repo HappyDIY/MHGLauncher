@@ -31,10 +31,27 @@ class GameAsset(BaseModel):
     chunks: list[SophonChunk]
 
 
+class SophonPatch(BaseModel):
+    id: str
+    file_size: int
+    start: int
+    length: int
+    original_name: str
+    url: str
+
+
+class GamePatchAsset(BaseModel):
+    name: str
+    size: int
+    md5: str
+    patch: SophonPatch
+
+
 class GameBuild(BaseModel):
     version: str
     segments: list[PackageSegment] = []
     assets: list[GameAsset] = []
+    patch_assets: list[GamePatchAsset] = []
     deprecated_files: list[str] = []
 
 

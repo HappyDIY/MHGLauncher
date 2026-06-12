@@ -105,6 +105,7 @@ async def test_existing_game_is_detected_and_update_uses_local_version(
         assert state.install_path == str(game)
         assert state.installed_version == "6.5.0"
         assert state.status.value == "update_available"
+        assert state.update_kind == "full"
 
         await service.start(JobKind.UPDATE, game)
         assert provider.installed_versions[-1] == "6.5.0"

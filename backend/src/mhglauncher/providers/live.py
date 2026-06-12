@@ -24,7 +24,7 @@ class LiveProvider:
         self.api = MihoyoAPI(client, device)
         self.sophon = SophonAPI(client)
         self.sessions: dict[str, QRSession] = {}
-        self.build_cache: tuple[float, GameBuild] | None = None
+        self.build_cache: tuple[float, str, GameBuild] | None = None
 
     async def create_qr_session(self) -> QRSession:
         response = await self.client.post(
@@ -66,11 +66,15 @@ class LiveProvider:
         return await self.api.roles(credential)
 
     async def get_build(self, installed_version: str = "") -> GameBuild:
-        del installed_version
-        if self.build_cache and time.monotonic() - self.build_cache[0] < 300:
-            return self.build_cache[1]
-        build = await self.sophon.build()
-        self.build_cache = (time.monotonic(), build)
+        cached = self.build_cache
+        if (
+            cached is not None
+            and cached[1] == installed_version
+            and time.monotonic() - cached[0] < 300
+        ):
+            return cached[2]
+        build = await self.sophon.build(installed_version)
+        self.build_cache = (time.monotonic(), installed_version, build)
         return build
 
     async def iter_wishes(

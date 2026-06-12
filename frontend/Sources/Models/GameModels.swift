@@ -13,6 +13,8 @@ struct GameState: Codable, Sendable {
     let installedVersion: String
     let availableVersion: String
     let status: GameStatus
+    let updateKind: String?
+    let downloadBytes: Int64?
 }
 
 enum JobKind: String, Codable {
@@ -52,4 +54,3 @@ struct StartJobRequest: Codable {
 struct ControlJobRequest: Codable {
     let action: String
 }
-

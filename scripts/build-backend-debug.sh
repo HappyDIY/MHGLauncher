@@ -23,3 +23,4 @@ uv run pyinstaller \
 
 binary="$dist_root/MHGLauncherBackend/MHGLauncherBackend"
 test -x "$binary"
+"$root/scripts/fetch-hpatchz.sh" "$dist_root/MHGLauncherBackend"

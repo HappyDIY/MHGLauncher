@@ -89,6 +89,8 @@ class GameState(BaseModel):
     installed_version: str = ""
     available_version: str = ""
     status: GameStatus = GameStatus.NOT_INSTALLED
+    update_kind: str = ""
+    download_bytes: int = 0
 
 
 class JobKind(StrEnum):
@@ -113,4 +115,3 @@ class GameJob(BaseModel):
     completed_bytes: int = 0
     total_bytes: int = 0
     message: str = ""
-

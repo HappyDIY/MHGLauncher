@@ -21,8 +21,14 @@ struct GameView: View {
                         label: "可用版本"
                     )
                     Spacer()
-                    Text(store.gameState?.status.title ?? "检查中")
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text(store.gameState?.status.title ?? "检查中")
+                        if let update = updateSummary {
+                            Text(update)
+                                .font(.caption)
+                        }
+                    }
+                    .foregroundStyle(.secondary)
                 }
             }
             GlassCard("安装位置", icon: "folder") {
@@ -94,5 +100,17 @@ struct GameView: View {
         if panel.runModal() == .OK {
             store.installPath = panel.url?.path ?? ""
         }
+    }
+
+    private var updateSummary: String? {
+        guard let state = store.gameState, state.status == .updateAvailable else {
+            return nil
+        }
+        let kind = state.updateKind == "incremental" ? "增量补丁" : "完整更新"
+        let size = ByteCountFormatter.string(
+            fromByteCount: state.downloadBytes ?? 0,
+            countStyle: .file
+        )
+        return "\(kind) · \(size)"
     }
 }

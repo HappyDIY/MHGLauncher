@@ -24,6 +24,7 @@ uv run python -m nuitka \
 standalone_dir="$nuitka_root/mhglauncher.dist"
 test -d "$standalone_dir"
 mv "$standalone_dir" "$dist_root/MHGLauncherBackend"
+"$root/scripts/fetch-hpatchz.sh" "$dist_root/MHGLauncherBackend"
 
 binary="$dist_root/MHGLauncherBackend/MHGLauncherBackend"
 test -x "$binary"

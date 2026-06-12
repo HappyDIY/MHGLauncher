@@ -14,9 +14,11 @@ from mhglauncher.errors import AppError
 from mhglauncher.models import GameJob, GameState, GameStatus, JobKind, JobStatus
 from mhglauncher.providers.base import GameBuild, Provider
 from mhglauncher.services.downloader import DownloadControl, Downloader
+from mhglauncher.services.game_build import download_size, remove_files, remove_retired_assets
 from mhglauncher.services.game_detection import detect_game
 from mhglauncher.services.installer import Installer
 from mhglauncher.services.sophon_installer import SophonInstaller
+from mhglauncher.services.sophon_patch_installer import SophonPatchInstaller
 
 
 class GameService:
@@ -32,6 +34,7 @@ class GameService:
         self.downloader = Downloader(client)
         self.installer = Installer()
         self.sophon_installer = SophonInstaller(client)
+        self.sophon_patch_installer = SophonPatchInstaller(client)
         self.data_dir = data_dir
         self.jobs: dict[str, GameJob] = {}
         self.controls: dict[str, DownloadControl] = {}
@@ -60,6 +63,8 @@ class GameService:
             installed_version=installed_version,
             available_version=build.version,
             status=status,
+            update_kind="incremental" if build.patch_assets else "full",
+            download_bytes=download_size(build),
         )
 
     async def start(self, kind: JobKind, install_path: Path) -> GameJob:
@@ -76,8 +81,7 @@ class GameService:
             id=str(uuid4()),
             kind=kind,
             status=JobStatus.QUEUED,
-            total_bytes=sum(item.size for item in build.segments)
-            + sum(chunk.size for asset in build.assets for chunk in asset.chunks),
+            total_bytes=download_size(build),
         )
         control = DownloadControl()
         self.jobs[job.id] = job
@@ -121,8 +125,17 @@ class GameService:
             shutil.rmtree(staging, ignore_errors=True)
             if job.kind is JobKind.UPDATE and install_path.exists():
                 shutil.copytree(install_path, staging)
-                self._remove_retired_assets(staging, build)
-            if build.assets:
+                remove_retired_assets(staging, build)
+            if build.patch_assets:
+                await self.sophon_patch_installer.install(
+                    build.patch_assets,
+                    staging,
+                    cache,
+                    control,
+                    lambda size: self._advance(job, size),
+                )
+                remove_files(staging, build.deprecated_files)
+            elif build.assets:
                 await self.sophon_installer.install(
                     build.assets,
                     staging,
@@ -176,19 +189,6 @@ class GameService:
             """,
             (str(path), version, now),
         )
-
-    @staticmethod
-    def _remove_retired_assets(staging: Path, build: GameBuild) -> None:
-        manifest = staging / ".mhg-assets.json"
-        if not manifest.is_file():
-            return
-        current = {asset.name for asset in build.assets}
-        previous: list[str] = json.loads(manifest.read_text())
-        root = staging.resolve()
-        for relative in set(previous) - current:
-            target = staging / relative.replace("\\", "/")
-            if root in target.resolve().parents:
-                target.unlink(missing_ok=True)
 
     async def shutdown(self) -> None:
         for control in self.controls.values():
