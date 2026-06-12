@@ -6,6 +6,9 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                if isDebugMode {
+                    debugBanner
+                }
                 PageHeader(
                     title: "欢迎回来",
                     subtitle: welcomeSubtitle
@@ -20,6 +23,25 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    private var isDebugMode: Bool {
+        Self.isDebugMode(environment: ProcessInfo.processInfo.environment)
+    }
+
+    nonisolated static func isDebugMode(environment: [String: String]) -> Bool {
+        environment["MHG_DEBUG_MODE"] == "1"
+    }
+
+    private var debugBanner: some View {
+        Label("调试模式", systemImage: "hammer.fill")
+            .font(.title2.bold())
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
+            .background(Color.orange.gradient, in: RoundedRectangle(cornerRadius: 16))
+            .accessibilityIdentifier("debug-mode-banner")
     }
 
     private var welcomeSubtitle: String {

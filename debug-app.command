@@ -78,7 +78,7 @@ elif reusable_app="$(find_cached_app)"; then
   cp -R "$reusable_app" "$cached_app"
 else
   printf '检测到非 Markdown 文件变化，正在构建 MHGLauncher.app...\n'
-  "$root/scripts/build-app.sh"
+  "$root/scripts/build-debug-app.sh"
   rm -rf "$cached_app"
   mv "$built_app" "$cached_app"
   printf '%s\n' "$source_hash" >"$signature_file"
@@ -87,7 +87,7 @@ fi
 printf '正在启动：%s\n' "$cached_app"
 printf '关闭 MHGLauncher 后将保留此 App。\n'
 
-"$cached_app/Contents/MacOS/MHGLauncher" &
+MHG_DEBUG_MODE=1 "$cached_app/Contents/MacOS/MHGLauncher" &
 app_pid=$!
 
 set +e

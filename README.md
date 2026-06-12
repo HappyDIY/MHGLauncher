@@ -36,8 +36,10 @@ Build the self-contained application:
 
 The output is written to `dist/MHGLauncher.app`.
 
+Double-click `debug-app.command` for a cached PyInstaller development build.
+Double-click `release-app.command` for a clean Nuitka release build.
+
 ## Status
 
 The launcher manages Windows game resources on macOS. It does not bundle or
 integrate Wine, CrossOver, or another Windows runtime.
-

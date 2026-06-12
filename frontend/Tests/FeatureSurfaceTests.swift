@@ -15,6 +15,13 @@ struct FeatureSurfaceTests {
         ])
     }
 
+    @Test("调试模式仅由明确环境变量开启")
+    func debugMode() {
+        #expect(HomeView.isDebugMode(environment: ["MHG_DEBUG_MODE": "1"]))
+        #expect(!HomeView.isDebugMode(environment: [:]))
+        #expect(!HomeView.isDebugMode(environment: ["MHG_DEBUG_MODE": "0"]))
+    }
+
     @Test("二维码可以生成为非空图像")
     func qrCode() throws {
         let image = try #require(
