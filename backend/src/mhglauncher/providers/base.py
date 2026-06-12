@@ -49,6 +49,7 @@ class GamePatchAsset(BaseModel):
 
 class GameBuild(BaseModel):
     version: str
+    kind: str = "full"
     segments: list[PackageSegment] = []
     assets: list[GameAsset] = []
     patch_assets: list[GamePatchAsset] = []

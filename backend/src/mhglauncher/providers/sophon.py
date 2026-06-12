@@ -90,6 +90,7 @@ class SophonAPI:
             deprecated.extend(self._deprecated(manifest, installed_version))
         return GameBuild(
             version=str(data["tag"]),
+            kind="version_diff",
             patch_assets=assets,
             deprecated_files=deprecated,
         )

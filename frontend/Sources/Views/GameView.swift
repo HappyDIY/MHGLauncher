@@ -106,7 +106,11 @@ struct GameView: View {
         guard let state = store.gameState, state.status == .updateAvailable else {
             return nil
         }
-        let kind = state.updateKind == "incremental" ? "增量补丁" : "完整更新"
+        let kind = switch state.updateKind {
+        case "hotfix": "小版本补丁"
+        case "version_diff": "版本差分"
+        default: "完整更新"
+        }
         let size = ByteCountFormatter.string(
             fromByteCount: state.downloadBytes ?? 0,
             countStyle: .file

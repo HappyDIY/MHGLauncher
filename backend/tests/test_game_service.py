@@ -11,7 +11,13 @@ import httpx
 
 from mhglauncher.database import Database
 from mhglauncher.models import DailyNote, GameRole, JobKind, JobStatus, QRSession, WishRecord
-from mhglauncher.providers.base import AccountIdentity, GameBuild, PackageSegment
+from mhglauncher.providers.base import (
+    AccountIdentity,
+    GameAsset,
+    GameBuild,
+    PackageSegment,
+    SophonChunk,
+)
 from mhglauncher.services.games import GameService
 
 
@@ -109,4 +115,40 @@ async def test_existing_game_is_detected_and_update_uses_local_version(
 
         await service.start(JobKind.UPDATE, game)
         assert provider.installed_versions[-1] == "6.5.0"
+        await service.shutdown()
+
+
+async def test_same_version_changed_asset_triggers_hotfix(tmp_path: Path) -> None:
+    game = tmp_path / "game"
+    game.mkdir()
+    (game / "YuanShen.exe").write_bytes(b"")
+    (game / "config.ini").write_text("[General]\ngame_version=6.6.0\n")
+    build = GameBuild(
+        version="6.6.0",
+        assets=[
+            GameAsset(
+                name="hotfix.bin",
+                size=3,
+                md5="22af645d1859cb5ca6da0c484f1f37ea",
+                chunks=[
+                    SophonChunk(
+                        name="chunk",
+                        decompressed_md5="22af645d1859cb5ca6da0c484f1f37ea",
+                        offset=0,
+                        size=3,
+                        decompressed_size=3,
+                        url="https://fixture.invalid/chunk",
+                    )
+                ],
+            )
+        ],
+    )
+    database = Database(tmp_path / "game.db")
+    await database.initialize()
+    async with httpx.AsyncClient() as client:
+        service = GameService(database, GameProvider(build), client, tmp_path / "data")
+        state = await service.state(game)
+        assert state.status.value == "update_available"
+        assert state.update_kind == "hotfix"
+        assert state.download_bytes == 3
         await service.shutdown()

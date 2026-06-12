@@ -16,6 +16,7 @@ from mhglauncher.providers.base import GameBuild, Provider
 from mhglauncher.services.downloader import DownloadControl, Downloader
 from mhglauncher.services.game_build import download_size, remove_files, remove_retired_assets
 from mhglauncher.services.game_detection import detect_game
+from mhglauncher.services.game_manifest import hotfix_build
 from mhglauncher.services.installer import Installer
 from mhglauncher.services.sophon_installer import SophonInstaller
 from mhglauncher.services.sophon_patch_installer import SophonPatchInstaller
@@ -46,6 +47,8 @@ class GameService:
         detected = detect_game(candidate) if candidate else None
         installed_version = detected[1] if detected else ""
         build = await self.provider.get_build(installed_version)
+        if detected and installed_version == build.version and build.assets:
+            build = hotfix_build(build, detected[0])
         if detected is None:
             return GameState(
                 install_path=str(candidate) if candidate else "",
@@ -53,17 +56,13 @@ class GameService:
             )
         detected_path, installed_version = detected
         await self._save_state(detected_path, installed_version)
-        status = (
-            GameStatus.READY
-            if installed_version == build.version
-            else GameStatus.UPDATE_AVAILABLE
-        )
+        current = installed_version == build.version and not build.assets
         return GameState(
             install_path=str(detected_path),
             installed_version=installed_version,
             available_version=build.version,
-            status=status,
-            update_kind="incremental" if build.patch_assets else "full",
+            status=GameStatus.READY if current else GameStatus.UPDATE_AVAILABLE,
+            update_kind=build.kind,
             download_bytes=download_size(build),
         )
 
@@ -77,6 +76,8 @@ class GameService:
         if detected:
             install_path = detected[0]
         build = await self.provider.get_build(installed_version)
+        if detected and installed_version == build.version and build.assets:
+            build = hotfix_build(build, install_path)
         job = GameJob(
             id=str(uuid4()),
             kind=kind,
@@ -125,14 +126,15 @@ class GameService:
             shutil.rmtree(staging, ignore_errors=True)
             if job.kind is JobKind.UPDATE and install_path.exists():
                 shutil.copytree(install_path, staging)
-                remove_retired_assets(staging, build)
+                if build.kind != "hotfix":
+                    remove_retired_assets(staging, build)
             if build.patch_assets:
                 await self.sophon_patch_installer.install(
                     build.patch_assets,
                     staging,
                     cache,
                     control,
-                    lambda size: self._advance(job, size),
+                    lambda size: setattr(job, "completed_bytes", job.completed_bytes + size),
                 )
                 remove_files(staging, build.deprecated_files)
             elif build.assets:
@@ -141,7 +143,7 @@ class GameService:
                     staging,
                     cache,
                     control,
-                    lambda size: self._advance(job, size),
+                    lambda size: setattr(job, "completed_bytes", job.completed_bytes + size),
                 )
             else:
                 archives = []
@@ -152,13 +154,15 @@ class GameService:
                             segment,
                             archive,
                             control,
-                            lambda size: self._advance(job, size),
+                            lambda size: setattr(
+                                job, "completed_bytes", job.completed_bytes + size
+                            ),
                         )
                     )
                 self.installer.extract(archives, staging)
                 self.installer.verify(staging)
             (staging / ".mhg-version").write_text(build.version)
-            if build.assets:
+            if build.assets and build.kind != "hotfix":
                 (staging / ".mhg-assets.json").write_text(
                     json.dumps([asset.name for asset in build.assets])
                 )
@@ -173,10 +177,6 @@ class GameService:
             job.message = str(error)
         finally:
             shutil.rmtree(staging, ignore_errors=True)
-
-    @staticmethod
-    def _advance(job: GameJob, size: int) -> None:
-        job.completed_bytes += size
 
     async def _save_state(self, path: Path, version: str) -> None:
         now = datetime.now(UTC).isoformat()
