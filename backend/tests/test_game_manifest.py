@@ -42,7 +42,7 @@ def test_hotfix_build_keeps_only_changed_assets(tmp_path: Path) -> None:
 
     result = hotfix_build(build, tmp_path)
 
-    assert result.kind == "hotfix"
+    assert result.kind == "package_repair"
     assert [asset.name for asset in result.assets] == ["changed.bin", "pkg_version"]
 
 

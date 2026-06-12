@@ -50,6 +50,7 @@ class GamePatchAsset(BaseModel):
 class GameBuild(BaseModel):
     version: str
     kind: str = "full"
+    pending_bytes: int = 0
     segments: list[PackageSegment] = []
     assets: list[GameAsset] = []
     patch_assets: list[GamePatchAsset] = []

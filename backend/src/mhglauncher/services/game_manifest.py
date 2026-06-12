@@ -19,7 +19,7 @@ def hotfix_build(build: GameBuild, install_path: Path) -> GameBuild:
         for asset in build.assets
         if _local_hash(asset, install_path, local) != asset.md5.lower()
     ]
-    return build.model_copy(update={"assets": changed, "kind": "hotfix"})
+    return build.model_copy(update={"assets": changed, "kind": "package_repair"})
 
 
 def _read_local_hashes(install_path: Path) -> dict[str, str]:

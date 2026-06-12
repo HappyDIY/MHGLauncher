@@ -9,7 +9,8 @@ from mhglauncher.providers.base import GameBuild
 def download_size(build: GameBuild) -> int:
     patches = {asset.patch.id: asset.patch.file_size for asset in build.patch_assets}
     return (
-        sum(item.size for item in build.segments)
+        build.pending_bytes
+        + sum(item.size for item in build.segments)
         + sum(chunk.size for asset in build.assets for chunk in asset.chunks)
         + sum(patches.values())
     )

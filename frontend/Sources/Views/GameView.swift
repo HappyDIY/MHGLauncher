@@ -107,7 +107,8 @@ struct GameView: View {
             return nil
         }
         let kind = switch state.updateKind {
-        case "hotfix": "小版本补丁"
+        case "game_hotfix": "游戏内热更新"
+        case "package_repair": "启动器资源修复"
         case "version_diff": "版本差分"
         default: "完整更新"
         }

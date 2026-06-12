@@ -16,6 +16,7 @@ from mhglauncher.providers.base import GameBuild, Provider
 from mhglauncher.services.downloader import DownloadControl, Downloader
 from mhglauncher.services.game_build import download_size, remove_files, remove_retired_assets
 from mhglauncher.services.game_detection import detect_game
+from mhglauncher.services.game_hotpatch import pending_hotpatch
 from mhglauncher.services.game_manifest import hotfix_build
 from mhglauncher.services.installer import Installer
 from mhglauncher.services.sophon_installer import SophonInstaller
@@ -40,15 +41,12 @@ class GameService:
         self.jobs: dict[str, GameJob] = {}
         self.controls: dict[str, DownloadControl] = {}
         self.tasks: set[asyncio.Task[None]] = set()
-
     async def state(self, install_path: Path | None = None) -> GameState:
         row = await self.database.fetch_one("SELECT * FROM game_state WHERE id=1")
         candidate = install_path or (Path(row["install_path"]) if row else None)
         detected = detect_game(candidate) if candidate else None
         installed_version = detected[1] if detected else ""
-        build = await self.provider.get_build(installed_version)
-        if detected and installed_version == build.version and build.assets:
-            build = hotfix_build(build, detected[0])
+        build = await self._build(installed_version, detected[0] if detected else None)
         if detected is None:
             return GameState(
                 install_path=str(candidate) if candidate else "",
@@ -65,7 +63,6 @@ class GameService:
             update_kind=build.kind,
             download_bytes=download_size(build),
         )
-
     async def start(self, kind: JobKind, install_path: Path) -> GameJob:
         if any(job.status in {JobStatus.QUEUED, JobStatus.RUNNING} for job in self.jobs.values()):
             raise AppError("game_job_busy", "已有游戏资源任务正在运行", 409)
@@ -75,9 +72,13 @@ class GameService:
             raise AppError("game_not_installed", "所选目录中未检测到可更新的原神客户端")
         if detected:
             install_path = detected[0]
-        build = await self.provider.get_build(installed_version)
-        if detected and installed_version == build.version and build.assets:
-            build = hotfix_build(build, install_path)
+        build = await self._build(installed_version, install_path if detected else None)
+        if build.kind == "game_hotfix":
+            raise AppError(
+                "game_hotfix_pending",
+                "检测到游戏内热更新清单，请先启动原神完成资源应用",
+                409,
+            )
         job = GameJob(
             id=str(uuid4()),
             kind=kind,
@@ -92,11 +93,15 @@ class GameService:
         task.add_done_callback(self.tasks.discard)
         return job
 
+    async def _build(self, version: str, path: Path | None) -> GameBuild:
+        build = await self.provider.get_build(version)
+        if path and version == build.version and build.assets:
+            build = hotfix_build(build, path)
+        return pending_hotpatch(build, path) if path and version == build.version else build
     def get_job(self, job_id: str) -> GameJob:
         if job_id not in self.jobs:
             raise AppError("game_job_missing", "游戏资源任务不存在", 404)
         return self.jobs[job_id]
-
     def control(self, job_id: str, action: str) -> GameJob:
         job = self.get_job(job_id)
         control = self.controls[job_id]
@@ -111,7 +116,6 @@ class GameService:
         else:
             raise AppError("game_job_action_invalid", "任务操作与当前状态不匹配", 409)
         return job
-
     async def _run(
         self,
         job: GameJob,
@@ -126,7 +130,7 @@ class GameService:
             shutil.rmtree(staging, ignore_errors=True)
             if job.kind is JobKind.UPDATE and install_path.exists():
                 shutil.copytree(install_path, staging)
-                if build.kind != "hotfix":
+                if build.kind != "package_repair":
                     remove_retired_assets(staging, build)
             if build.patch_assets:
                 await self.sophon_patch_installer.install(
@@ -162,7 +166,7 @@ class GameService:
                 self.installer.extract(archives, staging)
                 self.installer.verify(staging)
             (staging / ".mhg-version").write_text(build.version)
-            if build.assets and build.kind != "hotfix":
+            if build.assets and build.kind != "package_repair":
                 (staging / ".mhg-assets.json").write_text(
                     json.dumps([asset.name for asset in build.assets])
                 )
@@ -177,7 +181,6 @@ class GameService:
             job.message = str(error)
         finally:
             shutil.rmtree(staging, ignore_errors=True)
-
     async def _save_state(self, path: Path, version: str) -> None:
         now = datetime.now(UTC).isoformat()
         await self.database.execute(

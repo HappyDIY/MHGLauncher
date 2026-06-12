@@ -118,7 +118,7 @@ async def test_existing_game_is_detected_and_update_uses_local_version(
         await service.shutdown()
 
 
-async def test_same_version_changed_asset_triggers_hotfix(tmp_path: Path) -> None:
+async def test_same_version_changed_asset_triggers_package_repair(tmp_path: Path) -> None:
     game = tmp_path / "game"
     game.mkdir()
     (game / "YuanShen.exe").write_bytes(b"")
@@ -149,6 +149,6 @@ async def test_same_version_changed_asset_triggers_hotfix(tmp_path: Path) -> Non
         service = GameService(database, GameProvider(build), client, tmp_path / "data")
         state = await service.state(game)
         assert state.status.value == "update_available"
-        assert state.update_kind == "hotfix"
+        assert state.update_kind == "package_repair"
         assert state.download_bytes == 3
         await service.shutdown()
