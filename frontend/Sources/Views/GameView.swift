@@ -39,13 +39,20 @@ struct GameView: View {
                 Button("安装") {
                     Task { await store.startGameJob(.install) }
                 }
+                .disabled(store.gameState?.status != .notInstalled)
                 Button("更新") {
                     Task { await store.startGameJob(.update) }
                 }
+                .disabled(store.gameState?.status != .updateAvailable)
                 Spacer()
             }
             .buttonStyle(.glassProminent)
             Spacer()
+        }
+        .task(id: store.installPath) {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            await store.refreshGame()
         }
     }
 

@@ -18,9 +18,10 @@ from mhglauncher.services.games import GameService
 class GameProvider:
     def __init__(self, build: GameBuild) -> None:
         self.build = build
+        self.installed_versions: list[str] = []
 
     async def get_build(self, installed_version: str = "") -> GameBuild:
-        del installed_version
+        self.installed_versions.append(installed_version)
         return self.build
 
     async def create_qr_session(self) -> QRSession:
@@ -82,4 +83,29 @@ async def test_install_job_downloads_and_activates(tmp_path: Path) -> None:
         assert (destination / "Genshin Impact Game/config.ini").exists()
         state = await service.state()
         assert state.installed_version == "5.8.0"
+        await service.shutdown()
+
+
+async def test_existing_game_is_detected_and_update_uses_local_version(
+    tmp_path: Path,
+) -> None:
+    game = tmp_path / "Genshin Impact Game"
+    game.mkdir()
+    (game / "YuanShen.exe").write_bytes(b"")
+    (game / "config.ini").write_text(
+        "[General]\ngame_version=6.5.0\n",
+        encoding="utf-8",
+    )
+    provider = GameProvider(GameBuild(version="6.6.0"))
+    database = Database(tmp_path / "game.db")
+    await database.initialize()
+    async with httpx.AsyncClient() as client:
+        service = GameService(database, provider, client, tmp_path / "data")
+        state = await service.state(game)
+        assert state.install_path == str(game)
+        assert state.installed_version == "6.5.0"
+        assert state.status.value == "update_available"
+
+        await service.start(JobKind.UPDATE, game)
+        assert provider.installed_versions[-1] == "6.5.0"
         await service.shutdown()

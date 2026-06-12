@@ -46,3 +46,19 @@ async def test_launch_is_explicit_placeholder(api_client: httpx.AsyncClient) -> 
     assert response.status_code == 501
     assert response.json()["code"] == "launch_not_implemented"
 
+
+async def test_game_status_detects_selected_path(
+    api_client: httpx.AsyncClient,
+    tmp_path,
+) -> None:
+    game = tmp_path / "Genshin Impact Game"
+    game.mkdir()
+    (game / "YuanShen.exe").write_bytes(b"")
+    (game / "config.ini").write_text("[General]\ngame_version=5.7.0\n")
+    response = await api_client.get(
+        "/v1/game/status/path",
+        params={"install_path": str(game)},
+    )
+    assert response.status_code == 200
+    assert response.json()["installed_version"] == "5.7.0"
+    assert response.json()["status"] == "update_available"

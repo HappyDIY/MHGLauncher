@@ -4,9 +4,18 @@ extension LauncherStore {
     func refreshGame() async {
         await perform {
             let client = try requireClient()
-            let state: GameState = try await client.get("/v1/game/status")
+            let path = installPath.trimmingCharacters(in: .whitespacesAndNewlines)
+            let state: GameState
+            if path.isEmpty {
+                state = try await client.get("/v1/game/status")
+            } else {
+                state = try await client.get(
+                    "/v1/game/status/path",
+                    query: [URLQueryItem(name: "install_path", value: path)]
+                )
+            }
             gameState = state
-            if installPath.isEmpty {
+            if path.isEmpty || state.status != .notInstalled {
                 installPath = state.installPath
             }
         }
@@ -60,4 +69,3 @@ extension LauncherStore {
 }
 
 struct EmptyResponse: Codable {}
-

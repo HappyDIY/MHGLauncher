@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from mhglauncher.api.dependencies import games
@@ -27,6 +27,14 @@ class ControlJob(BaseModel):
 @router.get("/status", response_model=GameState)
 async def status(service: Annotated[GameService, Depends(games)]) -> GameState:
     return await service.state()
+
+
+@router.get("/status/path", response_model=GameState)
+async def status_for_path(
+    service: Annotated[GameService, Depends(games)],
+    install_path: Annotated[str, Query(min_length=1)],
+) -> GameState:
+    return await service.state(Path(install_path).expanduser())
 
 
 @router.post("/jobs", response_model=GameJob, status_code=202)
@@ -57,4 +65,3 @@ async def control_job(
 @router.post("/launch")
 async def launch() -> None:
     raise AppError("launch_not_implemented", "游戏启动功能尚未实现", 501)
-

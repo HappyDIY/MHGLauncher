@@ -14,6 +14,7 @@ from mhglauncher.errors import AppError
 from mhglauncher.models import GameJob, GameState, GameStatus, JobKind, JobStatus
 from mhglauncher.providers.base import GameBuild, Provider
 from mhglauncher.services.downloader import DownloadControl, Downloader
+from mhglauncher.services.game_detection import detect_game
 from mhglauncher.services.installer import Installer
 from mhglauncher.services.sophon_installer import SophonInstaller
 
@@ -36,19 +37,27 @@ class GameService:
         self.controls: dict[str, DownloadControl] = {}
         self.tasks: set[asyncio.Task[None]] = set()
 
-    async def state(self) -> GameState:
+    async def state(self, install_path: Path | None = None) -> GameState:
         row = await self.database.fetch_one("SELECT * FROM game_state WHERE id=1")
-        build = await self.provider.get_build(row["version"] if row else "")
-        if row is None:
-            return GameState(available_version=build.version)
+        candidate = install_path or (Path(row["install_path"]) if row else None)
+        detected = detect_game(candidate) if candidate else None
+        installed_version = detected[1] if detected else ""
+        build = await self.provider.get_build(installed_version)
+        if detected is None:
+            return GameState(
+                install_path=str(candidate) if candidate else "",
+                available_version=build.version,
+            )
+        detected_path, installed_version = detected
+        await self._save_state(detected_path, installed_version)
         status = (
             GameStatus.READY
-            if row["version"] == build.version
+            if installed_version == build.version
             else GameStatus.UPDATE_AVAILABLE
         )
         return GameState(
-            install_path=row["install_path"],
-            installed_version=row["version"],
+            install_path=str(detected_path),
+            installed_version=installed_version,
             available_version=build.version,
             status=status,
         )
@@ -56,7 +65,13 @@ class GameService:
     async def start(self, kind: JobKind, install_path: Path) -> GameJob:
         if any(job.status in {JobStatus.QUEUED, JobStatus.RUNNING} for job in self.jobs.values()):
             raise AppError("game_job_busy", "已有游戏资源任务正在运行", 409)
-        build = await self.provider.get_build()
+        detected = detect_game(install_path)
+        installed_version = detected[1] if detected else ""
+        if kind is JobKind.UPDATE and detected is None:
+            raise AppError("game_not_installed", "所选目录中未检测到可更新的原神客户端")
+        if detected:
+            install_path = detected[0]
+        build = await self.provider.get_build(installed_version)
         job = GameJob(
             id=str(uuid4()),
             kind=kind,
