@@ -26,7 +26,7 @@ def _payload(version: str = "v4.2") -> dict[str, object]:
                         "id": 1,
                         "uigf_gacha_type": 301,
                         "gacha_type": 400,
-                        "item_id": 1001,
+                        "item_id": 10000089,
                         "time": "2026-06-11 08:00:00",
                     }
                 ],
@@ -41,8 +41,9 @@ def test_imports_supported_versions_and_number_fields(version: str) -> None:
     assert records[0].uid == "100000001"
     assert records[0].gacha_type == "400"
     assert records[0].uigf_gacha_type == "301"
-    assert records[0].name == ""
-    assert records[0].rank == 0
+    assert records[0].name == "芙宁娜"
+    assert records[0].item_type == "角色"
+    assert records[0].rank == 5
 
 
 @pytest.mark.parametrize("version", ["v3.0", "v4.3", "v5.0", "unknown"])

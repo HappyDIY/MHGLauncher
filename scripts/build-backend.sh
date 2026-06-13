@@ -19,6 +19,7 @@ if [[ "$mode" == "--release" ]]; then
     --assume-yes-for-downloads \
     --disable-ccache \
     --nofollow-import-to=mypy \
+    --include-package-data=mhglauncher \
     --output-dir="$nuitka_root" \
     --output-filename=MHGLauncherBackend \
     --python-flag=-m \
@@ -33,6 +34,7 @@ else
     --clean \
     --onedir \
     --name MHGLauncherBackend \
+    --collect-data mhglauncher \
     --paths src \
     --distpath "$dist_root" \
     --workpath "$build_root/work" \

@@ -15,6 +15,7 @@ uv run pyinstaller \
   --clean \
   --onedir \
   --name MHGLauncherBackend \
+  --collect-data mhglauncher \
   --paths src \
   --distpath "$dist_root" \
   --workpath "$build_root/work" \

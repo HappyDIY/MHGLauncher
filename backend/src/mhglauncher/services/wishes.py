@@ -6,6 +6,7 @@ from collections import defaultdict
 from mhglauncher.database import Database
 from mhglauncher.models import GameRole, WishRecord, WishStatistics
 from mhglauncher.providers.base import Provider
+from mhglauncher.services.item_metadata import enrich_record
 
 
 class WishService:
@@ -55,10 +56,18 @@ class WishService:
         async with self.database.connect() as connection:
             await connection.executemany(
                 """
-                INSERT OR IGNORE INTO wishes(
+                INSERT INTO wishes(
                   id, uid, gacha_type, uigf_gacha_type,
                   item_id, name, item_type, rank, time
                 ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  uigf_gacha_type=COALESCE(
+                    NULLIF(excluded.uigf_gacha_type, ''),
+                    wishes.uigf_gacha_type
+                  ),
+                  name=COALESCE(NULLIF(excluded.name, ''), wishes.name),
+                  item_type=COALESCE(NULLIF(excluded.item_type, ''), wishes.item_type),
+                  rank=CASE WHEN excluded.rank > 0 THEN excluded.rank ELSE wishes.rank END
                 """,
                 values,
             )
@@ -82,7 +91,7 @@ class WishService:
             data["uigf_gacha_type"] = data["uigf_gacha_type"] or _uigf_type(
                 str(data["gacha_type"])
             )
-            records.append(WishRecord.model_validate(data))
+            records.append(enrich_record(WishRecord.model_validate(data)))
         return records
 
     async def statistics(self, uid: str) -> builtins.list[WishStatistics]:

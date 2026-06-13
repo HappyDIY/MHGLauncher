@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from mhglauncher import __version__
 from mhglauncher.errors import AppError
 from mhglauncher.models import WishRecord
+from mhglauncher.services.item_metadata import enrich_record
 
 UIGFVersion = Literal["v4.0", "v4.1", "v4.2"]
 GACHA_TYPES = {"100", "200", "301", "302", "400", "500"}
@@ -120,16 +121,18 @@ def _record(account: UIGFAccount, item: UIGFItem) -> WishRecord:
     try:
         parsed_time = datetime.strptime(item.time, "%Y-%m-%d %H:%M:%S")
         rank = int(item.rank_type) if item.rank_type is not None else 0
-        return WishRecord(
-            id=item.id,
-            uid=account.uid,
-            gacha_type=item.gacha_type,
-            uigf_gacha_type=item.uigf_gacha_type,
-            item_id=item.item_id,
-            name=item.name,
-            item_type=item.item_type,
-            rank=rank,
-            time=parsed_time,
+        return enrich_record(
+            WishRecord(
+                id=item.id,
+                uid=account.uid,
+                gacha_type=item.gacha_type,
+                uigf_gacha_type=item.uigf_gacha_type,
+                item_id=item.item_id,
+                name=item.name,
+                item_type=item.item_type,
+                rank=rank,
+                time=parsed_time,
+            )
         )
     except (TypeError, ValueError) as error:
         raise AppError("uigf_item_invalid", "UIGF 记录字段无效") from error
