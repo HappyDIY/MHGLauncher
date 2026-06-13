@@ -51,7 +51,8 @@ struct APIModelTests {
               "name": "笛剑",
               "item_type": "武器",
               "rank": 4,
-              "time": "2026-05-26T13:50:30"
+              "time": "2026-05-26T13:50:30",
+              "icon_url": "https://example.invalid/item.png"
             }
             """.utf8
         )
@@ -60,6 +61,7 @@ struct APIModelTests {
         calendar.timeZone = try #require(TimeZone(secondsFromGMT: 8 * 60 * 60))
         #expect(calendar.component(.hour, from: record.time) == 13)
         #expect(calendar.component(.minute, from: record.time) == 50)
+        #expect(record.iconUrl?.lastPathComponent == "item.png")
     }
 
     @Test("解码统一错误")

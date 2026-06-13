@@ -9,6 +9,7 @@ struct WishRecord: Codable, Sendable, Identifiable {
     let itemType: String
     let rank: Int
     let time: Date
+    let iconUrl: URL?
 }
 
 struct WishStatistics: Codable, Sendable, Identifiable {

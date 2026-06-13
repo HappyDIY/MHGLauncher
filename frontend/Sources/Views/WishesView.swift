@@ -42,7 +42,9 @@ struct WishesView: View {
                     TableColumn("时间") { item in
                         Text(item.time.formatted(date: .abbreviated, time: .shortened))
                     }
-                    TableColumn("名称", value: \.name)
+                    TableColumn("名称") { item in
+                        WishItemCell(item: item)
+                    }
                     TableColumn("类型", value: \.itemType)
                     TableColumn("星级") { item in
                         Text(String(repeating: "★", count: item.rank))
