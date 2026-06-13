@@ -6,6 +6,7 @@ import pytest
 
 from mhglauncher.errors import AppError
 from mhglauncher.models import WishRecord
+from mhglauncher.services.item_metadata import enrich_record
 from mhglauncher.services.uigf import export_uigf, import_uigf
 
 
@@ -43,6 +44,9 @@ def test_imports_supported_versions_and_number_fields(version: str) -> None:
     assert records[0].uigf_gacha_type == "301"
     assert records[0].name == "芙宁娜"
     assert records[0].item_type == "角色"
+    assert records[0].icon_url.endswith(
+        "/GachaAvatarIcon/UI_Gacha_AvatarIcon_Furina.png"
+    )
     assert records[0].rank == 5
 
 
@@ -50,6 +54,23 @@ def test_imports_supported_versions_and_number_fields(version: str) -> None:
 def test_rejects_unsupported_versions(version: str) -> None:
     with pytest.raises(AppError, match=r"v4\.0、v4\.1 或 v4\.2"):
         import_uigf(_payload(version))
+
+
+def test_enriches_weapon_icon() -> None:
+    record = WishRecord(
+        id="1",
+        uid="100000001",
+        gacha_type="200",
+        item_id="11402",
+        name="笛剑",
+        item_type="武器",
+        rank=4,
+        time=datetime(2026, 6, 11, 8),
+    )
+    enriched = enrich_record(record)
+    assert enriched.icon_url.endswith(
+        "/GachaEquipIcon/UI_Gacha_EquipIcon_Sword_Troupe.png"
+    )
 
 
 def test_rejects_legacy_version_key() -> None:
