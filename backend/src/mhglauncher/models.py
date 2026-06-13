@@ -52,6 +52,7 @@ class WishRecord(BaseModel):
     item_type: str
     rank: int = Field(ge=0, le=5)
     time: datetime
+    icon_url: str = ""
 
 
 class WishStatistics(BaseModel):

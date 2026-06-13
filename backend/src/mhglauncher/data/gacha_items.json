@@ -1,1742 +1,2090 @@
 {
-  "10000002": [
-    "神里绫华",
-    "角色",
-    5
-  ],
-  "10000003": [
-    "琴",
-    "角色",
-    5
-  ],
-  "10000006": [
-    "丽莎",
-    "角色",
-    4
-  ],
-  "10000014": [
-    "芭芭拉",
-    "角色",
-    4
-  ],
-  "10000015": [
-    "凯亚",
-    "角色",
-    4
-  ],
-  "10000016": [
-    "迪卢克",
-    "角色",
-    5
-  ],
-  "10000020": [
-    "雷泽",
-    "角色",
-    4
-  ],
-  "10000021": [
-    "安柏",
-    "角色",
-    4
-  ],
-  "10000022": [
-    "温迪",
-    "角色",
-    5
-  ],
-  "10000023": [
-    "香菱",
-    "角色",
-    4
-  ],
-  "10000024": [
-    "北斗",
-    "角色",
-    4
-  ],
-  "10000025": [
-    "行秋",
-    "角色",
-    4
-  ],
-  "10000026": [
-    "魈",
-    "角色",
-    5
-  ],
-  "10000027": [
-    "凝光",
-    "角色",
-    4
-  ],
-  "10000029": [
-    "可莉",
-    "角色",
-    5
-  ],
-  "10000030": [
-    "钟离",
-    "角色",
-    5
-  ],
-  "10000031": [
-    "菲谢尔",
-    "角色",
-    4
-  ],
-  "10000032": [
-    "班尼特",
-    "角色",
-    4
-  ],
-  "10000033": [
-    "达达利亚",
-    "角色",
-    5
-  ],
-  "10000034": [
-    "诺艾尔",
-    "角色",
-    4
-  ],
-  "10000035": [
-    "七七",
-    "角色",
-    5
-  ],
-  "10000036": [
-    "重云",
-    "角色",
-    4
-  ],
-  "10000037": [
-    "甘雨",
-    "角色",
-    5
-  ],
-  "10000038": [
-    "阿贝多",
-    "角色",
-    5
-  ],
-  "10000039": [
-    "迪奥娜",
-    "角色",
-    4
-  ],
-  "10000041": [
-    "莫娜",
-    "角色",
-    5
-  ],
-  "10000042": [
-    "刻晴",
-    "角色",
-    5
-  ],
-  "10000043": [
-    "砂糖",
-    "角色",
-    4
-  ],
-  "10000044": [
-    "辛焱",
-    "角色",
-    4
-  ],
-  "10000045": [
-    "罗莎莉亚",
-    "角色",
-    4
-  ],
-  "10000046": [
-    "胡桃",
-    "角色",
-    5
-  ],
-  "10000047": [
-    "枫原万叶",
-    "角色",
-    5
-  ],
-  "10000048": [
-    "烟绯",
-    "角色",
-    4
-  ],
-  "10000049": [
-    "宵宫",
-    "角色",
-    5
-  ],
-  "10000050": [
-    "托马",
-    "角色",
-    4
-  ],
-  "10000051": [
-    "优菈",
-    "角色",
-    5
-  ],
-  "10000052": [
-    "雷电将军",
-    "角色",
-    5
-  ],
-  "10000053": [
-    "早柚",
-    "角色",
-    4
-  ],
-  "10000054": [
-    "珊瑚宫心海",
-    "角色",
-    5
-  ],
-  "10000055": [
-    "五郎",
-    "角色",
-    4
-  ],
-  "10000056": [
-    "九条裟罗",
-    "角色",
-    4
-  ],
-  "10000057": [
-    "荒泷一斗",
-    "角色",
-    5
-  ],
-  "10000058": [
-    "八重神子",
-    "角色",
-    5
-  ],
-  "10000059": [
-    "鹿野院平藏",
-    "角色",
-    4
-  ],
-  "10000060": [
-    "夜兰",
-    "角色",
-    5
-  ],
-  "10000061": [
-    "绮良良",
-    "角色",
-    4
-  ],
-  "10000062": [
-    "埃洛伊",
-    "角色",
-    105
-  ],
-  "10000063": [
-    "申鹤",
-    "角色",
-    5
-  ],
-  "10000064": [
-    "云堇",
-    "角色",
-    4
-  ],
-  "10000065": [
-    "久岐忍",
-    "角色",
-    4
-  ],
-  "10000066": [
-    "神里绫人",
-    "角色",
-    5
-  ],
-  "10000067": [
-    "柯莱",
-    "角色",
-    4
-  ],
-  "10000068": [
-    "多莉",
-    "角色",
-    4
-  ],
-  "10000069": [
-    "提纳里",
-    "角色",
-    5
-  ],
-  "10000070": [
-    "妮露",
-    "角色",
-    5
-  ],
-  "10000071": [
-    "赛诺",
-    "角色",
-    5
-  ],
-  "10000072": [
-    "坎蒂丝",
-    "角色",
-    4
-  ],
-  "10000073": [
-    "纳西妲",
-    "角色",
-    5
-  ],
-  "10000074": [
-    "莱依拉",
-    "角色",
-    4
-  ],
-  "10000075": [
-    "流浪者",
-    "角色",
-    5
-  ],
-  "10000076": [
-    "珐露珊",
-    "角色",
-    4
-  ],
-  "10000077": [
-    "瑶瑶",
-    "角色",
-    4
-  ],
-  "10000078": [
-    "艾尔海森",
-    "角色",
-    5
-  ],
-  "10000079": [
-    "迪希雅",
-    "角色",
-    5
-  ],
-  "10000080": [
-    "米卡",
-    "角色",
-    4
-  ],
-  "10000081": [
-    "卡维",
-    "角色",
-    4
-  ],
-  "10000082": [
-    "白术",
-    "角色",
-    5
-  ],
-  "10000083": [
-    "琳妮特",
-    "角色",
-    4
-  ],
-  "10000084": [
-    "林尼",
-    "角色",
-    5
-  ],
-  "10000085": [
-    "菲米尼",
-    "角色",
-    4
-  ],
-  "10000086": [
-    "莱欧斯利",
-    "角色",
-    5
-  ],
-  "10000087": [
-    "那维莱特",
-    "角色",
-    5
-  ],
-  "10000088": [
-    "夏洛蒂",
-    "角色",
-    4
-  ],
-  "10000089": [
-    "芙宁娜",
-    "角色",
-    5
-  ],
-  "10000090": [
-    "夏沃蕾",
-    "角色",
-    4
-  ],
-  "10000091": [
-    "娜维娅",
-    "角色",
-    5
-  ],
-  "10000092": [
-    "嘉明",
-    "角色",
-    4
-  ],
-  "10000093": [
-    "闲云",
-    "角色",
-    5
-  ],
-  "10000094": [
-    "千织",
-    "角色",
-    5
-  ],
-  "10000095": [
-    "希格雯",
-    "角色",
-    5
-  ],
-  "10000096": [
-    "阿蕾奇诺",
-    "角色",
-    5
-  ],
-  "10000097": [
-    "赛索斯",
-    "角色",
-    4
-  ],
-  "10000098": [
-    "克洛琳德",
-    "角色",
-    5
-  ],
-  "10000099": [
-    "艾梅莉埃",
-    "角色",
-    5
-  ],
-  "10000100": [
-    "卡齐娜",
-    "角色",
-    4
-  ],
-  "10000101": [
-    "基尼奇",
-    "角色",
-    5
-  ],
-  "10000102": [
-    "玛拉妮",
-    "角色",
-    5
-  ],
-  "10000103": [
-    "希诺宁",
-    "角色",
-    5
-  ],
-  "10000104": [
-    "恰斯卡",
-    "角色",
-    5
-  ],
-  "10000105": [
-    "欧洛伦",
-    "角色",
-    4
-  ],
-  "10000106": [
-    "玛薇卡",
-    "角色",
-    5
-  ],
-  "10000107": [
-    "茜特菈莉",
-    "角色",
-    5
-  ],
-  "10000108": [
-    "蓝砚",
-    "角色",
-    4
-  ],
-  "10000109": [
-    "梦见月瑞希",
-    "角色",
-    5
-  ],
-  "10000110": [
-    "伊安珊",
-    "角色",
-    4
-  ],
-  "10000111": [
-    "瓦雷莎",
-    "角色",
-    5
-  ],
-  "10000112": [
-    "爱可菲",
-    "角色",
-    5
-  ],
-  "10000113": [
-    "伊法",
-    "角色",
-    4
-  ],
-  "10000114": [
-    "丝柯克",
-    "角色",
-    5
-  ],
-  "10000115": [
-    "塔利雅",
-    "角色",
-    4
-  ],
-  "10000116": [
-    "伊涅芙",
-    "角色",
-    5
-  ],
-  "10000119": [
-    "菈乌玛",
-    "角色",
-    5
-  ],
-  "10000120": [
-    "菲林斯",
-    "角色",
-    5
-  ],
-  "10000121": [
-    "爱诺",
-    "角色",
-    4
-  ],
-  "10000122": [
-    "奈芙尔",
-    "角色",
-    5
-  ],
-  "10000123": [
-    "杜林",
-    "角色",
-    5
-  ],
-  "10000124": [
-    "雅珂达",
-    "角色",
-    4
-  ],
-  "10000125": [
-    "哥伦比娅",
-    "角色",
-    5
-  ],
-  "10000126": [
-    "兹白",
-    "角色",
-    5
-  ],
-  "10000127": [
-    "叶洛亚",
-    "角色",
-    4
-  ],
-  "10000128": [
-    "法尔伽",
-    "角色",
-    5
-  ],
-  "10000129": [
-    "洛恩",
-    "角色",
-    5
-  ],
-  "10000130": [
-    "莉奈娅",
-    "角色",
-    5
-  ],
-  "10000131": [
-    "尼可",
-    "角色",
-    5
-  ],
-  "10000132": [
-    "布伦妮",
-    "角色",
-    4
-  ],
   "11101": [
     "无锋剑",
     "武器",
-    1
+    1,
+    "UI_EquipIcon_Sword_Blunt"
   ],
   "11201": [
     "银剑",
     "武器",
-    2
+    2,
+    "UI_EquipIcon_Sword_Silver"
   ],
   "11301": [
     "冷刃",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Sword_Steel"
   ],
   "11302": [
     "黎明神剑",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Sword_Dawn"
   ],
   "11303": [
     "旅行剑",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Sword_Traveler"
   ],
   "11304": [
     "暗铁剑",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Sword_Darker"
   ],
   "11305": [
     "吃虎鱼刀",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Sword_Sashimi"
   ],
   "11306": [
     "飞天御剑",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Sword_Mitsurugi"
   ],
   "11401": [
     "西风剑",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Zephyrus"
   ],
   "11402": [
     "笛剑",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Troupe"
   ],
   "11403": [
     "祭礼剑",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Fossil"
   ],
   "11404": [
     "宗室长剑",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Theocrat"
   ],
   "11405": [
     "匣里龙吟",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Rockkiller"
   ],
   "11406": [
     "试作斩岩",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Proto"
   ],
   "11407": [
     "铁蜂刺",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Exotic"
   ],
   "11408": [
     "黑岩长剑",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Blackrock"
   ],
   "11409": [
     "黑剑",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Bloodstained"
   ],
   "11410": [
     "暗巷闪光",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Outlaw"
   ],
   "11412": [
     "降临之剑",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Psalmus"
   ],
   "11413": [
     "腐殖之剑",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Magnum"
   ],
   "11414": [
     "天目影打刀",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Bakufu"
   ],
   "11415": [
     "辰砂之纺锤",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Opus"
   ],
   "11416": [
     "笼钓瓶一心",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Youtou"
   ],
   "11417": [
     "原木刀",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Arakalari"
   ],
   "11418": [
     "西福斯的月光",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Pleroma"
   ],
   "11422": [
     "东花坊时雨",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Kasabouzu"
   ],
   "11424": [
     "狼牙",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Boreas"
   ],
   "11425": [
     "海渊终曲",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Vorpal"
   ],
   "11426": [
     "灰河渡手",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Machination"
   ],
   "11427": [
     "船坞长剑",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Mechanic"
   ],
   "11428": [
     "水仙十字之剑",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Purewill"
   ],
   "11430": [
     "弥坚骨",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Umpakati"
   ],
   "11431": [
     "息燧之笛",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Isikhulu"
   ],
   "11432": [
     "厄水之祸",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_SacrificialNgombe"
   ],
   "11433": [
     "谧音吹哨",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Ilmarinen"
   ],
   "11434": [
     "织月者的曙色",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Sword_Miekka"
   ],
   "11501": [
     "风鹰剑",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Sword_Falcon"
   ],
   "11502": [
     "天空之刃",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Sword_Dvalin"
   ],
   "11503": [
     "苍古自由之誓",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Sword_Widsith"
   ],
   "11504": [
     "斫峰之刃",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Sword_Kunwu"
   ],
   "11505": [
     "磐岩结绿",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Sword_Morax"
   ],
   "11509": [
     "雾切之回光",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Sword_Narukami"
   ],
   "11510": [
     "波乱月白经津",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Sword_Amenoma"
   ],
   "11511": [
     "圣显之钥",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Sword_Deshret"
   ],
   "11512": [
     "裁叶萃光",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Sword_Ayus"
   ],
   "11513": [
     "静水流涌之辉",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Sword_Regalis"
   ],
   "11514": [
     "有乐御簾切",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Sword_Needle"
   ],
   "11515": [
     "赦罪",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Sword_Estoc"
   ],
   "11516": [
     "岩峰巡歌",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Sword_XochitlsTube"
   ],
   "11517": [
     "苍耀",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Sword_OuterSword"
   ],
   "11518": [
     "黑蚀",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Sword_Motsognir"
   ],
   "11519": [
     "朏魄含光",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Sword_SilverwareSaw"
   ],
   "12101": [
     "训练大剑",
     "武器",
-    1
+    1,
+    "UI_EquipIcon_Claymore_Aniki"
   ],
   "12201": [
     "佣兵重剑",
     "武器",
-    2
+    2,
+    "UI_EquipIcon_Claymore_Oyaji"
   ],
   "12301": [
     "铁影阔剑",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Claymore_Glaive"
   ],
   "12302": [
     "沐浴龙血的剑",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Claymore_Siegfry"
   ],
   "12303": [
     "白铁大剑",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Claymore_Tin"
   ],
   "12305": [
     "以理服人",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Claymore_Reasoning"
   ],
   "12306": [
     "飞天大御剑",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Claymore_Mitsurugi"
   ],
   "12401": [
     "西风大剑",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Zephyrus"
   ],
   "12402": [
     "钟剑",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Troupe"
   ],
   "12403": [
     "祭礼大剑",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Fossil"
   ],
   "12404": [
     "宗室大剑",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Theocrat"
   ],
   "12405": [
     "雨裁",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Perdue"
   ],
   "12406": [
     "试作古华",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Proto"
   ],
   "12407": [
     "白影剑",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Exotic"
   ],
   "12408": [
     "黑岩斩刀",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Blackrock"
   ],
   "12409": [
     "螭骨剑",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Kione"
   ],
   "12410": [
     "千岩古剑",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Lapis"
   ],
   "12411": [
     "雪葬的星银",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Dragonfell"
   ],
   "12412": [
     "衔珠海皇",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_MillenniaTuna"
   ],
   "12414": [
     "桂木斩长正",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Bakufu"
   ],
   "12415": [
     "玛海菈的水色",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Pleroma"
   ],
   "12416": [
     "恶王丸",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Maria"
   ],
   "12417": [
     "森林王器",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Arakalari"
   ],
   "12418": [
     "饰铁之花",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Fleurfair"
   ],
   "12424": [
     "聊聊棒",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_BeastTamer"
   ],
   "12425": [
     "浪影阔剑",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Vorpal"
   ],
   "12426": [
     "「究极霸王超级魔剑」",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Champion"
   ],
   "12427": [
     "便携动力锯",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Mechanic"
   ],
   "12430": [
     "硕果钩",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Umpakati"
   ],
   "12431": [
     "撼地者",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Isikhulu"
   ],
   "12432": [
     "拾慧铸熔",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Polilith"
   ],
   "12433": [
     "万能钥匙",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Claymore_Ilmarinen"
   ],
   "12501": [
     "天空之傲",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Claymore_Dvalin"
   ],
   "12502": [
     "狼的末路",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Claymore_Wolfmound"
   ],
   "12503": [
     "松籁响起之时",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Claymore_Widsith"
   ],
   "12504": [
     "无工之剑",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Claymore_Kunwu"
   ],
   "12510": [
     "赤角石溃杵",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Claymore_Itadorimaru"
   ],
   "12511": [
     "苇海信标",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Claymore_Deshret"
   ],
   "12512": [
     "裁断",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Claymore_GoldenVerdict"
   ],
   "12513": [
     "山王长牙",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Claymore_EmeraldSword"
   ],
   "12514": [
     "焚曜千阳",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Claymore_RadianceSword"
   ],
   "12515": [
     "狼的武功歌",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Claymore_EnsisAquilonis"
   ],
   "13101": [
     "新手长枪",
     "武器",
-    1
+    1,
+    "UI_EquipIcon_Pole_Gewalt"
   ],
   "13201": [
     "铁尖枪",
     "武器",
-    2
+    2,
+    "UI_EquipIcon_Pole_Rod"
   ],
   "13301": [
     "白缨枪",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Pole_Ruby"
   ],
   "13302": [
     "钺矛",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Pole_Halberd"
   ],
   "13303": [
     "黑缨枪",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Pole_Noire"
   ],
   "13401": [
     "匣里灭辰",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Stardust"
   ],
   "13402": [
     "试作星镰",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Proto"
   ],
   "13403": [
     "流月针",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Exotic"
   ],
   "13404": [
     "黑岩刺枪",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Blackrock"
   ],
   "13405": [
     "决斗之枪",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Gladiator"
   ],
   "13406": [
     "千岩长枪",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Lapis"
   ],
   "13407": [
     "西风长枪",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Zephyrus"
   ],
   "13408": [
     "宗室猎枪",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Theocrat"
   ],
   "13409": [
     "龙脊长枪",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Everfrost"
   ],
   "13414": [
     "喜多院十文字",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Bakufu"
   ],
   "13415": [
     "「渔获」",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Mori"
   ],
   "13416": [
     "断浪长鳍",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Maria"
   ],
   "13417": [
     "贯月矢",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Arakalari"
   ],
   "13419": [
     "风信之锋",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Windvane"
   ],
   "13424": [
     "峡湾长歌",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Shanty"
   ],
   "13425": [
     "公义的酬报",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Vorpal"
   ],
   "13426": [
     "沙中伟贤的对答",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Caduceus"
   ],
   "13427": [
     "勘探钻机",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Mechanic"
   ],
   "13430": [
     "镇山之钉",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Umpakati"
   ],
   "13431": [
     "虹的行迹",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Isikhulu"
   ],
   "13432": [
     "且住亭御咄",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Aoandon"
   ],
   "13433": [
     "掘金之锹",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Ilmarinen"
   ],
   "13434": [
     "圣祭者的辉杖",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Pole_Krivule"
   ],
   "13501": [
     "护摩之杖",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Pole_Homa"
   ],
   "13502": [
     "天空之脊",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Pole_Dvalin"
   ],
   "13504": [
     "贯虹之槊",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Pole_Kunwu"
   ],
   "13505": [
     "和璞鸢",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Pole_Morax"
   ],
   "13507": [
     "息灾",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Pole_Santika"
   ],
   "13509": [
     "薙草之稻光",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Pole_Narukami"
   ],
   "13511": [
     "赤沙之杖",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Pole_Deshret"
   ],
   "13512": [
     "赤月之形",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Pole_BloodMoon"
   ],
   "13513": [
     "柔灯挽歌",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Pole_Muguet"
   ],
   "13514": [
     "香韵奏者",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Pole_Trident"
   ],
   "13515": [
     "支离轮光",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Pole_Perdix"
   ],
   "13516": [
     "血染荒城",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Pole_TummaLyhty"
   ],
   "13517": [
     "灾悔",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Pole_Carbine"
   ],
   "14101": [
     "学徒笔记",
     "武器",
-    1
+    1,
+    "UI_EquipIcon_Catalyst_Apprentice"
   ],
   "14201": [
     "口袋魔导书",
     "武器",
-    2
+    2,
+    "UI_EquipIcon_Catalyst_Pocket"
   ],
   "14301": [
     "魔导绪论",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Catalyst_Intro"
   ],
   "14302": [
     "讨龙英杰谭",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Catalyst_Pulpfic"
   ],
   "14303": [
     "异世界行记",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Catalyst_Lightnov"
   ],
   "14304": [
     "翡玉法球",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Catalyst_Jade"
   ],
   "14305": [
     "甲级宝珏",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Catalyst_Phoney"
   ],
   "14401": [
     "西风秘典",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Zephyrus"
   ],
   "14402": [
     "流浪乐章",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Troupe"
   ],
   "14403": [
     "祭礼残章",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Fossil"
   ],
   "14404": [
     "宗室秘法录",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Theocrat"
   ],
   "14405": [
     "匣里日月",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Resurrection"
   ],
   "14406": [
     "试作金珀",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Proto"
   ],
   "14407": [
     "万国诸海图谱",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Exotic"
   ],
   "14408": [
     "黑岩绯玉",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Blackrock"
   ],
   "14409": [
     "昭心",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Truelens"
   ],
   "14410": [
     "暗巷的酒与诗",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Outlaw"
   ],
   "14412": [
     "忍冬之果",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Everfrost"
   ],
   "14413": [
     "嘟嘟可故事集",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Ludiharpastum"
   ],
   "14414": [
     "白辰之环",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Bakufu"
   ],
   "14415": [
     "证誓之明瞳",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Jyanome"
   ],
   "14416": [
     "流浪的晚星",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Pleroma"
   ],
   "14417": [
     "盈满之实",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Arakalari"
   ],
   "14424": [
     "遗祀玉珑",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Yue"
   ],
   "14425": [
     "纯水流华",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Vorpal"
   ],
   "14426": [
     "无垠蔚蓝之歌",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_DandelionPoem"
   ],
   "14427": [
     "苍纹角杯",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_ConchSprayer"
   ],
   "14430": [
     "乘浪的回旋",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Umpakati"
   ],
   "14431": [
     "木棉之环",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Isikhulu"
   ],
   "14432": [
     "天光的纺琴",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_SeeliesLute"
   ],
   "14433": [
     "乌髓孑灯",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Ilmarinen"
   ],
   "14434": [
     "霜辰",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Catalyst_Ziedas"
   ],
   "14501": [
     "天空之卷",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Catalyst_Dvalin"
   ],
   "14502": [
     "四风原典",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Catalyst_Fourwinds"
   ],
   "14504": [
     "尘世之锁",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Catalyst_Kunwu"
   ],
   "14505": [
     "碧落之珑",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Catalyst_Morax"
   ],
   "14506": [
     "不灭月华",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Catalyst_Kaleido"
   ],
   "14509": [
     "神乐之真意",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Catalyst_Narukami"
   ],
   "14511": [
     "千夜浮梦",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Catalyst_Ayus"
   ],
   "14512": [
     "图莱杜拉的回忆",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Catalyst_Alaya"
   ],
   "14513": [
     "金流监督",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Catalyst_Wheatley"
   ],
   "14514": [
     "万世流涌大典",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Catalyst_Iudex"
   ],
   "14515": [
     "鹤鸣余音",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Catalyst_MountainGale"
   ],
   "14516": [
     "冲浪时光",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Catalyst_MechaPufferfish"
   ],
   "14517": [
     "祭星者之望",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Catalyst_Figurines"
   ],
   "14518": [
     "寝正月初晴",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Catalyst_SakuraFan"
   ],
   "14519": [
     "溢彩心念",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Catalyst_VaresaTransformer"
   ],
   "14520": [
     "纺夜天镜",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Catalyst_MenulisRing"
   ],
   "14521": [
     "真语秘匣",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Catalyst_Sistrum"
   ],
   "14522": [
     "帷间夜曲",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Catalyst_Brisingamen"
   ],
   "14523": [
     "尘光七谕",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Catalyst_FairyGarden"
   ],
   "15101": [
     "猎弓",
     "武器",
-    1
+    1,
+    "UI_EquipIcon_Bow_Hunters"
   ],
   "15201": [
     "历练的猎弓",
     "武器",
-    2
+    2,
+    "UI_EquipIcon_Bow_Old"
   ],
   "15301": [
     "鸦羽弓",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Bow_Crowfeather"
   ],
   "15302": [
     "神射手之誓",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Bow_Arjuna"
   ],
   "15303": [
     "反曲弓",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Bow_Curve"
   ],
   "15304": [
     "弹弓",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Bow_Sling"
   ],
   "15305": [
     "信使",
     "武器",
-    3
+    3,
+    "UI_EquipIcon_Bow_Msg"
   ],
   "15401": [
     "西风猎弓",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Zephyrus"
   ],
   "15402": [
     "绝弦",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Troupe"
   ],
   "15403": [
     "祭礼弓",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Fossil"
   ],
   "15404": [
     "宗室长弓",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Theocrat"
   ],
   "15405": [
     "弓藏",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Recluse"
   ],
   "15406": [
     "试作澹月",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Proto"
   ],
   "15407": [
     "钢轮弓",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Exotic"
   ],
   "15408": [
     "黑岩战弓",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Blackrock"
   ],
   "15409": [
     "苍翠猎弓",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Viridescent"
   ],
   "15410": [
     "暗巷猎手",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Outlaw"
   ],
   "15411": [
     "落霞",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Fallensun"
   ],
   "15412": [
     "幽夜华尔兹",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Nachtblind"
   ],
   "15413": [
     "风花之颂",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Fleurfair"
   ],
   "15414": [
     "破魔之弓",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Bakufu"
   ],
   "15415": [
     "掠食者",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Predator"
   ],
   "15416": [
     "曚云之月",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Maria"
   ],
   "15417": [
     "王下近侍",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Arakalari"
   ],
   "15418": [
     "竭泽",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Fin"
   ],
   "15419": [
     "鹮穿之喙",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Ibis"
   ],
   "15424": [
     "烈阳之嗣",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Gurabad"
   ],
   "15425": [
     "静谧之曲",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Vorpal"
   ],
   "15426": [
     "筑云",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Ultimatum"
   ],
   "15427": [
     "测距规",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Mechanic"
   ],
   "15430": [
     "缀花之翎",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Umpakati"
   ],
   "15431": [
     "碎链",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Isikhulu"
   ],
   "15432": [
     "冷寂迸音",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Stinger"
   ],
   "15433": [
     "罗网勾针",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_Ilmarinen"
   ],
   "15434": [
     "虹蛇的雨弦",
     "武器",
-    4
+    4,
+    "UI_EquipIcon_Bow_ElegguaBow"
   ],
   "15501": [
     "天空之翼",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Bow_Dvalin"
   ],
   "15502": [
     "阿莫斯之弓",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Bow_Amos"
   ],
   "15503": [
     "终末嗟叹之诗",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Bow_Widsith"
   ],
   "15507": [
     "冬极白星",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Bow_Worldbane"
   ],
   "15508": [
     "若水",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Bow_Kirin"
   ],
   "15509": [
     "飞雷之弦振",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Bow_Narukami"
   ],
   "15511": [
     "猎人之径",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Bow_Ayus"
   ],
   "15512": [
     "最初的大魔术",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Bow_Pledge"
   ],
   "15513": [
     "白雨心弦",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Bow_Arcdange"
   ],
   "15514": [
     "星鹫赤羽",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Bow_Qoyllorsnova"
   ],
   "15515": [
     "黎明破晓之史",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Bow_Arianna"
   ],
   "15516": [
     "霜结的誓金枝",
     "武器",
-    5
+    5,
+    "UI_EquipIcon_Bow_Alkonost"
+  ],
+  "10000002": [
+    "神里绫华",
+    "角色",
+    5,
+    "UI_AvatarIcon_Ayaka"
+  ],
+  "10000003": [
+    "琴",
+    "角色",
+    5,
+    "UI_AvatarIcon_Qin"
+  ],
+  "10000006": [
+    "丽莎",
+    "角色",
+    4,
+    "UI_AvatarIcon_Lisa"
+  ],
+  "10000014": [
+    "芭芭拉",
+    "角色",
+    4,
+    "UI_AvatarIcon_Barbara"
+  ],
+  "10000015": [
+    "凯亚",
+    "角色",
+    4,
+    "UI_AvatarIcon_Kaeya"
+  ],
+  "10000016": [
+    "迪卢克",
+    "角色",
+    5,
+    "UI_AvatarIcon_Diluc"
+  ],
+  "10000020": [
+    "雷泽",
+    "角色",
+    4,
+    "UI_AvatarIcon_Razor"
+  ],
+  "10000021": [
+    "安柏",
+    "角色",
+    4,
+    "UI_AvatarIcon_Ambor"
+  ],
+  "10000022": [
+    "温迪",
+    "角色",
+    5,
+    "UI_AvatarIcon_Venti"
+  ],
+  "10000023": [
+    "香菱",
+    "角色",
+    4,
+    "UI_AvatarIcon_Xiangling"
+  ],
+  "10000024": [
+    "北斗",
+    "角色",
+    4,
+    "UI_AvatarIcon_Beidou"
+  ],
+  "10000025": [
+    "行秋",
+    "角色",
+    4,
+    "UI_AvatarIcon_Xingqiu"
+  ],
+  "10000026": [
+    "魈",
+    "角色",
+    5,
+    "UI_AvatarIcon_Xiao"
+  ],
+  "10000027": [
+    "凝光",
+    "角色",
+    4,
+    "UI_AvatarIcon_Ningguang"
+  ],
+  "10000029": [
+    "可莉",
+    "角色",
+    5,
+    "UI_AvatarIcon_Klee"
+  ],
+  "10000030": [
+    "钟离",
+    "角色",
+    5,
+    "UI_AvatarIcon_Zhongli"
+  ],
+  "10000031": [
+    "菲谢尔",
+    "角色",
+    4,
+    "UI_AvatarIcon_Fischl"
+  ],
+  "10000032": [
+    "班尼特",
+    "角色",
+    4,
+    "UI_AvatarIcon_Bennett"
+  ],
+  "10000033": [
+    "达达利亚",
+    "角色",
+    5,
+    "UI_AvatarIcon_Tartaglia"
+  ],
+  "10000034": [
+    "诺艾尔",
+    "角色",
+    4,
+    "UI_AvatarIcon_Noel"
+  ],
+  "10000035": [
+    "七七",
+    "角色",
+    5,
+    "UI_AvatarIcon_Qiqi"
+  ],
+  "10000036": [
+    "重云",
+    "角色",
+    4,
+    "UI_AvatarIcon_Chongyun"
+  ],
+  "10000037": [
+    "甘雨",
+    "角色",
+    5,
+    "UI_AvatarIcon_Ganyu"
+  ],
+  "10000038": [
+    "阿贝多",
+    "角色",
+    5,
+    "UI_AvatarIcon_Albedo"
+  ],
+  "10000039": [
+    "迪奥娜",
+    "角色",
+    4,
+    "UI_AvatarIcon_Diona"
+  ],
+  "10000041": [
+    "莫娜",
+    "角色",
+    5,
+    "UI_AvatarIcon_Mona"
+  ],
+  "10000042": [
+    "刻晴",
+    "角色",
+    5,
+    "UI_AvatarIcon_Keqing"
+  ],
+  "10000043": [
+    "砂糖",
+    "角色",
+    4,
+    "UI_AvatarIcon_Sucrose"
+  ],
+  "10000044": [
+    "辛焱",
+    "角色",
+    4,
+    "UI_AvatarIcon_Xinyan"
+  ],
+  "10000045": [
+    "罗莎莉亚",
+    "角色",
+    4,
+    "UI_AvatarIcon_Rosaria"
+  ],
+  "10000046": [
+    "胡桃",
+    "角色",
+    5,
+    "UI_AvatarIcon_Hutao"
+  ],
+  "10000047": [
+    "枫原万叶",
+    "角色",
+    5,
+    "UI_AvatarIcon_Kazuha"
+  ],
+  "10000048": [
+    "烟绯",
+    "角色",
+    4,
+    "UI_AvatarIcon_Feiyan"
+  ],
+  "10000049": [
+    "宵宫",
+    "角色",
+    5,
+    "UI_AvatarIcon_Yoimiya"
+  ],
+  "10000050": [
+    "托马",
+    "角色",
+    4,
+    "UI_AvatarIcon_Tohma"
+  ],
+  "10000051": [
+    "优菈",
+    "角色",
+    5,
+    "UI_AvatarIcon_Eula"
+  ],
+  "10000052": [
+    "雷电将军",
+    "角色",
+    5,
+    "UI_AvatarIcon_Shougun"
+  ],
+  "10000053": [
+    "早柚",
+    "角色",
+    4,
+    "UI_AvatarIcon_Sayu"
+  ],
+  "10000054": [
+    "珊瑚宫心海",
+    "角色",
+    5,
+    "UI_AvatarIcon_Kokomi"
+  ],
+  "10000055": [
+    "五郎",
+    "角色",
+    4,
+    "UI_AvatarIcon_Gorou"
+  ],
+  "10000056": [
+    "九条裟罗",
+    "角色",
+    4,
+    "UI_AvatarIcon_Sara"
+  ],
+  "10000057": [
+    "荒泷一斗",
+    "角色",
+    5,
+    "UI_AvatarIcon_Itto"
+  ],
+  "10000058": [
+    "八重神子",
+    "角色",
+    5,
+    "UI_AvatarIcon_Yae"
+  ],
+  "10000059": [
+    "鹿野院平藏",
+    "角色",
+    4,
+    "UI_AvatarIcon_Heizo"
+  ],
+  "10000060": [
+    "夜兰",
+    "角色",
+    5,
+    "UI_AvatarIcon_Yelan"
+  ],
+  "10000061": [
+    "绮良良",
+    "角色",
+    4,
+    "UI_AvatarIcon_Momoka"
+  ],
+  "10000062": [
+    "埃洛伊",
+    "角色",
+    105,
+    "UI_AvatarIcon_Aloy"
+  ],
+  "10000063": [
+    "申鹤",
+    "角色",
+    5,
+    "UI_AvatarIcon_Shenhe"
+  ],
+  "10000064": [
+    "云堇",
+    "角色",
+    4,
+    "UI_AvatarIcon_Yunjin"
+  ],
+  "10000065": [
+    "久岐忍",
+    "角色",
+    4,
+    "UI_AvatarIcon_Shinobu"
+  ],
+  "10000066": [
+    "神里绫人",
+    "角色",
+    5,
+    "UI_AvatarIcon_Ayato"
+  ],
+  "10000067": [
+    "柯莱",
+    "角色",
+    4,
+    "UI_AvatarIcon_Collei"
+  ],
+  "10000068": [
+    "多莉",
+    "角色",
+    4,
+    "UI_AvatarIcon_Dori"
+  ],
+  "10000069": [
+    "提纳里",
+    "角色",
+    5,
+    "UI_AvatarIcon_Tighnari"
+  ],
+  "10000070": [
+    "妮露",
+    "角色",
+    5,
+    "UI_AvatarIcon_Nilou"
+  ],
+  "10000071": [
+    "赛诺",
+    "角色",
+    5,
+    "UI_AvatarIcon_Cyno"
+  ],
+  "10000072": [
+    "坎蒂丝",
+    "角色",
+    4,
+    "UI_AvatarIcon_Candace"
+  ],
+  "10000073": [
+    "纳西妲",
+    "角色",
+    5,
+    "UI_AvatarIcon_Nahida"
+  ],
+  "10000074": [
+    "莱依拉",
+    "角色",
+    4,
+    "UI_AvatarIcon_Layla"
+  ],
+  "10000075": [
+    "流浪者",
+    "角色",
+    5,
+    "UI_AvatarIcon_Wanderer"
+  ],
+  "10000076": [
+    "珐露珊",
+    "角色",
+    4,
+    "UI_AvatarIcon_Faruzan"
+  ],
+  "10000077": [
+    "瑶瑶",
+    "角色",
+    4,
+    "UI_AvatarIcon_Yaoyao"
+  ],
+  "10000078": [
+    "艾尔海森",
+    "角色",
+    5,
+    "UI_AvatarIcon_Alhatham"
+  ],
+  "10000079": [
+    "迪希雅",
+    "角色",
+    5,
+    "UI_AvatarIcon_Dehya"
+  ],
+  "10000080": [
+    "米卡",
+    "角色",
+    4,
+    "UI_AvatarIcon_Mika"
+  ],
+  "10000081": [
+    "卡维",
+    "角色",
+    4,
+    "UI_AvatarIcon_Kaveh"
+  ],
+  "10000082": [
+    "白术",
+    "角色",
+    5,
+    "UI_AvatarIcon_Baizhuer"
+  ],
+  "10000083": [
+    "琳妮特",
+    "角色",
+    4,
+    "UI_AvatarIcon_Linette"
+  ],
+  "10000084": [
+    "林尼",
+    "角色",
+    5,
+    "UI_AvatarIcon_Liney"
+  ],
+  "10000085": [
+    "菲米尼",
+    "角色",
+    4,
+    "UI_AvatarIcon_Freminet"
+  ],
+  "10000086": [
+    "莱欧斯利",
+    "角色",
+    5,
+    "UI_AvatarIcon_Wriothesley"
+  ],
+  "10000087": [
+    "那维莱特",
+    "角色",
+    5,
+    "UI_AvatarIcon_Neuvillette"
+  ],
+  "10000088": [
+    "夏洛蒂",
+    "角色",
+    4,
+    "UI_AvatarIcon_Charlotte"
+  ],
+  "10000089": [
+    "芙宁娜",
+    "角色",
+    5,
+    "UI_AvatarIcon_Furina"
+  ],
+  "10000090": [
+    "夏沃蕾",
+    "角色",
+    4,
+    "UI_AvatarIcon_Chevreuse"
+  ],
+  "10000091": [
+    "娜维娅",
+    "角色",
+    5,
+    "UI_AvatarIcon_Navia"
+  ],
+  "10000092": [
+    "嘉明",
+    "角色",
+    4,
+    "UI_AvatarIcon_Gaming"
+  ],
+  "10000093": [
+    "闲云",
+    "角色",
+    5,
+    "UI_AvatarIcon_Liuyun"
+  ],
+  "10000094": [
+    "千织",
+    "角色",
+    5,
+    "UI_AvatarIcon_Chiori"
+  ],
+  "10000095": [
+    "希格雯",
+    "角色",
+    5,
+    "UI_AvatarIcon_Sigewinne"
+  ],
+  "10000096": [
+    "阿蕾奇诺",
+    "角色",
+    5,
+    "UI_AvatarIcon_Arlecchino"
+  ],
+  "10000097": [
+    "赛索斯",
+    "角色",
+    4,
+    "UI_AvatarIcon_Sethos"
+  ],
+  "10000098": [
+    "克洛琳德",
+    "角色",
+    5,
+    "UI_AvatarIcon_Clorinde"
+  ],
+  "10000099": [
+    "艾梅莉埃",
+    "角色",
+    5,
+    "UI_AvatarIcon_Emilie"
+  ],
+  "10000100": [
+    "卡齐娜",
+    "角色",
+    4,
+    "UI_AvatarIcon_Kachina"
+  ],
+  "10000101": [
+    "基尼奇",
+    "角色",
+    5,
+    "UI_AvatarIcon_Kinich"
+  ],
+  "10000102": [
+    "玛拉妮",
+    "角色",
+    5,
+    "UI_AvatarIcon_Mualani"
+  ],
+  "10000103": [
+    "希诺宁",
+    "角色",
+    5,
+    "UI_AvatarIcon_Xilonen"
+  ],
+  "10000104": [
+    "恰斯卡",
+    "角色",
+    5,
+    "UI_AvatarIcon_Chasca"
+  ],
+  "10000105": [
+    "欧洛伦",
+    "角色",
+    4,
+    "UI_AvatarIcon_Olorun"
+  ],
+  "10000106": [
+    "玛薇卡",
+    "角色",
+    5,
+    "UI_AvatarIcon_Mavuika"
+  ],
+  "10000107": [
+    "茜特菈莉",
+    "角色",
+    5,
+    "UI_AvatarIcon_Citlali"
+  ],
+  "10000108": [
+    "蓝砚",
+    "角色",
+    4,
+    "UI_AvatarIcon_Lanyan"
+  ],
+  "10000109": [
+    "梦见月瑞希",
+    "角色",
+    5,
+    "UI_AvatarIcon_Mizuki"
+  ],
+  "10000110": [
+    "伊安珊",
+    "角色",
+    4,
+    "UI_AvatarIcon_Iansan"
+  ],
+  "10000111": [
+    "瓦雷莎",
+    "角色",
+    5,
+    "UI_AvatarIcon_Varesa"
+  ],
+  "10000112": [
+    "爱可菲",
+    "角色",
+    5,
+    "UI_AvatarIcon_Escoffier"
+  ],
+  "10000113": [
+    "伊法",
+    "角色",
+    4,
+    "UI_AvatarIcon_Ifa"
+  ],
+  "10000114": [
+    "丝柯克",
+    "角色",
+    5,
+    "UI_AvatarIcon_SkirkNew"
+  ],
+  "10000115": [
+    "塔利雅",
+    "角色",
+    4,
+    "UI_AvatarIcon_Dahlia"
+  ],
+  "10000116": [
+    "伊涅芙",
+    "角色",
+    5,
+    "UI_AvatarIcon_Ineffa"
+  ],
+  "10000119": [
+    "菈乌玛",
+    "角色",
+    5,
+    "UI_AvatarIcon_Lauma"
+  ],
+  "10000120": [
+    "菲林斯",
+    "角色",
+    5,
+    "UI_AvatarIcon_Flins"
+  ],
+  "10000121": [
+    "爱诺",
+    "角色",
+    4,
+    "UI_AvatarIcon_Aino"
+  ],
+  "10000122": [
+    "奈芙尔",
+    "角色",
+    5,
+    "UI_AvatarIcon_Nefer"
+  ],
+  "10000123": [
+    "杜林",
+    "角色",
+    5,
+    "UI_AvatarIcon_Durin"
+  ],
+  "10000124": [
+    "雅珂达",
+    "角色",
+    4,
+    "UI_AvatarIcon_Jahoda"
+  ],
+  "10000125": [
+    "哥伦比娅",
+    "角色",
+    5,
+    "UI_AvatarIcon_Columbina"
+  ],
+  "10000126": [
+    "兹白",
+    "角色",
+    5,
+    "UI_AvatarIcon_Zibai"
+  ],
+  "10000127": [
+    "叶洛亚",
+    "角色",
+    4,
+    "UI_AvatarIcon_Illuga"
+  ],
+  "10000128": [
+    "法尔伽",
+    "角色",
+    5,
+    "UI_AvatarIcon_Varka"
+  ],
+  "10000129": [
+    "洛恩",
+    "角色",
+    5,
+    "UI_AvatarIcon_Lohen"
+  ],
+  "10000130": [
+    "莉奈娅",
+    "角色",
+    5,
+    "UI_AvatarIcon_Linnea"
+  ],
+  "10000131": [
+    "尼可",
+    "角色",
+    5,
+    "UI_AvatarIcon_Nicole"
+  ],
+  "10000132": [
+    "布伦妮",
+    "角色",
+    4,
+    "UI_AvatarIcon_Prune"
   ]
 }
