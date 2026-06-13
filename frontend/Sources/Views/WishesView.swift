@@ -2,6 +2,8 @@ import AppKit
 import SwiftUI
 
 struct WishesView: View {
+    static let uigfUpgraderURL = URL(string: "https://upgrader.uigf.org/")!
+
     @Bindable var store: LauncherStore
     @State private var confirmsClear = false
 
@@ -21,6 +23,8 @@ struct WishesView: View {
                 Button("导入 UIGF") { importFile() }
                     .buttonStyle(.glass)
                     .disabled(store.wishOperation != nil)
+                Button("升级旧版 UIGF") { openUIGFUpgrader() }
+                    .buttonStyle(.glass)
                 Button("导出 UIGF") { exportFile() }
                     .buttonStyle(.glass)
                     .disabled(store.wishOperation != nil)
@@ -107,6 +111,10 @@ struct WishesView: View {
         if panel.runModal() == .OK, let url = panel.url {
             Task { await store.exportUIGF(to: url) }
         }
+    }
+
+    private func openUIGFUpgrader() {
+        NSWorkspace.shared.open(Self.uigfUpgraderURL)
     }
 
     private func poolName(_ type: String) -> String {

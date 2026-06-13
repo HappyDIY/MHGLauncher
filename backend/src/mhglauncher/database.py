@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS game_state (
 );
 CREATE TABLE IF NOT EXISTS wishes (
   id TEXT PRIMARY KEY, uid TEXT NOT NULL, gacha_type TEXT NOT NULL,
+  uigf_gacha_type TEXT NOT NULL DEFAULT '',
   item_id TEXT NOT NULL, name TEXT NOT NULL, item_type TEXT NOT NULL,
   rank INTEGER NOT NULL, time TEXT NOT NULL
 );
@@ -42,6 +43,11 @@ class Database:
     async def initialize(self) -> None:
         async with aiosqlite.connect(self.path) as connection:
             await connection.executescript(SCHEMA)
+            columns = await connection.execute_fetchall("PRAGMA table_info(wishes)")
+            if not any(row[1] == "uigf_gacha_type" for row in columns):
+                await connection.execute(
+                    "ALTER TABLE wishes ADD COLUMN uigf_gacha_type TEXT NOT NULL DEFAULT ''"
+                )
             await connection.commit()
 
     @asynccontextmanager
@@ -72,4 +78,3 @@ class Database:
     async def executemany(self, sql: str, values: Iterable[Iterable[Any]]) -> None:
         async with self.connect() as connection:
             await connection.executemany(sql, values)
-

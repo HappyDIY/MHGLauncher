@@ -95,7 +95,8 @@ stats="$(request "$base/v1/wishes/statistics?uid=100000001")"
 test "$(jq -r '.[0].five_star_count' <<<"$stats")" = "1"
 
 uigf="$(request "$base/v1/wishes/export?uid=100000001")"
-test "$(jq -r '.info.uigf_version' <<<"$uigf")" = "v4.2"
+test "$(jq -r '.info.version' <<<"$uigf")" = "v4.2"
+test "$(jq -r '.info | has("uigf_version")' <<<"$uigf")" = "false"
 imported="$(request -X POST "$base/v1/wishes/import" -d "$uigf")"
 test "$(jq -r '.imported' <<<"$imported")" = "2"
 
@@ -117,4 +118,3 @@ test "$(jq -r '.code' "$missing_role_file")" = "role_missing"
 rm -f "$missing_role_file"
 
 printf '冻结后端功能矩阵测试通过（未触发大型游戏下载）。\n'
-

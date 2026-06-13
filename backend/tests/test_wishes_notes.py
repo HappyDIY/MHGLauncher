@@ -36,7 +36,8 @@ async def test_uigf_export_and_reimport(api_client: httpx.AsyncClient) -> None:
     exported = (
         await api_client.get("/v1/wishes/export", params={"uid": "100000001"})
     ).json()
-    assert exported["info"]["uigf_version"] == "v4.2"
+    assert exported["info"]["version"] == "v4.2"
+    assert "uigf_version" not in exported["info"]
     imported = await api_client.post("/v1/wishes/import", json=exported)
     assert imported.json()["imported"] == 2
 

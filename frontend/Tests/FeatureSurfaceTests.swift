@@ -22,6 +22,12 @@ struct FeatureSurfaceTests {
         #expect(!HomeView.isDebugMode(environment: ["MHG_DEBUG_MODE": "0"]))
     }
 
+    @Test("旧版 UIGF 使用官方升级工具")
+    @MainActor
+    func uigfUpgrader() {
+        #expect(WishesView.uigfUpgraderURL.absoluteString == "https://upgrader.uigf.org/")
+    }
+
     @Test("二维码可以生成为非空图像")
     func qrCode() throws {
         let image = try #require(

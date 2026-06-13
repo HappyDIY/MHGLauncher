@@ -35,6 +35,8 @@ Build the self-contained application:
 ```
 
 The output is written to `dist/MHGLauncher.app`.
+Regular builds use PyInstaller. Use `./scripts/build-app.sh --release` only for
+the formal Nuitka release build.
 
 Double-click `debug-app.command` for a cached PyInstaller development build.
 Double-click `release-app.command` for a clean Nuitka release build.

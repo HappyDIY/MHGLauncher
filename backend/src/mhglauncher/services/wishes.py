@@ -25,8 +25,11 @@ class WishService:
     async def _newest_ids(self, uid: str) -> dict[str, str]:
         rows = await self.database.fetch_all(
             """
-            SELECT gacha_type, MAX(id) AS id
-            FROM wishes WHERE uid=? GROUP BY gacha_type
+            SELECT
+              COALESCE(NULLIF(uigf_gacha_type, ''), gacha_type) AS gacha_type,
+              MAX(id) AS id
+            FROM wishes WHERE uid=?
+            GROUP BY COALESCE(NULLIF(uigf_gacha_type, ''), gacha_type)
             """,
             (uid,),
         )
@@ -38,6 +41,7 @@ class WishService:
                 item.id,
                 item.uid,
                 item.gacha_type,
+                item.uigf_gacha_type,
                 item.item_id,
                 item.name,
                 item.item_type,
@@ -52,8 +56,9 @@ class WishService:
             await connection.executemany(
                 """
                 INSERT OR IGNORE INTO wishes(
-                  id, uid, gacha_type, item_id, name, item_type, rank, time
-                ) VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+                  id, uid, gacha_type, uigf_gacha_type,
+                  item_id, name, item_type, rank, time
+                ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 values,
             )
@@ -71,13 +76,20 @@ class WishService:
             values.append(gacha_type)
         sql += " ORDER BY time DESC, id DESC"
         rows = await self.database.fetch_all(sql, values)
-        return [WishRecord.model_validate(dict(row)) for row in rows]
+        records = []
+        for row in rows:
+            data = dict(row)
+            data["uigf_gacha_type"] = data["uigf_gacha_type"] or _uigf_type(
+                str(data["gacha_type"])
+            )
+            records.append(WishRecord.model_validate(data))
+        return records
 
     async def statistics(self, uid: str) -> builtins.list[WishStatistics]:
         records = await self.list(uid)
         groups: dict[str, builtins.list[WishRecord]] = defaultdict(builtins.list)
         for record in records:
-            groups[record.gacha_type].append(record)
+            groups[record.uigf_gacha_type].append(record)
         results = []
         for gacha_type, items in sorted(groups.items()):
             pulls = 0
@@ -102,3 +114,7 @@ class WishService:
             (uid,),
         )
         return int(row["count"]) if row else 0
+
+
+def _uigf_type(gacha_type: str) -> str:
+    return "301" if gacha_type == "400" else gacha_type

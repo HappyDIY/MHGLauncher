@@ -46,10 +46,11 @@ class WishRecord(BaseModel):
     id: str
     uid: str
     gacha_type: str
+    uigf_gacha_type: str = ""
     item_id: str
     name: str
     item_type: str
-    rank: int = Field(ge=3, le=5)
+    rank: int = Field(ge=0, le=5)
     time: datetime
 
 

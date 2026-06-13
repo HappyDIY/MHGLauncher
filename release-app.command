@@ -23,7 +23,7 @@ pkill -x MHGLauncherBackend 2>/dev/null || true
 sleep 1
 
 printf '正在使用 Nuitka 构建发布版 MHGLauncher.app...\n'
-"$root/scripts/build-app.sh"
+"$root/scripts/build-app.sh" --release
 
 printf '正在启动发布版：%s\n' "$app"
 "$app/Contents/MacOS/MHGLauncher" &

@@ -4,8 +4,9 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 app="$root/dist/MHGLauncher.app"
 contents="$app/Contents"
+mode="${1:-development}"
 
-"$root/scripts/build-backend.sh"
+"$root/scripts/build-backend.sh" "$mode"
 "$root/scripts/build-frontend.sh"
 
 rm -rf "$app"
@@ -24,4 +25,3 @@ plutil -lint "$contents/Info.plist"
 file "$contents/MacOS/MHGLauncher" | grep -q 'arm64'
 file "$contents/Resources/Backend/MHGLauncherBackend/MHGLauncherBackend" \
   | grep -q 'arm64'
-
