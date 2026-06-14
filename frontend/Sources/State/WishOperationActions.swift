@@ -59,6 +59,30 @@ extension LauncherStore {
         )
     }
 
+    func withWishHeartbeat<T>(
+        from initialProgress: Double,
+        through maximumProgress: Double,
+        messages: [String],
+        operation: () async throws -> T
+    ) async throws -> T {
+        let heartbeat = Task { [weak self] in
+            var progress = initialProgress
+            var index = 0
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1.8))
+                guard !Task.isCancelled, let self else { return }
+                progress = min(progress + 0.055, maximumProgress)
+                let message = index < messages.count
+                    ? messages[index]
+                    : "任务仍在运行，已持续 \(Int(Double(index + 1) * 1.8)) 秒"
+                updateWishOperation(progress, message)
+                index += 1
+            }
+        }
+        defer { heartbeat.cancel() }
+        return try await operation()
+    }
+
     func finishWishOperation(_ message: String) {
         wishOperation?.succeed(message)
     }
