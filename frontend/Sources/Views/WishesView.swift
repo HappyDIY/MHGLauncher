@@ -6,54 +6,24 @@ struct WishesView: View {
 
     @Bindable var store: LauncherStore
     @State private var confirmsClear = false
-    @State private var expandedBanner: String?
+    @State private var selectedBanner: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(alignment: .bottom) {
-                PageHeader(
-                    title: "祈愿记录",
-                    subtitle: store.selectedRole.map { "UID \($0.uid)" } ?? "请先登录账号"
+        VStack(alignment: .leading, spacing: 16) {
+            header
+            if store.wishes.isEmpty {
+                emptyState
+            } else {
+                WishOverviewHero(
+                    records: store.wishes,
+                    details: store.bannerDetails,
+                    uid: store.selectedRole?.uid
                 )
-                Spacer()
-                Button("同步") {
-                    Task { await store.syncWishes() }
-                }
-                .buttonStyle(.glassProminent)
-                .disabled(store.wishOperation != nil)
-                Button("导入 UIGF") { importFile() }
-                    .buttonStyle(.glass)
-                    .disabled(store.wishOperation != nil)
-                Button("升级旧版 UIGF") { openUIGFUpgrader() }
-                    .buttonStyle(.glass)
-                Button("导出 UIGF") { exportFile() }
-                    .buttonStyle(.glass)
-                    .disabled(store.wishOperation != nil)
-                Button("清空记录", systemImage: "trash", role: .destructive) {
-                    confirmsClear = true
-                }
-                .buttonStyle(.glass)
-                .disabled(store.wishOperation != nil || store.wishes.isEmpty)
-            }
-            if !store.bannerDetails.isEmpty {
-                statistics
-            }
-            GlassCard("历史记录", icon: "clock.arrow.circlepath") {
-                Table(store.wishes) {
-                    TableColumn("时间") { item in
-                        Text(item.time.formatted(date: .abbreviated, time: .shortened))
-                    }
-                    TableColumn("名称") { item in
-                        WishItemCell(item: item)
-                    }
-                    TableColumn("类型", value: \.itemType)
-                    TableColumn("星级") { item in
-                        Text(String(repeating: "★", count: item.rank))
-                            .foregroundStyle(item.rank == 5 ? .orange : .secondary)
-                    }
-                    TableColumn("卡池", value: \.gachaType)
-                }
-                .frame(minHeight: 360)
+                PoolSelector(
+                    details: store.bannerDetails,
+                    selection: selectedBannerId
+                )
+                workspace
             }
         }
         .overlay {
@@ -63,6 +33,7 @@ struct WishesView: View {
                 }
             }
         }
+        .animation(.spring(duration: 0.42), value: selectedDetail?.id)
         .animation(.spring(duration: 0.45), value: store.wishOperation?.id)
         .confirmationDialog(
             "永久清空全部祈愿记录？",
@@ -78,23 +49,96 @@ struct WishesView: View {
         }
     }
 
-    private var statistics: some View {
-        ScrollView(.horizontal) {
-            HStack(alignment: .top, spacing: 12) {
-                ForEach(store.bannerDetails) { detail in
-                    BannerDetailCard(
-                        detail: detail,
-                        isExpanded: expandedBanner == detail.id
-                    )
-                    .frame(width: 420)
-                    .onTapGesture {
-                        withAnimation(.spring(duration: 0.35)) {
-                            expandedBanner = expandedBanner == detail.id ? nil : detail.id
-                        }
-                    }
+    private var selectedBannerId: Binding<String?> {
+        Binding(
+            get: {
+                let available = store.bannerDetails.map(\.id)
+                return available.contains(selectedBanner ?? "") ? selectedBanner : available.first
+            },
+            set: { selectedBanner = $0 }
+        )
+    }
+
+    private var selectedDetail: WishBannerDetail? {
+        let id = selectedBannerId.wrappedValue
+        return store.bannerDetails.first { $0.id == id }
+    }
+
+    private var header: some View {
+        HStack(alignment: .center, spacing: 14) {
+            PageHeader(
+                title: "祈愿记录",
+                subtitle: store.selectedRole.map { "\($0.nickname) · UID \($0.uid)" } ?? "请先登录账号"
+            )
+            Button("同步记录", systemImage: "arrow.trianglehead.2.clockwise.rotate.90") {
+                Task { await store.syncWishes() }
+            }
+            .buttonStyle(.glassProminent)
+            .disabled(store.wishOperation != nil)
+
+            Menu {
+                Button("导入 UIGF", systemImage: "square.and.arrow.down") { importFile() }
+                Button("导出 UIGF", systemImage: "square.and.arrow.up") { exportFile() }
+                    .disabled(store.wishes.isEmpty)
+                Divider()
+                Button("升级旧版 UIGF", systemImage: "arrow.up.doc") { openUIGFUpgrader() }
+                Divider()
+                Button("清空全部记录", systemImage: "trash", role: .destructive) {
+                    confirmsClear = true
+                }
+                .disabled(store.wishes.isEmpty)
+            } label: {
+                Label("更多", systemImage: "ellipsis")
+            }
+            .menuStyle(.button)
+            .buttonStyle(.glass)
+            .disabled(store.wishOperation != nil)
+        }
+    }
+
+    private var workspace: some View {
+        GeometryReader { geometry in
+            if geometry.size.width >= 760 {
+                HStack(alignment: .top, spacing: 14) {
+                    detailPanel.frame(width: min(360, geometry.size.width * 0.38))
+                    historyPanel
+                }
+            } else {
+                VStack(spacing: 14) {
+                    detailPanel
+                    historyPanel
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var detailPanel: some View {
+        if let selectedDetail {
+            BannerDetailCard(detail: selectedDetail)
+        }
+    }
+
+    private var historyPanel: some View {
+        WishHistoryPanel(
+            records: store.wishes,
+            selectedGachaType: selectedDetail?.gachaType
+        )
+    }
+
+    private var emptyState: some View {
+        ContentUnavailableView {
+            Label("还没有祈愿记录", systemImage: "sparkles")
+        } description: {
+            Text("同步米游社记录或导入 UIGF 文件后，这里会展示保底进度与历史详情。")
+        } actions: {
+            Button("立即同步") { Task { await store.syncWishes() } }
+                .buttonStyle(.glassProminent)
+            Button("导入 UIGF") { importFile() }
+                .buttonStyle(.glass)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .glassEffect(.regular, in: .rect(cornerRadius: 24))
     }
 
     private func importFile() {
