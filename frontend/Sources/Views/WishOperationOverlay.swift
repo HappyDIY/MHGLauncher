@@ -54,30 +54,41 @@ struct WishOperationOverlay: View {
                     .foregroundStyle(accent)
             }
             Spacer()
-            Text("\(Int(operation.progress * 100))%")
-                .font(.system(.title2, design: .rounded, weight: .bold))
-                .contentTransition(.numericText())
+            if let progress = operation.progress {
+                Text("\(Int(progress * 100))%")
+                    .font(.system(.title2, design: .rounded, weight: .bold))
+                    .contentTransition(.numericText())
+            } else if isRunning {
+                Text("进行中")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
+    @ViewBuilder
     private var progress: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .leading) {
-                Capsule().fill(.white.opacity(0.08))
-                Capsule()
-                    .fill(gradient)
-                    .frame(width: max(12, proxy.size.width * operation.progress))
-                    .shadow(color: accent.opacity(0.8), radius: 10)
-                    .overlay(alignment: .trailing) {
-                        Circle()
-                            .fill(.white)
-                            .frame(width: 8, height: 8)
-                            .blur(radius: glow ? 1 : 3)
-                    }
+        if let progress = operation.progress {
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.white.opacity(0.08))
+                    Capsule()
+                        .fill(gradient)
+                        .frame(width: proxy.size.width * progress)
+                        .shadow(color: accent.opacity(0.8), radius: 10)
+                }
             }
+            .frame(height: 10)
+            .animation(.spring(duration: 0.55), value: progress)
+        } else if isRunning {
+            ProgressView()
+                .progressViewStyle(.linear)
+                .tint(accent)
+        } else {
+            Capsule()
+                .fill(.white.opacity(0.08))
+                .frame(height: 10)
         }
-        .frame(height: 10)
-        .animation(.spring(duration: 0.55), value: operation.progress)
     }
 
     private var logConsole: some View {

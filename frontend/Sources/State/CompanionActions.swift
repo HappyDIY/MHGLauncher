@@ -20,29 +20,16 @@ extension LauncherStore {
 
     func syncWishes() async {
         await runWishOperation(.sync) {
-            updateWishOperation(0.12, "正在验证账号与角色信息")
             let client = try requireClient()
             let body = CredentialRequest(credential: try requireCredential())
-            updateWishOperation(0.28, "已连接米游社，开始增量扫描卡池")
-            let result: CountResponse = try await withWishHeartbeat(
-                from: 0.28,
-                through: 0.7,
-                messages: [
-                    "正在获取祈愿访问凭据",
-                    "正在扫描新手、常驻与角色活动卡池",
-                    "正在扫描武器活动卡池",
-                    "正在去重并写入本地数据库",
-                ]
-            ) {
-                try await client.post(
-                    "/v1/wishes/sync",
-                    body: body,
-                    timeout: 300
-                )
-            }
-            updateWishOperation(0.76, "同步完成，新增 \(result.inserted ?? 0) 条记录", true)
+            let task: WishTaskSnapshot = try await client.post(
+                "/v1/wishes/tasks/sync",
+                body: body
+            )
+            _ = try await waitForWishTask(task, client: client)
+            updateWishOperation(nil, "后端同步已完成，正在载入最新祈愿数据")
             try await reloadWishes(client: client)
-            finishWishOperation("本地祈愿统计已更新")
+            finishWishOperation("已从后端载入 \(wishes.count) 条祈愿记录")
         }
     }
 
@@ -106,25 +93,18 @@ extension LauncherStore {
 
     func importUIGF(from url: URL) async {
         await runWishOperation(.importUIGF) {
-            updateWishOperation(0.1, "正在读取 \(url.lastPathComponent)")
+            updateWishOperation(nil, "正在读取 \(url.lastPathComponent)")
             let data = try UIGFFileIO.read(from: url)
-            updateWishOperation(0.32, "文件读取完成，正在校验 UIGF 数据")
+            updateWishOperation(nil, "文件读取完成，共 \(data.count) 字节")
             let client = try requireClient()
-            let result: CountResponse = try await withWishHeartbeat(
-                from: 0.32,
-                through: 0.68,
-                messages: [
-                    "正在识别 UIGF 版本与账号数据",
-                    "正在校验祈愿记录字段",
-                    "正在补全物品名称、星级与图标信息",
-                    "正在去重并写入本地数据库",
-                ]
-            ) {
-                try await client.upload("/v1/wishes/import", json: data)
-            }
-            updateWishOperation(0.76, "成功导入 \(result.imported ?? 0) 条记录", true)
+            let task: WishTaskSnapshot = try await client.upload(
+                "/v1/wishes/tasks/import",
+                json: data
+            )
+            _ = try await waitForWishTask(task, client: client)
+            updateWishOperation(nil, "后端导入已完成，正在载入最新祈愿数据")
             try await reloadWishes(client: client)
-            finishWishOperation("祈愿历史与统计已重新载入")
+            finishWishOperation("已从后端载入 \(wishes.count) 条祈愿记录")
         }
     }
 
@@ -134,23 +114,13 @@ extension LauncherStore {
             return
         }
         await runWishOperation(.exportUIGF) {
-            updateWishOperation(0.14, "正在整理 UID \(uid) 的祈愿记录")
+            updateWishOperation(nil, "正在请求后端导出 UID \(uid) 的祈愿记录")
             let client = try requireClient()
-            let data = try await withWishHeartbeat(
-                from: 0.14,
-                through: 0.66,
-                messages: [
-                    "正在读取本地祈愿记录",
-                    "正在按时间与卡池整理数据",
-                    "正在生成 UIGF v4.2 文档",
-                ]
-            ) {
-                try await client.download(
-                    "/v1/wishes/export",
-                    query: [URLQueryItem(name: "uid", value: uid)]
-                )
-            }
-            updateWishOperation(0.72, "UIGF v4.2 数据生成完成")
+            let data = try await client.download(
+                "/v1/wishes/export",
+                query: [URLQueryItem(name: "uid", value: uid)]
+            )
+            updateWishOperation(nil, "后端已生成 \(data.count) 字节 UIGF 数据")
             try UIGFFileIO.write(data, to: url)
             finishWishOperation("已保存到 \(url.lastPathComponent)")
         }

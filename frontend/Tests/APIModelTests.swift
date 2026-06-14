@@ -64,6 +64,52 @@ struct APIModelTests {
         #expect(record.iconUrl?.lastPathComponent == "item.png")
     }
 
+    @Test("未知祈愿图标允许为空")
+    func decodeWishWithoutIcon() throws {
+        let data = Data(
+            """
+            {
+              "id": "1002",
+              "uid": "230289829",
+              "gacha_type": "301",
+              "item_id": "unknown",
+              "name": "未知物品",
+              "item_type": "",
+              "rank": 0,
+              "time": "2026-05-26T13:50:30",
+              "icon_url": null
+            }
+            """.utf8
+        )
+        let record = try JSONDecoder.api.decode(WishRecord.self, from: data)
+        #expect(record.iconUrl == nil)
+    }
+
+    @Test("解码后端祈愿任务快照")
+    func decodeWishTask() throws {
+        let data = Data(
+            """
+            {
+              "id": "task-1",
+              "kind": "sync",
+              "status": "running",
+              "progress": null,
+              "logs": [{
+                "sequence": 1,
+                "message": "已读取第 1 页：20 条记录，新增 20 条",
+                "emphasized": false
+              }],
+              "result": null,
+              "error": ""
+            }
+            """.utf8
+        )
+        let task = try JSONDecoder.api.decode(WishTaskSnapshot.self, from: data)
+        #expect(task.progress == nil)
+        #expect(task.logs.first?.sequence == 1)
+        #expect(task.logs.first?.message.contains("20 条记录") == true)
+    }
+
     @Test("解码统一错误")
     func decodeError() throws {
         let data = Data(
