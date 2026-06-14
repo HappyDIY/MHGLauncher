@@ -14,8 +14,8 @@ extension LauncherStore {
             return
         }
         await runWishOperation(.clearAll) {
-            updateWishOperation(0.18, "本机身份认证已通过", true)
-            updateWishOperation(0.42, "正在删除全部祈愿记录")
+            updateWishOperation(nil, "本机身份认证已通过", true)
+            updateWishOperation(nil, "正在请求后端删除全部祈愿记录")
             let client = try requireClient()
             let result: CountResponse = try await client.deleteResponse("/v1/wishes")
             wishes = []
@@ -31,7 +31,6 @@ extension LauncherStore {
     ) async {
         isBusy = true
         wishOperation = WishOperationState(kind: kind)
-        updateWishOperation(0.04, "任务已创建，正在初始化")
         defer { isBusy = false }
         do {
             try await operation()
@@ -48,7 +47,7 @@ extension LauncherStore {
     }
 
     func updateWishOperation(
-        _ progress: Double,
+        _ progress: Double?,
         _ message: String,
         _ emphasized: Bool = false
     ) {
@@ -59,28 +58,23 @@ extension LauncherStore {
         )
     }
 
-    func withWishHeartbeat<T>(
-        from initialProgress: Double,
-        through maximumProgress: Double,
-        messages: [String],
-        operation: () async throws -> T
-    ) async throws -> T {
-        let heartbeat = Task { [weak self] in
-            var progress = initialProgress
-            var index = 0
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1.8))
-                guard !Task.isCancelled, let self else { return }
-                progress = min(progress + 0.055, maximumProgress)
-                let message = index < messages.count
-                    ? messages[index]
-                    : "任务仍在运行，已持续 \(Int(Double(index + 1) * 1.8)) 秒"
-                updateWishOperation(progress, message)
-                index += 1
+    func waitForWishTask(
+        _ initial: WishTaskSnapshot,
+        client: APIClient
+    ) async throws -> WishTaskSnapshot {
+        var snapshot = initial
+        while true {
+            wishOperation?.apply(snapshot)
+            switch snapshot.status {
+            case .completed:
+                return snapshot
+            case .failed:
+                throw WishTaskFailure(message: snapshot.error)
+            case .queued, .running:
+                try await Task.sleep(for: .milliseconds(250))
+                snapshot = try await client.get("/v1/wishes/tasks/\(snapshot.id)")
             }
         }
-        defer { heartbeat.cancel() }
-        return try await operation()
     }
 
     func finishWishOperation(_ message: String) {
@@ -106,5 +100,13 @@ extension LauncherStore {
             query: [URLQueryItem(name: "uid", value: uid)]
         )
         (wishes, wishStatistics, bannerDetails) = try await (records, statistics, details)
+    }
+}
+
+private struct WishTaskFailure: LocalizedError {
+    let message: String
+
+    var errorDescription: String? {
+        LauncherStore.presentableMessage(message)
     }
 }

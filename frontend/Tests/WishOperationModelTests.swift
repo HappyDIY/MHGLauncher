@@ -3,13 +3,33 @@ import Testing
 
 @Suite("祈愿操作进度")
 struct WishOperationModelTests {
-    @Test("进度只能向前推进")
-    func monotonicProgress() {
+    @Test("未知总量使用不定进度")
+    func indeterminateProgress() {
         var operation = WishOperationState(kind: .sync)
         operation.update(progress: 0.6, message: "同步中")
-        operation.update(progress: 0.2, message: "稍候")
-        #expect(operation.progress == 0.6)
+        operation.update(progress: nil, message: "正在读取分页")
+        #expect(operation.progress == nil)
         #expect(operation.logs.count == 2)
+    }
+
+    @Test("后端任务日志只应用一次")
+    func appliesBackendLogsOnce() {
+        var operation = WishOperationState(kind: .sync)
+        let task = WishTaskSnapshot(
+            id: "task-1",
+            kind: "sync",
+            status: .running,
+            progress: nil,
+            logs: [
+                WishTaskLogPayload(sequence: 1, message: "已读取第 1 页", emphasized: false)
+            ],
+            result: nil,
+            error: ""
+        )
+        operation.apply(task)
+        operation.apply(task)
+        #expect(operation.logs.count == 1)
+        #expect(operation.logs.first?.message == "已读取第 1 页")
     }
 
     @Test("成功状态完成进度")
