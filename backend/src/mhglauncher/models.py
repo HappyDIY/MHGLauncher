@@ -52,7 +52,7 @@ class WishRecord(BaseModel):
     item_type: str
     rank: int = Field(ge=0, le=5)
     time: datetime
-    icon_url: str = ""
+    icon_url: str | None = None
 
 
 class WishStatistics(BaseModel):
@@ -68,7 +68,7 @@ class WishBannerItem(BaseModel):
     item_id: str
     item_type: str
     rank: int
-    icon_url: str = ""
+    icon_url: str | None = None
     pull_number: int
     time: datetime
 
@@ -93,6 +93,29 @@ class WishBannerDetail(BaseModel):
     guarantee_threshold: int = 90
     five_star_items: list[WishBannerItem] = []
     four_star_items: list[WishBannerItem] = []
+
+
+class WishTaskStatus(StrEnum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class WishTaskLog(BaseModel):
+    sequence: int
+    message: str
+    emphasized: bool = False
+
+
+class WishTask(BaseModel):
+    id: str
+    kind: str
+    status: WishTaskStatus = WishTaskStatus.QUEUED
+    progress: float | None = 0.0
+    logs: list[WishTaskLog] = Field(default_factory=list)
+    result: dict[str, int] | None = None
+    error: str = ""
 
 
 class DailyNote(BaseModel):

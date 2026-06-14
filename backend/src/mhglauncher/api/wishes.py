@@ -5,12 +5,13 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from mhglauncher.api.dependencies import accounts, wishes
+from mhglauncher.api.dependencies import accounts, wish_tasks, wishes
 from mhglauncher.errors import AppError
-from mhglauncher.models import WishBannerDetail, WishRecord, WishStatistics
+from mhglauncher.models import WishBannerDetail, WishRecord, WishStatistics, WishTask
 from mhglauncher.security import require_token
 from mhglauncher.services.accounts import AccountService
 from mhglauncher.services.uigf import export_uigf, import_uigf
+from mhglauncher.services.wish_tasks import WishTaskService
 from mhglauncher.services.wishes import WishService
 
 router = APIRouter(prefix="/wishes", tags=["wishes"], dependencies=[Depends(require_token)])
@@ -18,6 +19,30 @@ router = APIRouter(prefix="/wishes", tags=["wishes"], dependencies=[Depends(requ
 
 class SyncRequest(BaseModel):
     credential: str
+
+
+@router.post("/tasks/sync", response_model=WishTask, status_code=202)
+async def start_sync_task(
+    body: SyncRequest,
+    service: Annotated[WishTaskService, Depends(wish_tasks)],
+) -> WishTask:
+    return service.start_sync(body.credential)
+
+
+@router.post("/tasks/import", response_model=WishTask, status_code=202)
+async def start_import_task(
+    payload: dict[str, Any],
+    service: Annotated[WishTaskService, Depends(wish_tasks)],
+) -> WishTask:
+    return service.start_import(payload)
+
+
+@router.get("/tasks/{task_id}", response_model=WishTask)
+async def get_task(
+    task_id: str,
+    service: Annotated[WishTaskService, Depends(wish_tasks)],
+) -> WishTask:
+    return service.get(task_id)
 
 
 @router.post("/sync")

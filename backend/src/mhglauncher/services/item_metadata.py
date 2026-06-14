@@ -33,12 +33,22 @@ def item_metadata() -> dict[str, ItemMetadata]:
     }
 
 
+@lru_cache(maxsize=1)
+def item_metadata_by_name() -> dict[str, tuple[str, ItemMetadata]]:
+    return {metadata.name: (item_id, metadata) for item_id, metadata in item_metadata().items()}
+
+
 def enrich_record(
     record: WishRecord,
     image_cache: ImageCacheService | None = None,
     port: int = 0,
 ) -> WishRecord:
     metadata = item_metadata().get(record.item_id)
+    item_id = record.item_id
+    if metadata is None and record.name:
+        matched = item_metadata_by_name().get(record.name)
+        if matched is not None:
+            item_id, metadata = matched
     if metadata is None:
         return record
     icon_url = _icon_url(metadata)
@@ -46,6 +56,7 @@ def enrich_record(
         icon_url = image_cache.local_url(icon_url, port)
     return record.model_copy(
         update={
+            "item_id": item_id,
             "name": record.name or metadata.name,
             "item_type": record.item_type or metadata.item_type,
             "rank": record.rank or metadata.rank,
@@ -63,10 +74,7 @@ def _icon_url(metadata: ItemMetadata) -> str:
     else:
         category = "GachaEquipIcon"
         icon = metadata.icon.replace("UI_", "UI_Gacha_", 1)
-    return (
-        f"https://api.snaphutaorp.org/static/raw/{category}/"
-        f"{icon}.png"
-    )
+    return f"https://api.snaphutaorp.org/static/raw/{category}/{icon}.png"
 
 
 def remote_icon_urls(item_ids: set[str]) -> list[str]:

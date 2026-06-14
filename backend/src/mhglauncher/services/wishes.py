@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import builtins
 from collections import defaultdict
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from mhglauncher.database import Database
@@ -13,6 +14,8 @@ from mhglauncher.services.wish_statistics import build_banner_detail
 
 if TYPE_CHECKING:
     from mhglauncher.services.image_cache import ImageCacheService
+
+WishLog = Callable[[str], None]
 
 
 class WishService:
@@ -28,13 +31,27 @@ class WishService:
         self._image_cache = image_cache
         self._port = port
 
-    async def sync(self, credential: str, role: GameRole) -> int:
+    async def sync(
+        self,
+        credential: str,
+        role: GameRole,
+        log: WishLog | None = None,
+    ) -> int:
         inserted = 0
         newest_ids = await self._newest_ids(role.uid)
+        if log is not None:
+            log(f"已读取 {len(newest_ids)} 个卡池的本地增量检查点")
+        page_count = 0
         async for page in self.provider.iter_wishes(credential, role, newest_ids):
             before = await self._count(role.uid)
             await self.save(page)
-            inserted += await self._count(role.uid) - before
+            added = await self._count(role.uid) - before
+            inserted += added
+            page_count += 1
+            if log is not None:
+                log(f"第 {page_count} 页读取 {len(page)} 条记录，新增 {added} 条")
+        if log is not None:
+            log(f"米游社分页读取完成，共处理 {page_count} 页")
         return inserted
 
     async def _newest_ids(self, uid: str) -> dict[str, str]:
@@ -103,14 +120,10 @@ class WishService:
         item_ids: set[str] = set()
         for row in rows:
             data = dict(row)
-            data["uigf_gacha_type"] = data["uigf_gacha_type"] or _uigf_type(
-                str(data["gacha_type"])
-            )
+            data["uigf_gacha_type"] = data["uigf_gacha_type"] or _uigf_type(str(data["gacha_type"]))
             record = WishRecord.model_validate(data)
             item_ids.add(record.item_id)
-            records.append(
-                enrich_record(record, self._image_cache, self._port)
-            )
+            records.append(enrich_record(record, self._image_cache, self._port))
         if item_ids and self._image_cache is not None:
             urls = remote_icon_urls(item_ids)
             if urls:
@@ -153,9 +166,7 @@ class WishService:
         records = []
         for row in rows:
             data = dict(row)
-            data["uigf_gacha_type"] = data["uigf_gacha_type"] or _uigf_type(
-                str(data["gacha_type"])
-            )
+            data["uigf_gacha_type"] = data["uigf_gacha_type"] or _uigf_type(str(data["gacha_type"]))
             records.append(WishRecord.model_validate(data))
 
         groups: dict[str, builtins.list[WishRecord]] = defaultdict(builtins.list)
@@ -172,4 +183,3 @@ class WishService:
 
 def _uigf_type(gacha_type: str) -> str:
     return "301" if gacha_type == "400" else gacha_type
-

@@ -7,6 +7,7 @@ from fastapi import Request
 from mhglauncher.services.accounts import AccountService
 from mhglauncher.services.games import GameService
 from mhglauncher.services.notes import NoteService
+from mhglauncher.services.wish_tasks import WishTaskService
 from mhglauncher.services.wishes import WishService
 
 
@@ -20,6 +21,10 @@ def games(request: Request) -> GameService:
 
 def wishes(request: Request) -> WishService:
     return cast(WishService, request.app.state.wishes)
+
+
+def wish_tasks(request: Request) -> WishTaskService:
+    return cast(WishTaskService, request.app.state.wish_tasks)
 
 
 def notes(request: Request) -> NoteService:
