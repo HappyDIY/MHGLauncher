@@ -44,9 +44,7 @@ def test_imports_supported_versions_and_number_fields(version: str) -> None:
     assert records[0].uigf_gacha_type == "301"
     assert records[0].name == "芙宁娜"
     assert records[0].item_type == "角色"
-    assert records[0].icon_url.endswith(
-        "/GachaAvatarIcon/UI_Gacha_AvatarIcon_Furina.png"
-    )
+    assert records[0].icon_url.endswith("/GachaAvatarIcon/UI_Gacha_AvatarIcon_Furina.png")
     assert records[0].rank == 5
 
 
@@ -68,9 +66,40 @@ def test_enriches_weapon_icon() -> None:
         time=datetime(2026, 6, 11, 8),
     )
     enriched = enrich_record(record)
-    assert enriched.icon_url.endswith(
-        "/GachaEquipIcon/UI_Gacha_EquipIcon_Sword_Troupe.png"
+    assert enriched.icon_url.endswith("/GachaEquipIcon/UI_Gacha_EquipIcon_Sword_Troupe.png")
+
+
+def test_enriches_missing_item_id_from_name() -> None:
+    record = WishRecord(
+        id="1",
+        uid="100000001",
+        gacha_type="200",
+        item_id="",
+        name="笛剑",
+        item_type="武器",
+        rank=4,
+        time=datetime(2026, 6, 11, 8),
     )
+    enriched = enrich_record(record)
+
+    assert enriched.item_id == "11402"
+    assert enriched.icon_url is not None
+    assert enriched.icon_url.endswith("UI_Gacha_EquipIcon_Sword_Troupe.png")
+
+
+def test_unknown_item_has_null_icon_url() -> None:
+    record = WishRecord(
+        id="1",
+        uid="100000001",
+        gacha_type="200",
+        item_id="",
+        name="未知物品",
+        item_type="",
+        rank=0,
+        time=datetime(2026, 6, 11, 8),
+    )
+
+    assert enrich_record(record).icon_url is None
 
 
 def test_imports_legacy_v3_document() -> None:

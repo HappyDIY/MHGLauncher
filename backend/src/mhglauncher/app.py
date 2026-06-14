@@ -18,6 +18,7 @@ from mhglauncher.services.accounts import AccountService
 from mhglauncher.services.games import GameService
 from mhglauncher.services.image_cache import ImageCacheService
 from mhglauncher.services.notes import NoteService
+from mhglauncher.services.wish_tasks import WishTaskService
 from mhglauncher.services.wishes import WishService
 
 
@@ -47,11 +48,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.image_cache = image_cache
         app.state.accounts = AccountService(database, provider)
         app.state.wishes = WishService(database, provider, image_cache, effective.base_port)
+        app.state.wish_tasks = WishTaskService(app.state.accounts, app.state.wishes)
         app.state.notes = NoteService(database, provider)
         app.state.games = GameService(database, provider, client, effective.data_dir)
         try:
             yield
         finally:
+            await app.state.wish_tasks.shutdown()
             await app.state.games.shutdown()
             await client.aclose()
 
