@@ -1,4 +1,5 @@
 """祈愿统计算法, 参考 Snap.Hutao 的 TypedWishSummary 实现。"""
+
 from __future__ import annotations
 
 import builtins
@@ -41,6 +42,7 @@ def build_banner_detail(
         purple_pity += 1
         rank = item.rank
         if rank == 5:
+            item_pity = orange_pity
             if orange_pity < min_pity or min_pity == 0:
                 min_pity = orange_pity
             if orange_pity > max_pity or max_pity == 0:
@@ -58,10 +60,12 @@ def build_banner_detail(
                     rank=rank,
                     icon_url=enriched.icon_url,
                     pull_number=pull_number,
+                    pity=item_pity,
                     time=item.time,
                 )
             )
         elif rank == 4:
+            item_pity = purple_pity
             purple_pity = 0
             four_star_count += 1
             enriched = enrich_record(item, image_cache, port)
@@ -73,6 +77,7 @@ def build_banner_detail(
                     rank=rank,
                     icon_url=enriched.icon_url,
                     pull_number=pull_number,
+                    pity=item_pity,
                     time=item.time,
                 )
             )
@@ -83,9 +88,7 @@ def build_banner_detail(
     five_star_percent = five_star_count / total if total > 0 else 0.0
     four_star_percent = four_star_count / total if total > 0 else 0.0
     three_star_percent = three_star_count / total if total > 0 else 0.0
-    average_pity = (
-        sum(orange_distances) / len(orange_distances) if orange_distances else 0.0
-    )
+    average_pity = sum(orange_distances) / len(orange_distances) if orange_distances else 0.0
 
     return WishBannerDetail(
         uid=uid,
