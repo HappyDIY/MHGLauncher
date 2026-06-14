@@ -97,6 +97,7 @@ def test_unknown_item_has_null_icon_url() -> None:
         item_type="",
         rank=0,
         time=datetime(2026, 6, 11, 8),
+        icon_url="",
     )
 
     assert enrich_record(record).icon_url is None
