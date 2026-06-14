@@ -29,6 +29,7 @@ struct WishBannerItem: Codable, Sendable, Identifiable {
     let rank: Int
     let iconUrl: URL?
     let pullNumber: Int
+    let pity: Int
     let time: Date
 }
 

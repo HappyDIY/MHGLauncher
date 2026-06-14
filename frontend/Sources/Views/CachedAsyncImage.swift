@@ -2,9 +2,20 @@ import SwiftUI
 
 struct CachedAsyncImage<Placeholder: View>: View {
     let url: URL?
+    let contentMode: ContentMode
     @ViewBuilder let placeholder: () -> Placeholder
 
     @State private var visible = false
+
+    init(
+        url: URL?,
+        contentMode: ContentMode = .fit,
+        @ViewBuilder placeholder: @escaping () -> Placeholder
+    ) {
+        self.url = url
+        self.contentMode = contentMode
+        self.placeholder = placeholder
+    }
 
     var body: some View {
         Group {
@@ -14,7 +25,7 @@ struct CachedAsyncImage<Placeholder: View>: View {
                     case let .success(image):
                         image
                             .resizable()
-                            .scaledToFit()
+                            .aspectRatio(contentMode: contentMode)
                     case .empty:
                         ProgressView()
                             .controlSize(.small)

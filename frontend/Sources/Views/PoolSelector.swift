@@ -5,17 +5,16 @@ struct PoolSelector: View {
     @Binding var selection: String?
 
     var body: some View {
-        ScrollView(.horizontal) {
-            GlassEffectContainer(spacing: 10) {
-                HStack(spacing: 10) {
-                    ForEach(details) { detail in
-                        poolButton(detail)
-                    }
+        GlassEffectContainer(spacing: 10) {
+            HStack(spacing: 10) {
+                ForEach(details) { detail in
+                    poolButton(detail)
+                        .frame(maxWidth: .infinity)
                 }
-                .padding(.vertical, 2)
             }
+            .padding(.vertical, 2)
         }
-        .scrollIndicators(.hidden)
+        .frame(maxWidth: .infinity)
     }
 
     private func poolButton(_ detail: WishBannerDetail) -> some View {
@@ -36,6 +35,7 @@ struct PoolSelector: View {
             }
             .padding(.horizontal, 15)
             .padding(.vertical, 10)
+            .frame(maxWidth: .infinity)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)

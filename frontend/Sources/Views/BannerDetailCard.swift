@@ -10,8 +10,10 @@ struct BannerDetailCard: View {
             Divider()
             metrics
             Divider()
-            recentFiveStars
-            Spacer(minLength: 0)
+            WishFiveStarTimeline(
+                items: detail.fiveStarItems,
+                maximum: detail.guaranteeThreshold
+            )
         }
         .padding(18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -60,9 +62,10 @@ struct BannerDetailCard: View {
     }
 
     private var metrics: some View {
-        Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 14) {
+        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 14) {
             GridRow {
                 compactMetric("\(detail.fiveStarCount)", "五星")
+                compactMetric("\(detail.fourStarCount)", "四星")
                 compactMetric(String(format: "%.2f%%", detail.fiveStarPercent * 100), "五星率")
             }
             GridRow {
@@ -71,6 +74,7 @@ struct BannerDetailCard: View {
                     "平均出金"
                 )
                 compactMetric(detail.maxPity > 0 ? "\(detail.maxPity)" : "--", "最晚出金")
+                compactMetric(detail.minPity > 0 ? "\(detail.minPity)" : "--", "最快出金")
             }
         }
     }
@@ -87,42 +91,6 @@ struct BannerDetailCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var recentFiveStars: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("最近五星")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Text("\(detail.fiveStarItems.count) 条")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            if detail.fiveStarItems.isEmpty {
-                Text("当前卡池暂无五星记录")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 12)
-            } else {
-                ForEach(detail.fiveStarItems.prefix(4)) { item in
-                    HStack(spacing: 10) {
-                        WishBannerArtwork(item: item)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.name)
-                                .font(.subheadline.weight(.medium))
-                                .lineLimit(1)
-                            Text(item.time.formatted(date: .abbreviated, time: .omitted))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Text("\(item.pullNumber) 抽")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(item.pullNumber >= 70 ? .orange : .secondary)
-                    }
-                }
-            }
-        }
-    }
 }
 
 private struct PityProgressRow: View {
@@ -142,24 +110,6 @@ private struct PityProgressRow: View {
             }
             ProgressView(value: min(Double(value) / Double(max(maximum, 1)), 1))
                 .tint(color)
-        }
-    }
-}
-
-private struct WishBannerArtwork: View {
-    let item: WishBannerItem
-
-    var body: some View {
-        CachedAsyncImage(url: item.iconUrl) {
-            Image(systemName: item.itemType == "角色" ? "person.fill" : "sparkles")
-                .foregroundStyle(.white.opacity(0.86))
-        }
-        .frame(width: 34, height: 34)
-        .background(.orange.opacity(0.24))
-        .clipShape(.rect(cornerRadius: 9))
-        .overlay {
-            RoundedRectangle(cornerRadius: 9)
-                .stroke(.white.opacity(0.16))
         }
     }
 }
