@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from mhglauncher.api.dependencies import accounts, wishes
 from mhglauncher.errors import AppError
-from mhglauncher.models import WishRecord, WishStatistics
+from mhglauncher.models import WishBannerDetail, WishRecord, WishStatistics
 from mhglauncher.security import require_token
 from mhglauncher.services.accounts import AccountService
 from mhglauncher.services.uigf import export_uigf, import_uigf
@@ -47,6 +47,14 @@ async def statistics(
     service: Annotated[WishService, Depends(wishes)],
 ) -> list[WishStatistics]:
     return await service.statistics(uid)
+
+
+@router.get("/banner-statistics", response_model=list[WishBannerDetail])
+async def banner_statistics(
+    uid: str,
+    service: Annotated[WishService, Depends(wishes)],
+) -> list[WishBannerDetail]:
+    return await service.banner_statistics(uid)
 
 
 @router.post("/import")

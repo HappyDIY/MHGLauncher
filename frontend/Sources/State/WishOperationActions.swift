@@ -20,6 +20,7 @@ extension LauncherStore {
             let result: CountResponse = try await client.deleteResponse("/v1/wishes")
             wishes = []
             wishStatistics = []
+            bannerDetails = []
             finishWishOperation("已永久删除 \(result.deleted ?? 0) 条记录")
         }
     }
@@ -76,6 +77,10 @@ extension LauncherStore {
             "/v1/wishes/statistics",
             query: [URLQueryItem(name: "uid", value: uid)]
         )
-        (wishes, wishStatistics) = try await (records, statistics)
+        async let details: [WishBannerDetail] = client.get(
+            "/v1/wishes/banner-statistics",
+            query: [URLQueryItem(name: "uid", value: uid)]
+        )
+        (wishes, wishStatistics, bannerDetails) = try await (records, statistics, details)
     }
 }

@@ -21,6 +21,40 @@ struct WishStatistics: Codable, Sendable, Identifiable {
     let pullsSinceFiveStar: Int
 }
 
+struct WishBannerItem: Codable, Sendable, Identifiable {
+    var id: String { "\(itemId)-\(pullNumber)" }
+    let name: String
+    let itemId: String
+    let itemType: String
+    let rank: Int
+    let iconUrl: URL?
+    let pullNumber: Int
+    let time: Date
+}
+
+struct WishBannerDetail: Codable, Sendable, Identifiable {
+    var id: String { gachaType }
+    let uid: String
+    let gachaType: String
+    let total: Int
+    let timeFrom: Date?
+    let timeTo: Date?
+    let fiveStarCount: Int
+    let fourStarCount: Int
+    let threeStarCount: Int
+    let fiveStarPercent: Double
+    let fourStarPercent: Double
+    let threeStarPercent: Double
+    let maxPity: Int
+    let minPity: Int
+    let averagePity: Double
+    let lastPity: Int
+    let lastPurplePity: Int
+    let guaranteeThreshold: Int
+    let fiveStarItems: [WishBannerItem]
+    let fourStarItems: [WishBannerItem]
+}
+
 struct DailyNote: Codable, Sendable {
     let uid: String
     let currentResin: Int

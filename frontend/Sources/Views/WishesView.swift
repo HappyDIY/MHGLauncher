@@ -6,6 +6,7 @@ struct WishesView: View {
 
     @Bindable var store: LauncherStore
     @State private var confirmsClear = false
+    @State private var expandedBanner: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -34,7 +35,7 @@ struct WishesView: View {
                 .buttonStyle(.glass)
                 .disabled(store.wishOperation != nil || store.wishes.isEmpty)
             }
-            if !store.wishStatistics.isEmpty {
+            if !store.bannerDetails.isEmpty {
                 statistics
             }
             GlassCard("历史记录", icon: "clock.arrow.circlepath") {
@@ -79,19 +80,18 @@ struct WishesView: View {
 
     private var statistics: some View {
         ScrollView(.horizontal) {
-            HStack(spacing: 12) {
-                ForEach(store.wishStatistics) { item in
-                    GlassCard(poolName(item.gachaType), icon: "sparkles") {
-                        HStack(spacing: 22) {
-                            MetricView(value: "\(item.total)", label: "总抽数")
-                            MetricView(value: "\(item.fiveStarCount)", label: "五星")
-                            MetricView(
-                                value: "\(item.pullsSinceFiveStar)",
-                                label: "距上次五星"
-                            )
+            HStack(alignment: .top, spacing: 12) {
+                ForEach(store.bannerDetails) { detail in
+                    BannerDetailCard(
+                        detail: detail,
+                        isExpanded: expandedBanner == detail.id
+                    )
+                    .frame(width: 420)
+                    .onTapGesture {
+                        withAnimation(.spring(duration: 0.35)) {
+                            expandedBanner = expandedBanner == detail.id ? nil : detail.id
                         }
                     }
-                    .frame(width: 330)
                 }
             }
         }
@@ -117,15 +117,5 @@ struct WishesView: View {
 
     private func openUIGFUpgrader() {
         NSWorkspace.shared.open(Self.uigfUpgraderURL)
-    }
-
-    private func poolName(_ type: String) -> String {
-        switch type {
-        case "100": "新手祈愿"
-        case "200": "常驻祈愿"
-        case "301": "角色活动祈愿"
-        case "302": "武器活动祈愿"
-        default: "卡池 \(type)"
-        }
     }
 }

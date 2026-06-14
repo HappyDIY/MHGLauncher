@@ -63,6 +63,38 @@ class WishStatistics(BaseModel):
     pulls_since_five_star: int
 
 
+class WishBannerItem(BaseModel):
+    name: str
+    item_id: str
+    item_type: str
+    rank: int
+    icon_url: str = ""
+    pull_number: int
+    time: datetime
+
+
+class WishBannerDetail(BaseModel):
+    uid: str
+    gacha_type: str
+    total: int
+    time_from: datetime | None = None
+    time_to: datetime | None = None
+    five_star_count: int = 0
+    four_star_count: int = 0
+    three_star_count: int = 0
+    five_star_percent: float = 0.0
+    four_star_percent: float = 0.0
+    three_star_percent: float = 0.0
+    max_pity: int = 0
+    min_pity: int = 0
+    average_pity: float = 0.0
+    last_pity: int = 0
+    last_purple_pity: int = 0
+    guarantee_threshold: int = 90
+    five_star_items: list[WishBannerItem] = []
+    four_star_items: list[WishBannerItem] = []
+
+
 class DailyNote(BaseModel):
     uid: str
     current_resin: int

@@ -136,10 +136,14 @@ extension LauncherStore {
             "/v1/wishes/statistics",
             query: [URLQueryItem(name: "uid", value: uid)]
         )
+        async let details: [WishBannerDetail] = client.get(
+            "/v1/wishes/banner-statistics",
+            query: [URLQueryItem(name: "uid", value: uid)]
+        )
         async let note: DailyNote? = client.get(
             "/v1/notes",
             query: [URLQueryItem(name: "uid", value: uid)]
         )
-        (wishes, wishStatistics, dailyNote) = try await (records, statistics, note)
+        (wishes, wishStatistics, bannerDetails, dailyNote) = try await (records, statistics, details, note)
     }
 }

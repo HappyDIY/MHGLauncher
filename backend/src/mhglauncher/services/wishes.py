@@ -6,9 +6,10 @@ from collections import defaultdict
 from typing import TYPE_CHECKING
 
 from mhglauncher.database import Database
-from mhglauncher.models import GameRole, WishRecord, WishStatistics
+from mhglauncher.models import GameRole, WishBannerDetail, WishRecord, WishStatistics
 from mhglauncher.providers.base import Provider
 from mhglauncher.services.item_metadata import enrich_record, remote_icon_urls
+from mhglauncher.services.wish_statistics import build_banner_detail
 
 if TYPE_CHECKING:
     from mhglauncher.services.image_cache import ImageCacheService
@@ -145,6 +146,28 @@ class WishService:
             (uid,),
         )
         return int(row["count"]) if row else 0
+
+    async def banner_statistics(self, uid: str) -> builtins.list[WishBannerDetail]:
+        sql = "SELECT * FROM wishes WHERE uid=? ORDER BY time ASC, id ASC"
+        rows = await self.database.fetch_all(sql, (uid,))
+        records = []
+        for row in rows:
+            data = dict(row)
+            data["uigf_gacha_type"] = data["uigf_gacha_type"] or _uigf_type(
+                str(data["gacha_type"])
+            )
+            records.append(WishRecord.model_validate(data))
+
+        groups: dict[str, builtins.list[WishRecord]] = defaultdict(builtins.list)
+        for record in records:
+            groups[record.uigf_gacha_type].append(record)
+
+        results = []
+        for gacha_type, items in sorted(groups.items()):
+            results.append(
+                build_banner_detail(uid, gacha_type, items, self._image_cache, self._port)
+            )
+        return results
 
 
 def _uigf_type(gacha_type: str) -> str:

@@ -27,6 +27,7 @@ extension LauncherStore {
             roles = []
             wishes = []
             wishStatistics = []
+            bannerDetails = []
             dailyNote = nil
             qrSession = nil
         }

@@ -14,6 +14,7 @@ final class LauncherStore {
     var gameJob: GameJob?
     var wishes: [WishRecord] = []
     var wishStatistics: [WishStatistics] = []
+    var bannerDetails: [WishBannerDetail] = []
     var dailyNote: DailyNote?
     var qrSession: QRSession?
     var noteVerification: GeetestChallenge?
