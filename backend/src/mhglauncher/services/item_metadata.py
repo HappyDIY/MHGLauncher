@@ -50,7 +50,7 @@ def enrich_record(
         if matched is not None:
             item_id, metadata = matched
     if metadata is None:
-        return record
+        return record.model_copy(update={"icon_url": record.icon_url or None})
     icon_url = _icon_url(metadata)
     if image_cache is not None and port > 0:
         icon_url = image_cache.local_url(icon_url, port)
