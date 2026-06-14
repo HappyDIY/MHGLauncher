@@ -53,7 +53,7 @@ class WishTaskService:
     async def _run_sync(self, job: WishTask, credential: str) -> None:
         try:
             job.status = WishTaskStatus.RUNNING
-            self._append(job, "正在读取当前选择的游戏角色", progress=0.1, update_progress=True)
+            self._append(job, "正在读取当前选择的游戏角色", progress=None, update_progress=True)
             role = await self.accounts.selected_role()
             if role is None:
                 raise AppError("role_missing", "尚未选择原神角色", 409)
