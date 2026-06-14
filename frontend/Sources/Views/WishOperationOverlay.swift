@@ -8,7 +8,7 @@ struct WishOperationOverlay: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.46)
+            Color.black.opacity(0.24)
                 .ignoresSafeArea()
             VStack(alignment: .leading, spacing: 20) {
                 header
@@ -18,7 +18,11 @@ struct WishOperationOverlay: View {
             }
             .padding(26)
             .frame(width: 540)
-            .background(.ultraThickMaterial, in: .rect(cornerRadius: 24))
+            .background(.thinMaterial, in: .rect(cornerRadius: 24))
+            .glassEffect(
+                .regular.tint(accent.opacity(0.08)).interactive(),
+                in: .rect(cornerRadius: 24)
+            )
             .overlay(border)
             .shadow(color: accent.opacity(glow ? 0.65 : 0.24), radius: glow ? 38 : 18)
             .scaleEffect(glow ? 1 : 0.985)
@@ -96,7 +100,8 @@ struct WishOperationOverlay: View {
                 .padding(16)
             }
             .frame(height: 174)
-            .background(Color.black.opacity(0.3), in: .rect(cornerRadius: 14))
+            .background(.black.opacity(0.22), in: .rect(cornerRadius: 14))
+            .glassEffect(.clear, in: .rect(cornerRadius: 14))
             .onChange(of: operation.logs.count) {
                 if let id = operation.logs.last?.id {
                     withAnimation { reader.scrollTo(id, anchor: .bottom) }

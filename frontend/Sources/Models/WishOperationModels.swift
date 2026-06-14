@@ -59,6 +59,9 @@ struct WishOperationState: Identifiable, Sendable {
     ) {
         self.progress = min(max(progress, self.progress), 1)
         logs.append(WishOperationLog(message: message, emphasized: emphasized))
+        if logs.count > 24 {
+            logs.removeFirst(logs.count - 24)
+        }
     }
 
     mutating func succeed(_ message: String) {
