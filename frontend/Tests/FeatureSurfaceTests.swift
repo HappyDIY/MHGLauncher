@@ -28,6 +28,49 @@ struct FeatureSurfaceTests {
         #expect(WishesView.uigfUpgraderURL.absoluteString == "https://upgrader.uigf.org/")
     }
 
+    @Test("祈愿页面统一角色活动卡池类型")
+    func normalizedWishType() {
+        let record = WishRecord(
+            id: "1",
+            uid: "100000001",
+            gachaType: "400",
+            itemId: "10000079",
+            name: "芙宁娜",
+            itemType: "角色",
+            rank: 5,
+            time: .now,
+            iconUrl: nil
+        )
+        #expect(record.normalizedGachaType == "301")
+    }
+
+    @Test("卡池展示名称面向用户")
+    func wishPoolPresentation() {
+        let detail = WishBannerDetail(
+            uid: "100000001",
+            gachaType: "302",
+            total: 10,
+            timeFrom: nil,
+            timeTo: nil,
+            fiveStarCount: 0,
+            fourStarCount: 1,
+            threeStarCount: 9,
+            fiveStarPercent: 0,
+            fourStarPercent: 0.1,
+            threeStarPercent: 0.9,
+            maxPity: 0,
+            minPity: 0,
+            averagePity: 0,
+            lastPity: 10,
+            lastPurplePity: 0,
+            guaranteeThreshold: 80,
+            fiveStarItems: [],
+            fourStarItems: []
+        )
+        #expect(detail.poolName == "武器活动祈愿")
+        #expect(detail.poolIcon == "shield.lefthalf.filled")
+    }
+
     @Test("二维码可以生成为非空图像")
     func qrCode() throws {
         let image = try #require(

@@ -2,142 +2,164 @@ import SwiftUI
 
 struct BannerDetailCard: View {
     let detail: WishBannerDetail
-    let isExpanded: Bool
-
-    private var poolName: String {
-        switch detail.gachaType {
-        case "100": "新手祈愿"
-        case "200": "常驻祈愿"
-        case "301": "角色活动祈愿"
-        case "302": "武器活动祈愿"
-        default: "卡池 \(detail.gachaType)"
-        }
-    }
-
-    private var pityProgress: Double {
-        guard detail.guaranteeThreshold > 0 else { return 0 }
-        return min(Double(detail.lastPity) / Double(detail.guaranteeThreshold), 1)
-    }
-
-    private var pityBarColor: Color {
-        if detail.lastPity >= detail.guaranteeThreshold - 10 { .orange }
-        else if detail.lastPity >= detail.guaranteeThreshold / 2 { .yellow }
-        else { .green }
-    }
 
     var body: some View {
-        GlassCard(poolName, icon: "sparkles") {
-            VStack(alignment: .leading, spacing: 14) {
-                pitySection
-                Divider()
-                statGrid
-                if isExpanded {
-                    Divider()
-                    itemsList
-                }
+        VStack(alignment: .leading, spacing: 16) {
+            heading
+            pitySection
+            Divider()
+            metrics
+            Divider()
+            recentFiveStars
+            Spacer(minLength: 0)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .glassEffect(
+            .regular.tint(detail.poolAccent.opacity(0.08)),
+            in: .rect(cornerRadius: 22)
+        )
+    }
+
+    private var heading: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(detail.poolName)
+                    .font(.title3.bold())
+                Text("\(detail.total) 抽 · \(detail.fiveStarCount) 个五星")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
+            Spacer()
+            Image(systemName: detail.poolIcon)
+                .font(.title2)
+                .foregroundStyle(detail.poolAccent)
+                .frame(width: 42, height: 42)
+                .glassEffect(
+                    .regular.tint(detail.poolAccent.opacity(0.18)),
+                    in: .circle
+                )
         }
     }
 
     private var pitySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("保底进度")
-                    .font(.subheadline.weight(.medium))
-                Spacer()
-                Text("\(detail.lastPity) / \(detail.guaranteeThreshold)")
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
+        VStack(spacing: 13) {
+            PityProgressRow(
+                title: "五星保底",
+                value: detail.lastPity,
+                maximum: detail.guaranteeThreshold,
+                color: .orange
+            )
+            PityProgressRow(
+                title: "四星保底",
+                value: detail.lastPurplePity,
+                maximum: 10,
+                color: .purple
+            )
+        }
+    }
+
+    private var metrics: some View {
+        Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 14) {
+            GridRow {
+                compactMetric("\(detail.fiveStarCount)", "五星")
+                compactMetric(String(format: "%.2f%%", detail.fiveStarPercent * 100), "五星率")
             }
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(.quaternary)
-                        .frame(height: 8)
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(pityBarColor)
-                        .frame(width: geometry.size.width * pityProgress, height: 8)
-                }
-            }
-            .frame(height: 8)
-            HStack(spacing: 20) {
-                pityMetric(label: "距上次五星", value: "\(detail.lastPity)")
-                pityMetric(label: "距上次四星", value: "\(detail.lastPurplePity)")
-                pityMetric(label: "保底余量", value: "\(max(0, detail.guaranteeThreshold - detail.lastPity))")
-                Spacer()
+            GridRow {
+                compactMetric(
+                    detail.averagePity > 0 ? String(format: "%.1f", detail.averagePity) : "--",
+                    "平均出金"
+                )
+                compactMetric(detail.maxPity > 0 ? "\(detail.maxPity)" : "--", "最晚出金")
             }
         }
     }
 
-    private func pityMetric(label: String, value: String) -> some View {
+    private func compactMetric(_ value: String, _ label: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value)
                 .font(.title3.bold().monospacedDigit())
+                .contentTransition(.numericText())
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var statGrid: some View {
+    private var recentFiveStars: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 24) {
-                MetricView(value: "\(detail.total)", label: "总抽数")
-                MetricView(value: "\(detail.fiveStarCount)", label: "五星")
-                MetricView(value: "\(detail.fourStarCount)", label: "四星")
-                MetricView(value: "\(detail.threeStarCount)", label: "三星")
+            HStack {
+                Text("最近五星")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text("\(detail.fiveStarItems.count) 条")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            HStack(spacing: 24) {
-                MetricView(
-                    value: String(format: "%.1f%%", detail.fiveStarPercent * 100),
-                    label: "五星率"
-                )
-                MetricView(
-                    value: detail.averagePity > 0
-                        ? String(format: "%.1f", detail.averagePity) : "--",
-                    label: "平均保底"
-                )
-                MetricView(value: "\(detail.maxPity)", label: "最非记录")
-                if detail.minPity > 0 {
-                    MetricView(value: "\(detail.minPity)", label: "最欧记录")
+            if detail.fiveStarItems.isEmpty {
+                Text("当前卡池暂无五星记录")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 12)
+            } else {
+                ForEach(detail.fiveStarItems.prefix(4)) { item in
+                    HStack(spacing: 10) {
+                        WishBannerArtwork(item: item)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.name)
+                                .font(.subheadline.weight(.medium))
+                                .lineLimit(1)
+                            Text(item.time.formatted(date: .abbreviated, time: .omitted))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text("\(item.pullNumber) 抽")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(item.pullNumber >= 70 ? .orange : .secondary)
+                    }
                 }
             }
         }
     }
+}
 
-    private var itemsList: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("五星产出记录")
-                .font(.subheadline.weight(.medium))
-            if detail.fiveStarItems.isEmpty {
-                Text("暂无五星记录")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(detail.fiveStarItems) { item in
-                    HStack(spacing: 8) {
-                        CachedAsyncImage(url: item.iconUrl) {
-                            Image(systemName: item.itemType == "角色" ? "person.fill" : "sparkles")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.85))
-                        }
-                        .frame(width: 28, height: 28)
-                        .background(item.rank == 5 ? Color.orange.opacity(0.3) : Color.purple.opacity(0.3))
-                        .clipShape(.rect(cornerRadius: 6))
-                        Text(item.name)
-                            .font(.caption.weight(.medium))
-                            .lineLimit(1)
-                        Spacer()
-                        Text("第 \(item.pullNumber) 抽")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                        Text(item.time.formatted(date: .abbreviated, time: .omitted))
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
+private struct PityProgressRow: View {
+    let title: String
+    let value: Int
+    let maximum: Int
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 7) {
+            HStack {
+                Text(title).font(.subheadline.weight(.medium))
+                Spacer()
+                Text("\(value) / \(maximum)")
+                    .font(.subheadline.bold().monospacedDigit())
+                    .foregroundStyle(color)
             }
+            ProgressView(value: min(Double(value) / Double(max(maximum, 1)), 1))
+                .tint(color)
+        }
+    }
+}
+
+private struct WishBannerArtwork: View {
+    let item: WishBannerItem
+
+    var body: some View {
+        CachedAsyncImage(url: item.iconUrl) {
+            Image(systemName: item.itemType == "角色" ? "person.fill" : "sparkles")
+                .foregroundStyle(.white.opacity(0.86))
+        }
+        .frame(width: 34, height: 34)
+        .background(.orange.opacity(0.24))
+        .clipShape(.rect(cornerRadius: 9))
+        .overlay {
+            RoundedRectangle(cornerRadius: 9)
+                .stroke(.white.opacity(0.16))
         }
     }
 }
