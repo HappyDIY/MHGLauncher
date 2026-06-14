@@ -70,6 +70,7 @@ class WishBannerItem(BaseModel):
     rank: int
     icon_url: str | None = None
     pull_number: int
+    pity: int
     time: datetime
 
 
