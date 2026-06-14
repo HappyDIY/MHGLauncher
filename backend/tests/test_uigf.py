@@ -73,13 +73,19 @@ def test_enriches_weapon_icon() -> None:
     )
 
 
-def test_rejects_legacy_version_key() -> None:
+def test_imports_legacy_v3_document() -> None:
     payload = _payload()
     info = payload["info"]
     assert isinstance(info, dict)
-    info["uigf_version"] = info.pop("version")
-    with pytest.raises(AppError, match="请先升级"):
-        import_uigf(payload)
+    info.pop("version")
+    info["uigf_version"] = "v3.0"
+    info["uid"] = 100000001
+    account = payload.pop("hk4e")
+    assert isinstance(account, list)
+    payload["list"] = account[0]["list"]
+    records = import_uigf(payload)
+    assert records[0].uid == "100000001"
+    assert records[0].name == "芙宁娜"
 
 
 def test_rejects_empty_hk4e_data() -> None:
