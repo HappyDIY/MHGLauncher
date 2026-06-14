@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI
 
-from mhglauncher.api import accounts, auth, game, notes, wishes
+from mhglauncher.api import accounts, auth, game, images, notes, wishes
 from mhglauncher.config import Settings
 from mhglauncher.database import Database
 from mhglauncher.errors import install_error_handlers
@@ -16,6 +16,7 @@ from mhglauncher.providers.fixture import FixtureProvider
 from mhglauncher.providers.live import LiveProvider
 from mhglauncher.services.accounts import AccountService
 from mhglauncher.services.games import GameService
+from mhglauncher.services.image_cache import ImageCacheService
 from mhglauncher.services.notes import NoteService
 from mhglauncher.services.wishes import WishService
 
@@ -42,8 +43,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.settings = effective
         app.state.database = database
         app.state.provider = provider
+        image_cache = ImageCacheService(effective.data_dir, client)
+        app.state.image_cache = image_cache
         app.state.accounts = AccountService(database, provider)
-        app.state.wishes = WishService(database, provider)
+        app.state.wishes = WishService(database, provider, image_cache, effective.base_port)
         app.state.notes = NoteService(database, provider)
         app.state.games = GameService(database, provider, client, effective.data_dir)
         try:
@@ -65,4 +68,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     for router in (auth.router, accounts.router, game.router, wishes.router, notes.router):
         application.include_router(router, prefix="/v1")
+    application.include_router(images.router, prefix="/v1")
     return application

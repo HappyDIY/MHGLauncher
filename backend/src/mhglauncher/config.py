@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     fixture_dir: Path | None = None
     request_timeout: float = 30.0
     download_workers: int = 4
+    base_port: int = 0
 
     @property
     def effective_database_path(self) -> Path:

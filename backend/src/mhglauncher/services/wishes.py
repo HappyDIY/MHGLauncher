@@ -1,18 +1,31 @@
 from __future__ import annotations
 
+import asyncio
 import builtins
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 from mhglauncher.database import Database
 from mhglauncher.models import GameRole, WishRecord, WishStatistics
 from mhglauncher.providers.base import Provider
-from mhglauncher.services.item_metadata import enrich_record
+from mhglauncher.services.item_metadata import enrich_record, remote_icon_urls
+
+if TYPE_CHECKING:
+    from mhglauncher.services.image_cache import ImageCacheService
 
 
 class WishService:
-    def __init__(self, database: Database, provider: Provider) -> None:
+    def __init__(
+        self,
+        database: Database,
+        provider: Provider,
+        image_cache: ImageCacheService | None = None,
+        port: int = 0,
+    ) -> None:
         self.database = database
         self.provider = provider
+        self._image_cache = image_cache
+        self._port = port
 
     async def sync(self, credential: str, role: GameRole) -> int:
         inserted = 0
@@ -86,12 +99,21 @@ class WishService:
         sql += " ORDER BY time DESC, id DESC"
         rows = await self.database.fetch_all(sql, values)
         records = []
+        item_ids: set[str] = set()
         for row in rows:
             data = dict(row)
             data["uigf_gacha_type"] = data["uigf_gacha_type"] or _uigf_type(
                 str(data["gacha_type"])
             )
-            records.append(enrich_record(WishRecord.model_validate(data)))
+            record = WishRecord.model_validate(data)
+            item_ids.add(record.item_id)
+            records.append(
+                enrich_record(record, self._image_cache, self._port)
+            )
+        if item_ids and self._image_cache is not None:
+            urls = remote_icon_urls(item_ids)
+            if urls:
+                asyncio.ensure_future(self._image_cache.ensure_all(urls))  # noqa: RUF006
         return records
 
     async def statistics(self, uid: str) -> builtins.list[WishStatistics]:
@@ -127,3 +149,4 @@ class WishService:
 
 def _uigf_type(gacha_type: str) -> str:
     return "301" if gacha_type == "400" else gacha_type
+

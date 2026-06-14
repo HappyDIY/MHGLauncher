@@ -19,6 +19,7 @@ async def serve() -> None:
     sock.listen(128)
     sock.setblocking(False)
     port = sock.getsockname()[1]
+    settings.base_port = port
     print(json.dumps({"event": "ready", "port": port}), flush=True)
     server = uvicorn.Server(
         uvicorn.Config(

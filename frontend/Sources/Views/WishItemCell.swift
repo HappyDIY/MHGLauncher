@@ -13,20 +13,8 @@ struct WishItemCell: View {
     }
 
     private var artwork: some View {
-        AsyncImage(url: item.iconUrl) { phase in
-            switch phase {
-            case let .success(image):
-                image
-                    .resizable()
-                    .scaledToFit()
-            case .empty:
-                ProgressView()
-                    .controlSize(.small)
-            case .failure:
-                placeholder
-            @unknown default:
-                placeholder
-            }
+        CachedAsyncImage(url: item.iconUrl) {
+            placeholder
         }
         .frame(width: 38, height: 38)
         .background(rarityGradient)
