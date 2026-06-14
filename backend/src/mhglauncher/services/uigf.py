@@ -9,6 +9,7 @@ from mhglauncher import __version__
 from mhglauncher.errors import AppError
 from mhglauncher.models import WishRecord
 from mhglauncher.services.item_metadata import enrich_record
+from mhglauncher.services.uigf_legacy import import_legacy_uigf
 
 UIGFVersion = Literal["v4.0", "v4.1", "v4.2"]
 GACHA_TYPES = {"100", "200", "301", "302", "400", "500"}
@@ -87,7 +88,8 @@ class UIGFFile(BaseModel):
 
 
 def import_uigf(payload: dict[str, Any]) -> list[WishRecord]:
-    _reject_legacy_version(payload)
+    if _is_legacy(payload):
+        return import_legacy_uigf(payload)
     try:
         document = UIGFFile.model_validate(payload)
         records = [_record(account, item) for account in document.hk4e for item in account.list]
@@ -156,10 +158,9 @@ def _export_item(item: WishRecord) -> dict[str, str]:
     return result
 
 
-def _reject_legacy_version(payload: dict[str, Any]) -> None:
+def _is_legacy(payload: dict[str, Any]) -> bool:
     info = payload.get("info")
-    if isinstance(info, dict) and "uigf_version" in info and "version" not in info:
-        raise AppError("uigf_legacy", "仅支持 UIGF v4.0、v4.1、v4.2，请先升级旧版文件")
+    return isinstance(info, dict) and "uigf_version" in info and "version" not in info
 
 
 def _uigf_type(gacha_type: str) -> str:
