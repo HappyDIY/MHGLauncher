@@ -4,6 +4,7 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")" && pwd)"
 built_app="$root/dist/MHGLauncher.app"
 app_pid=""
+backend_pid=""
 terminal_tty="$(tty 2>/dev/null || true)"
 
 is_markdown() {
@@ -16,10 +17,8 @@ is_markdown() {
 source_signature() {
   (
     cd "$root"
-    git log -1 --format=%H -- . \
-      ':(exclude,glob)**/*.md' \
-      ':(exclude,glob)*.md'
-    git ls-files --cached --others --exclude-standard |
+    git log -1 --format=%H -- "$@"
+    git ls-files --cached --others --exclude-standard -- "$@" |
       LC_ALL=C sort |
       while IFS= read -r path; do
         if is_markdown "$path"; then
@@ -51,9 +50,15 @@ cleanup() {
   status=$?
   trap - EXIT INT TERM HUP
 
+  if [[ -n "$app_pid" ]]; then
+    backend_pid="$(pgrep -P "$app_pid" -f MHGLauncherBackend | head -n 1 || true)"
+  fi
   if [[ -n "$app_pid" ]] && kill -0 "$app_pid" 2>/dev/null; then
     kill "$app_pid" 2>/dev/null || true
     wait "$app_pid" 2>/dev/null || true
+  fi
+  if [[ -n "$backend_pid" ]] && kill -0 "$backend_pid" 2>/dev/null; then
+    kill "$backend_pid" 2>/dev/null || true
   fi
 
   exit "$status"
@@ -63,7 +68,18 @@ trap cleanup EXIT INT TERM HUP
 git_hash="$(git -C "$root" rev-parse --verify HEAD)"
 cached_app="$root/dist/$git_hash.app"
 signature_file="$cached_app/Contents/Resources/.debug-source-signature"
-source_hash="$(source_signature)"
+frontend_hash="$(source_signature \
+  frontend packaging/Info.plist scripts/build-frontend.sh \
+  scripts/build-debug-app.sh)"
+backend_hash="$(source_signature \
+  backend scripts/build-backend-debug.sh scripts/fetch-hpatchz.sh)"
+source_hash="$(printf '%s%s' "$frontend_hash" "$backend_hash" |
+  shasum -a 256 | awk '{print $1}')"
+backend_cache="$root/build/backend-debug-cache/$backend_hash/MHGLauncherBackend"
+run_dir="$root/build/debug-run/$source_hash"
+run_binary="$run_dir/MHGLauncher"
+run_backend_dir="$run_dir/Backend"
+run_backend="$run_backend_dir/MHGLauncherBackend"
 
 pkill -x MHGLauncher 2>/dev/null || true
 pkill -x MHGLauncherBackend 2>/dev/null || true
@@ -78,7 +94,16 @@ elif reusable_app="$(find_cached_app)"; then
   cp -R "$reusable_app" "$cached_app"
 else
   printf '检测到非 Markdown 文件变化，正在构建 MHGLauncher.app...\n'
-  "$root/scripts/build-debug-app.sh"
+  if [[ ! -x "$backend_cache/MHGLauncherBackend" ]]; then
+    printf '后端源码已变化，正在更新冻结后端...\n'
+    /bin/bash "$root/scripts/build-backend-debug.sh"
+    mkdir -p "$(dirname "$backend_cache")"
+    cp -R "$root/build/backend-debug/dist/MHGLauncherBackend" "$backend_cache"
+  else
+    printf '后端源码未变化，复用冻结后端缓存。\n'
+  fi
+  MHG_DEBUG_BACKEND_DIR="$backend_cache" \
+    /bin/bash "$root/scripts/build-debug-app.sh"
   rm -rf "$cached_app"
   mv "$built_app" "$cached_app"
   printf '%s\n' "$source_hash" >"$signature_file"
@@ -87,7 +112,17 @@ fi
 printf '正在启动：%s\n' "$cached_app"
 printf '关闭 MHGLauncher 后将保留此 App。\n'
 
-MHG_DEBUG_MODE=1 "$cached_app/Contents/MacOS/MHGLauncher" &
+rm -rf "$run_dir"
+mkdir -p "$run_dir"
+cp "$cached_app/Contents/MacOS/MHGLauncher" "$run_binary"
+cp -R \
+  "$cached_app/Contents/Resources/Backend/MHGLauncherBackend" \
+  "$run_backend_dir"
+chmod +x "$run_binary" "$run_backend"
+
+MHG_DEBUG_MODE=1 \
+MHG_BACKEND_EXECUTABLE="$run_backend" \
+"$run_binary" &
 app_pid=$!
 
 set +e
