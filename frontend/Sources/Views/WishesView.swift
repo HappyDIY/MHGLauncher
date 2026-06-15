@@ -6,6 +6,7 @@ struct WishesView: View {
 
     @Bindable var store: LauncherStore
     @State private var confirmsClear = false
+    @State private var showsHistory = false
     @State private var selectedBanner: String?
 
     var body: some View {
@@ -47,6 +48,14 @@ struct WishesView: View {
         } message: {
             Text("此操作无法撤销，继续后需要使用 Touch ID 或 Mac 登录密码确认。")
         }
+        .sheet(isPresented: $showsHistory) {
+            WishHistoryPanel(
+                records: store.wishes,
+                selectedGachaType: selectedDetail?.gachaType
+            )
+            .frame(minWidth: 760, minHeight: 520)
+            .padding(20)
+        }
     }
 
     private var selectedBannerId: Binding<String?> {
@@ -76,6 +85,12 @@ struct WishesView: View {
             .buttonStyle(.glassProminent)
             .disabled(store.wishOperation != nil)
 
+            Button("详细记录", systemImage: "tablecells") {
+                showsHistory = true
+            }
+            .buttonStyle(.glass)
+            .disabled(store.wishes.isEmpty || store.wishOperation != nil)
+
             Menu {
                 Button("导入 UIGF", systemImage: "square.and.arrow.down") { importFile() }
                 Button("导出 UIGF", systemImage: "square.and.arrow.up") { exportFile() }
@@ -101,12 +116,12 @@ struct WishesView: View {
             if geometry.size.width >= 760 {
                 HStack(alignment: .top, spacing: 14) {
                     detailPanel.frame(width: min(360, geometry.size.width * 0.38))
-                    historyPanel
+                    resultsPanel
                 }
             } else {
                 VStack(spacing: 14) {
                     detailPanel
-                    historyPanel
+                    resultsPanel
                 }
             }
         }
@@ -119,11 +134,8 @@ struct WishesView: View {
         }
     }
 
-    private var historyPanel: some View {
-        WishHistoryPanel(
-            records: store.wishes,
-            selectedGachaType: selectedDetail?.gachaType
-        )
+    private var resultsPanel: some View {
+        WishResultsPanel(records: store.wishes)
     }
 
     private var emptyState: some View {

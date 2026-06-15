@@ -26,4 +26,54 @@ struct WishPresentationTests {
         #expect(item.pullNumber == 2_155)
         #expect(item.pity == 27)
     }
+
+    @Test("角色成果按物品聚合并计算命座")
+    func aggregatesCharacterResults() throws {
+        let records = [
+            record(id: "1", itemId: "1001", name: "测试角色", type: "角色", rank: 5),
+            record(id: "2", itemId: "1001", name: "测试角色", type: "角色", rank: 5),
+            record(id: "3", itemId: "2001", name: "测试武器", type: "武器", rank: 5),
+            record(id: "4", itemId: "1002", name: "三星角色", type: "角色", rank: 3)
+        ]
+
+        let result = try #require(records.resultItems(for: .character).first)
+
+        #expect(records.resultItems(for: .character).count == 1)
+        #expect(result.count == 2)
+        #expect(result.constellation == 1)
+    }
+
+    @Test("武器成果显示持有数量并按星级排序")
+    func aggregatesWeaponResults() {
+        let records = [
+            record(id: "1", itemId: "2001", name: "四星武器", type: "武器", rank: 4),
+            record(id: "2", itemId: "2002", name: "五星武器", type: "武器", rank: 5),
+            record(id: "3", itemId: "2001", name: "四星武器", type: "武器", rank: 4)
+        ]
+
+        let results = records.resultItems(for: .weapon)
+
+        #expect(results.map(\.name) == ["五星武器", "四星武器"])
+        #expect(results[1].count == 2)
+    }
+
+    private func record(
+        id: String,
+        itemId: String,
+        name: String,
+        type: String,
+        rank: Int
+    ) -> WishRecord {
+        WishRecord(
+            id: id,
+            uid: "100000001",
+            gachaType: "301",
+            itemId: itemId,
+            name: name,
+            itemType: type,
+            rank: rank,
+            time: .now,
+            iconUrl: nil
+        )
+    }
 }
