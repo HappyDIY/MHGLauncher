@@ -12,17 +12,15 @@ struct WishesView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
-            if store.wishes.isEmpty {
+            if !store.companionLoaded {
+                loadingPlaceholder
+            } else if store.wishes.isEmpty {
                 emptyState
             } else {
                 WishOverviewHero(
                     records: store.wishes,
                     details: store.bannerDetails,
                     uid: store.selectedRole?.uid
-                )
-                PoolSelector(
-                    details: store.bannerDetails,
-                    selection: selectedBannerId
                 )
                 workspace
             }
@@ -36,6 +34,7 @@ struct WishesView: View {
         }
         .animation(.spring(duration: 0.42), value: selectedDetail?.id)
         .animation(.spring(duration: 0.45), value: store.wishOperation?.id)
+        .animation(.spring(duration: 0.5), value: store.companionLoaded)
         .confirmationDialog(
             "永久清空全部祈愿记录？",
             isPresented: $confirmsClear,
@@ -85,11 +84,9 @@ struct WishesView: View {
             .buttonStyle(.glassProminent)
             .disabled(store.wishOperation != nil)
 
-            Button("详细记录", systemImage: "tablecells") {
-                showsHistory = true
-            }
-            .buttonStyle(.glass)
-            .disabled(store.wishes.isEmpty || store.wishOperation != nil)
+            Button("详细记录", systemImage: "tablecells") { showsHistory = true }
+                .buttonStyle(.glass)
+                .disabled(store.wishes.isEmpty || store.wishOperation != nil)
 
             Menu {
                 Button("导入 UIGF", systemImage: "square.and.arrow.down") { importFile() }
@@ -98,10 +95,8 @@ struct WishesView: View {
                 Divider()
                 Button("升级旧版 UIGF", systemImage: "arrow.up.doc") { openUIGFUpgrader() }
                 Divider()
-                Button("清空全部记录", systemImage: "trash", role: .destructive) {
-                    confirmsClear = true
-                }
-                .disabled(store.wishes.isEmpty)
+                Button("清空全部记录", systemImage: "trash", role: .destructive) { confirmsClear = true }
+                    .disabled(store.wishes.isEmpty)
             } label: {
                 Label("更多", systemImage: "ellipsis")
             }
@@ -110,7 +105,6 @@ struct WishesView: View {
             .disabled(store.wishOperation != nil)
         }
     }
-
     private var workspace: some View {
         GeometryReader { geometry in
             if geometry.size.width >= 760 {
@@ -129,13 +123,42 @@ struct WishesView: View {
 
     @ViewBuilder
     private var detailPanel: some View {
-        if let selectedDetail {
-            BannerDetailCard(detail: selectedDetail)
-        }
+        BannerDetailCard(
+            details: store.bannerDetails,
+            selection: selectedBannerId
+        )
     }
 
     private var resultsPanel: some View {
         WishResultsPanel(records: store.wishes)
+    }
+
+    private var loadingPlaceholder: some View {
+        VStack(spacing: 24) {
+            HStack(spacing: 18) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("祈愿概览", systemImage: "chart.bar.xaxis")
+                        .font(.headline)
+                    Text("正在载入...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                ForEach(0..<4, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(.quaternary)
+                        .frame(width: 62, height: 28)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 15)
+            .glassEffect(.regular.tint(.cyan.opacity(0.05)), in: .rect(cornerRadius: 22))
+            HStack(spacing: 14) {
+                RoundedRectangle(cornerRadius: 22).fill(.quaternary).frame(width: 360)
+                RoundedRectangle(cornerRadius: 22).fill(.quaternary)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var emptyState: some View {

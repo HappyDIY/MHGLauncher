@@ -145,5 +145,6 @@ extension LauncherStore {
             query: [URLQueryItem(name: "uid", value: uid)]
         )
         (wishes, wishStatistics, bannerDetails, dailyNote) = try await (records, statistics, details, note)
+        companionLoaded = true
     }
 }

@@ -20,6 +20,7 @@ final class LauncherStore {
     var noteVerification: GeetestChallenge?
     var installPath = ""
     var isBusy = false
+    var companionLoaded = false
     var message: String?
     var wishOperation: WishOperationState?
 
@@ -51,6 +52,10 @@ final class LauncherStore {
         defer { isBusy = false }
         do {
             try await operation()
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch let error as APIErrorPayload {
             message = Self.presentableMessage(error.message)
         } catch {

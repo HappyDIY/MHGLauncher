@@ -5,16 +5,13 @@ struct PoolSelector: View {
     @Binding var selection: String?
 
     var body: some View {
-        GlassEffectContainer(spacing: 10) {
-            HStack(spacing: 10) {
-                ForEach(details) { detail in
-                    poolButton(detail)
-                        .frame(maxWidth: .infinity)
-                }
+        HStack(spacing: 10) {
+            ForEach(details) { detail in
+                poolButton(detail)
+                    .frame(maxWidth: .infinity)
             }
-            .padding(.vertical, 2)
         }
-        .frame(maxWidth: .infinity)
+        .padding(.vertical, 2)
     }
 
     private func poolButton(_ detail: WishBannerDetail) -> some View {

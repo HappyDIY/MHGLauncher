@@ -1,29 +1,54 @@
 import SwiftUI
 
 struct BannerDetailCard: View {
-    let detail: WishBannerDetail
+    let details: [WishBannerDetail]
+    @Binding var selection: String?
+
+    private var selectedDetail: WishBannerDetail? {
+        details.first { $0.id == selection }
+    }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            PoolSelector(details: details, selection: $selection)
+            if let detail = selectedDetail {
+                detailContent(detail)
+            } else {
+                emptySelection
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .glassEffect(
+            .regular.tint(selectedDetail?.poolAccent.opacity(0.08) ?? Color.accentColor.opacity(0.08)),
+            in: .rect(cornerRadius: 22)
+        )
+    }
+
+    private func detailContent(_ detail: WishBannerDetail) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            heading
-            pitySection
+            heading(detail)
+            pitySection(detail)
             Divider()
-            metrics
+            metrics(detail)
             Divider()
             WishFiveStarTimeline(
                 items: detail.fiveStarItems,
                 maximum: detail.guaranteeThreshold
             )
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .glassEffect(
-            .regular.tint(detail.poolAccent.opacity(0.08)),
-            in: .rect(cornerRadius: 22)
-        )
     }
 
-    private var heading: some View {
+    private var emptySelection: some View {
+        ContentUnavailableView(
+            "选择卡池",
+            systemImage: "rectangle.stack",
+            description: Text("在上方选择卡池后，这里会展示详细统计数据。")
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func heading(_ detail: WishBannerDetail) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
                 Text(detail.poolName)
@@ -44,7 +69,7 @@ struct BannerDetailCard: View {
         }
     }
 
-    private var pitySection: some View {
+    private func pitySection(_ detail: WishBannerDetail) -> some View {
         VStack(spacing: 13) {
             PityProgressRow(
                 title: "五星保底",
@@ -61,7 +86,7 @@ struct BannerDetailCard: View {
         }
     }
 
-    private var metrics: some View {
+    private func metrics(_ detail: WishBannerDetail) -> some View {
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 14) {
             GridRow {
                 compactMetric("\(detail.fiveStarCount)", "五星")
