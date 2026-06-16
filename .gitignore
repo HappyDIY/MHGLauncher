@@ -13,3 +13,5 @@ coverage.xml
 htmlcov/
 backend/mhglauncher.db
 frontend/.backend-port
+.idea/
+.codegraph/

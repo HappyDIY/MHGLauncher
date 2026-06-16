@@ -9,16 +9,19 @@ struct BannerDetailCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            PoolSelector(details: details, selection: $selection)
-            if let detail = selectedDetail {
-                detailContent(detail)
-            } else {
-                emptySelection
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                PoolSelector(details: details, selection: $selection)
+                if let detail = selectedDetail {
+                    detailContent(detail)
+                } else {
+                    emptySelection
+                }
             }
+            .padding(18)
+            .frame(maxWidth: .infinity)
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .glassEffect(
             .regular.tint(selectedDetail?.poolAccent.opacity(0.08) ?? Color.accentColor.opacity(0.08)),
             in: .rect(cornerRadius: 22)

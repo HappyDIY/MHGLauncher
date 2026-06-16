@@ -22,17 +22,13 @@ struct WishFiveStarTimeline: View {
                 )
                 .controlSize(.small)
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(items) { item in
-                            FiveStarPullRow(item: item, maximum: maximum)
-                        }
+                LazyVStack(spacing: 8) {
+                    ForEach(items) { item in
+                        FiveStarPullRow(item: item, maximum: maximum)
                     }
                 }
-                .scrollIndicators(.automatic)
             }
         }
-        .frame(maxHeight: .infinity, alignment: .top)
     }
 }
 
