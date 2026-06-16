@@ -90,33 +90,41 @@ struct BannerDetailCard: View {
     }
 
     private func metrics(_ detail: WishBannerDetail) -> some View {
-        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 14) {
-            GridRow {
-                compactMetric("\(detail.fiveStarCount)", "五星")
-                compactMetric("\(detail.fourStarCount)", "四星")
-                compactMetric(String(format: "%.2f%%", detail.fiveStarPercent * 100), "五星率")
-            }
-            GridRow {
-                compactMetric(
-                    detail.averagePity > 0 ? String(format: "%.1f", detail.averagePity) : "--",
-                    "平均出金"
-                )
-                compactMetric(detail.maxPity > 0 ? "\(detail.maxPity)" : "--", "最晚出金")
-                compactMetric(detail.minPity > 0 ? "\(detail.minPity)" : "--", "最快出金")
-            }
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
+            metricCard("\(detail.fiveStarCount)", "五星", .orange)
+            metricCard("\(detail.fourStarCount)", "四星", .purple)
+            metricCard(String(format: "%.1f%%", detail.fiveStarPercent * 100), "五星率", .cyan)
+            metricCard(
+                detail.averagePity > 0 ? String(format: "%.1f", detail.averagePity) : "--", "平均出金",
+                .yellow
+            )
+            metricCard(detail.maxPity > 0 ? "\(detail.maxPity)" : "--", "最晚出金", .red)
+            metricCard(detail.minPity > 0 ? "\(detail.minPity)" : "--", "最快出金", .green)
         }
     }
 
-    private func compactMetric(_ value: String, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+    private func metricCard(_ value: String, _ label: String, _ color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
             Text(value)
                 .font(.title3.bold().monospacedDigit())
+                .foregroundStyle(color)
                 .contentTransition(.numericText())
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(color.opacity(0.08))
+        )
+        .overlay(alignment: .top) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(color)
+                .frame(height: 3)
+                .padding(.horizontal, 4)
+        }
     }
 
 }

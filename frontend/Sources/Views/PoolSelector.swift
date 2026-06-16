@@ -31,7 +31,7 @@ struct PoolSelector: View {
             HStack(spacing: 8) {
                 Image(systemName: detail.poolIcon)
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(isSelected ? .white : .secondary)
                     .frame(width: 32, height: 32)
                     .background(
                         Circle()
