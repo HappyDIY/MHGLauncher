@@ -90,4 +90,42 @@ extension WishBannerDetail {
         default: .blue
         }
     }
+
+    var poolLabel: String {
+        switch gachaType {
+        case "301", "400": "限定角色"
+        case "302": "限定武器"
+        case "200": "常驻角色"
+        default: poolName
+        }
+    }
+
+    var poolGradient: LinearGradient {
+        switch gachaType {
+        case "301", "400":
+            LinearGradient(
+                colors: [Color(red: 0.85, green: 0.35, blue: 0.72), .purple, .blue],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case "302":
+            LinearGradient(
+                colors: [Color(red: 0.96, green: 0.55, blue: 0.18), .red],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        case "200":
+            LinearGradient(
+                colors: [Color(red: 0.35, green: 0.55, blue: 0.9), .indigo],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        default:
+            LinearGradient(
+                colors: [.blue, .teal],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
 }

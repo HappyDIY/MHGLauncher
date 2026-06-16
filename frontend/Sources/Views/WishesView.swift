@@ -134,31 +134,7 @@ struct WishesView: View {
     }
 
     private var loadingPlaceholder: some View {
-        VStack(spacing: 24) {
-            HStack(spacing: 18) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("祈愿概览", systemImage: "chart.bar.xaxis")
-                        .font(.headline)
-                    Text("正在载入...")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                ForEach(0..<4, id: \.self) { _ in
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(.quaternary)
-                        .frame(width: 62, height: 28)
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 15)
-            .glassEffect(.regular.tint(.cyan.opacity(0.05)), in: .rect(cornerRadius: 22))
-            HStack(spacing: 14) {
-                RoundedRectangle(cornerRadius: 22).fill(.quaternary).frame(width: 360)
-                RoundedRectangle(cornerRadius: 22).fill(.quaternary)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        WishLoadingPlaceholder()
     }
 
     private var emptyState: some View {
