@@ -18,6 +18,22 @@ cp "$root/frontend/.build/arm64-apple-macosx/release/MHGLauncher" \
 cp -R "$root/build/backend/dist/MHGLauncherBackend" \
   "$contents/Resources/Backend/MHGLauncherBackend"
 
+icon_source="$root/frontend/Sources/Resources/Assets.xcassets/AppIcon.appiconset"
+if [ -f "$icon_source/light.png" ]; then
+  iconset="$(mktemp -d)/AppIcon.iconset"
+  mkdir -p "$iconset"
+  for size in 16 32 128 256 512; do
+    half=$((size / 2))
+    twosize=$((size * 2))
+    sips -z $size $size "$icon_source/light.png" --out "$iconset/icon_${size}x${size}.png" >/dev/null
+    sips -z $size $size "$icon_source/dark.png" --out "$iconset/icon_${size}x${size}~dark.png" >/dev/null
+    sips -z $twosize $twosize "$icon_source/light.png" --out "$iconset/icon_${half}x${half}@2x.png" >/dev/null
+    sips -z $twosize $twosize "$icon_source/dark.png" --out "$iconset/icon_${half}x${half}@2x~dark.png" >/dev/null
+  done
+  iconutil -c icns "$iconset" -o "$contents/Resources/AppIcon.icns"
+  rm -rf "$(dirname "$iconset")"
+fi
+
 chmod +x "$contents/MacOS/MHGLauncher"
 chmod +x "$contents/Resources/Backend/MHGLauncherBackend/MHGLauncherBackend"
 

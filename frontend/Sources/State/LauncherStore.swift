@@ -18,11 +18,15 @@ final class LauncherStore {
     var dailyNote: DailyNote?
     var qrSession: QRSession?
     var noteVerification: GeetestChallenge?
+    var selectedDestination: Destination? = .home
     var installPath = ""
     var isBusy = false
     var companionLoaded = false
     var message: String?
     var wishOperation: WishOperationState?
+    var triggerWishImport = false
+    var triggerWishExport = false
+    var triggerWishClear = false
 
     let credentialAccount = "current"
 

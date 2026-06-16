@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum Destination: String, CaseIterable, Identifiable {
@@ -22,11 +23,11 @@ enum Destination: String, CaseIterable, Identifiable {
 
 struct RootView: View {
     @Bindable var store: LauncherStore
-    @State private var selection: Destination? = .home
+    @State private var confirmsClear = false
 
     var body: some View {
         NavigationSplitView {
-            List(Destination.allCases, selection: $selection) { destination in
+            List(Destination.allCases, selection: $store.selectedDestination) { destination in
                 Label(destination.rawValue, systemImage: destination.icon)
                     .tag(destination)
             }
@@ -58,11 +59,38 @@ struct RootView: View {
                 }
             }
         }
+        .onChange(of: store.triggerWishImport) { _, newValue in
+            guard newValue else { return }
+            store.triggerWishImport = false
+            importFile()
+        }
+        .onChange(of: store.triggerWishExport) { _, newValue in
+            guard newValue else { return }
+            store.triggerWishExport = false
+            exportFile()
+        }
+        .onChange(of: store.triggerWishClear) { _, newValue in
+            guard newValue else { return }
+            store.triggerWishClear = false
+            confirmsClear = true
+        }
+        .confirmationDialog(
+            "永久清空全部祈愿记录？",
+            isPresented: $confirmsClear,
+            titleVisibility: .visible
+        ) {
+            Button("认证并清空", role: .destructive) {
+                Task { await store.clearAllWishes() }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("此操作无法撤销，继续后需要使用 Touch ID 或 Mac 登录密码确认。")
+        }
     }
 
     @ViewBuilder
     private var content: some View {
-        switch selection ?? .home {
+        switch store.selectedDestination ?? .home {
         case .home: HomeView(store: store)
         case .game: GameView(store: store)
         case .wishes: WishesView(store: store)
@@ -82,5 +110,23 @@ struct RootView: View {
             endPoint: .bottomTrailing
         )
         .ignoresSafeArea()
+    }
+
+    private func importFile() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        if panel.runModal() == .OK, let url = panel.url {
+            Task { await store.importUIGF(from: url) }
+        }
+    }
+
+    private func exportFile() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "uigf-v4.2.json"
+        if panel.runModal() == .OK, let url = panel.url {
+            Task { await store.exportUIGF(to: url) }
+        }
     }
 }

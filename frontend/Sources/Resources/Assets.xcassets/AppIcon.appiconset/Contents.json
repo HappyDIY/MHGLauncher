@@ -1,0 +1,32 @@
+{
+  "images" : [
+    {
+      "filename" : "light.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "1024x1024",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "light"
+        }
+      ]
+    },
+    {
+      "filename" : "dark.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "1024x1024",
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ]
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
