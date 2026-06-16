@@ -32,6 +32,18 @@ enum JobStatus: String, Codable, Sendable {
     case failed
 }
 
+struct ChunkProgress: Codable, Sendable, Identifiable {
+    var id: String { name }
+    let name: String
+    let bytesDone: Int64
+    let total: Int64
+
+    var progress: Double {
+        guard total > 0 else { return 0 }
+        return Double(bytesDone) / Double(total)
+    }
+}
+
 struct GameJob: Codable, Sendable, Identifiable {
     let id: String
     let kind: JobKind
@@ -39,6 +51,10 @@ struct GameJob: Codable, Sendable, Identifiable {
     let completedBytes: Int64
     let totalBytes: Int64
     let message: String
+    let downloadSpeed: Int64
+    let chunksCompleted: Int64
+    let chunksTotal: Int64
+    let activeChunks: [ChunkProgress]
 
     var progress: Double {
         guard totalBytes > 0 else { return 0 }

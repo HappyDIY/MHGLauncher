@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import shutil
-from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -18,6 +17,7 @@ from mhglauncher.services.game_build import download_size, remove_files, remove_
 from mhglauncher.services.game_detection import detect_game
 from mhglauncher.services.game_hotpatch import pending_hotpatch
 from mhglauncher.services.game_manifest import hotfix_build
+from mhglauncher.services.game_progress import ProgressTracker, save_state
 from mhglauncher.services.installer import Installer
 from mhglauncher.services.sophon_installer import SophonInstaller
 from mhglauncher.services.sophon_patch_installer import SophonPatchInstaller
@@ -53,7 +53,7 @@ class GameService:
                 available_version=build.version,
             )
         detected_path, installed_version = detected
-        await self._save_state(detected_path, installed_version)
+        await save_state(self.database, detected_path, installed_version)
         current = installed_version == build.version and not build.assets
         return GameState(
             install_path=str(detected_path),
@@ -125,6 +125,8 @@ class GameService:
     ) -> None:
         cache = self.data_dir / "downloads" / build.version
         staging = install_path.with_name(install_path.name + ".staging")
+        tracker = ProgressTracker(job)
+        job.chunks_total = tracker.count_chunks(build)
         try:
             job.status = JobStatus.RUNNING
             shutil.rmtree(staging, ignore_errors=True)
@@ -138,7 +140,8 @@ class GameService:
                     staging,
                     cache,
                     control,
-                    lambda size: setattr(job, "completed_bytes", job.completed_bytes + size),
+                    tracker.on_bytes,
+                    tracker.on_chunk,
                 )
                 remove_files(staging, build.deprecated_files)
             elif build.assets:
@@ -147,7 +150,8 @@ class GameService:
                     staging,
                     cache,
                     control,
-                    lambda size: setattr(job, "completed_bytes", job.completed_bytes + size),
+                    tracker.on_bytes,
+                    tracker.on_chunk,
                 )
             else:
                 archives = []
@@ -158,9 +162,7 @@ class GameService:
                             segment,
                             archive,
                             control,
-                            lambda size: setattr(
-                                job, "completed_bytes", job.completed_bytes + size
-                            ),
+                            tracker.on_bytes,
                         )
                     )
                 self.installer.extract(archives, staging)
@@ -171,7 +173,7 @@ class GameService:
                     json.dumps([asset.name for asset in build.assets])
                 )
             self.installer.activate(staging, install_path)
-            await self._save_state(install_path, build.version)
+            await save_state(self.database, install_path, build.version)
             job.status = JobStatus.COMPLETED
         except asyncio.CancelledError:
             job.status = JobStatus.CANCELLED
@@ -181,17 +183,6 @@ class GameService:
             job.message = str(error)
         finally:
             shutil.rmtree(staging, ignore_errors=True)
-    async def _save_state(self, path: Path, version: str) -> None:
-        now = datetime.now(UTC).isoformat()
-        await self.database.execute(
-            """
-            INSERT INTO game_state(id, install_path, version, status, updated_at)
-            VALUES(1, ?, ?, 'ready', ?)
-            ON CONFLICT(id) DO UPDATE SET install_path=excluded.install_path,
-            version=excluded.version, status='ready', updated_at=excluded.updated_at
-            """,
-            (str(path), version, now),
-        )
 
     async def shutdown(self) -> None:
         for control in self.controls.values():

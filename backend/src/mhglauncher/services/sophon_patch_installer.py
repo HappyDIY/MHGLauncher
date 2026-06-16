@@ -31,12 +31,13 @@ class SophonPatchInstaller:
         cache: Path,
         control: DownloadControl,
         progress: Progress,
+        chunk_cb: Callable[[str, int, int], None] | None = None,
     ) -> None:
         cache.mkdir(parents=True, exist_ok=True)
         patches = {asset.patch.id: asset.patch for asset in assets}
         downloaded = await asyncio.gather(
             *[
-                self._download(patch, cache, control, progress)
+                self._download(patch, cache, control, progress, chunk_cb)
                 for patch in patches.values()
             ]
         )
@@ -51,10 +52,13 @@ class SophonPatchInstaller:
         cache: Path,
         control: DownloadControl,
         progress: Progress,
+        chunk_cb: Callable[[str, int, int], None] | None = None,
     ) -> Path:
         path = cache / patch.id
         if path.is_file() and await asyncio.to_thread(_valid_patch, path, patch):
             progress(patch.file_size)
+            if chunk_cb:
+                chunk_cb(patch.id, patch.file_size, patch.file_size)
             return path
         partial = path.with_suffix(".part")
         offset = partial.stat().st_size if partial.exists() else 0
@@ -72,12 +76,16 @@ class SophonPatchInstaller:
                 offset = 0
             elif offset:
                 progress(offset)
+            cumulative = offset
             mode = "ab" if offset else "wb"
             with partial.open(mode) as output:
                 async for block in response.aiter_bytes(1024 * 256):
                     await control.checkpoint()
                     output.write(block)
+                    cumulative += len(block)
                     progress(len(block))
+                    if chunk_cb:
+                        chunk_cb(patch.id, cumulative, patch.file_size)
         if not await asyncio.to_thread(_valid_patch, partial, patch):
             partial.unlink(missing_ok=True)
             raise AppError("sophon_patch_invalid", f"{patch.id} 增量补丁校验失败")

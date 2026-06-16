@@ -166,6 +166,12 @@ class JobStatus(StrEnum):
     FAILED = "failed"
 
 
+class ChunkProgress(BaseModel):
+    name: str
+    bytes_done: int = 0
+    total: int = 0
+
+
 class GameJob(BaseModel):
     id: str
     kind: JobKind
@@ -173,3 +179,7 @@ class GameJob(BaseModel):
     completed_bytes: int = 0
     total_bytes: int = 0
     message: str = ""
+    download_speed: int = 0
+    chunks_completed: int = 0
+    chunks_total: int = 0
+    active_chunks: list[ChunkProgress] = []

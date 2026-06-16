@@ -64,30 +64,67 @@ struct GameView: View {
 
     private func jobCard(_ job: GameJob) -> some View {
         GlassCard("资源任务", icon: "arrow.down.circle") {
-            ProgressView(value: job.progress)
-            HStack {
-                Text(job.status.title)
-                Spacer()
-                Text(
-                    "\(ByteCountFormatter.string(fromByteCount: job.completedBytes, countStyle: .file)) / "
-                    + ByteCountFormatter.string(fromByteCount: job.totalBytes, countStyle: .file)
-                )
-                .foregroundStyle(.secondary)
-            }
-            if job.status == .running {
-                Button("暂停") {
-                    Task { await store.controlGameJob("pause") }
+            VStack(alignment: .leading, spacing: 10) {
+                ProgressView(value: job.progress)
+                HStack {
+                    Text(job.status.title)
+                    Spacer()
+                    Text(
+                        "\(ByteCountFormatter.string(fromByteCount: job.completedBytes, countStyle: .file)) / "
+                        + ByteCountFormatter.string(fromByteCount: job.totalBytes, countStyle: .file)
+                    )
+                    .foregroundStyle(.secondary)
                 }
-            } else if job.status == .paused {
-                Button("继续") {
-                    Task { await store.controlGameJob("resume") }
+                if job.downloadSpeed > 0 {
+                    HStack {
+                        Text(formatSpeed(job.downloadSpeed))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("分块 \(job.chunksCompleted) / \(job.chunksTotal)")
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.caption)
+                }
+                if !job.activeChunks.isEmpty {
+                    Divider()
+                    ForEach(job.activeChunks.prefix(4)) { chunk in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(chunk.name)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                            ProgressView(value: chunk.progress)
+                                .tint(.blue)
+                        }
+                    }
+                }
+                HStack {
+                    if job.status == .running {
+                        Button("暂停") {
+                            Task { await store.controlGameJob("pause") }
+                        }
+                    } else if job.status == .paused {
+                        Button("继续") {
+                            Task { await store.controlGameJob("resume") }
+                        }
+                    }
+                    if [.running, .paused, .queued].contains(job.status) {
+                        Button("取消", role: .destructive) {
+                            Task { await store.controlGameJob("cancel") }
+                        }
+                    }
                 }
             }
-            if [.running, .paused, .queued].contains(job.status) {
-                Button("取消", role: .destructive) {
-                    Task { await store.controlGameJob("cancel") }
-                }
-            }
+        }
+    }
+
+    private func formatSpeed(_ bytesPerSec: Int64) -> String {
+        if bytesPerSec >= 1_048_576 {
+            String(format: "%.1f MB/s", Double(bytesPerSec) / 1_048_576)
+        } else if bytesPerSec >= 1_024 {
+            String(format: "%.0f KB/s", Double(bytesPerSec) / 1_024)
+        } else {
+            "0 KB/s"
         }
     }
 

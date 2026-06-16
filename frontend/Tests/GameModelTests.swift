@@ -11,7 +11,11 @@ struct GameModelTests {
             status: .running,
             completedBytes: 25,
             totalBytes: 100,
-            message: ""
+            message: "",
+            downloadSpeed: 0,
+            chunksCompleted: 0,
+            chunksTotal: 0,
+            activeChunks: []
         )
         #expect(job.progress == 0.25)
     }
@@ -24,9 +28,31 @@ struct GameModelTests {
             status: .queued,
             completedBytes: 0,
             totalBytes: 0,
-            message: ""
+            message: "",
+            downloadSpeed: 0,
+            chunksCompleted: 0,
+            chunksTotal: 0,
+            activeChunks: []
         )
         #expect(job.progress == 0)
+    }
+
+    @Test("分块进度计算")
+    func chunkProgress() {
+        let chunk = ChunkProgress(name: "chunk_01.bin", bytesDone: 50, total: 100)
+        #expect(chunk.progress == 0.5)
+    }
+
+    @Test("空分块进度为零")
+    func chunkProgressZero() {
+        let chunk = ChunkProgress(name: "chunk_01.bin", bytesDone: 0, total: 0)
+        #expect(chunk.progress == 0)
+    }
+
+    @Test("分块名称即唯一标识")
+    func chunkIdentifiable() {
+        let chunk = ChunkProgress(name: "asset.pck", bytesDone: 10, total: 100)
+        #expect(chunk.id == "asset.pck")
     }
 
     @Test("游戏状态显示中文")

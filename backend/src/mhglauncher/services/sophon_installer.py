@@ -29,6 +29,7 @@ class SophonInstaller:
         cache: Path,
         control: DownloadControl,
         progress: Progress,
+        chunk_cb: Callable[[str, int, int], None] | None = None,
     ) -> None:
         staging.mkdir(parents=True, exist_ok=True)
         cache.mkdir(parents=True, exist_ok=True)
@@ -37,10 +38,13 @@ class SophonInstaller:
             target = _safe_target(staging, asset.name)
             if target.is_file() and await asyncio.to_thread(_md5, target) == asset.md5.lower():
                 progress(sum(chunk.size for chunk in asset.chunks))
+                if chunk_cb:
+                    for chunk in asset.chunks:
+                        chunk_cb(chunk.name, chunk.size, chunk.size)
                 continue
             paths = await asyncio.gather(
                 *[
-                    self._download(chunk, cache, control, progress)
+                    self._download(chunk, cache, control, progress, chunk_cb)
                     for chunk in asset.chunks
                 ]
             )
@@ -52,16 +56,19 @@ class SophonInstaller:
         cache: Path,
         control: DownloadControl,
         progress: Progress,
+        chunk_cb: Callable[[str, int, int], None] | None = None,
     ) -> Path:
         path = cache / chunk.name
         lock = self.locks.setdefault(chunk.name, asyncio.Lock())
         async with lock:
             if path.is_file() and await asyncio.to_thread(_chunk_valid, path, chunk.name):
                 progress(chunk.size)
+                if chunk_cb:
+                    chunk_cb(chunk.name, chunk.size, chunk.size)
                 return path
             async with self.semaphore:
                 await control.checkpoint()
-                await self._stream(chunk, path, control, progress)
+                await self._stream(chunk, path, control, progress, chunk_cb)
             if not await asyncio.to_thread(_chunk_valid, path, chunk.name):
                 path.unlink(missing_ok=True)
                 raise AppError("sophon_chunk_invalid", f"{chunk.name} 分块校验失败")
@@ -73,6 +80,7 @@ class SophonInstaller:
         path: Path,
         control: DownloadControl,
         progress: Progress,
+        chunk_cb: Callable[[str, int, int], None] | None = None,
     ) -> None:
         partial = path.with_suffix(".part")
         offset = partial.stat().st_size if partial.exists() else 0
@@ -84,13 +92,15 @@ class SophonInstaller:
             response.raise_for_status()
             if offset and response.status_code != 206:
                 partial.unlink(missing_ok=True)
-                return await self._stream(chunk, path, control, progress)
+                return await self._stream(chunk, path, control, progress, chunk_cb)
             with partial.open("ab") as output:
                 async for block in response.aiter_bytes(1024 * 256):
                     await control.checkpoint()
                     output.write(block)
                     offset += len(block)
                     progress(len(block))
+                    if chunk_cb:
+                        chunk_cb(chunk.name, offset, chunk.size)
         if offset != chunk.size:
             raise AppError("sophon_chunk_size_mismatch", f"{chunk.name} 分块大小不一致")
         partial.replace(path)
