@@ -55,6 +55,7 @@ struct GameJob: Codable, Sendable, Identifiable {
     let chunksCompleted: Int64
     let chunksTotal: Int64
     let activeChunks: [ChunkProgress]
+    let lastUpdate: String?
 
     var progress: Double {
         guard totalBytes > 0 else { return 0 }

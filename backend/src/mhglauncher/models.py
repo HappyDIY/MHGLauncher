@@ -183,3 +183,4 @@ class GameJob(BaseModel):
     chunks_completed: int = 0
     chunks_total: int = 0
     active_chunks: list[ChunkProgress] = []
+    last_update: str = ""

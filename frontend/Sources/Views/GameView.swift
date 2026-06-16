@@ -3,6 +3,11 @@ import SwiftUI
 
 struct GameView: View {
     @Bindable var store: LauncherStore
+    @State private var tick = 0
+    @State private var anchorBytes: Int64 = 0
+    @State private var anchorTime = Date()
+
+    private let ticker = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -55,6 +60,12 @@ struct GameView: View {
             .buttonStyle(.glassProminent)
             Spacer()
         }
+        .onReceive(ticker) { _ in tick &+= 1 }
+        .onChange(of: store.gameJob?.completedBytes) { _, newValue in
+            guard let newValue else { return }
+            anchorBytes = newValue
+            anchorTime = Date()
+        }
         .task(id: store.installPath) {
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
@@ -65,15 +76,13 @@ struct GameView: View {
     private func jobCard(_ job: GameJob) -> some View {
         GlassCard("资源任务", icon: "arrow.down.circle") {
             VStack(alignment: .leading, spacing: 10) {
-                ProgressView(value: job.progress)
+                ProgressView(value: smoothProgress(for: job))
+                    .animation(.linear(duration: 0.08), value: tick)
                 HStack {
                     Text(job.status.title)
                     Spacer()
-                    Text(
-                        "\(ByteCountFormatter.string(fromByteCount: job.completedBytes, countStyle: .file)) / "
-                        + ByteCountFormatter.string(fromByteCount: job.totalBytes, countStyle: .file)
-                    )
-                    .foregroundStyle(.secondary)
+                    Text(smoothSizeLabel(for: job))
+                        .foregroundStyle(.secondary)
                 }
                 if job.downloadSpeed > 0 {
                     HStack {
@@ -87,13 +96,14 @@ struct GameView: View {
                 }
                 if !job.activeChunks.isEmpty {
                     Divider()
-                    ForEach(job.activeChunks.prefix(4)) { chunk in
+                    ForEach(job.activeChunks) { chunk in
                         VStack(alignment: .leading, spacing: 3) {
                             Text(chunk.name)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
-                            ProgressView(value: chunk.progress)
+                            ProgressView(value: smoothChunkProgress(chunk, job: job))
+                                .animation(.linear(duration: 0.08), value: tick)
                                 .tint(.blue)
                         }
                     }
@@ -118,14 +128,43 @@ struct GameView: View {
         }
     }
 
-    private func formatSpeed(_ bytesPerSec: Int64) -> String {
-        if bytesPerSec >= 1_048_576 {
-            String(format: "%.1f MB/s", Double(bytesPerSec) / 1_048_576)
-        } else if bytesPerSec >= 1_024 {
-            String(format: "%.0f KB/s", Double(bytesPerSec) / 1_024)
+    private func smoothProgress(for job: GameJob) -> Double {
+        guard job.totalBytes > 0 else { return 0 }
+        guard job.status == .running, job.downloadSpeed > 0 else { return job.progress }
+        let elapsed = Date().timeIntervalSince(anchorTime)
+        let predicted = Double(anchorBytes) + Double(job.downloadSpeed) * elapsed
+        return min(predicted / Double(job.totalBytes), 1.0)
+    }
+
+    private func smoothSizeLabel(for job: GameJob) -> String {
+        let current: Int64
+        if job.status == .running, job.downloadSpeed > 0 {
+            let elapsed = Date().timeIntervalSince(anchorTime)
+            let predicted = Double(anchorBytes) + Double(job.downloadSpeed) * elapsed
+            current = min(Int64(predicted), job.totalBytes)
         } else {
-            "0 KB/s"
+            current = job.completedBytes
         }
+        let currentStr = ByteCountFormatter.string(fromByteCount: current, countStyle: .file)
+        let totalStr = ByteCountFormatter.string(fromByteCount: job.totalBytes, countStyle: .file)
+        return "\(currentStr) / \(totalStr)"
+    }
+
+    private func smoothChunkProgress(_ chunk: ChunkProgress, job: GameJob) -> Double {
+        guard chunk.total > 0 else { return 0 }
+        if job.status == .running, job.downloadSpeed > 0, chunk.bytesDone < chunk.total {
+            let perSlotSpeed = Double(job.downloadSpeed) / max(Double(job.activeChunks.count), 1)
+            let elapsed = Date().timeIntervalSince(anchorTime)
+            let predicted = Double(chunk.bytesDone) + perSlotSpeed * elapsed
+            return min(predicted / Double(chunk.total), 1.0)
+        }
+        return chunk.progress
+    }
+
+    private func formatSpeed(_ bytesPerSec: Int64) -> String {
+        if bytesPerSec >= 1_048_576 { return String(format: "%.1f MB/s", Double(bytesPerSec) / 1_048_576) }
+        if bytesPerSec >= 1_024 { return String(format: "%.0f KB/s", Double(bytesPerSec) / 1_024) }
+        return "0 KB/s"
     }
 
     private func chooseDirectory() {

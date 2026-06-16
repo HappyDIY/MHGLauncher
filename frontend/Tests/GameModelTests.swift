@@ -15,7 +15,8 @@ struct GameModelTests {
             downloadSpeed: 0,
             chunksCompleted: 0,
             chunksTotal: 0,
-            activeChunks: []
+            activeChunks: [],
+            lastUpdate: nil
         )
         #expect(job.progress == 0.25)
     }
@@ -32,7 +33,8 @@ struct GameModelTests {
             downloadSpeed: 0,
             chunksCompleted: 0,
             chunksTotal: 0,
-            activeChunks: []
+            activeChunks: [],
+            lastUpdate: nil
         )
         #expect(job.progress == 0)
     }
