@@ -8,6 +8,7 @@ final class BackendProcess {
     private(set) var errorMessage: String?
     private(set) var isStarting = false
     private var process: Process?
+    private var socketPath: String?
 
     var isReady: Bool { client != nil }
 
@@ -19,6 +20,7 @@ final class BackendProcess {
 
         do {
             let token = UUID().uuidString
+            let socketPath = Self.makeSocketPath()
             let executable = try executableURL()
             let pipe = Pipe()
             let errorPipe = Pipe()
@@ -26,14 +28,13 @@ final class BackendProcess {
             process.executableURL = executable
             process.standardOutput = pipe
             process.standardError = errorPipe
-            process.environment = environment(token: token)
+            process.environment = environment(token: token, socketPath: socketPath)
             try process.run()
             self.process = process
-            let port = try await Self.readPort(from: pipe.fileHandleForReading)
-            client = APIClient(
-                baseURL: URL(string: "http://127.0.0.1:\(port)")!,
-                token: token
-            )
+            let readyPath = try await Self.readSocketPath(from: pipe.fileHandleForReading)
+            guard readyPath == socketPath else { throw CocoaError(.fileReadCorruptFile) }
+            self.socketPath = socketPath
+            client = APIClient(socketPath: socketPath, token: token)
         } catch {
             process?.terminate()
             process = nil
@@ -44,7 +45,9 @@ final class BackendProcess {
 
     func stop() {
         process?.terminate()
+        if let socketPath { try? FileManager.default.removeItem(atPath: socketPath) }
         process = nil
+        socketPath = nil
         client = nil
     }
 
@@ -62,10 +65,11 @@ final class BackendProcess {
         throw CocoaError(.fileNoSuchFile)
     }
 
-    private func environment(token: String) -> [String: String] {
+    private func environment(token: String, socketPath: String) -> [String: String] {
         var values = ProcessInfo.processInfo.environment
         values["MHG_API_TOKEN"] = token
         values["MHG_PARENT_PID"] = String(ProcessInfo.processInfo.processIdentifier)
+        values["MHG_SOCKET_PATH"] = socketPath
         values["MHG_DATA_DIR"] = FileManager.default
             .homeDirectoryForCurrentUser
             .appending(path: "Library/Application Support/MHGLauncher")
@@ -73,7 +77,7 @@ final class BackendProcess {
         return values
     }
 
-    nonisolated static func readPort(from handle: FileHandle) async throws -> Int {
+    nonisolated static func readSocketPath(from handle: FileHandle) async throws -> String {
         try await Task.detached {
             var data = Data()
             while data.count <= 16_384 {
@@ -87,12 +91,16 @@ final class BackendProcess {
                 let object = try JSONSerialization.jsonObject(with: Data(line))
                 guard let payload = object as? [String: Any],
                       payload["event"] as? String == "ready",
-                      let port = payload["port"] as? Int else {
+                      let socketPath = payload["socket_path"] as? String else {
                     throw CocoaError(.fileReadCorruptFile)
                 }
-                return port
+                return socketPath
             }
             throw CocoaError(.fileReadTooLarge)
         }.value
+    }
+
+    nonisolated static func makeSocketPath() -> String {
+        "/tmp/mhg-\(ProcessInfo.processInfo.processIdentifier)-\(UUID().uuidString.prefix(8)).sock"
     }
 }

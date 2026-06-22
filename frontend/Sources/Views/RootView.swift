@@ -49,6 +49,7 @@ struct RootView: View {
         } message: {
             Text(store.message ?? "")
         }
+        .environment(\.apiClient, store.backend.client)
         .sheet(item: $store.noteVerification) { challenge in
             GeetestView(challenge: challenge) { value, validate in
                 Task {
