@@ -82,6 +82,9 @@ export class GameService {
         for (const segment of build.segments) archives.push(await download(segment, join(cache, segment.filename), control, progress));
         extract(archives, staging); verify(staging);
       }
+      if (!existsSync(join(staging, "YuanShen.exe"))) {
+        throw new AppError("game_install_incomplete", "资源安装完成后仍缺少 YuanShen.exe，未激活不完整目录");
+      }
       writeFileSync(join(staging, ".mhg-version"), build.version);
       if (build.assets.length && build.kind !== "package_repair") writeFileSync(join(staging, ".mhg-assets.json"), JSON.stringify(build.assets.map(({ name }) => name)));
       activate(staging, path); this.saveState(path, build.version);
@@ -112,10 +115,11 @@ function size(build: GameBuild): number {
 
 export function detectGame(input: string): { path: string; version: string } | null {
   for (const path of [resolve(input), join(resolve(input), "Genshin Impact Game")]) {
+    if (!existsSync(join(path, "YuanShen.exe"))) continue;
     const marker = join(path, ".mhg-version");
     if (existsSync(marker)) { const version = readFileSync(marker, "utf8").trim(); if (version) return { path, version }; }
     const config = join(path, "config.ini");
-    if (!existsSync(join(path, "YuanShen.exe")) || !existsSync(config)) continue;
+    if (!existsSync(config)) continue;
     const version = readFileSync(config, "utf8").match(/^game_version\s*=\s*(.+)$/m)?.[1]?.trim();
     if (version) return { path, version };
   }

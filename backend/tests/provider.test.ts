@@ -4,6 +4,7 @@ import { FixtureProvider } from "../src/providers/fixture";
 import { cookies, sign } from "../src/providers/signing";
 import { normalizeBuild } from "../src/providers/provider";
 import { AppError, errorResponse } from "../src/core/errors";
+import { decodeSophonManifest } from "../src/providers/sophon";
 
 const provider = (): FixtureProvider => new FixtureProvider(join(process.cwd(), "fixtures"));
 describe("Provider 契约", () => {
@@ -19,4 +20,10 @@ describe("Provider 契约", () => {
   test("DS 签名包含三段", () => expect(sign("x4").split(",")).toHaveLength(3));
   test("领域错误保持统一响应", async () => expect(await errorResponse(new AppError("x", "错误", 409)).json()).toEqual({ code: "x", message: "错误", details: {} }));
   test("构建模型填充默认集合", () => expect(normalizeBuild({ version: "1" }).assets).toEqual([]));
+  test("Sophon 清单保留下划线字段", () => {
+    const data = Buffer.from("Ci4KDFl1YW5TaGVuLmV4ZRIXCgpoYXNoX2NodW5rEgNkZWYYACAUKCogKioDYWJj", "base64");
+    const asset = (decodeSophonManifest(data).assets as Record<string, unknown>[])[0];
+    expect(asset).toMatchObject({ asset_name: "YuanShen.exe", asset_size: 42, asset_hash_md5: "abc" });
+    expect((asset?.asset_chunks as Record<string, unknown>[])[0]).toMatchObject({ chunk_name: "hash_chunk", chunk_size: 20 });
+  });
 });

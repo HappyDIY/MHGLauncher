@@ -13,6 +13,12 @@ test("检测官方游戏目录版本", async () => {
   const response = await request("GET", `/v1/game/status/path?install_path=${encodeURIComponent(game)}`), value = await response.json();
   expect(value.installed_version).toBe("5.7.0"); expect(value.status).toBe("update_available");
 });
+test("仅有版本标记不视为已安装", async () => {
+  const game = mkdtempSync(join(tmpdir(), "empty-game-"));
+  writeFileSync(join(game, ".mhg-version"), "6.6.0");
+  const response = await request("GET", `/v1/game/status/path?install_path=${encodeURIComponent(game)}`);
+  expect((await response.json()).status).toBe("not_installed");
+});
 test("未安装时禁止更新", async () => expect((await request("POST", "/v1/game/jobs", { kind: "update", install_path: "/tmp/missing" })).status).toBe(400));
 test("热更新清单阻止资源操作", () => {
   const root = mkdtempSync(join(tmpdir(), "hotfix-")), persistent = join(root, "YuanShen_Data/Persistent"); mkdirSync(persistent, { recursive: true });

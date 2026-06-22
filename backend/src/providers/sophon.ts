@@ -17,7 +17,12 @@ message PatchFileData { string file_name=1; int64 file_size=2; string file_hash=
 message FileInfo { string name=1; } message DeleteFiles { repeated FileInfo infos=1; }
 message DeleteFilesEntry { string key=1; DeleteFiles delete_files=2; }
 message PatchManifest { repeated PatchFileData file_datas=1; repeated DeleteFilesEntry delete_files_entries=2; }`;
-const root = parse(proto).root;
+const root = parse(proto, { keepCase: true }).root;
+
+export function decodeSophonManifest(buffer: Uint8Array): JSONValue {
+  const model = root.lookupType("SophonManifest");
+  return model.toObject(model.decode(buffer), { longs: Number, defaults: true }) as JSONValue;
+}
 
 export class Sophon {
   private cached?: { time: number; version: string; build: GameBuild };
@@ -73,6 +78,7 @@ export class Sophon {
     const compressed = Buffer.from(await response.arrayBuffer());
     if (type === "SophonManifest") { const expected = String(info.id).replace("manifest_", "").split("_", 1)[0]; if ((await xxhash()).h64Raw(compressed).toString(16).padStart(16, "0") !== expected?.toLowerCase()) throw new AppError("sophon_manifest_invalid", "Sophon 清单校验失败", 502); }
     const decoded = zstdDecompressSync(compressed); if (createHash("md5").update(decoded).digest("hex") !== String(info.checksum).toLowerCase()) throw new AppError("sophon_manifest_invalid", "Sophon 清单内容校验失败", 502);
+    if (type === "SophonManifest") return decodeSophonManifest(decoded);
     const model = root.lookupType(type); return model.toObject(model.decode(decoded), { longs: Number, defaults: true });
   }
 
