@@ -21,8 +21,8 @@ static int blocked(const char *name) {
          strcasecmp(name, "dispatchosglobal.yuanshen.com") == 0;
 }
 
-int getaddrinfo(const char *name, const char *service,
-                const struct addrinfo *hints, struct addrinfo **result) {
+static int mhg_getaddrinfo(const char *name, const char *service,
+                           const struct addrinfo *hints, struct addrinfo **result) {
   typedef int (*function_t)(const char *, const char *, const struct addrinfo *, struct addrinfo **);
   static function_t original = NULL;
   if (blocked(name)) return EAI_NONAME;
@@ -30,7 +30,7 @@ int getaddrinfo(const char *name, const char *service,
   return original(name, service, hints, result);
 }
 
-struct hostent *gethostbyname(const char *name) {
+static struct hostent *mhg_gethostbyname(const char *name) {
   typedef struct hostent *(*function_t)(const char *);
   static function_t original = NULL;
   if (blocked(name)) { h_errno = HOST_NOT_FOUND; return NULL; }
@@ -38,10 +38,19 @@ struct hostent *gethostbyname(const char *name) {
   return original(name);
 }
 
-struct hostent *gethostbyname2(const char *name, int family) {
+static struct hostent *mhg_gethostbyname2(const char *name, int family) {
   typedef struct hostent *(*function_t)(const char *, int);
   static function_t original = NULL;
   if (blocked(name)) { h_errno = HOST_NOT_FOUND; return NULL; }
   if (original == NULL) original = (function_t)dlsym(RTLD_NEXT, "gethostbyname2");
   return original(name, family);
 }
+
+#define MHG_INTERPOSE(replacement, replacee) \
+  __attribute__((used)) static struct { const void *new_func; const void *old_func; } \
+  _mhg_interpose_##replacee __attribute__((section("__DATA,__interpose"))) = \
+  { (const void *)(replacement), (const void *)(replacee) }
+
+MHG_INTERPOSE(mhg_getaddrinfo, getaddrinfo);
+MHG_INTERPOSE(mhg_gethostbyname, gethostbyname);
+MHG_INTERPOSE(mhg_gethostbyname2, gethostbyname2);
