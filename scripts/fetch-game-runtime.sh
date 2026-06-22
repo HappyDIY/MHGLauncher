@@ -50,7 +50,7 @@ for architecture in x86_64-unix x86_64-windows; do
   cp -R "$source_dir/." "$output/wine/lib/wine/$architecture/"
 done
 
-xcrun clang -dynamiclib -arch x86_64 -O2 "$root/runtime/dns-gate.c" -o "$output/lib/libmhg_dns_gate.dylib"
+xcrun clang -dynamiclib -arch x86_64 -O2 "$root/runtime/dns-gate.c" -lresolv -o "$output/lib/libmhg_dns_gate.dylib"
 xcrun swiftc -O "$root/runtime/window-probe.swift" -o "$output/bin/mhg-window-probe"
 
 dll_source="${MHG_MHYPBASE_SOURCE:-$HOME/Downloads/mhypbase.dll}"
