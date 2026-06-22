@@ -26,4 +26,5 @@ if lsof -nP -a -p "$pid" -iTCP -sTCP:LISTEN | grep -q LISTEN; then
   printf '后端不应监听 TCP 端口\n' >&2
   exit 1
 fi
+for _ in {1..100}; do grep -q '"socket_path"' "$log" && break; sleep 0.01; done
 grep -q '"socket_path"' "$log"
