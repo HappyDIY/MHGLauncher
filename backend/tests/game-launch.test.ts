@@ -3,7 +3,6 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
-import type { GameLaunchStatus } from "../src/core/models";
 import type { DllIntegrity } from "../src/services/game-launch-files";
 import type { GameLaunchRunner, LaunchReporter, LaunchRunInput } from "../src/services/game-launch-process";
 import { GameLaunchService } from "../src/services/game-launches";
