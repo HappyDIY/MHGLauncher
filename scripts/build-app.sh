@@ -50,5 +50,5 @@ chmod +x "$contents/Resources/Backend/MHGLauncherBackend/MHGLauncherBackend"
 
 plutil -lint "$contents/Info.plist"
 file "$contents/MacOS/MHGLauncher" | grep -q 'arm64'
-file "$contents/Resources/Backend/MHGLauncherBackend/MHGLauncherBackend" \
+file "$contents/Resources/Backend/MHGLauncherBackend/node" \
   | grep -q 'arm64'

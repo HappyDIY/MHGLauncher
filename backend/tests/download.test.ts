@@ -1,0 +1,31 @@
+import { createHash } from "node:crypto";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, expect, test, vi } from "vitest";
+import { DownloadControl, download } from "../src/services/download";
+
+const roots: string[] = [];
+const root = (): string => { const value = mkdtempSync(join(tmpdir(), "download-")); roots.push(value); return value; };
+afterEach(() => { vi.unstubAllGlobals(); });
+
+test("续传部分下载", async () => {
+  const dir = root(), target = join(dir, "game.zip"), content = Buffer.from("0123456789"); writeFileSync(`${target}.part`, content.subarray(0, 4));
+  let range = ""; vi.stubGlobal("fetch", vi.fn(async (_url, init) => { range = new Headers(init?.headers).get("Range") ?? ""; return new Response(content.subarray(4), { status: 206 }); }));
+  await download({ url: "https://fixture/game", md5: createHash("md5").update(content).digest("hex"), size: content.length, filename: "game.zip" }, target, new DownloadControl(), () => undefined);
+  expect(range).toBe("bytes=4-"); expect(readFileSync(target)).toEqual(content);
+});
+
+test("删除哈希错误的临时文件", async () => {
+  const dir = root(), target = join(dir, "bad.zip"); vi.stubGlobal("fetch", vi.fn(async () => new Response("bad")));
+  await expect(download({ url: "https://fixture/bad", md5: "0".repeat(32), size: 3, filename: "bad.zip" }, target, new DownloadControl(), () => undefined)).rejects.toThrow("校验失败");
+  expect(existsSync(`${target}.part`)).toBe(false);
+});
+
+test("拒绝大小不一致", async () => {
+  const target = join(root(), "small"); vi.stubGlobal("fetch", vi.fn(async () => new Response("x")));
+  await expect(download({ url: "https://fixture/small", md5: "", size: 2, filename: "small" }, target, new DownloadControl(), () => undefined)).rejects.toThrow("大小不一致");
+});
+
+test("取消控制会中断检查点", async () => { const control = new DownloadControl(); control.cancel(); await expect(control.checkpoint()).rejects.toThrow("任务已取消"); });
+test("暂停后可恢复", async () => { const control = new DownloadControl(); control.pause(); const waiting = control.checkpoint(); control.resume(); await expect(waiting).resolves.toBeUndefined(); });

@@ -15,3 +15,8 @@ backend/mhglauncher.db
 frontend/.backend-port
 .idea/
 .codegraph/
+node_modules/
+.next/
+backend/build/
+coverage/
+*.tsbuildinfo

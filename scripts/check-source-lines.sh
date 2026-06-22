@@ -11,11 +11,13 @@ while IFS= read -r file; do
     status=1
   fi
 done < <(find "$root" \
-  -type f \( -name '*.swift' -o -name '*.py' \) \
+  -type f \( -name '*.swift' -o -name '*.ts' \) \
   -not -path '*/.build/*' \
   -not -path '*/.venv/*' \
+  -not -path '*/node_modules/*' \
+  -not -path '*/.next/*' \
+  -not -path '*/generated/*' \
   -not -path '*/dist/*' \
   | sort)
 
 exit "$status"
-
