@@ -82,6 +82,9 @@ export class GameService {
         for (const segment of build.segments) archives.push(await download(segment, join(cache, segment.filename), control, progress));
         extract(archives, staging); verify(staging);
       }
+      if (!existsSync(join(staging, "YuanShen.exe"))) {
+        throw new AppError("game_install_incomplete", "资源安装完成后仍缺少 YuanShen.exe，未激活不完整目录");
+      }
       writeFileSync(join(staging, ".mhg-version"), build.version);
       if (build.assets.length && build.kind !== "package_repair") writeFileSync(join(staging, ".mhg-assets.json"), JSON.stringify(build.assets.map(({ name }) => name)));
       activate(staging, path); this.saveState(path, build.version);
