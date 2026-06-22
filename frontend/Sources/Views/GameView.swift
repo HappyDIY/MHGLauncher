@@ -43,6 +43,9 @@ struct GameView: View {
                         .buttonStyle(.glass)
                 }
             }
+            GlassCard("游戏启动", icon: "play.circle") {
+                GameLaunchControls(store: store)
+            }
             if let job = store.gameJob {
                 jobCard(job)
             }
