@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import {
-  chmodSync, copyFileSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync,
+  chmodSync, closeSync, copyFileSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync,
   renameSync, rmSync, writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
@@ -68,10 +68,12 @@ function digest(path: string, algorithm: "md5" | "sha256"): string {
 function copyAtomic(source: string, target: string, mode: number): void {
   mkdirSync(dirname(target), { recursive: true });
   const temp = `${target}.${process.pid}.tmp`;
-  copyFileSync(source, temp); chmodSync(temp, mode); fsyncSync(openSync(temp, "r")); renameSync(temp, target);
+  copyFileSync(source, temp); chmodSync(temp, mode); syncFile(temp); renameSync(temp, target);
 }
 
 function writeAtomic(path: string, content: string, mode: number): void {
   const temp = `${path}.${process.pid}.tmp`;
-  writeFileSync(temp, content, { mode }); fsyncSync(openSync(temp, "r")); renameSync(temp, path);
+  writeFileSync(temp, content, { mode }); syncFile(temp); renameSync(temp, path);
 }
+
+function syncFile(path: string): void { const fd = openSync(path, "r"); try { fsyncSync(fd); } finally { closeSync(fd); } }
