@@ -18,9 +18,11 @@ export class GameLaunchService {
     private readonly runtimeRoot: string,
     private readonly runner: GameLaunchRunner = new WineLaunchRunner(),
     private readonly integrity: DllIntegrity = MHYPBASE_INTEGRITY,
+    private readonly resourcesBusy: () => boolean = () => false,
   ) {}
 
   start(input: StartLaunch): GameLaunch {
+    if (this.resourcesBusy()) throw new AppError("game_job_busy", "游戏资源任务运行期间无法启动游戏", 409);
     if ([...this.launches.values()].some((value) => !["exited", "failed"].includes(value.status))) {
       throw new AppError("game_launch_busy", "游戏正在启动或运行", 409);
     }
