@@ -3,7 +3,8 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
-import type { DllIntegrity } from "../src/services/game-launch-files";
+import { prepareDll, type DllIntegrity } from "../src/services/game-launch-files";
+import { recoverInterruptedDlls } from "../src/services/game-launch-recovery";
 import type { GameLaunchRunner, LaunchReporter, LaunchRunInput } from "../src/services/game-launch-process";
 import { GameLaunchService } from "../src/services/game-launches";
 
@@ -34,6 +35,16 @@ describe("游戏启动会话", () => {
     const launch = service.start({ install_path: fixture.game, performance_profile: "compatibility", metal_hud: false, frame_pacing: 0 });
     await waitFor(() => service.get(launch.id).status === "exited");
     expect(existsSync(join(fixture.game, "mhypbase.dll"))).toBe(false);
+  });
+
+  test("下次服务启动恢复中断的 DLL 事务", () => {
+    const fixture = makeFixture();
+    const session = join(fixture.data, "launches", "interrupted");
+    prepareDll(fixture.game, join(fixture.runtime, "assets", "mhypbase.dll"), session, fixture.integrity);
+    expect(readFileSync(join(fixture.game, "mhypbase.dll"), "utf8")).toBe("verified-fixture-dll");
+    expect(recoverInterruptedDlls(fixture.data)).toEqual([]);
+    expect(readFileSync(join(fixture.game, "mhypbase.dll"), "utf8")).toBe("original-dll");
+    expect(existsSync(join(session, "dll-journal.json.restored"))).toBe(true);
   });
 });
 
