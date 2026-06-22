@@ -14,7 +14,10 @@ import { prepareBuild, removeRetired, removeSafe } from "./game-build";
 export class GameService {
   private readonly jobs = new Map<string, GameJob>();
   private readonly controls = new Map<string, DownloadControl>();
-  constructor(private readonly store: Store, private readonly provider: Provider, private readonly dataDir: string) {}
+  constructor(
+    private readonly store: Store, private readonly provider: Provider, private readonly dataDir: string,
+    private readonly downloadWorkers = 4,
+  ) {}
 
   busy(): boolean {
     return [...this.jobs.values()].some(({ status }) => ["queued", "running", "paused"].includes(status));
@@ -70,13 +73,19 @@ export class GameService {
       const cache = join(this.dataDir, "downloads", build.version), staging = `${path}.staging`;
       stageExisting(job.kind === "update" ? path : "", staging); mkdirSync(cache, { recursive: true });
       if (job.kind === "update" && build.kind !== "package_repair") removeRetired(staging, build);
-      const progress = (bytes: number): void => { job.completed_bytes += bytes; job.last_update = new Date().toISOString(); };
+      let speedBytes = 0, speedStarted = Date.now();
+      const progress = (bytes: number): void => {
+        job.completed_bytes = Math.max(0, job.completed_bytes + bytes); speedBytes += Math.max(0, bytes);
+        const now = Date.now(), elapsed = now - speedStarted;
+        if (elapsed >= 500) { job.download_speed = Math.round(speedBytes * 1_000 / elapsed); speedBytes = 0; speedStarted = now; }
+        job.last_update = new Date(now).toISOString();
+      };
       const chunk = (name: string, done: number, total: number): void => {
         const value = { name, bytes_done: done, total }; job.active_chunks = [...job.active_chunks.filter((item) => item.name !== name), value].slice(-4);
         job.chunks_completed = Math.max(job.chunks_completed, job.active_chunks.filter((item) => item.bytes_done === item.total).length);
       };
       if (build.patch_assets.length) { await installPatches(build.patch_assets, staging, cache, control, progress, chunk); for (const name of build.deprecated_files) removeSafe(staging, name); }
-      else if (build.assets.length) await installSophon(build.assets, staging, cache, control, progress, chunk);
+      else if (build.assets.length) await installSophon(build.assets, staging, cache, control, progress, chunk, this.downloadWorkers);
       else {
         const archives: string[] = [];
         for (const segment of build.segments) archives.push(await download(segment, join(cache, segment.filename), control, progress));
@@ -87,10 +96,10 @@ export class GameService {
       }
       writeFileSync(join(staging, ".mhg-version"), build.version);
       if (build.assets.length && build.kind !== "package_repair") writeFileSync(join(staging, ".mhg-assets.json"), JSON.stringify(build.assets.map(({ name }) => name)));
-      activate(staging, path); this.saveState(path, build.version);
-      job.completed_bytes = job.total_bytes; job.status = "completed";
+      activate(staging, path); this.saveState(path, build.version); rmSync(cache, { recursive: true, force: true });
+      job.completed_bytes = job.total_bytes; job.download_speed = 0; job.status = "completed";
     } catch (error) {
-      job.status = error instanceof DOMException && error.name === "AbortError" ? "cancelled" : "failed";
+      job.download_speed = 0; job.status = error instanceof DOMException && error.name === "AbortError" ? "cancelled" : "failed";
       job.message = error instanceof Error ? error.message : "游戏任务失败";
     } finally { rmSync(`${path}.staging`, { recursive: true, force: true }); }
   }

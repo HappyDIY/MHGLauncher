@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
@@ -24,7 +24,20 @@ test("删除哈希错误的临时文件", async () => {
 
 test("拒绝大小不一致", async () => {
   const target = join(root(), "small"); vi.stubGlobal("fetch", vi.fn(async () => new Response("x")));
-  await expect(download({ url: "https://fixture/small", md5: "", size: 2, filename: "small" }, target, new DownloadControl(), () => undefined)).rejects.toThrow("大小不一致");
+  await expect(download({ url: "https://fixture/small", md5: "", size: 2, filename: "small" }, target, new DownloadControl(), () => undefined)).rejects.toThrow("自动重试 5 次");
+  expect(statSync(`${target}.part`).size).toBe(1);
+});
+
+test("连接中断后从已落盘位置自动续传", async () => {
+  const target = join(root(), "retry"), content = Buffer.from("0123456789"); let calls = 0, resumedRange = "";
+  vi.stubGlobal("fetch", vi.fn(async (_url, init) => {
+    calls += 1;
+    if (calls === 1) return new Response(content.subarray(0, 4));
+    resumedRange = new Headers(init?.headers).get("Range") ?? "";
+    return new Response(content.subarray(4), { status: 206 });
+  }));
+  await download({ url: "https://fixture/retry", md5: createHash("md5").update(content).digest("hex"), size: content.length, filename: "retry" }, target, new DownloadControl(), () => undefined);
+  expect(resumedRange).toBe("bytes=4-"); expect(readFileSync(target)).toEqual(content);
 });
 
 test("取消控制会中断检查点", async () => { const control = new DownloadControl(); control.cancel(); await expect(control.checkpoint()).rejects.toThrow("任务已取消"); });

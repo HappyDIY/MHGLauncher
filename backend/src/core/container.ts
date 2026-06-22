@@ -31,7 +31,7 @@ export class Container {
     this.provider = config.providerMode === "fixture" ? new FixtureProvider(config.fixtureDir) : new LiveProvider(config);
     this.images = new ImageCache(config.dataDir);
     this.accounts = new AccountService(this.store, this.provider);
-    this.games = new GameService(this.store, this.provider, config.dataDir);
+    this.games = new GameService(this.store, this.provider, config.dataDir, config.downloadWorkers);
     this.launches = new GameLaunchService(
       config.dataDir, process.env.MHG_RUNTIME_ROOT ?? join(process.cwd(), "runtime"), undefined, undefined,
       () => this.games.busy(),

@@ -87,16 +87,14 @@ struct GameView: View {
                     Text(smoothSizeLabel(for: job))
                         .foregroundStyle(.secondary)
                 }
-                if job.downloadSpeed > 0 {
-                    HStack {
-                        Text(formatSpeed(job.downloadSpeed))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text("分块 \(job.chunksCompleted) / \(job.chunksTotal)")
-                            .foregroundStyle(.secondary)
-                    }
+                DownloadSpeedChart(
+                    speed: job.downloadSpeed,
+                    isActive: job.status == .running,
+                    sampleID: job.lastUpdate
+                )
+                Text("分块 \(job.chunksCompleted) / \(job.chunksTotal)")
                     .font(.caption)
-                }
+                    .foregroundStyle(.secondary)
                 if !job.activeChunks.isEmpty {
                     Divider()
                     ForEach(job.activeChunks) { chunk in
@@ -162,12 +160,6 @@ struct GameView: View {
             return min(predicted / Double(chunk.total), 1.0)
         }
         return chunk.progress
-    }
-
-    private func formatSpeed(_ bytesPerSec: Int64) -> String {
-        if bytesPerSec >= 1_048_576 { return String(format: "%.1f MB/s", Double(bytesPerSec) / 1_048_576) }
-        if bytesPerSec >= 1_024 { return String(format: "%.0f KB/s", Double(bytesPerSec) / 1_024) }
-        return "0 KB/s"
     }
 
     private func chooseDirectory() {

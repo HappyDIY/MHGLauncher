@@ -6,6 +6,7 @@ import xxhash from "xxhash-wasm";
 import { AppError } from "../core/errors";
 import type { GamePatchAsset, SophonPatch } from "../providers/provider";
 import { DownloadControl } from "./download";
+import { streamDownload } from "./download-transfer";
 import { ensureParent, safeTarget } from "./installer";
 
 export async function installPatches(
@@ -20,14 +21,9 @@ export async function installPatches(
 
 async function getPatch(patch: SophonPatch, cache: string, control: DownloadControl, progress: (n: number) => void, report: (name: string, done: number, total: number) => void): Promise<string> {
   const path = join(cache, patch.id); if (existsSync(path) && await valid(path, patch)) { progress(patch.file_size); report(patch.id, patch.file_size, patch.file_size); return path; }
-  const partial = `${path}.part`; let offset = existsSync(partial) ? statSync(partial).size : 0;
-  if (offset > patch.file_size) { rmSync(partial); offset = 0; }
-  let response = await fetch(patch.url, { headers: offset ? { Range: `bytes=${offset}-` } : {} });
-  if (offset && response.status !== 206) { rmSync(partial, { force: true }); offset = 0; response = await fetch(patch.url); }
-  if (!response.ok || !response.body) throw new AppError("sophon_patch_download_failed", `${patch.id} 下载失败`, 502);
-  const blocks: Uint8Array[] = offset ? [readFileSync(partial)] : [], reader = response.body.getReader();
-  while (true) { const value = await reader.read(); if (value.done) break; await control.checkpoint(); blocks.push(value.value); offset += value.value.length; progress(value.value.length); report(patch.id, offset, patch.file_size); }
-  writeFileSync(partial, Buffer.concat(blocks)); if (!await valid(partial, patch)) { rmSync(partial); throw new AppError("sophon_patch_invalid", `${patch.id} 增量补丁校验失败`); }
+  const partial = `${path}.part`;
+  await streamDownload(patch.url, partial, patch.file_size, patch.id, control, progress, (done) => report(patch.id, done, patch.file_size));
+  if (!await valid(partial, patch)) { progress(-patch.file_size); rmSync(partial); throw new AppError("sophon_patch_invalid", `${patch.id} 增量补丁校验失败`); }
   renameSync(partial, path); return path;
 }
 
