@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <netdb.h>
+#include <resolv.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,6 +37,12 @@ static struct hostent *mhg_gethostbyname2(const char *name, int family) {
   return gethostbyname2(name, family);
 }
 
+static int mhg_res_query(const char *name, int dns_class, int type,
+                         unsigned char *answer, int length) {
+  if (blocked(name)) { h_errno = HOST_NOT_FOUND; return -1; }
+  return res_query(name, dns_class, type, answer, length);
+}
+
 #define MHG_INTERPOSE(replacement, replacee) \
   __attribute__((used)) static struct { const void *new_func; const void *old_func; } \
   _mhg_interpose_##replacee __attribute__((section("__DATA,__interpose"))) = \
@@ -44,3 +51,4 @@ static struct hostent *mhg_gethostbyname2(const char *name, int family) {
 MHG_INTERPOSE(mhg_getaddrinfo, getaddrinfo);
 MHG_INTERPOSE(mhg_gethostbyname, gethostbyname);
 MHG_INTERPOSE(mhg_gethostbyname2, gethostbyname2);
+MHG_INTERPOSE(mhg_res_query, res_query);
