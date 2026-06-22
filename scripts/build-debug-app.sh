@@ -11,6 +11,7 @@ if [[ -z "$backend_dir" ]]; then
   backend_dir="$root/build/backend-debug/dist/MHGLauncherBackend"
 fi
 /bin/bash "$root/scripts/build-frontend.sh"
+/bin/bash "$root/scripts/fetch-game-runtime.sh"
 
 rm -rf "$app"
 mkdir -p "$contents/MacOS" "$contents/Resources/Backend"
@@ -20,6 +21,7 @@ cp "$root/frontend/.build/arm64-apple-macosx/release/MHGLauncher" \
   "$contents/MacOS/MHGLauncher"
 cp -R "$backend_dir" \
   "$contents/Resources/Backend/MHGLauncherBackend"
+cp -R "$root/build/game-runtime" "$contents/Resources/GameRuntime"
 
 chmod +x "$contents/MacOS/MHGLauncher"
 chmod +x "$contents/Resources/Backend/MHGLauncherBackend/MHGLauncherBackend"

@@ -8,6 +8,7 @@ mode="${1:-development}"
 
 "$root/scripts/build-backend.sh" "$mode"
 "$root/scripts/build-frontend.sh"
+"$root/scripts/fetch-game-runtime.sh"
 
 rm -rf "$app"
 mkdir -p "$contents/MacOS" "$contents/Resources/Backend"
@@ -17,6 +18,7 @@ cp "$root/frontend/.build/arm64-apple-macosx/release/MHGLauncher" \
   "$contents/MacOS/MHGLauncher"
 cp -R "$root/build/backend/dist/MHGLauncherBackend" \
   "$contents/Resources/Backend/MHGLauncherBackend"
+cp -R "$root/build/game-runtime" "$contents/Resources/GameRuntime"
 
 build_icon() {
   local light="$1" out_icns="$2"

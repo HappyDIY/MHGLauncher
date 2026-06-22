@@ -25,6 +25,7 @@ root="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 cd "$root/app"
 export NODE_ENV=production
 export MHG_HPATCHZ="$root/hpatchz"
+export MHG_RUNTIME_ROOT="$root/../../GameRuntime"
 exec "$root/node" build/server.js
 EOF
 chmod +x "$dist/MHGLauncherBackend" "$dist/node"

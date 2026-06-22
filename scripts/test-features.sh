@@ -52,5 +52,6 @@ test "$(request 'http://localhost/v1/wishes/export?uid=100000001' | jq -r '.info
 note="$(request -X POST http://localhost/v1/notes/refresh \
   -d "$(jq -nc --arg credential "$credential" '{credential:$credential}')")"
 test "$(jq -r '.current_resin' <<<"$note")" = "120"
-test "$(request -X POST http://localhost/v1/game/launch -d '{}' --output /dev/null --write-out '%{http_code}' || true)" = "501"
+launch_body='{"install_path":"/tmp/mhg-missing-game"}'
+test "$(request -X POST http://localhost/v1/game/launch -d "$launch_body" --output /dev/null --write-out '%{http_code}' || true)" = "409"
 printf 'Unix Socket 冻结后端功能矩阵测试通过。\n'

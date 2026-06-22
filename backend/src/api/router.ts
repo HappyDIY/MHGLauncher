@@ -11,6 +11,10 @@ const refresh = z.object({ credential: z.string(), xrpc_challenge: z.string().de
 const verification = z.object({ credential: z.string(), challenge: z.string(), validate: z.string() });
 const startJob = z.object({ kind: z.enum(["install", "update", "verify"]), install_path: z.string().min(1) });
 const controlJob = z.object({ action: z.enum(["pause", "resume", "cancel"]) });
+const startLaunch = z.object({
+  install_path: z.string().min(1), performance_profile: z.enum(["optimized", "compatibility", "baseline"]).default("optimized"),
+  metal_hud: z.boolean().default(false), frame_pacing: z.number().int().min(0).max(240).default(0),
+});
 
 export async function dispatch(request: Request): Promise<Response> {
   try {
@@ -44,7 +48,9 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   if (method === "GET" && gameJob) return json(app.games.get(gameJob));
   const gameControl = match(path, /^\/game\/jobs\/([^/]+)\/control$/);
   if (method === "POST" && gameControl) return json(app.games.control(gameControl, controlJob.parse(body).action));
-  if (method === "POST" && path === "/game/launch") throw new AppError("launch_not_implemented", "游戏启动功能尚未实现", 501);
+  if (method === "POST" && path === "/game/launch") return json(app.launches.start(startLaunch.parse(body)), 202);
+  const launch = match(path, /^\/game\/launches\/([^/]+)$/);
+  if (method === "GET" && launch) return json(app.launches.get(launch));
   if (method === "POST" && path === "/wishes/tasks/sync") return json(app.wishTasks.startSync(credential.parse(body).credential), 202);
   if (method === "POST" && path === "/wishes/tasks/import") return json(app.wishTasks.startImport(body), 202);
   const task = match(path, /^\/wishes\/tasks\/([^/]+)$/);
