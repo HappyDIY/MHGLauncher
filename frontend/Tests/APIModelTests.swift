@@ -166,4 +166,11 @@ struct APIModelTests {
         #expect(LauncherStore.presentableMessage("2") == "操作失败，请稍后重试")
         #expect(LauncherStore.presentableMessage("登录失效") == "登录失效")
     }
+
+    @Test("仅为整倍刷新率启用 DXMT 帧节奏")
+    func preferredFrameRate() {
+        #expect(LauncherStore.preferredFrameRate(for: 120) == 120)
+        #expect(LauncherStore.preferredFrameRate(for: 60) == 60)
+        #expect(LauncherStore.preferredFrameRate(for: 75) == 0)
+    }
 }
