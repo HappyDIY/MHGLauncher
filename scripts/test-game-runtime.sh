@@ -9,8 +9,9 @@ xcrun clang -dynamiclib -arch x86_64 -O2 "$root/runtime/dns-gate.c" -lresolv -o 
 xcrun swiftc -O "$root/runtime/window-probe.swift" -o "$stage/window-probe"
 printf '%s\n' \
   '#include <netdb.h>' \
-  'int main(int count,char **values){struct addrinfo *result=0;int code=getaddrinfo(values[1],0,0,&result);if(result)freeaddrinfo(result);return code==0?0:1;}' \
-  | xcrun clang -arch x86_64 -x c - -o "$stage/resolver"
+  '#include <resolv.h>' \
+  'int main(int count,char **values){unsigned char answer[512];if(count>2)return res_query(values[1],1,1,answer,512)<0?1:0;struct addrinfo *result=0;int code=getaddrinfo(values[1],0,0,&result);if(result)freeaddrinfo(result);return code==0?0:1;}' \
+  | xcrun clang -arch x86_64 -x c - -lresolv -o "$stage/resolver"
 
 gate="$stage/enabled"
 touch "$gate"
@@ -19,6 +20,10 @@ export MHG_DNS_GATE_FILE="$gate"
 export MHG_DNS_GATE_OWNER_PID="$$"
 if "$stage/resolver" dispatchcnglobal.yuanshen.com; then
   printf '域名门控未屏蔽目标域名。\n' >&2
+  exit 1
+fi
+if "$stage/resolver" dispatchosglobal.yuanshen.com dns; then
+  printf '域名门控未屏蔽 Wine DNS 查询路径。\n' >&2
   exit 1
 fi
 "$stage/resolver" localhost
