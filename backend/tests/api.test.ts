@@ -18,9 +18,9 @@ describe("本地 API 契约", () => {
     const value = await response.json(); expect(value.account.credential_ref).toBe("keychain:test"); expect(value.roles[0].uid).toBe("100000001");
   });
 
-  test("游戏启动保持 501", async () => {
-    const response = await request("POST", "/v1/game/launch", {});
-    expect(response.status).toBe(501); expect(await response.json()).toMatchObject({ code: "launch_not_implemented" });
+  test("游戏启动校验安装目录", async () => {
+    const response = await request("POST", "/v1/game/launch", { install_path: "/tmp/mhg-missing-game" });
+    expect(response.status).toBe(409); expect(await response.json()).toMatchObject({ code: "game_not_installed" });
   });
 
   test("未登录账号返回 null", async () => expect(await (await request("GET", "/v1/account")).json()).toBeNull());
