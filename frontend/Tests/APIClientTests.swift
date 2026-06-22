@@ -60,16 +60,23 @@ struct APIClientTests {
         #expect(account == nil)
     }
 
-    @Test("将错误响应转换为统一错误")
-    func errorResponse() async {
-        let client = makeClient { _ in
-            json(501, """
-            {"code":"launch_not_implemented","message":"游戏启动功能尚未实现","details":{}}
+    @Test("编码启动参数并解码会话")
+    func gameLaunchRequest() async throws {
+        let client = makeClient { request in
+            let body = try #require(request.body)
+            let value = try JSONDecoder.api.decode(StartGameLaunchRequest.self, from: body)
+            #expect(value.performanceProfile == .optimized)
+            #expect(value.metalHud)
+            return json(202, """
+            {"id":"launch-1","status":"preparing","message":"","performance_profile":"optimized","metal_hud":true,"started_at":"now","updated_at":"now"}
             """)
         }
-        await #expect(throws: APIErrorPayload.self) {
-            let _: EmptyResponse = try await client.post("/v1/game/launch")
-        }
+        let body = StartGameLaunchRequest(
+            installPath: "/tmp/game", performanceProfile: .optimized,
+            metalHud: true, framePacing: 120
+        )
+        let launch: GameLaunch = try await client.post("/v1/game/launch", body: body)
+        #expect(launch.status == .preparing)
     }
 
     private func makeClient(
