@@ -54,7 +54,7 @@ export function restoreDll(journal: DllJournal | null): string {
   return "";
 }
 
-export function verifySource(path: string, integrity = MHYPBASE_INTEGRITY): void {
+function verifySource(path: string, integrity = MHYPBASE_INTEGRITY): void {
   if (!existsSync(path) || !lstatSync(path).isFile()) throw new AppError("mhypbase_source_missing", "内置 mhypbase.dll 不存在", 500);
   if (lstatSync(path).size !== integrity.size || digest(path, "md5") !== integrity.md5 || digest(path, "sha256") !== integrity.sha256) {
     throw new AppError("mhypbase_source_invalid", "内置 mhypbase.dll 完整性校验失败", 500);
