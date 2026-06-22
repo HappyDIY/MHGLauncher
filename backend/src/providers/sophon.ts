@@ -17,7 +17,7 @@ message PatchFileData { string file_name=1; int64 file_size=2; string file_hash=
 message FileInfo { string name=1; } message DeleteFiles { repeated FileInfo infos=1; }
 message DeleteFilesEntry { string key=1; DeleteFiles delete_files=2; }
 message PatchManifest { repeated PatchFileData file_datas=1; repeated DeleteFilesEntry delete_files_entries=2; }`;
-const root = parse(proto).root;
+const root = parse(proto, { keepCase: true }).root;
 
 export class Sophon {
   private cached?: { time: number; version: string; build: GameBuild };
