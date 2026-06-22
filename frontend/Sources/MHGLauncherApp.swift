@@ -85,7 +85,15 @@ struct AppCommands: Commands {
 @main
 struct MHGLauncherApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @State private var store = LauncherStore()
+    @State private var store: LauncherStore
+
+    init() {
+        let store = LauncherStore()
+        _store = State(initialValue: store)
+        if ProcessInfo.processInfo.environment["MHG_SMOKE_MODE"] == "1" {
+            Task { @MainActor in await store.backend.start() }
+        }
+    }
 
     var body: some Scene {
         WindowGroup {

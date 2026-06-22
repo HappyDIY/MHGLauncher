@@ -19,6 +19,7 @@ trap cleanup EXIT
 MHG_DATA_DIR="$data" \
 MHG_PROVIDER_MODE=fixture \
 MHG_FIXTURE_DIR="$root/backend/fixtures" \
+MHG_SMOKE_MODE=1 \
 "$executable" >"$log" 2>&1 &
 launcher_pid=$!
 
