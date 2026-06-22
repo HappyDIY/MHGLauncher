@@ -1,4 +1,5 @@
 import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { Store } from "./database";
 import { settings, type Settings } from "./config";
 import type { Provider } from "../providers/provider";
