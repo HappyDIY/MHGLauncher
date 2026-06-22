@@ -3,7 +3,7 @@ import { chmodSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { AppError } from "../core/errors";
 import type { GameLaunch, GamePerformanceProfile } from "../core/models";
-import { type DllIntegrity, MHYPBASE_INTEGRITY, prepareDll, restoreDll } from "./game-launch-files";
+import { type DllIntegrity, type DllJournal, MHYPBASE_INTEGRITY, prepareDll, restoreDll } from "./game-launch-files";
 import { type GameLaunchRunner, WineLaunchRunner } from "./game-launch-process";
 import { detectGame } from "./games";
 
@@ -44,7 +44,7 @@ export class GameLaunchService {
 
   private async execute(launch: GameLaunch, gameRoot: string, framePacing: number): Promise<void> {
     const sessionDir = join(this.dataDir, "launches", launch.id);
-    let journal = null;
+    let journal: DllJournal | null = null;
     try {
       journal = prepareDll(gameRoot, join(this.runtimeRoot, "assets", "mhypbase.dll"), sessionDir, this.integrity);
       const code = await this.runner.run({
