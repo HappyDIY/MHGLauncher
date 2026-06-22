@@ -5,7 +5,7 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 
-xcrun clang -dynamiclib -arch x86_64 -O2 "$root/runtime/dns-gate.c" -o "$stage/gate.dylib"
+xcrun clang -dynamiclib -arch x86_64 -O2 "$root/runtime/dns-gate.c" -lresolv -o "$stage/gate.dylib"
 xcrun swiftc -O "$root/runtime/window-probe.swift" -o "$stage/window-probe"
 printf '%s\n' \
   '#include <netdb.h>' \
