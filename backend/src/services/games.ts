@@ -112,10 +112,11 @@ function size(build: GameBuild): number {
 
 export function detectGame(input: string): { path: string; version: string } | null {
   for (const path of [resolve(input), join(resolve(input), "Genshin Impact Game")]) {
+    if (!existsSync(join(path, "YuanShen.exe"))) continue;
     const marker = join(path, ".mhg-version");
     if (existsSync(marker)) { const version = readFileSync(marker, "utf8").trim(); if (version) return { path, version }; }
     const config = join(path, "config.ini");
-    if (!existsSync(join(path, "YuanShen.exe")) || !existsSync(config)) continue;
+    if (!existsSync(config)) continue;
     const version = readFileSync(config, "utf8").match(/^game_version\s*=\s*(.+)$/m)?.[1]?.trim();
     if (version) return { path, version };
   }
