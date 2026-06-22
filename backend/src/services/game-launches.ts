@@ -5,6 +5,7 @@ import { AppError } from "../core/errors";
 import type { GameLaunch, GamePerformanceProfile } from "../core/models";
 import { type DllIntegrity, type DllJournal, MHYPBASE_INTEGRITY, prepareDll, restoreDll } from "./game-launch-files";
 import { type GameLaunchRunner, WineLaunchRunner } from "./game-launch-process";
+import { recoverInterruptedDlls } from "./game-launch-recovery";
 import { detectGame } from "./games";
 
 export interface StartLaunch {
@@ -19,7 +20,7 @@ export class GameLaunchService {
     private readonly runner: GameLaunchRunner = new WineLaunchRunner(),
     private readonly integrity: DllIntegrity = MHYPBASE_INTEGRITY,
     private readonly resourcesBusy: () => boolean = () => false,
-  ) {}
+  ) { recoverInterruptedDlls(this.dataDir); }
 
   start(input: StartLaunch): GameLaunch {
     if (this.resourcesBusy()) throw new AppError("game_job_busy", "游戏资源任务运行期间无法启动游戏", 409);
