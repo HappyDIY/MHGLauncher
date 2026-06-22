@@ -16,6 +16,10 @@ export class GameService {
   private readonly controls = new Map<string, DownloadControl>();
   constructor(private readonly store: Store, private readonly provider: Provider, private readonly dataDir: string) {}
 
+  busy(): boolean {
+    return [...this.jobs.values()].some(({ status }) => ["queued", "running", "paused"].includes(status));
+  }
+
   async state(requested?: string): Promise<GameState> {
     const stored = this.store.one("SELECT install_path FROM game_state WHERE id=1");
     const candidate = requested || String(stored?.install_path ?? "");
@@ -29,7 +33,7 @@ export class GameService {
   }
 
   async start(kind: JobKind, path: string): Promise<GameJob> {
-    if ([...this.jobs.values()].some(({ status }) => status === "queued" || status === "running")) throw new AppError("game_job_busy", "已有游戏资源任务正在运行", 409);
+    if (this.busy()) throw new AppError("game_job_busy", "已有游戏资源任务正在运行", 409);
     const detected = detectGame(path);
     if (kind === "update" && !detected) throw new AppError("game_not_installed", "所选目录中未检测到可更新的原神客户端");
     const build = prepareBuild(await this.provider.getBuild(detected?.version ?? ""), detected?.path ?? "", detected?.version ?? "");
