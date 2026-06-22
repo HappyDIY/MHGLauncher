@@ -1,4 +1,3 @@
-#include <dlfcn.h>
 #include <errno.h>
 #include <netdb.h>
 #include <signal.h>
@@ -21,35 +20,20 @@ static int blocked(const char *name) {
          strcasecmp(name, "dispatchosglobal.yuanshen.com") == 0;
 }
 
-static void *system_symbol(const char *name) {
-  static void *handle = NULL;
-  if (handle == NULL) handle = dlopen("/usr/lib/libSystem.B.dylib", RTLD_NOW | RTLD_LOCAL);
-  return dlsym(handle, name);
-}
-
 static int mhg_getaddrinfo(const char *name, const char *service,
                            const struct addrinfo *hints, struct addrinfo **result) {
-  typedef int (*function_t)(const char *, const char *, const struct addrinfo *, struct addrinfo **);
-  static function_t original = NULL;
   if (blocked(name)) return EAI_NONAME;
-  if (original == NULL) original = (function_t)system_symbol("getaddrinfo");
-  return original(name, service, hints, result);
+  return getaddrinfo(name, service, hints, result);
 }
 
 static struct hostent *mhg_gethostbyname(const char *name) {
-  typedef struct hostent *(*function_t)(const char *);
-  static function_t original = NULL;
   if (blocked(name)) { h_errno = HOST_NOT_FOUND; return NULL; }
-  if (original == NULL) original = (function_t)system_symbol("gethostbyname");
-  return original(name);
+  return gethostbyname(name);
 }
 
 static struct hostent *mhg_gethostbyname2(const char *name, int family) {
-  typedef struct hostent *(*function_t)(const char *, int);
-  static function_t original = NULL;
   if (blocked(name)) { h_errno = HOST_NOT_FOUND; return NULL; }
-  if (original == NULL) original = (function_t)system_symbol("gethostbyname2");
-  return original(name, family);
+  return gethostbyname2(name, family);
 }
 
 #define MHG_INTERPOSE(replacement, replacee) \
