@@ -19,7 +19,7 @@ export function runtimePaths(root: string): RuntimePaths {
 
 export function launchEnvironment(
   base: NodeJS.ProcessEnv, paths: RuntimePaths, prefix: string, sessionDir: string,
-  profile: GamePerformanceProfile, metalHud: boolean,
+  profile: GamePerformanceProfile, metalHud: boolean, framePacing: number,
 ): NodeJS.ProcessEnv {
   const gate = join(sessionDir, "dns-gate");
   mkdirSync(sessionDir, { recursive: true, mode: 0o700 });
@@ -33,6 +33,6 @@ export function launchEnvironment(
     MHG_DNS_GATE_OWNER_PID: String(process.pid), MTL_HUD_ENABLED: metalHud ? "1" : "0",
     DXMT_LOG_LEVEL: metalHud ? "info" : "warn", DXMT_LOG_PATH: join(sessionDir, "dxmt"),
     DXMT_SHADER_CACHE_PATH: join(base.HOME ?? "", "Library", "Caches", "MHGLauncher", "dxmt", "YuanShen.exe"),
-    DXMT_CONFIG: "d3d11.preferredMaxFrameRate=60;",
+    DXMT_CONFIG: framePacing > 0 ? `d3d11.preferredMaxFrameRate=${framePacing};` : "",
   };
 }
