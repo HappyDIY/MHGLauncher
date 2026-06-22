@@ -1,15 +1,39 @@
 import Foundation
+import SwiftUI
+
+struct APIRequest: Sendable {
+    let method: String
+    let path: String
+    let headers: [String: String]
+    let body: Data?
+    let timeout: TimeInterval
+}
+
+struct APIResponse: Sendable {
+    let status: Int
+    let body: Data
+}
 
 struct APIClient: Sendable {
-    let baseURL: URL
     let token: String
-    var session: URLSession = .shared
+    let transport: @Sendable (APIRequest) async throws -> APIResponse
+
+    init(socketPath: String, token: String) {
+        let socket = UnixSocketTransport(path: socketPath)
+        self.token = token
+        self.transport = { try await socket.send($0) }
+    }
+
+    init(
+        token: String,
+        transport: @escaping @Sendable (APIRequest) async throws -> APIResponse
+    ) {
+        self.token = token
+        self.transport = transport
+    }
 
     func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {
-        var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)
-        components?.queryItems = query.isEmpty ? nil : query
-        guard let url = components?.url else { throw URLError(.badURL) }
-        return try await send(url: url, method: "GET", body: Optional<Data>.none)
+        try await send(path: pathWithQuery(path, query), method: "GET", body: nil)
     }
 
     func post<T: Decodable, Body: Encodable>(
@@ -17,92 +41,88 @@ struct APIClient: Sendable {
         body: Body,
         timeout: TimeInterval = 60
     ) async throws -> T {
-        let data = try JSONEncoder.api.encode(body)
-        return try await send(
-            url: baseURL.appending(path: path),
+        try await send(
+            path: path,
             method: "POST",
-            body: data,
+            body: JSONEncoder.api.encode(body),
             timeout: timeout
         )
     }
 
     func post<T: Decodable>(_ path: String) async throws -> T {
-        try await send(
-            url: baseURL.appending(path: path),
-            method: "POST",
-            body: Data("{}".utf8),
-            timeout: 60
-        )
+        try await send(path: path, method: "POST", body: Data("{}".utf8))
     }
 
     func upload<T: Decodable>(_ path: String, json: Data) async throws -> T {
-        try await send(
-            url: baseURL.appending(path: path),
-            method: "POST",
-            body: json,
-            timeout: 60
-        )
+        try await send(path: path, method: "POST", body: json)
     }
 
     func delete(_ path: String) async throws {
-        _ = try await raw(
-            url: baseURL.appending(path: path),
-            method: "DELETE",
-            body: nil
-        )
+        _ = try await raw(path: path, method: "DELETE", body: nil)
     }
 
     func deleteResponse<T: Decodable>(_ path: String) async throws -> T {
-        try await send(
-            url: baseURL.appending(path: path),
-            method: "DELETE",
-            body: nil
-        )
+        try await send(path: path, method: "DELETE", body: nil)
     }
 
-    func download(_ path: String, query: [URLQueryItem]) async throws -> Data {
-        var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)
-        components?.queryItems = query
-        guard let url = components?.url else { throw URLError(.badURL) }
-        return try await raw(url: url, method: "GET", body: nil)
+    func download(_ path: String, query: [URLQueryItem] = []) async throws -> Data {
+        try await raw(path: pathWithQuery(path, query), method: "GET", body: nil)
     }
 
     private func send<T: Decodable>(
-        url: URL,
+        path: String,
         method: String,
         body: Data?,
         timeout: TimeInterval = 60
     ) async throws -> T {
-        let data = try await raw(
-            url: url,
-            method: method,
-            body: body,
-            timeout: timeout
+        try JSONDecoder.api.decode(
+            T.self,
+            from: try await raw(path: path, method: method, body: body, timeout: timeout)
         )
-        return try JSONDecoder.api.decode(T.self, from: data)
     }
 
     private func raw(
-        url: URL,
+        path: String,
         method: String,
         body: Data?,
         timeout: TimeInterval = 60
     ) async throws -> Data {
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.httpBody = body
-        request.timeoutInterval = timeout
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-        guard 200..<300 ~= http.statusCode else {
-            if let payload = try? JSONDecoder.api.decode(APIErrorPayload.self, from: data) {
+        let response = try await transport(APIRequest(
+            method: method,
+            path: path,
+            headers: [
+                "Authorization": "Bearer \(token)",
+                "Content-Type": "application/json"
+            ],
+            body: body,
+            timeout: timeout
+        ))
+        guard 200..<300 ~= response.status else {
+            if let payload = try? JSONDecoder.api.decode(APIErrorPayload.self, from: response.body) {
                 throw payload
             }
             throw URLError(.badServerResponse)
         }
-        return data
+        return response.body
+    }
+
+    private func pathWithQuery(_ path: String, _ query: [URLQueryItem]) -> String {
+        guard !query.isEmpty else { return path }
+        var components = URLComponents()
+        components.path = path
+        components.queryItems = query
+        return components.string ?? path
+    }
+}
+
+private struct APIClientKey: EnvironmentKey {
+    static let defaultValue: APIClient? = nil
+}
+
+extension EnvironmentValues {
+    var apiClient: APIClient? {
+        get { self[APIClientKey.self] }
+        set { self[APIClientKey.self] = newValue }
     }
 }
 
@@ -110,31 +130,7 @@ extension JSONDecoder {
     static var api: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let value = try container.decode(String.self)
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = formatter.date(from: value) {
-                return date
-            }
-            formatter.formatOptions = [.withInternetDateTime]
-            if let date = formatter.date(from: value) {
-                return date
-            }
-            let localFormatter = DateFormatter()
-            localFormatter.calendar = Calendar(identifier: .gregorian)
-            localFormatter.locale = Locale(identifier: "en_US_POSIX")
-            localFormatter.timeZone = TimeZone(secondsFromGMT: 8 * 60 * 60)
-            localFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-            if let date = localFormatter.date(from: value) {
-                return date
-            }
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "无效的 ISO 8601 日期：\(value)"
-            )
-        }
+        decoder.dateDecodingStrategy = .custom(APIClient.decodeDate)
         return decoder
     }
 }
@@ -145,5 +141,24 @@ extension JSONEncoder {
         encoder.keyEncodingStrategy = .convertToSnakeCase
         encoder.dateEncodingStrategy = .iso8601
         return encoder
+    }
+}
+
+private extension APIClient {
+    static func decodeDate(_ decoder: Decoder) throws -> Date {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso.date(from: value) { return date }
+        iso.formatOptions = [.withInternetDateTime]
+        if let date = iso.date(from: value) { return date }
+        let local = DateFormatter()
+        local.calendar = Calendar(identifier: .gregorian)
+        local.locale = Locale(identifier: "en_US_POSIX")
+        local.timeZone = TimeZone(secondsFromGMT: 8 * 60 * 60)
+        local.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        if let date = local.date(from: value) { return date }
+        throw DecodingError.dataCorruptedError(in: container, debugDescription: "无效日期")
     }
 }

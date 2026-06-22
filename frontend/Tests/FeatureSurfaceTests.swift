@@ -117,7 +117,7 @@ struct FeatureSurfaceTests {
         #expect(try store.read(account: account) == nil)
     }
 
-    @Test("后端端口握手支持分段输出")
+    @Test("后端 Socket 握手支持分段输出")
     func splitBackendReadyFrame() async throws {
         let pipe = Pipe()
         let writer = pipe.fileHandleForWriting
@@ -125,14 +125,14 @@ struct FeatureSurfaceTests {
         Task.detached {
             writer.write(Data(#"{"event":"rea"#.utf8))
             try await Task.sleep(for: .milliseconds(10))
-            writer.write(Data(#"dy","port":54321}"#.utf8))
+            writer.write(Data(#"dy","socket_path":"/tmp/mhg-test.sock"}"#.utf8))
             writer.write(Data([0x0A]))
         }
 
-        let port = try await BackendProcess.readPort(
+        let socketPath = try await BackendProcess.readSocketPath(
             from: pipe.fileHandleForReading
         )
-        #expect(port == 54_321)
+        #expect(socketPath == "/tmp/mhg-test.sock")
         try writer.close()
     }
 }
