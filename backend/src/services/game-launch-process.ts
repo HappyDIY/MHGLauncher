@@ -1,4 +1,4 @@
-import { closeSync, existsSync, mkdirSync, openSync, rmSync } from "node:fs";
+import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { AppError } from "../core/errors";
@@ -15,7 +15,7 @@ export interface GameLaunchRunner { run(input: LaunchRunInput, report: LaunchRep
 export class WineLaunchRunner implements GameLaunchRunner {
   async run(input: LaunchRunInput, report: LaunchReporter): Promise<number> {
     const paths = runtimePaths(input.runtimeRoot), prefix = join(input.dataDir, "wineprefix");
-    this.preflight(paths.wineboot, prefix);
+    this.preflight(paths.wineboot, paths.winemetal, prefix);
     const env = launchEnvironment(process.env, paths, prefix, input.sessionDir, input.profile, input.metalHud, input.framePacing);
     report("starting");
     const logDir = join(input.dataDir, "logs"); mkdirSync(logDir, { recursive: true, mode: 0o700 });
@@ -37,15 +37,18 @@ export class WineLaunchRunner implements GameLaunchRunner {
     });
   }
 
-  private preflight(wineboot: string, prefix: string): void {
+  private preflight(wineboot: string, winemetal: string, prefix: string): void {
     if (spawnSync("/usr/bin/arch", ["-x86_64", "/usr/bin/true"]).status !== 0) {
       throw new AppError("rosetta_missing", "请先安装 Rosetta 2 后再启动游戏", 409);
     }
     mkdirSync(prefix, { recursive: true, mode: 0o700 });
-    if (existsSync(join(prefix, "system.reg"))) return;
-    const result = spawnSync(wineboot, ["--init"], {
-      env: { ...process.env, WINEPREFIX: prefix, WINEARCH: "win64", WINEDEBUG: "-all" }, stdio: "ignore",
-    });
-    if (result.status !== 0) throw new AppError("wineprefix_init_failed", "Wine 运行环境初始化失败", 500);
+    if (!existsSync(join(prefix, "system.reg"))) {
+      const result = spawnSync(wineboot, ["--init"], {
+        env: { ...process.env, WINEPREFIX: prefix, WINEARCH: "win64", WINEDEBUG: "-all" }, stdio: "ignore",
+      });
+      if (result.status !== 0) throw new AppError("wineprefix_init_failed", "Wine 运行环境初始化失败", 500);
+    }
+    const system32 = join(prefix, "drive_c", "windows", "system32"); mkdirSync(system32, { recursive: true });
+    copyFileSync(winemetal, join(system32, "winemetal.dll"));
   }
 }
