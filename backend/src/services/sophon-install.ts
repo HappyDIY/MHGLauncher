@@ -27,6 +27,7 @@ export async function installSophon(
       }
     } finally { closeSync(descriptor); }
     if (statSync(target).size !== asset.size || md5(target) !== asset.md5.toLowerCase()) { rmSync(target); throw new AppError("sophon_asset_invalid", `${asset.name} 文件校验失败`); }
+    for (const path of chunks) rmSync(path, { force: true });
   }
 }
 
