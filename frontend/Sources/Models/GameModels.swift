@@ -71,3 +71,37 @@ struct StartJobRequest: Codable {
 struct ControlJobRequest: Codable {
     let action: String
 }
+
+enum GamePerformanceProfile: String, Codable, Sendable, CaseIterable, Identifiable {
+    case optimized
+    case compatibility
+    case baseline
+
+    var id: Self { self }
+}
+
+enum GameLaunchStatus: String, Codable, Sendable {
+    case preparing
+    case starting
+    case waitingWindow = "waiting_window"
+    case running
+    case exited
+    case failed
+}
+
+struct GameLaunch: Codable, Sendable, Identifiable {
+    let id: String
+    let status: GameLaunchStatus
+    let message: String
+    let performanceProfile: GamePerformanceProfile
+    let metalHud: Bool
+    let startedAt: String
+    let updatedAt: String
+}
+
+struct StartGameLaunchRequest: Codable, Sendable {
+    let installPath: String
+    let performanceProfile: GamePerformanceProfile
+    let metalHud: Bool
+    let framePacing: Int
+}
