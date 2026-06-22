@@ -1,20 +1,27 @@
-import { existsSync, readFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { AppError } from "../core/errors";
 import type { GameJob, GameState, JobKind } from "../core/models";
 import type { Store } from "../core/database";
 import type { GameBuild, Provider } from "../providers/provider";
+import { DownloadControl, download } from "./download";
+import { activate, extract, stageExisting, verify } from "./installer";
+import { installSophon } from "./sophon-install";
+import { installPatches } from "./patch-install";
+import { prepareBuild, removeRetired, removeSafe } from "./game-build";
 
 export class GameService {
   private readonly jobs = new Map<string, GameJob>();
-  constructor(private readonly store: Store, private readonly provider: Provider) {}
+  private readonly controls = new Map<string, DownloadControl>();
+  constructor(private readonly store: Store, private readonly provider: Provider, private readonly dataDir: string) {}
 
   async state(requested?: string): Promise<GameState> {
     const stored = this.store.one("SELECT install_path FROM game_state WHERE id=1");
     const candidate = requested || String(stored?.install_path ?? "");
     const detected = candidate ? detect(candidate) : null;
-    const build = await this.provider.getBuild(detected?.version ?? "");
+    const raw = await this.provider.getBuild(detected?.version ?? "");
+    const build = detected ? prepareBuild(raw, detected.path, detected.version) : raw;
     if (!detected) return output(candidate, "", build, "not_installed");
     this.saveState(detected.path, detected.version);
     const current = detected.version === build.version && !build.assets.length;
@@ -25,14 +32,15 @@ export class GameService {
     if ([...this.jobs.values()].some(({ status }) => status === "queued" || status === "running")) throw new AppError("game_job_busy", "已有游戏资源任务正在运行", 409);
     const detected = detect(path);
     if (kind === "update" && !detected) throw new AppError("game_not_installed", "所选目录中未检测到可更新的原神客户端");
-    const build = await this.provider.getBuild(detected?.version ?? "");
+    const build = prepareBuild(await this.provider.getBuild(detected?.version ?? ""), detected?.path ?? "", detected?.version ?? "");
+    if (build.kind === "game_hotfix") throw new AppError("game_hotfix_pending", "检测到游戏内热更新清单，请先启动原神完成资源应用", 409);
     const job: GameJob = {
       id: randomUUID(), kind, status: "queued", completed_bytes: 0, total_bytes: size(build), message: "",
       download_speed: 0, chunks_completed: 0, chunks_total: build.assets.reduce((n, value) => n + value.chunks.length, 0),
       active_chunks: [], last_update: "",
     };
-    this.jobs.set(job.id, job);
-    void this.run(job, detected?.path ?? resolve(path), build);
+    const control = new DownloadControl(); this.jobs.set(job.id, job); this.controls.set(job.id, control);
+    void this.run(job, control, detected?.path ?? resolve(path), build);
     return job;
   }
 
@@ -44,19 +52,40 @@ export class GameService {
 
   control(id: string, action: string): GameJob {
     const job = this.get(id);
-    if (action === "pause" && job.status === "running") job.status = "paused";
-    else if (action === "resume" && job.status === "paused") job.status = "running";
-    else if (action === "cancel" && ["queued", "running", "paused"].includes(job.status)) job.status = "cancelled";
+    const control = this.controls.get(id);
+    if (action === "pause" && job.status === "running") { control?.pause(); job.status = "paused"; }
+    else if (action === "resume" && job.status === "paused") { control?.resume(); job.status = "running"; }
+    else if (action === "cancel" && ["queued", "running", "paused"].includes(job.status)) { control?.cancel(); job.status = "cancelled"; }
     else throw new AppError("game_job_action_invalid", "任务操作与当前状态不匹配", 409);
     return job;
   }
 
-  private async run(job: GameJob, _path: string, build: GameBuild): Promise<void> {
+  private async run(job: GameJob, control: DownloadControl, path: string, build: GameBuild): Promise<void> {
     job.status = "running";
     try {
-      if (size(build) > 0) throw new AppError("game_backend_pending", "游戏资源安装器迁移尚未完成", 501);
+      const cache = join(this.dataDir, "downloads", build.version), staging = `${path}.staging`;
+      stageExisting(job.kind === "update" ? path : "", staging); mkdirSync(cache, { recursive: true });
+      if (job.kind === "update" && build.kind !== "package_repair") removeRetired(staging, build);
+      const progress = (bytes: number): void => { job.completed_bytes += bytes; job.last_update = new Date().toISOString(); };
+      const chunk = (name: string, done: number, total: number): void => {
+        const value = { name, bytes_done: done, total }; job.active_chunks = [...job.active_chunks.filter((item) => item.name !== name), value].slice(-4);
+        job.chunks_completed = Math.max(job.chunks_completed, job.active_chunks.filter((item) => item.bytes_done === item.total).length);
+      };
+      if (build.patch_assets.length) { await installPatches(build.patch_assets, staging, cache, control, progress, chunk); for (const name of build.deprecated_files) removeSafe(staging, name); }
+      else if (build.assets.length) await installSophon(build.assets, staging, cache, control, progress, chunk);
+      else {
+        const archives: string[] = [];
+        for (const segment of build.segments) archives.push(await download(segment, join(cache, segment.filename), control, progress));
+        extract(archives, staging); verify(staging);
+      }
+      writeFileSync(join(staging, ".mhg-version"), build.version);
+      if (build.assets.length && build.kind !== "package_repair") writeFileSync(join(staging, ".mhg-assets.json"), JSON.stringify(build.assets.map(({ name }) => name)));
+      activate(staging, path); this.saveState(path, build.version);
       job.completed_bytes = job.total_bytes; job.status = "completed";
-    } catch (error) { job.status = "failed"; job.message = error instanceof Error ? error.message : "游戏任务失败"; }
+    } catch (error) {
+      job.status = error instanceof DOMException && error.name === "AbortError" ? "cancelled" : "failed";
+      job.message = error instanceof Error ? error.message : "游戏任务失败";
+    } finally { rmSync(`${path}.staging`, { recursive: true, force: true }); }
   }
 
   private saveState(path: string, version: string): void {
@@ -88,5 +117,3 @@ function detect(input: string): { path: string; version: string } | null {
   }
   return null;
 }
-
-export const safeName = (path: string): string => basename(path);

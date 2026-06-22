@@ -53,16 +53,25 @@ export class LiveProvider implements Provider {
   async getDailyNote(credential: string, role: GameRole, challenge = ""): Promise<DailyNote> {
     await this.device.fingerprint(); const query = new URLSearchParams({ role_id: role.uid, server: role.region }).toString();
     const headers = this.headers(credential, sign("x4", "", query)); if (challenge) headers["x-rpc-challenge"] = challenge;
-    const data = await this.request(`https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/dailyNote?${query}`, { headers });
+    const url = `https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/dailyNote?${query}`;
+    const response = await fetch(url, { headers, signal: AbortSignal.timeout(30_000) }), payload = await response.json() as JSONValue;
+    if (Number(payload.retcode) === 1034) throw new AppError("verification_required", "请完成人机验证后重试", 428, await this.createVerification(credential));
+    if (!response.ok || Number(payload.retcode ?? 0) !== 0) throw new AppError("mihoyo_error", String(payload.message || "米游社请求失败"), 502);
+    const data = payload.data as JSONValue ?? {};
     const expeditions = data.expeditions as JSONValue[] ?? [], recovery = (data.transformer as JSONValue | undefined)?.recovery_time as JSONValue | undefined;
     return { uid: role.uid, current_resin: Number(data.current_resin ?? 0), max_resin: Number(data.max_resin ?? 200), finished_tasks: Number(data.finished_task_num ?? 0), total_tasks: Number(data.total_task_num ?? 4),
       expeditions_finished: expeditions.filter((v) => v.status === "Finished").length, expeditions_total: Number(data.max_expedition_num ?? expeditions.length), current_home_coin: Number(data.current_home_coin ?? 0),
       max_home_coin: Number(data.max_home_coin ?? 0), weekly_boss_remaining: Number(data.remain_resin_discount_num ?? 0), transformer_ready: Boolean(recovery?.reached), refreshed_at: new Date().toISOString() };
   }
 
-  async verifyNoteChallenge(_credential: string, _challenge: string, _validate: string): Promise<string> { throw new AppError("verification_unavailable", "米游社人机验证暂不可用", 501); }
+  async verifyNoteChallenge(credential: string, challenge: string, validate: string): Promise<string> {
+    const body = JSON.stringify({ geetest_challenge: challenge, geetest_validate: validate, geetest_seccode: `${validate}|jordan` });
+    const data = await this.api("https://api-takumi-record.mihoyo.com/game_record/app/card/wapi/verifyVerification", credential, sign("x4", body), { method: "POST", body });
+    return String(data.challenge);
+  }
 
   private async enrichCredential(value: string): Promise<string> { const data = await this.api("https://passport-api.mihoyo.com/account/auth/api/getCookieAccountInfoBySToken", value, sign("prod", "{}")); const map = cookies(value); map.set("cookie_token", String(data.cookie_token)); map.set("account_id", String(data.uid)); return [...map].map(([k, v]) => `${k}=${v}`).join("; "); }
+  private async createVerification(value: string): Promise<Record<string, string>> { const query = "is_high=true", data = await this.api(`https://api-takumi-record.mihoyo.com/game_record/app/card/wapi/createVerification?${query}`, value, sign("x4", "", query)); return { gt: String(data.gt), challenge: String(data.challenge) }; }
   private async authkey(value: string, role: GameRole): Promise<string> { const body = JSON.stringify({ auth_appid: "webview_gacha", game_biz: "hk4e_cn", game_uid: Number(role.uid), region: role.region }); return String((await this.api("https://api-takumi.mihoyo.com/binding/api/genAuthKey", value, sign("lk2", "", "", 1), { method: "POST", body })).authkey); }
   private wish(uid: string, v: JSONValue): WishRecord { const type = String(v.gacha_type); return { id: String(v.id), uid, gacha_type: type, uigf_gacha_type: type === "400" ? "301" : type, item_id: String(v.item_id), name: String(v.name), item_type: String(v.item_type), rank: Number(v.rank_type), time: String(v.time).replace(" ", "T") }; }
   private headers(cookie: string, ds: string): Record<string, string> { return { Cookie: cookie, DS: ds, "User-Agent": agent, "x-rpc-app_version": "2.95.1", "x-rpc-client_type": "5", "x-rpc-device_id": this.device.deviceId, "x-rpc-device_fp": this.device.deviceFP, "Content-Type": "application/json" }; }

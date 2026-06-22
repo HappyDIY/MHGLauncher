@@ -2,7 +2,7 @@ import type { WishRecord } from "../core/models";
 import type { ImageCache } from "./images";
 import { enrich } from "./metadata";
 
-export interface BannerItem {
+interface BannerItem {
   name: string; item_id: string; item_type: string; rank: number; icon_url?: string | null;
   pull_number: number; pity: number; time: string;
 }

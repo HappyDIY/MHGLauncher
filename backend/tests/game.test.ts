@@ -1,0 +1,22 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { beforeEach, expect, test } from "vitest";
+import { fixture, request } from "./helpers";
+import { prepareBuild } from "../src/services/game-build";
+import { normalizeBuild } from "../src/providers/provider";
+
+beforeEach(() => fixture());
+test("检测官方游戏目录版本", async () => {
+  const root = mkdtempSync(join(tmpdir(), "game-")), game = join(root, "Genshin Impact Game"); mkdirSync(game);
+  writeFileSync(join(game, "YuanShen.exe"), ""); writeFileSync(join(game, "config.ini"), "[General]\ngame_version=5.7.0\n");
+  const response = await request("GET", `/v1/game/status/path?install_path=${encodeURIComponent(game)}`), value = await response.json();
+  expect(value.installed_version).toBe("5.7.0"); expect(value.status).toBe("update_available");
+});
+test("未安装时禁止更新", async () => expect((await request("POST", "/v1/game/jobs", { kind: "update", install_path: "/tmp/missing" })).status).toBe(400));
+test("热更新清单阻止资源操作", () => {
+  const root = mkdtempSync(join(tmpdir(), "hotfix-")), persistent = join(root, "YuanShen_Data/Persistent"); mkdirSync(persistent, { recursive: true });
+  writeFileSync(join(persistent, "data_versions_remote"), JSON.stringify({ fileSize: 12 }));
+  expect(prepareBuild(normalizeBuild({ version: "1" }), root, "1")).toMatchObject({ kind: "game_hotfix", pending_bytes: 12 });
+});
+test("无热更新保持构建", () => expect(prepareBuild(normalizeBuild({ version: "1" }), "/tmp/missing", "1").kind).toBe("full"));
