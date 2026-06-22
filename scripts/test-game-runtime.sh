@@ -24,6 +24,7 @@ fi
 "$stage/resolver" localhost
 rm "$gate"
 "$stage/resolver" dispatchcnglobal.yuanshen.com
+unset DYLD_INSERT_LIBRARIES MHG_DNS_GATE_FILE MHG_DNS_GATE_OWNER_PID
 
 if "$stage/window-probe" invalid; then
   printf '窗口探针未拒绝无效进程组。\n' >&2
