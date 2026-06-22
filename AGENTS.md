@@ -35,7 +35,8 @@ integration, game-package operations, wish records, and real-time notes.
   SQLite, user defaults, fixtures, snapshots, or test output.
 - Keep miHoYo endpoints behind provider interfaces so tests never require a
   live account or large downloads.
-- The game launch endpoint must remain an explicit `501` placeholder.
+- Keep game launching behind a typed session API and restore temporary game-file changes after process exit.
+- Bundle only auditable open-source Wine/DXMT components; never depend on closed CrossOver application code.
 - Do not add features outside the documented product scope.
 
 ## Code Standards
@@ -96,5 +97,6 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 
 `scripts/build-app.sh` builds an arm64 Swift executable, bundles Node.js and the
 Next.js backend, and assembles an unsigned `.app`. Runtime users must not need
-Node.js or npm. Signing, notarization, DMG creation, Wine, and
-actual game process launch are intentionally out of scope.
+Node.js or npm. The build also assembles the pinned open-source Wine/DXMT game
+runtime and requires a locally supplied, integrity-checked `mhypbase.dll`.
+Signing, notarization, and DMG creation remain out of scope.
