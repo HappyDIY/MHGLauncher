@@ -1,0 +1,29 @@
+import type { AccountIdentity, DailyNote, GameRole, QRSession, WishRecord } from "../core/models";
+
+export interface PackageSegment { url: string; md5: string; size: number; filename: string }
+export interface SophonChunk { name: string; decompressed_md5: string; offset: number; size: number; decompressed_size: number; url: string }
+export interface GameAsset { name: string; size: number; md5: string; chunks: SophonChunk[] }
+export interface SophonPatch { id: string; file_size: number; start: number; length: number; original_name: string; url: string }
+export interface GamePatchAsset { name: string; size: number; md5: string; patch: SophonPatch }
+export interface GameBuild {
+  version: string; kind: string; pending_bytes: number; segments: PackageSegment[];
+  assets: GameAsset[]; patch_assets: GamePatchAsset[]; deprecated_files: string[];
+}
+
+export interface Provider {
+  createQRSession(): Promise<QRSession>;
+  queryQRSession(id: string): Promise<[QRSession, AccountIdentity | null]>;
+  getRoles(credential: string): Promise<GameRole[]>;
+  getBuild(installedVersion?: string): Promise<GameBuild>;
+  wishes(credential: string, role: GameRole, newest: Record<string, string>): AsyncIterable<WishRecord[]>;
+  getDailyNote(credential: string, role: GameRole, challenge?: string): Promise<DailyNote>;
+  verifyNoteChallenge(credential: string, challenge: string, validate: string): Promise<string>;
+}
+
+export function normalizeBuild(value: Partial<GameBuild> & Pick<GameBuild, "version">): GameBuild {
+  return {
+    version: value.version, kind: value.kind ?? "full", pending_bytes: value.pending_bytes ?? 0,
+    segments: value.segments ?? [], assets: value.assets ?? [], patch_assets: value.patch_assets ?? [],
+    deprecated_files: value.deprecated_files ?? [],
+  };
+}

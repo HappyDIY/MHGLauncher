@@ -1,0 +1,37 @@
+import { chmod, rm } from "node:fs/promises";
+import { createServer } from "node:http";
+import next from "next";
+import { closeContainer, container } from "./src/core/container";
+
+const config = container().settings;
+const application = next({ dev: process.env.NODE_ENV !== "production", dir: process.cwd() });
+await application.prepare();
+await rm(config.socketPath, { force: true });
+const server = createServer(application.getRequestHandler());
+
+await new Promise<void>((resolve, reject) => {
+  server.once("error", reject);
+  server.listen(config.socketPath, 128, () => resolve());
+});
+await chmod(config.socketPath, 0o600);
+process.stdout.write(`${JSON.stringify({ event: "ready", socket_path: config.socketPath })}\n`);
+
+let closing = false;
+async function shutdown(): Promise<void> {
+  if (closing) return;
+  closing = true;
+  clearInterval(parentMonitor);
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  closeContainer();
+  await rm(config.socketPath, { force: true });
+}
+
+const expectedParent = Number(process.env.MHG_PARENT_PID ?? 0);
+const parentMonitor = setInterval(() => {
+  if (expectedParent && process.ppid !== expectedParent) void shutdown().then(() => process.exit(0));
+}, 1_000);
+parentMonitor.unref();
+
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(signal, () => void shutdown().then(() => process.exit(0)));
+}
