@@ -110,19 +110,24 @@ struct APIModelTests {
         #expect(task.logs.first?.message.contains("20 条记录") == true)
     }
 
-    @Test("解码统一错误")
-    func decodeError() throws {
+    @Test("解码游戏启动会话")
+    func decodeGameLaunch() throws {
         let data = Data(
             """
             {
-              "code": "launch_not_implemented",
-              "message": "游戏启动功能尚未实现",
-              "details": {}
+              "id": "launch-1",
+              "status": "waiting_window",
+              "message": "",
+              "performance_profile": "optimized",
+              "metal_hud": true,
+              "started_at": "2026-06-22T10:00:00Z",
+              "updated_at": "2026-06-22T10:00:01Z"
             }
             """.utf8
         )
-        let error = try JSONDecoder.api.decode(APIErrorPayload.self, from: data)
-        #expect(error.code == "launch_not_implemented")
+        let launch = try JSONDecoder.api.decode(GameLaunch.self, from: data)
+        #expect(launch.status == .waitingWindow)
+        #expect(launch.metalHud)
     }
 
     @Test("编码请求使用蛇形字段")
@@ -160,5 +165,12 @@ struct APIModelTests {
         #expect(LauncherStore.presentableMessage("") == "操作失败，请稍后重试")
         #expect(LauncherStore.presentableMessage("2") == "操作失败，请稍后重试")
         #expect(LauncherStore.presentableMessage("登录失效") == "登录失效")
+    }
+
+    @Test("仅为整倍刷新率启用 DXMT 帧节奏")
+    func preferredFrameRate() {
+        #expect(LauncherStore.preferredFrameRate(for: 120) == 120)
+        #expect(LauncherStore.preferredFrameRate(for: 60) == 60)
+        #expect(LauncherStore.preferredFrameRate(for: 75) == 0)
     }
 }

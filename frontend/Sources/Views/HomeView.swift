@@ -57,10 +57,7 @@ struct HomeView: View {
             )
             Text(store.gameState?.status.title ?? "正在检查")
                 .foregroundStyle(.secondary)
-            Button("启动游戏") {
-                Task { await store.launchGame() }
-            }
-            .buttonStyle(.glassProminent)
+            GameLaunchControls(store: store)
         }
     }
 

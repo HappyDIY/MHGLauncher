@@ -12,6 +12,15 @@ final class LauncherStore {
     var roles: [GameRole] = []
     var gameState: GameState?
     var gameJob: GameJob?
+    var gameLaunch: GameLaunch?
+    var gamePerformanceProfile = GamePerformanceProfile(
+        rawValue: UserDefaults.standard.string(forKey: "gamePerformanceProfile") ?? ""
+    ) ?? .optimized {
+        didSet { UserDefaults.standard.set(gamePerformanceProfile.rawValue, forKey: "gamePerformanceProfile") }
+    }
+    var metalHudEnabled = UserDefaults.standard.bool(forKey: "metalHudEnabled") {
+        didSet { UserDefaults.standard.set(metalHudEnabled, forKey: "metalHudEnabled") }
+    }
     var wishes: [WishRecord] = []
     var wishStatistics: [WishStatistics] = []
     var bannerDetails: [WishBannerDetail] = []

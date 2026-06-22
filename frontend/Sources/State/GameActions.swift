@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 extension LauncherStore {
@@ -50,8 +51,38 @@ extension LauncherStore {
 
     func launchGame() async {
         await perform {
+            guard !installPath.isEmpty else {
+                message = "请先选择安装目录"
+                return
+            }
             let client = try requireClient()
-            let _: EmptyResponse = try await client.post("/v1/game/launch")
+            let request = StartGameLaunchRequest(
+                installPath: installPath,
+                performanceProfile: gamePerformanceProfile,
+                metalHud: metalHudEnabled,
+                framePacing: Self.preferredFrameRate(for: NSScreen.main?.maximumFramesPerSecond ?? 0)
+            )
+            let launch: GameLaunch = try await client.post("/v1/game/launch", body: request)
+            gameLaunch = launch
+            Task { await self.pollLaunch(launch.id, client: client) }
+        }
+    }
+
+    nonisolated static func preferredFrameRate(for maximum: Int) -> Int {
+        guard maximum >= 60 else { return 0 }
+        return maximum % 60 == 0 ? maximum : 0
+    }
+
+    private func pollLaunch(_ id: String, client: APIClient) async {
+        do {
+            while !Task.isCancelled {
+                let launch: GameLaunch = try await client.get("/v1/game/launches/\(id)")
+                gameLaunch = launch
+                if [.exited, .failed].contains(launch.status) { return }
+                try await Task.sleep(for: .milliseconds(500))
+            }
+        } catch {
+            message = Self.presentableMessage(error.localizedDescription)
         }
     }
 
