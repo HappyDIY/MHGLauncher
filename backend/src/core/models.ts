@@ -31,7 +31,7 @@ export interface GameJob {
   message: string; download_speed: number; chunks_completed: number; chunks_total: number;
   active_chunks: ChunkProgress[]; last_update: string;
 }
-export type GameLaunchStatus = "preparing" | "starting" | "waiting_window" | "running" | "exited" | "failed";
+export type GameLaunchStatus = "preparing" | "starting" | "waiting_window" | "running" | "stopping" | "stopped" | "exited" | "failed";
 export type GamePerformanceProfile = "optimized" | "compatibility" | "baseline";
 interface GameLaunchLog { sequence: number; timestamp: string; kind: "launch" | "dns"; message: string }
 export interface GameLaunch {

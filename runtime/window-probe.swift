@@ -15,7 +15,6 @@ guard let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[S
 
 for window in windows {
   guard let owner = window[kCGWindowOwnerPID as String] as? NSNumber,
-        getpgid(owner.int32Value) == processGroup,
         (window[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
         (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 0 > 0,
         let bounds = window[kCGWindowBounds as String] as? [String: Any],
@@ -23,6 +22,9 @@ for window in windows {
         (bounds["Height"] as? NSNumber)?.doubleValue ?? 0 >= 360 else {
     continue
   }
+  let ownerName = (window[kCGWindowOwnerName as String] as? String ?? "").lowercased()
+  let isGameWindow = ownerName.contains("yuanshen") || ownerName.contains("genshin") || ownerName.contains("wine")
+  guard getpgid(owner.int32Value) == processGroup || isGameWindow else { continue }
   exit(0)
 }
 

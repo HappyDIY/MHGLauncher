@@ -85,6 +85,8 @@ enum GameLaunchStatus: String, Codable, Sendable {
     case starting
     case waitingWindow = "waiting_window"
     case running
+    case stopping
+    case stopped
     case exited
     case failed
 }

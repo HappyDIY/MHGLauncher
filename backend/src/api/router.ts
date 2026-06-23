@@ -50,6 +50,8 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   const gameControl = match(path, /^\/game\/jobs\/([^/]+)\/control$/);
   if (method === "POST" && gameControl) return json(app.games.control(gameControl, controlJob.parse(body).action));
   if (method === "POST" && path === "/game/launch") return json(app.launches.start(startLaunch.parse(body)), 202);
+  const launchStop = match(path, /^\/game\/launches\/([^/]+)\/stop$/);
+  if (method === "POST" && launchStop) return json(app.launches.stop(launchStop), 202);
   const launch = match(path, /^\/game\/launches\/([^/]+)$/);
   if (method === "GET" && launch) return json(app.launches.get(launch));
   if (method === "POST" && path === "/wishes/tasks/sync") return json(app.wishTasks.startSync(credential.parse(body).credential), 202);

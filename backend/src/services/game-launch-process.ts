@@ -7,7 +7,7 @@ import { launchEnvironment, runtimePaths } from "./game-launch-environment";
 
 export interface LaunchRunInput {
   gameRoot: string; runtimeRoot: string; dataDir: string; sessionDir: string;
-  profile: GamePerformanceProfile; metalHud: boolean; networkDebug: boolean; framePacing: number;
+  profile: GamePerformanceProfile; metalHud: boolean; networkDebug: boolean; framePacing: number; signal: AbortSignal;
 }
 export type LaunchReporter = (status: GameLaunchStatus, message?: string, progress?: number) => void;
 export interface GameLaunchRunner { run(input: LaunchRunInput, report: LaunchReporter): Promise<number> }
@@ -17,6 +17,7 @@ export class WineLaunchRunner implements GameLaunchRunner {
     const paths = runtimePaths(input.runtimeRoot), prefix = join(input.dataDir, "wineprefix");
     report("preparing", "正在初始化 Wine 容器", 0.3);
     this.preflight(paths.wine, paths.wineboot, paths.wineserver, paths.winemetal, prefix, input.profile);
+    if (input.signal.aborted) return 0;
     report("starting", "Wine 容器已切换为简体中文", 0.55);
     const env = launchEnvironment(
       process.env, paths, prefix, input.sessionDir, input.profile,
@@ -31,15 +32,25 @@ export class WineLaunchRunner implements GameLaunchRunner {
     closeSync(descriptor);
     child.unref(); report("waiting_window", "游戏进程已创建，正在等待窗口", 0.82);
     const gate = String(env.MHG_DNS_GATE_FILE);
+    let released = false;
+    const releaseGate = (message: string): void => {
+      if (released) return;
+      released = true; rmSync(gate, { force: true }); report("running", message, 1);
+    };
     const probe = setInterval(() => {
       if (spawnSync(paths.probe, [String(child.pid ?? 0)], { stdio: "ignore" }).status === 0) {
-        rmSync(gate, { force: true }); clearInterval(probe);
-        report("running", "游戏窗口已显示，域名屏蔽已解除", 1);
+        clearInterval(probe); releaseGate("游戏窗口已显示，域名屏蔽已解除");
       }
     }, 25);
+    const fallback = setTimeout(() => {
+      clearInterval(probe); releaseGate("窗口探针超时，已自动解除域名屏蔽");
+    }, 30_000);
     return await new Promise<number>((resolve, reject) => {
-      child.once("error", (error) => { clearInterval(probe); rmSync(gate, { force: true }); this.stopServer(paths.wineserver, prefix); reject(error); });
-      child.once("exit", (code) => { clearInterval(probe); rmSync(gate, { force: true }); this.stopServer(paths.wineserver, prefix); resolve(code ?? 1); });
+      const cleanup = (): void => { clearInterval(probe); clearTimeout(fallback); rmSync(gate, { force: true }); };
+      const stop = (): void => { cleanup(); this.stopServer(paths.wineserver, prefix); resolve(0); };
+      input.signal.addEventListener("abort", stop, { once: true });
+      child.once("error", (error) => { cleanup(); input.signal.removeEventListener("abort", stop); this.stopServer(paths.wineserver, prefix); reject(error); });
+      child.once("exit", (code) => { cleanup(); input.signal.removeEventListener("abort", stop); this.stopServer(paths.wineserver, prefix); resolve(code ?? 1); });
     });
   }
 

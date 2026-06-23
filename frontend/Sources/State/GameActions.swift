@@ -50,6 +50,9 @@ extension LauncherStore {
     }
 
     func launchGame() async {
+        guard !isLaunchingGame else { return }
+        isLaunchingGame = true
+        defer { isLaunchingGame = false }
         await perform {
             guard !installPath.isEmpty else {
                 message = "请先选择安装目录"
@@ -69,6 +72,17 @@ extension LauncherStore {
         }
     }
 
+    func stopGame() async {
+        guard let launch = gameLaunch, !isStoppingGame else { return }
+        isStoppingGame = true
+        defer { isStoppingGame = false }
+        await perform {
+            let client = try requireClient()
+            let updated: GameLaunch = try await client.post("/v1/game/launches/\(launch.id)/stop")
+            gameLaunch = updated
+        }
+    }
+
     nonisolated static func preferredFrameRate(for maximum: Int) -> Int {
         guard maximum >= 60 else { return 0 }
         return maximum % 60 == 0 ? maximum : 0
@@ -79,7 +93,7 @@ extension LauncherStore {
             while !Task.isCancelled {
                 let launch: GameLaunch = try await client.get("/v1/game/launches/\(id)")
                 gameLaunch = launch
-                if [.exited, .failed].contains(launch.status) { return }
+                if [.stopped, .exited, .failed].contains(launch.status) { return }
                 try await Task.sleep(for: .milliseconds(200))
             }
         } catch {

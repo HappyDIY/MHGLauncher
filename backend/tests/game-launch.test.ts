@@ -14,7 +14,7 @@ class FixtureRunner implements GameLaunchRunner {
   constructor(private readonly code = 0) {}
   async run(input: LaunchRunInput, report: LaunchReporter): Promise<number> {
     if (input.networkDebug) {
-      writeFileSync(join(input.sessionDir, "dns.log"), "1782140400000\t4321\tgetaddrinfo\texample.com\tallowed\t0\n");
+      writeFileSync(join(input.sessionDir, "dns.log"), "1782140400000\t4321\tgetaddrinfo/A\texample.com\tallowed\t0\t1.2.3.4\n");
     }
     report("starting", "正在创建游戏进程", 0.68);
     report("waiting_window", "正在等待窗口", 0.82);
@@ -35,7 +35,7 @@ describe("游戏启动会话", () => {
     expect(service.get(launch.id)).toMatchObject({ status: "exited", metal_hud: true, progress: 1 });
     expect(service.get(launch.id).logs.map((entry) => entry.message)).toContain("域名屏蔽已解除");
     expect(service.get(launch.id).logs.map((entry) => entry.message)).toContain(
-      "DNS · PID 4321 · getaddrinfo · example.com · 成功",
+      "DNS · PID 4321 · getaddrinfo/A · example.com · 成功 → 1.2.3.4",
     );
   });
 

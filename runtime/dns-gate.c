@@ -24,7 +24,7 @@ static int blocked(const char *name) {
          strcasecmp(name, "dispatchosglobal.yuanshen.com") == 0;
 }
 
-static void log_query(const char *api, const char *name, int denied, int result) {
+static void log_query(const char *api, const char *name, int denied, int result, const char *address) {
   const char *path = getenv("MHG_DNS_LOG_FILE");
   if (path == NULL || name == NULL) return;
   char host[512];
@@ -37,9 +37,10 @@ static void log_query(const char *api, const char *name, int denied, int result)
   struct timeval time;
   gettimeofday(&time, NULL);
   char line[768];
-  int length = snprintf(line, sizeof(line), "%lld\t%d\t%s\t%s\t%s\t%d\n",
+  int length = snprintf(line, sizeof(line), "%lld\t%d\t%s\t%s\t%s\t%d\t%s\n",
                         (long long)time.tv_sec * 1000 + time.tv_usec / 1000,
-                        getpid(), api, host, denied ? "blocked" : "allowed", result);
+                        getpid(), api, host, denied ? "blocked" : "allowed", result,
+                        address == NULL ? "" : address);
   if (length <= 0) return;
   int descriptor = open(path, O_WRONLY | O_APPEND | O_CREAT, 0600);
   if (descriptor < 0) return;
@@ -50,34 +51,45 @@ static void log_query(const char *api, const char *name, int denied, int result)
 static int mhg_getaddrinfo(const char *name, const char *service,
                            const struct addrinfo *hints, struct addrinfo **result) {
   int denied = blocked(name);
-  if (denied) { log_query("getaddrinfo", name, 1, EAI_NONAME); return EAI_NONAME; }
+  const char *api = hints != NULL && hints->ai_family == AF_INET6 ? "getaddrinfo/AAAA" :
+                    hints != NULL && hints->ai_family == AF_INET ? "getaddrinfo/A" : "getaddrinfo/ANY";
+  if (denied) { log_query(api, name, 1, EAI_NONAME, NULL); return EAI_NONAME; }
   int code = getaddrinfo(name, service, hints, result);
-  log_query("getaddrinfo", name, 0, code);
+  char address[NI_MAXHOST] = "";
+  if (code == 0 && result != NULL && *result != NULL) {
+    getnameinfo((*result)->ai_addr, (*result)->ai_addrlen, address, sizeof(address), NULL, 0, NI_NUMERICHOST);
+  }
+  log_query(api, name, 0, code, address);
   return code;
 }
 
 static struct hostent *mhg_gethostbyname(const char *name) {
   int denied = blocked(name);
-  if (denied) { h_errno = HOST_NOT_FOUND; log_query("gethostbyname", name, 1, h_errno); return NULL; }
+  if (denied) { h_errno = HOST_NOT_FOUND; log_query("gethostbyname", name, 1, h_errno, NULL); return NULL; }
   struct hostent *result = gethostbyname(name);
-  log_query("gethostbyname", name, 0, result == NULL ? h_errno : 0);
+  char address[INET6_ADDRSTRLEN] = "";
+  if (result != NULL && result->h_addr_list[0] != NULL) inet_ntop(result->h_addrtype, result->h_addr_list[0], address, sizeof(address));
+  log_query("gethostbyname", name, 0, result == NULL ? h_errno : 0, address);
   return result;
 }
 
 static struct hostent *mhg_gethostbyname2(const char *name, int family) {
   int denied = blocked(name);
-  if (denied) { h_errno = HOST_NOT_FOUND; log_query("gethostbyname2", name, 1, h_errno); return NULL; }
+  if (denied) { h_errno = HOST_NOT_FOUND; log_query("gethostbyname2", name, 1, h_errno, NULL); return NULL; }
   struct hostent *result = gethostbyname2(name, family);
-  log_query("gethostbyname2", name, 0, result == NULL ? h_errno : 0);
+  char address[INET6_ADDRSTRLEN] = "";
+  if (result != NULL && result->h_addr_list[0] != NULL) inet_ntop(result->h_addrtype, result->h_addr_list[0], address, sizeof(address));
+  log_query("gethostbyname2", name, 0, result == NULL ? h_errno : 0, address);
   return result;
 }
 
 static int mhg_res_query(const char *name, int dns_class, int type,
                          unsigned char *answer, int length) {
   int denied = blocked(name);
-  if (denied) { h_errno = HOST_NOT_FOUND; log_query("res_query", name, 1, h_errno); return -1; }
+  if (denied) { h_errno = HOST_NOT_FOUND; log_query("res_query", name, 1, h_errno, NULL); return -1; }
   int result = res_query(name, dns_class, type, answer, length);
-  log_query("res_query", name, 0, result < 0 ? h_errno : 0);
+  log_query(type == ns_t_aaaa ? "res_query/AAAA" : type == ns_t_a ? "res_query/A" : "res_query", name,
+            0, result < 0 ? h_errno : 0, NULL);
   return result;
 }
 
@@ -90,3 +102,4 @@ MHG_INTERPOSE(mhg_getaddrinfo, getaddrinfo);
 MHG_INTERPOSE(mhg_gethostbyname, gethostbyname);
 MHG_INTERPOSE(mhg_gethostbyname2, gethostbyname2);
 MHG_INTERPOSE(mhg_res_query, res_query);
+#include <arpa/inet.h>

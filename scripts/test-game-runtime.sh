@@ -31,9 +31,9 @@ fi
 "$stage/resolver" localhost
 rm "$gate"
 "$stage/resolver" dispatchcnglobal.yuanshen.com
-grep -q $'getaddrinfo\tdispatchcnglobal.yuanshen.com\tblocked' "$dns_log"
-grep -q $'getaddrinfo\tdispatchcnglobal.yuanshen.com\tallowed\t0' "$dns_log"
-grep -q $'res_query\tdispatchosglobal.yuanshen.com\tblocked' "$dns_log"
+grep -q $'getaddrinfo/ANY\tdispatchcnglobal.yuanshen.com\tblocked' "$dns_log"
+grep -q $'getaddrinfo/ANY\tdispatchcnglobal.yuanshen.com\tallowed\t0\t' "$dns_log"
+grep -q $'res_query/A\tdispatchosglobal.yuanshen.com\tblocked' "$dns_log"
 unset DYLD_INSERT_LIBRARIES MHG_DNS_GATE_FILE MHG_DNS_GATE_OWNER_PID MHG_DNS_LOG_FILE
 
 if "$stage/window-probe" invalid; then

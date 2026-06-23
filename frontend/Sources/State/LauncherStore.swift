@@ -13,6 +13,8 @@ final class LauncherStore {
     var gameState: GameState?
     var gameJob: GameJob?
     var gameLaunch: GameLaunch?
+    var isLaunchingGame = false
+    var isStoppingGame = false
     var gamePerformanceProfile = GamePerformanceProfile(
         rawValue: UserDefaults.standard.string(forKey: "gamePerformanceProfile") ?? ""
     ) ?? .optimized {

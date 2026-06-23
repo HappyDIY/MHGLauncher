@@ -16,6 +16,7 @@ export interface StartLaunch {
 export class GameLaunchService {
   private readonly launches = new Map<string, GameLaunch>();
   private readonly dnsLines = new Map<string, number>();
+  private readonly controllers = new Map<string, AbortController>();
   constructor(
     private readonly dataDir: string,
     private readonly runtimeRoot: string,
@@ -26,7 +27,7 @@ export class GameLaunchService {
 
   start(input: StartLaunch): GameLaunch {
     if (this.resourcesBusy()) throw new AppError("game_job_busy", "游戏资源任务运行期间无法启动游戏", 409);
-    if ([...this.launches.values()].some((value) => !["exited", "failed"].includes(value.status))) {
+    if ([...this.launches.values()].some((value) => !["exited", "stopped", "failed"].includes(value.status))) {
       throw new AppError("game_launch_busy", "游戏正在启动或运行", 409);
     }
     const detected = detectGame(input.install_path);
@@ -39,7 +40,8 @@ export class GameLaunchService {
       started_at: now, updated_at: now,
     };
     this.launches.set(launch.id, launch); this.persist(launch);
-    void this.execute(launch, detected.path, input.frame_pacing);
+    const controller = new AbortController(); this.controllers.set(launch.id, controller);
+    void this.execute(launch, detected.path, input.frame_pacing, controller.signal);
     return launch;
   }
 
@@ -50,7 +52,15 @@ export class GameLaunchService {
     return launch;
   }
 
-  private async execute(launch: GameLaunch, gameRoot: string, framePacing: number): Promise<void> {
+  stop(id: string): GameLaunch {
+    const launch = this.get(id);
+    if (["exited", "stopped", "failed"].includes(launch.status)) return launch;
+    this.update(launch, "stopping", "正在安全停止游戏并恢复临时文件");
+    this.controllers.get(id)?.abort();
+    return launch;
+  }
+
+  private async execute(launch: GameLaunch, gameRoot: string, framePacing: number, signal: AbortSignal): Promise<void> {
     const sessionDir = join(this.dataDir, "launches", launch.id);
     let journal: DllJournal | null = null;
     try {
@@ -60,14 +70,19 @@ export class GameLaunchService {
       const code = await this.runner.run({
         gameRoot, runtimeRoot: this.runtimeRoot, dataDir: this.dataDir, sessionDir,
         profile: launch.performance_profile, metalHud: launch.metal_hud,
-        networkDebug: launch.network_debug, framePacing,
+        networkDebug: launch.network_debug, framePacing, signal,
       }, (status, message = "", progress) => this.update(launch, status, message, progress));
       const warning = restoreDll(journal);
-      this.update(launch, code === 0 ? "exited" : "failed", warning || (code === 0 ? "游戏已正常退出" : `游戏进程退出码：${code}`), 1);
+      const stopped = launch.status === "stopping";
+      const status = stopped ? "stopped" : code === 0 ? "exited" : "failed";
+      const message = stopped ? "游戏已停止，临时文件已恢复" : code === 0 ? "游戏已正常退出" : `游戏进程退出码：${code}`;
+      this.update(launch, status, warning || message, 1);
     } catch (error) {
       const warning = restoreDll(journal);
       const message = error instanceof Error ? error.message : "游戏启动失败";
       this.update(launch, "failed", warning ? `${message}；${warning}` : message);
+    } finally {
+      this.controllers.delete(launch.id);
     }
   }
 
@@ -85,9 +100,9 @@ export class GameLaunchService {
     const lines = readFileSync(path, "utf8").split("\n").filter(Boolean);
     const offset = this.dnsLines.get(launch.id) ?? 0;
     for (const line of lines.slice(offset)) {
-      const [milliseconds, pid, api, host, action, result] = line.split("\t");
+      const [milliseconds, pid, api, host, action, result, address] = line.split("\t");
       if (!milliseconds || !pid || !api || !host || !action || result === undefined) continue;
-      const state = action === "blocked" ? "屏蔽" : Number(result) === 0 ? "成功" : `失败 ${result}`;
+      const state = action === "blocked" ? "屏蔽" : Number(result) === 0 ? `成功${address ? ` → ${address}` : ""}` : `未找到 ${result}`;
       launch.logs.push({
         sequence: launch.logs.length + 1, timestamp: new Date(Number(milliseconds)).toISOString(), kind: "dns",
         message: `DNS · PID ${pid} · ${api} · ${host} · ${state}`,
