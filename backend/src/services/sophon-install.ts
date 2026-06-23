@@ -22,16 +22,20 @@ export async function installSophon(
       releaseChunks(asset.chunks, cache, references); continue;
     }
     const chunks = await concurrentMap(asset.chunks, workers, (chunk) => getChunk(chunk, cache, control, progress, chunkProgress));
-    ensureParent(target); const descriptor = openSync(target, "w");
+    ensureParent(target); const temporary = `${target}.${process.pid}.mhg-installing`; rmSync(temporary, { force: true });
     try {
-      for (let index = 0; index < chunks.length; index += 1) {
-        const chunk = asset.chunks[index], path = chunks[index]; if (!chunk || !path) continue;
-        const decoded = zstdDecompressSync(readFileSync(path));
-        if (decoded.length !== chunk.decompressed_size || createHash("md5").update(decoded).digest("hex") !== chunk.decompressed_md5.toLowerCase()) throw new AppError("sophon_chunk_content_invalid", `${chunk.name} 内容校验失败`);
-        writeSync(descriptor, decoded, 0, decoded.length, chunk.offset);
-      }
-    } finally { closeSync(descriptor); }
-    if (statSync(target).size !== asset.size || md5(target) !== asset.md5.toLowerCase()) { rmSync(target); throw new AppError("sophon_asset_invalid", `${asset.name} 文件校验失败`); }
+      const descriptor = openSync(temporary, "w");
+      try {
+        for (let index = 0; index < chunks.length; index += 1) {
+          const chunk = asset.chunks[index], path = chunks[index]; if (!chunk || !path) continue;
+          const decoded = zstdDecompressSync(readFileSync(path));
+          if (decoded.length !== chunk.decompressed_size || createHash("md5").update(decoded).digest("hex") !== chunk.decompressed_md5.toLowerCase()) throw new AppError("sophon_chunk_content_invalid", `${chunk.name} 内容校验失败`);
+          writeSync(descriptor, decoded, 0, decoded.length, chunk.offset);
+        }
+      } finally { closeSync(descriptor); }
+      if (statSync(temporary).size !== asset.size || md5(temporary) !== asset.md5.toLowerCase()) throw new AppError("sophon_asset_invalid", `${asset.name} 文件校验失败`);
+      renameSync(temporary, target);
+    } catch (error) { rmSync(temporary, { force: true }); throw error; }
     releaseChunks(asset.chunks, cache, references);
   }
 }

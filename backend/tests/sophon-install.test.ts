@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { zstdCompressSync } from "node:zlib";
@@ -23,6 +23,22 @@ test("安装成功后释放分块缓存", async () => {
   expect(readFileSync(join(staging, "second.bin"))).toEqual(content);
   expect(existsSync(join(cache, name))).toBe(false);
   expect(fetch).toHaveBeenCalledTimes(1);
+  vi.unstubAllGlobals();
+});
+
+test("修复失败时保留原文件", async () => {
+  const root = mkdtempSync(join(tmpdir(), "sophon-atomic-")), cache = join(root, "cache"), target = join(root, "game.bin");
+  const content = Buffer.from("新内容"), compressed = zstdCompressSync(content);
+  const prefix = (await xxhash()).h64Raw(compressed).toString(16).padStart(16, "0"), name = `${prefix}_atomic`;
+  const chunk = { name, decompressed_md5: md5(content), offset: 0, size: compressed.length, decompressed_size: content.length, url: "https://fixture/chunk" };
+  const asset: GameAsset = { name: "game.bin", size: content.length, md5: "0".repeat(32), chunks: [chunk] };
+  writeFileSync(target, "原文件");
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(compressed)));
+
+  await expect(installSophon([asset], root, cache, new DownloadControl(), () => undefined, () => undefined)).rejects.toThrow("文件校验失败");
+
+  expect(readFileSync(target, "utf8")).toBe("原文件");
+  expect(existsSync(`${target}.${process.pid}.mhg-installing`)).toBe(false);
   vi.unstubAllGlobals();
 });
 

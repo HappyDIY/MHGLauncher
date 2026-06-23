@@ -49,7 +49,7 @@ export class GameService {
       active_chunks: [], last_update: "",
     };
     const control = new DownloadControl(); this.jobs.set(job.id, job); this.controls.set(job.id, control);
-    void this.run(job, control, root, build);
+    setImmediate(() => void this.run(job, control, root, build));
     return job;
   }
 
@@ -71,11 +71,12 @@ export class GameService {
 
   private async run(job: GameJob, control: DownloadControl, path: string, build: GameBuild): Promise<void> {
     job.status = "running";
+    const inPlace = job.kind !== "install" && build.kind === "package_repair";
     try {
-      const cache = join(this.dataDir, "downloads", build.version), staging = `${path}.staging`;
+      const cache = join(this.dataDir, "downloads", build.version), staging = inPlace ? path : `${path}.staging`;
       const marker = join(staging, ".mhg-staging-version");
-      const resumable = existsSync(marker) && readFileSync(marker, "utf8").trim() === build.version;
-      if (!resumable) { stageExisting(job.kind === "update" ? path : "", staging); writeFileSync(marker, build.version); }
+      const resumable = !inPlace && existsSync(marker) && readFileSync(marker, "utf8").trim() === build.version;
+      if (!inPlace && !resumable) { stageExisting(job.kind === "update" ? path : "", staging); writeFileSync(marker, build.version); }
       mkdirSync(cache, { recursive: true });
       if (job.kind === "update" && build.kind !== "package_repair") removeRetired(staging, build);
       let speedBytes = 0, speedStarted = Date.now();
@@ -101,18 +102,19 @@ export class GameService {
       if (!existsSync(join(staging, "YuanShen.exe"))) {
         throw new AppError("game_install_incomplete", "资源安装完成后仍缺少 YuanShen.exe，未激活不完整目录");
       }
-      rmSync(marker, { force: true });
+      if (!inPlace) rmSync(marker, { force: true });
       writeFileSync(join(staging, ".mhg-version"), build.version);
       ensureGameConfiguration(staging, build.version);
       writeIntegrityIndex(staging, build);
       if (build.assets.length && build.kind !== "package_repair") writeFileSync(join(staging, ".mhg-assets.json"), JSON.stringify(build.assets.map(({ name }) => name)));
-      activate(staging, path); this.saveState(path, build.version); rmSync(cache, { recursive: true, force: true });
+      if (!inPlace) activate(staging, path);
+      this.saveState(path, build.version); rmSync(cache, { recursive: true, force: true });
       job.completed_bytes = job.total_bytes; job.download_speed = 0; job.status = "completed";
     } catch (error) {
       job.download_speed = 0; job.status = error instanceof DOMException && error.name === "AbortError" ? "cancelled" : "failed";
       job.message = error instanceof Error ? error.message : "游戏任务失败";
     } finally {
-      if (job.status === "cancelled" || job.status === "completed") rmSync(`${path}.staging`, { recursive: true, force: true });
+      if (!inPlace && (job.status === "cancelled" || job.status === "completed")) rmSync(`${path}.staging`, { recursive: true, force: true });
     }
   }
 
