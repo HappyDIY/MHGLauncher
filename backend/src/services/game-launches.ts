@@ -41,7 +41,7 @@ export class GameLaunchService {
     };
     this.launches.set(launch.id, launch); this.persist(launch);
     const controller = new AbortController(); this.controllers.set(launch.id, controller);
-    void this.execute(launch, detected.path, input.frame_pacing, controller.signal);
+    setImmediate(() => void this.execute(launch, detected.path, input.frame_pacing, controller.signal));
     return launch;
   }
 

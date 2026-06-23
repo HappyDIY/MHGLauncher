@@ -15,6 +15,7 @@ export interface GameLaunchRunner { run(input: LaunchRunInput, report: LaunchRep
 export class WineLaunchRunner implements GameLaunchRunner {
   async run(input: LaunchRunInput, report: LaunchReporter): Promise<number> {
     const paths = runtimePaths(input.runtimeRoot), prefix = join(input.dataDir, "wineprefix");
+    if (input.signal.aborted) return 0;
     report("preparing", "正在初始化 Wine 容器", 0.3);
     this.preflight(paths.wine, paths.wineboot, paths.wineserver, paths.winemetal, prefix, input.profile);
     if (input.signal.aborted) return 0;
