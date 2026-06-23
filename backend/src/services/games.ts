@@ -43,7 +43,6 @@ export class GameService {
     if (kind === "update" && !detected) throw new AppError("game_not_installed", "所选目录中未检测到可更新的原神客户端");
     const root = detected?.path ?? resolve(path);
     const build = prepareBuild(await this.provider.getBuild(detected?.version ?? "", audioLanguages(root)), detected?.path ?? "", detected?.version ?? "");
-    if (build.kind === "game_hotfix") throw new AppError("game_hotfix_pending", "检测到游戏内热更新清单，请先启动原神完成资源应用", 409);
     const job: GameJob = {
       id: randomUUID(), kind, status: "queued", completed_bytes: 0, total_bytes: size(build), message: "",
       download_speed: 0, chunks_completed: 0, chunks_total: build.assets.reduce((n, value) => n + value.chunks.length, 0),

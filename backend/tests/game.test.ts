@@ -20,9 +20,9 @@ test("仅有版本标记不视为已安装", async () => {
   expect((await response.json()).status).toBe("not_installed");
 });
 test("未安装时禁止更新", async () => expect((await request("POST", "/v1/game/jobs", { kind: "update", install_path: "/tmp/missing" })).status).toBe(400));
-test("热更新清单阻止资源操作", () => {
+test("常驻资源目录清单不视为待下载内容", () => {
   const root = mkdtempSync(join(tmpdir(), "hotfix-")), persistent = join(root, "YuanShen_Data/Persistent"); mkdirSync(persistent, { recursive: true });
   writeFileSync(join(persistent, "data_versions_remote"), JSON.stringify({ fileSize: 12 }));
-  expect(prepareBuild(normalizeBuild({ version: "1" }), root, "1")).toMatchObject({ kind: "game_hotfix", pending_bytes: 12 });
+  expect(prepareBuild(normalizeBuild({ version: "1" }), root, "1")).toMatchObject({ kind: "full", pending_bytes: 0 });
 });
 test("无热更新保持构建", () => expect(prepareBuild(normalizeBuild({ version: "1" }), "/tmp/missing", "1").kind).toBe("full"));
