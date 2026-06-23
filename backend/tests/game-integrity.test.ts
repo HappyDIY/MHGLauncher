@@ -12,6 +12,7 @@ const asset = (name: string, content: string): GameAsset => ({
 
 test("已验证索引使用元数据快速校验并发现变化", () => {
   const root = mkdtempSync(join(tmpdir(), "integrity-")), value = asset("data.bin", "abc");
+  writeFileSync(join(root, "pkg_version"), JSON.stringify({ remoteName: value.name, md5: value.md5 }));
   writeFileSync(join(root, value.name), "abc");
   writeIntegrityIndex(root, normalizeBuild({ version: "1", assets: [value] }));
   expect(selectInvalidAssets(root, [value])).toEqual([]);

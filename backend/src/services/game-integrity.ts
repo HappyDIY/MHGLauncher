@@ -28,7 +28,7 @@ function fastValid(
   const stat = statSync(path, { bigint: true });
   if (!stat.isFile() || stat.size !== BigInt(asset.size)) return false;
   const expected = asset.md5.toLowerCase(), saved = index?.assets[name];
-  if (saved?.md5 === expected && saved.size === asset.size && saved.mtime_ns === stat.mtimeNs.toString()) return true;
+  if (saved) return saved.md5 === expected && saved.size === asset.size && saved.mtime_ns === stat.mtimeNs.toString();
   return packageHashes.get(name) === expected;
 }
 
