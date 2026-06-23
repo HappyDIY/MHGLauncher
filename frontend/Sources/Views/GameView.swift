@@ -52,18 +52,7 @@ struct GameView: View {
             if let job = store.gameJob {
                 jobCard(job)
             }
-            HStack {
-                Button("安装") {
-                    Task { await store.startGameJob(.install) }
-                }
-                .disabled(store.gameState?.status != .notInstalled)
-                Button("更新") {
-                    Task { await store.startGameJob(.update) }
-                }
-                .disabled(store.gameState?.status != .updateAvailable)
-                Spacer()
-            }
-            .buttonStyle(.glassProminent)
+            GameResourceActionButtons(store: store)
             Spacer()
         }
         .onReceive(ticker) { _ in tick &+= 1 }

@@ -12,6 +12,7 @@ final class LauncherStore {
     var roles: [GameRole] = []
     var gameState: GameState?
     var gameJob: GameJob?
+    var pendingGameJobKind: JobKind?
     var gameLaunch: GameLaunch?
     var isLaunchingGame = false
     var isStoppingGame = false
