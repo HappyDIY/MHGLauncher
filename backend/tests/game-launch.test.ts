@@ -23,6 +23,13 @@ class FixtureRunner implements GameLaunchRunner {
   }
 }
 
+class BlockingRunner implements GameLaunchRunner {
+  async run(input: LaunchRunInput, report: LaunchReporter): Promise<number> {
+    report("running", "游戏窗口已显示", 1);
+    return await new Promise((resolve) => input.signal.addEventListener("abort", () => resolve(0), { once: true }));
+  }
+}
+
 describe("游戏启动会话", () => {
   afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
@@ -45,6 +52,16 @@ describe("游戏启动会话", () => {
     const launch = service.start({ install_path: fixture.game, performance_profile: "compatibility", metal_hud: false, network_debug: false, frame_pacing: 0 });
     await waitFor(() => service.get(launch.id).status === "exited");
     expect(existsSync(join(fixture.game, "mhypbase.dll"))).toBe(false);
+  });
+
+  test("停止游戏后终止会话并恢复 DLL", async () => {
+    const fixture = makeFixture();
+    const service = new GameLaunchService(fixture.data, fixture.runtime, new BlockingRunner(), fixture.integrity);
+    const launch = service.start({ install_path: fixture.game, performance_profile: "optimized", metal_hud: false, network_debug: false, frame_pacing: 0 });
+    await waitFor(() => service.get(launch.id).status === "running");
+    expect(service.stop(launch.id).status).toBe("stopping");
+    await waitFor(() => service.get(launch.id).status === "stopped");
+    expect(readFileSync(join(fixture.game, "mhypbase.dll"), "utf8")).toBe("original-dll");
   });
 
   test("下次服务启动恢复中断的 DLL 事务", () => {
