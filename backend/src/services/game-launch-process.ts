@@ -25,6 +25,8 @@ export class WineLaunchRunner implements GameLaunchRunner {
       input.metalHud, input.networkDebug, input.framePacing,
     );
     report("starting", "正在创建游戏进程", 0.68);
+    const snapshot = spawnSync(paths.probe, ["--snapshot"], { encoding: "utf8" }).stdout
+      .trim().split("\n").filter(Boolean).join(",");
     const logDir = join(input.dataDir, "logs"); mkdirSync(logDir, { recursive: true, mode: 0o700 });
     const descriptor = openSync(join(logDir, "game-launch.log"), "a", 0o600);
     const child = spawn(paths.wine, [join(input.gameRoot, "YuanShen.exe"), "-force-d3d11"], {
@@ -39,7 +41,7 @@ export class WineLaunchRunner implements GameLaunchRunner {
       released = true; rmSync(gate, { force: true }); report("running", message, 1);
     };
     const probe = setInterval(() => {
-      if (spawnSync(paths.probe, [String(child.pid ?? 0)], { stdio: "ignore" }).status === 0) {
+      if (spawnSync(paths.probe, [String(child.pid ?? 0), snapshot], { stdio: "ignore" }).status === 0) {
         clearInterval(probe); releaseGate("游戏窗口已显示，域名屏蔽已解除");
       }
     }, 25);
@@ -65,7 +67,8 @@ export class WineLaunchRunner implements GameLaunchRunner {
     mkdirSync(prefix, { recursive: true, mode: 0o700 });
     this.stopServer(wineserver, prefix);
     const localeEnv = {
-      ...process.env, LANG: "zh_CN.UTF-8", LC_ALL: "zh_CN.UTF-8",
+      ...process.env, LANG: "zh_CN.UTF-8", LANGUAGE: "zh_CN:zh",
+      LC_ALL: "zh_CN.UTF-8", LC_MESSAGES: "zh_CN.UTF-8",
       WINEPREFIX: prefix, WINEARCH: "win64", WINEDEBUG: "-all",
       WINEMSYNC: profile === "optimized" ? "1" : "0", WINEESYNC: profile === "compatibility" ? "1" : "0",
     };
@@ -83,13 +86,18 @@ export class WineLaunchRunner implements GameLaunchRunner {
   }
 
   private configureChineseLocale(wine: string, env: NodeJS.ProcessEnv): void {
-    const values: Array<[string, string, string]> = [
-      ["HKCU\\Control Panel\\International", "LocaleName", "zh-CN"],
-      ["HKCU\\Control Panel\\International", "Locale", "00000804"],
-      ["HKCU\\Control Panel\\Desktop", "PreferredUILanguages", "zh-CN"],
+    const values: Array<[string, string, string, string]> = [
+      ["HKCU\\Control Panel\\International", "LocaleName", "REG_SZ", "zh-CN"],
+      ["HKCU\\Control Panel\\International", "Locale", "REG_SZ", "00000804"],
+      ["HKCU\\Control Panel\\Desktop", "PreferredUILanguages", "REG_MULTI_SZ", "zh-CN"],
+      ["HKCU\\Control Panel\\International\\User Profile", "Languages", "REG_MULTI_SZ", "zh-Hans-CN"],
+      ["HKLM\\System\\CurrentControlSet\\Control\\Nls\\Language", "Default", "REG_SZ", "0804"],
+      ["HKLM\\System\\CurrentControlSet\\Control\\Nls\\Language", "InstallLanguage", "REG_SZ", "0804"],
+      ["HKLM\\System\\CurrentControlSet\\Control\\Nls\\CodePage", "ACP", "REG_SZ", "936"],
+      ["HKLM\\System\\CurrentControlSet\\Control\\Nls\\CodePage", "OEMCP", "REG_SZ", "936"],
     ];
-    for (const [key, name, value] of values) {
-      const result = spawnSync(wine, ["reg", "add", key, "/v", name, "/t", "REG_SZ", "/d", value, "/f"], {
+    for (const [key, name, type, value] of values) {
+      const result = spawnSync(wine, ["reg", "add", key, "/v", name, "/t", type, "/d", value, "/f"], {
         env, stdio: "ignore",
       });
       if (result.status !== 0) throw new AppError("wine_locale_failed", "Wine 中文环境配置失败", 500);
