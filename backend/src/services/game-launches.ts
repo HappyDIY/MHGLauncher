@@ -6,6 +6,7 @@ import type { GameLaunch, GamePerformanceProfile } from "../core/models";
 import { type DllIntegrity, type DllJournal, MHYPBASE_INTEGRITY, prepareDll, restoreDll } from "./game-launch-files";
 import { type GameLaunchRunner, WineLaunchRunner } from "./game-launch-process";
 import { recoverInterruptedDlls } from "./game-launch-recovery";
+import { ensureGameConfiguration } from "./game-config";
 import { detectGame } from "./games";
 
 export interface StartLaunch {
@@ -32,6 +33,7 @@ export class GameLaunchService {
     }
     const detected = detectGame(input.install_path);
     if (!detected) throw new AppError("game_not_installed", "所选目录中未检测到可启动的原神客户端", 409);
+    ensureGameConfiguration(detected.path, detected.version);
     const now = new Date().toISOString();
     const launch: GameLaunch = {
       id: randomUUID(), status: "preparing", message: "", performance_profile: input.performance_profile,

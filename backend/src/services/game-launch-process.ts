@@ -4,6 +4,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { AppError } from "../core/errors";
 import type { GameLaunchStatus, GamePerformanceProfile } from "../core/models";
 import { launchEnvironment, runtimePaths } from "./game-launch-environment";
+import { configureChineseGameLanguage } from "./game-launch-language";
 
 export interface LaunchRunInput {
   gameRoot: string; runtimeRoot: string; dataDir: string; sessionDir: string;
@@ -80,6 +81,7 @@ export class WineLaunchRunner implements GameLaunchRunner {
       if (result.status !== 0) throw new AppError("wineprefix_init_failed", "Wine 运行环境初始化失败", 500);
     }
     this.configureChineseLocale(wine, localeEnv);
+    configureChineseGameLanguage(wine, localeEnv);
     this.stopServer(wineserver, prefix);
     const system32 = join(prefix, "drive_c", "windows", "system32"); mkdirSync(system32, { recursive: true });
     copyFileSync(winemetal, join(system32, "winemetal.dll"));

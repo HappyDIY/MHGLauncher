@@ -25,27 +25,29 @@ export function decodeSophonManifest(buffer: Uint8Array): JSONValue {
 }
 
 export class Sophon {
-  private cached?: { time: number; version: string; build: GameBuild };
+  private cached?: { time: number; key: string; build: GameBuild };
 
-  async build(version = ""): Promise<GameBuild> {
-    if (this.cached?.version === version && Date.now() - this.cached.time < 300_000) return this.cached.build;
+  async build(version = "", audioLanguages = ["zh-cn"]): Promise<GameBuild> {
+    const languages = [...new Set(audioLanguages)].sort(), key = `${version}:${languages.join(",")}`;
+    if (this.cached?.key === key && Date.now() - this.cached.time < 300_000) return this.cached.build;
     const branch = await this.branch();
-    const build = (branch.diff_tags as string[] ?? []).includes(version) ? await this.patchBuild(branch, version) : await this.fullBuild(branch);
-    this.cached = { time: Date.now(), version, build }; return build;
+    const build = (branch.diff_tags as string[] ?? []).includes(version)
+      ? await this.patchBuild(branch, version, languages) : await this.fullBuild(branch, languages);
+    this.cached = { time: Date.now(), key, build }; return build;
   }
 
-  private async fullBuild(branch: JSONValue): Promise<GameBuild> {
+  private async fullBuild(branch: JSONValue, languages: string[]): Promise<GameBuild> {
     const query = new URLSearchParams({ branch: String(branch.branch), package_id: String(branch.package_id), password: String(branch.password), tag: String(branch.tag) });
     const data = await this.data(`https://downloader-api.mihoyo.com/downloader/sophon_chunk/api/getBuild?${query}`);
     const assets: GameAsset[] = [];
-    for (const item of this.selected(data)) assets.push(...await this.assets(item));
+    for (const item of this.selected(data, languages)) assets.push(...await this.assets(item));
     return normalizeBuild({ version: String(data.tag), assets });
   }
 
-  private async patchBuild(branch: JSONValue, version: string): Promise<GameBuild> {
+  private async patchBuild(branch: JSONValue, version: string, languages: string[]): Promise<GameBuild> {
     const data = await this.data("https://downloader-api.mihoyo.com/downloader/sophon_chunk/api/getPatchBuild", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(branch) });
     const patch_assets: GamePatchAsset[] = [], deprecated_files: string[] = [];
-    for (const item of this.selected(data)) {
+    for (const item of this.selected(data, languages)) {
       const manifest = await this.manifest(item, "PatchManifest") as JSONValue;
       for (const file of manifest.file_datas as JSONValue[] ?? []) {
         const info = (file.patches_entries as JSONValue[] ?? []).find((entry) => entry.key === version)?.patch_info as JSONValue | undefined;
@@ -82,7 +84,10 @@ export class Sophon {
     const model = root.lookupType(type); return model.toObject(model.decode(decoded), { longs: Number, defaults: true });
   }
 
-  private selected(data: JSONValue): JSONValue[] { return (data.manifests as JSONValue[] ?? []).filter((item) => ["game", "zh-cn"].includes(String(item.matching_field))); }
+  private selected(data: JSONValue, languages: string[]): JSONValue[] {
+    const selected = new Set(["game", ...languages]);
+    return (data.manifests as JSONValue[] ?? []).filter((item) => selected.has(String(item.matching_field)));
+  }
   private url(download: JSONValue, name: string): string { const prefix = String(download.url_prefix).replace(/\/$/, ""), suffix = String(download.url_suffix ?? ""); return `${prefix}/${name}${suffix && !suffix.startsWith("?") ? "?" : ""}${suffix}`; }
   private async data(url: string, init?: RequestInit): Promise<JSONValue> { const response = await fetch(url, init), payload = await response.json() as JSONValue; if (!response.ok || Number(payload.retcode ?? 0) !== 0) throw new AppError("mihoyo_error", String(payload.message || "下载服务请求失败"), 502); return payload.data as JSONValue ?? {}; }
 }

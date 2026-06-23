@@ -10,6 +10,8 @@ import { activate, extract, stageExisting, verify } from "./installer";
 import { installSophon } from "./sophon-install";
 import { installPatches } from "./patch-install";
 import { prepareBuild, removeRetired, removeSafe } from "./game-build";
+import { ensureGameConfiguration } from "./game-config";
+import { writeIntegrityIndex } from "./game-integrity";
 
 export class GameService {
   private readonly jobs = new Map<string, GameJob>();
@@ -27,7 +29,7 @@ export class GameService {
     const stored = this.store.one("SELECT install_path FROM game_state WHERE id=1");
     const candidate = requested || String(stored?.install_path ?? "");
     const detected = candidate ? detectGame(candidate) : null;
-    const raw = await this.provider.getBuild(detected?.version ?? "");
+    const raw = await this.provider.getBuild(detected?.version ?? "", audioLanguages(detected?.path ?? candidate));
     const build = detected ? prepareBuild(raw, detected.path, detected.version) : raw;
     if (!detected) return output(candidate, "", build, "not_installed");
     this.saveState(detected.path, detected.version);
@@ -39,7 +41,8 @@ export class GameService {
     if (this.busy()) throw new AppError("game_job_busy", "已有游戏资源任务正在运行", 409);
     const detected = detectGame(path);
     if (kind === "update" && !detected) throw new AppError("game_not_installed", "所选目录中未检测到可更新的原神客户端");
-    const build = prepareBuild(await this.provider.getBuild(detected?.version ?? ""), detected?.path ?? "", detected?.version ?? "");
+    const root = detected?.path ?? resolve(path);
+    const build = prepareBuild(await this.provider.getBuild(detected?.version ?? "", audioLanguages(root)), detected?.path ?? "", detected?.version ?? "");
     if (build.kind === "game_hotfix") throw new AppError("game_hotfix_pending", "检测到游戏内热更新清单，请先启动原神完成资源应用", 409);
     const job: GameJob = {
       id: randomUUID(), kind, status: "queued", completed_bytes: 0, total_bytes: size(build), message: "",
@@ -47,7 +50,7 @@ export class GameService {
       active_chunks: [], last_update: "",
     };
     const control = new DownloadControl(); this.jobs.set(job.id, job); this.controls.set(job.id, control);
-    void this.run(job, control, detected?.path ?? resolve(path), build);
+    void this.run(job, control, root, build);
     return job;
   }
 
@@ -101,6 +104,8 @@ export class GameService {
       }
       rmSync(marker, { force: true });
       writeFileSync(join(staging, ".mhg-version"), build.version);
+      ensureGameConfiguration(staging, build.version);
+      writeIntegrityIndex(staging, build);
       if (build.assets.length && build.kind !== "package_repair") writeFileSync(join(staging, ".mhg-assets.json"), JSON.stringify(build.assets.map(({ name }) => name)));
       activate(staging, path); this.saveState(path, build.version); rmSync(cache, { recursive: true, force: true });
       job.completed_bytes = job.total_bytes; job.download_speed = 0; job.status = "completed";
@@ -141,4 +146,13 @@ export function detectGame(input: string): { path: string; version: string } | n
     if (version) return { path, version };
   }
   return null;
+}
+
+function audioLanguages(path: string): string[] {
+  const files: Record<string, string> = {
+    "zh-cn": "Audio_Chinese_pkg_version", "en-us": "Audio_English(US)_pkg_version",
+    "ja-jp": "Audio_Japanese_pkg_version", "ko-kr": "Audio_Korean_pkg_version",
+  };
+  const selected = Object.entries(files).filter(([, name]) => existsSync(join(path, name))).map(([language]) => language);
+  return selected.length ? selected : ["zh-cn"];
 }

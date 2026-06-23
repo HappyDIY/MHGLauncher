@@ -14,7 +14,7 @@ export interface Provider {
   createQRSession(): Promise<QRSession>;
   queryQRSession(id: string): Promise<[QRSession, AccountIdentity | null]>;
   getRoles(credential: string): Promise<GameRole[]>;
-  getBuild(installedVersion?: string): Promise<GameBuild>;
+  getBuild(installedVersion?: string, audioLanguages?: string[]): Promise<GameBuild>;
   wishes(credential: string, role: GameRole, newest: Record<string, string>): AsyncIterable<WishRecord[]>;
   getDailyNote(credential: string, role: GameRole, challenge?: string): Promise<DailyNote>;
   verifyNoteChallenge(credential: string, challenge: string, validate: string): Promise<string>;

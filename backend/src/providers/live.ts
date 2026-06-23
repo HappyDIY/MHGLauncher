@@ -36,7 +36,7 @@ export class LiveProvider implements Provider {
     return (data.list as JSONValue[] ?? []).filter((v) => v.game_biz === "hk4e_cn").map((v) => ({ uid: String(v.game_uid), nickname: String(v.nickname), region: String(v.region), level: Number(v.level), selected: Boolean(v.is_chosen) }));
   }
 
-  getBuild(version = ""): Promise<GameBuild> { return this.sophon.build(version); }
+  getBuild(version = "", audioLanguages?: string[]): Promise<GameBuild> { return this.sophon.build(version, audioLanguages); }
 
   async *wishes(credential: string, role: GameRole, newest: Record<string, string>): AsyncIterable<WishRecord[]> {
     const authkey = await this.authkey(credential, role);

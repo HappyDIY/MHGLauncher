@@ -17,6 +17,8 @@ export interface DllJournal {
   target: string; backup: string; original_exists: boolean; original_sha256: string; replacement_md5: string;
 }
 
+const verifiedSources = new Map<string, string>();
+
 export function prepareDll(
   gameRoot: string, source: string, sessionDir: string, integrity = MHYPBASE_INTEGRITY,
 ): DllJournal | null {
@@ -56,9 +58,16 @@ export function restoreDll(journal: DllJournal | null): string {
 
 function verifySource(path: string, integrity = MHYPBASE_INTEGRITY): void {
   if (!existsSync(path) || !lstatSync(path).isFile()) throw new AppError("mhypbase_source_missing", "内置 mhypbase.dll 不存在", 500);
-  if (lstatSync(path).size !== integrity.size || digest(path, "md5") !== integrity.md5 || digest(path, "sha256") !== integrity.sha256) {
+  const stat = lstatSync(path, { bigint: true });
+  const signature = `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
+  if (stat.size !== BigInt(integrity.size)) throw new AppError("mhypbase_source_invalid", "内置 mhypbase.dll 完整性校验失败", 500);
+  if (verifiedSources.get(path) === signature) return;
+  const content = readFileSync(path), md5 = createHash("md5").update(content).digest("hex");
+  const sha256 = createHash("sha256").update(content).digest("hex");
+  if (md5 !== integrity.md5 || sha256 !== integrity.sha256) {
     throw new AppError("mhypbase_source_invalid", "内置 mhypbase.dll 完整性校验失败", 500);
   }
+  verifiedSources.set(path, signature);
 }
 
 function digest(path: string, algorithm: "md5" | "sha256"): string {

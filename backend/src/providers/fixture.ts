@@ -29,7 +29,7 @@ export class FixtureProvider implements Provider {
     return [{ uid: "100000001", nickname: "旅行者", region: "cn_gf01", level: 60, selected: false }];
   }
 
-  async getBuild(_installedVersion = ""): Promise<GameBuild> {
+  async getBuild(_installedVersion = "", _audioLanguages?: string[]): Promise<GameBuild> {
     return normalizeBuild(this.json<Partial<GameBuild> & Pick<GameBuild, "version">>("build.json"));
   }
 
