@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -102,4 +103,3 @@ MHG_INTERPOSE(mhg_getaddrinfo, getaddrinfo);
 MHG_INTERPOSE(mhg_gethostbyname, gethostbyname);
 MHG_INTERPOSE(mhg_gethostbyname2, gethostbyname2);
 MHG_INTERPOSE(mhg_res_query, res_query);
-#include <arpa/inet.h>
