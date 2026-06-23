@@ -68,7 +68,7 @@ export class WineLaunchRunner implements GameLaunchRunner {
   }
 
   private configureChineseLocale(wine: string, env: NodeJS.ProcessEnv): void {
-    const values = [
+    const values: Array<[string, string, string]> = [
       ["HKCU\\Control Panel\\International", "LocaleName", "zh-CN"],
       ["HKCU\\Control Panel\\International", "Locale", "00000804"],
       ["HKCU\\Control Panel\\Desktop", "PreferredUILanguages", "zh-CN"],
