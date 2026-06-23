@@ -29,7 +29,9 @@ static int blocked(const char *name) {
 }
 
 static void *original(const char *name) {
-  return dlsym(RTLD_NEXT, name);
+  static void *system = NULL;
+  if (system == NULL) system = dlopen("/usr/lib/libSystem.B.dylib", RTLD_LAZY | RTLD_LOCAL);
+  return system == NULL ? NULL : dlsym(system, name);
 }
 
 static void log_query(const char *api, const char *name, int denied, int result, const char *address) {
