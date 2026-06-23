@@ -46,11 +46,14 @@ struct GameLaunchProgressView: View {
     private static func time(_ value: String) -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: value) {
-            return date.formatted(.dateTime.hour().minute().second().timeZone(.current))
-        }
+        var date = formatter.date(from: value)
         formatter.formatOptions = [.withInternetDateTime]
-        guard let date = formatter.date(from: value) else { return "--:--:--" }
-        return date.formatted(.dateTime.hour().minute().second().timeZone(.current))
+        date = date ?? formatter.date(from: value)
+        guard let date else { return "--:--:--" }
+        let display = DateFormatter()
+        display.locale = .current
+        display.timeZone = .current
+        display.dateFormat = "HH:mm:ss"
+        return display.string(from: date)
     }
 }
