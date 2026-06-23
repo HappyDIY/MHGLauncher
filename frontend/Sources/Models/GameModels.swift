@@ -95,6 +95,7 @@ struct GameLaunch: Codable, Sendable, Identifiable {
     let message: String
     let performanceProfile: GamePerformanceProfile
     let metalHud: Bool
+    let networkDebug: Bool
     let progress: Double
     let logs: [GameLaunchLog]
     let startedAt: String
@@ -105,6 +106,7 @@ struct GameLaunchLog: Codable, Sendable, Identifiable {
     var id: Int { sequence }
     let sequence: Int
     let timestamp: String
+    let kind: String
     let message: String
 }
 
@@ -112,5 +114,6 @@ struct StartGameLaunchRequest: Codable, Sendable {
     let installPath: String
     let performanceProfile: GamePerformanceProfile
     let metalHud: Bool
+    let networkDebug: Bool
     let framePacing: Int
 }

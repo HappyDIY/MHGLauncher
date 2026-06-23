@@ -21,6 +21,9 @@ final class LauncherStore {
     var metalHudEnabled = UserDefaults.standard.bool(forKey: "metalHudEnabled") {
         didSet { UserDefaults.standard.set(metalHudEnabled, forKey: "metalHudEnabled") }
     }
+    var networkDebugEnabled = UserDefaults.standard.bool(forKey: "networkDebugEnabled") {
+        didSet { UserDefaults.standard.set(networkDebugEnabled, forKey: "networkDebugEnabled") }
+    }
     var wishes: [WishRecord] = []
     var wishStatistics: [WishStatistics] = []
     var bannerDetails: [WishBannerDetail] = []

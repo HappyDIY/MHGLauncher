@@ -60,6 +60,7 @@ extension LauncherStore {
                 installPath: installPath,
                 performanceProfile: gamePerformanceProfile,
                 metalHud: metalHudEnabled,
+                networkDebug: networkDebugEnabled,
                 framePacing: Self.preferredFrameRate(for: NSScreen.main?.maximumFramesPerSecond ?? 0)
             )
             let launch: GameLaunch = try await client.post("/v1/game/launch", body: request)

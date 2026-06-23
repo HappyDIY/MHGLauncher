@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { chmodSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { AppError } from "../core/errors";
 import type { GameLaunch, GamePerformanceProfile } from "../core/models";
@@ -9,11 +9,13 @@ import { recoverInterruptedDlls } from "./game-launch-recovery";
 import { detectGame } from "./games";
 
 export interface StartLaunch {
-  install_path: string; performance_profile: GamePerformanceProfile; metal_hud: boolean; frame_pacing: number;
+  install_path: string; performance_profile: GamePerformanceProfile; metal_hud: boolean;
+  network_debug: boolean; frame_pacing: number;
 }
 
 export class GameLaunchService {
   private readonly launches = new Map<string, GameLaunch>();
+  private readonly dnsLines = new Map<string, number>();
   constructor(
     private readonly dataDir: string,
     private readonly runtimeRoot: string,
@@ -32,8 +34,9 @@ export class GameLaunchService {
     const now = new Date().toISOString();
     const launch: GameLaunch = {
       id: randomUUID(), status: "preparing", message: "", performance_profile: input.performance_profile,
-      metal_hud: input.metal_hud, progress: 0.05,
-      logs: [{ sequence: 1, timestamp: now, message: "启动任务已创建" }], started_at: now, updated_at: now,
+      metal_hud: input.metal_hud, network_debug: input.network_debug, progress: 0.05,
+      logs: [{ sequence: 1, timestamp: now, kind: "launch", message: "启动任务已创建" }],
+      started_at: now, updated_at: now,
     };
     this.launches.set(launch.id, launch); this.persist(launch);
     void this.execute(launch, detected.path, input.frame_pacing);
@@ -43,6 +46,7 @@ export class GameLaunchService {
   get(id: string): GameLaunch {
     const launch = this.launches.get(id);
     if (!launch) throw new AppError("game_launch_missing", "游戏启动会话不存在", 404);
+    if (launch.network_debug) this.readDnsLogs(launch);
     return launch;
   }
 
@@ -55,7 +59,8 @@ export class GameLaunchService {
       this.update(launch, "preparing", "游戏文件准备完成", 0.22);
       const code = await this.runner.run({
         gameRoot, runtimeRoot: this.runtimeRoot, dataDir: this.dataDir, sessionDir,
-        profile: launch.performance_profile, metalHud: launch.metal_hud, framePacing,
+        profile: launch.performance_profile, metalHud: launch.metal_hud,
+        networkDebug: launch.network_debug, framePacing,
       }, (status, message = "", progress) => this.update(launch, status, message, progress));
       const warning = restoreDll(journal);
       this.update(launch, code === 0 ? "exited" : "failed", warning || (code === 0 ? "游戏已正常退出" : `游戏进程退出码：${code}`), 1);
@@ -70,8 +75,25 @@ export class GameLaunchService {
     const now = new Date().toISOString();
     launch.status = status; launch.message = message; launch.updated_at = now;
     if (progress !== undefined) launch.progress = Math.max(launch.progress, Math.min(progress, 1));
-    if (message) launch.logs.push({ sequence: launch.logs.length + 1, timestamp: now, message });
+    if (message) launch.logs.push({ sequence: launch.logs.length + 1, timestamp: now, kind: "launch", message });
     this.persist(launch);
+  }
+
+  private readDnsLogs(launch: GameLaunch): void {
+    const path = join(this.dataDir, "launches", launch.id, "dns.log");
+    if (!existsSync(path)) return;
+    const lines = readFileSync(path, "utf8").split("\n").filter(Boolean);
+    const offset = this.dnsLines.get(launch.id) ?? 0;
+    for (const line of lines.slice(offset)) {
+      const [milliseconds, pid, api, host, action, result] = line.split("\t");
+      if (!milliseconds || !pid || !api || !host || !action || result === undefined) continue;
+      const state = action === "blocked" ? "屏蔽" : Number(result) === 0 ? "成功" : `失败 ${result}`;
+      launch.logs.push({
+        sequence: launch.logs.length + 1, timestamp: new Date(Number(milliseconds)).toISOString(), kind: "dns",
+        message: `DNS · PID ${pid} · ${api} · ${host} · ${state}`,
+      });
+    }
+    this.dnsLines.set(launch.id, lines.length);
   }
 
   private persist(launch: GameLaunch): void {

@@ -13,7 +13,8 @@ const startJob = z.object({ kind: z.enum(["install", "update", "verify"]), insta
 const controlJob = z.object({ action: z.enum(["pause", "resume", "cancel"]) });
 const startLaunch = z.object({
   install_path: z.string().min(1), performance_profile: z.enum(["optimized", "compatibility", "baseline"]).default("optimized"),
-  metal_hud: z.boolean().default(false), frame_pacing: z.number().int().min(0).max(240).default(0),
+  metal_hud: z.boolean().default(false), network_debug: z.boolean().default(false),
+  frame_pacing: z.number().int().min(0).max(240).default(0),
 });
 
 export async function dispatch(request: Request): Promise<Response> {

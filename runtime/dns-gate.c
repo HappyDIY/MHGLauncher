@@ -1,9 +1,12 @@
 #include <errno.h>
+#include <fcntl.h>
 #include <netdb.h>
 #include <resolv.h>
 #include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 static int gate_active(void) {
@@ -21,26 +24,61 @@ static int blocked(const char *name) {
          strcasecmp(name, "dispatchosglobal.yuanshen.com") == 0;
 }
 
+static void log_query(const char *api, const char *name, int denied, int result) {
+  const char *path = getenv("MHG_DNS_LOG_FILE");
+  if (path == NULL || name == NULL) return;
+  char host[512];
+  size_t index = 0;
+  for (; name[index] != '\0' && index < sizeof(host) - 1; index++) {
+    char value = name[index];
+    host[index] = value == '\t' || value == '\n' || value == '\r' ? '?' : value;
+  }
+  host[index] = '\0';
+  struct timeval time;
+  gettimeofday(&time, NULL);
+  char line[768];
+  int length = snprintf(line, sizeof(line), "%lld\t%d\t%s\t%s\t%s\t%d\n",
+                        (long long)time.tv_sec * 1000 + time.tv_usec / 1000,
+                        getpid(), api, host, denied ? "blocked" : "allowed", result);
+  if (length <= 0) return;
+  int descriptor = open(path, O_WRONLY | O_APPEND | O_CREAT, 0600);
+  if (descriptor < 0) return;
+  write(descriptor, line, (size_t)length);
+  close(descriptor);
+}
+
 static int mhg_getaddrinfo(const char *name, const char *service,
                            const struct addrinfo *hints, struct addrinfo **result) {
-  if (blocked(name)) return EAI_NONAME;
-  return getaddrinfo(name, service, hints, result);
+  int denied = blocked(name);
+  if (denied) { log_query("getaddrinfo", name, 1, EAI_NONAME); return EAI_NONAME; }
+  int code = getaddrinfo(name, service, hints, result);
+  log_query("getaddrinfo", name, 0, code);
+  return code;
 }
 
 static struct hostent *mhg_gethostbyname(const char *name) {
-  if (blocked(name)) { h_errno = HOST_NOT_FOUND; return NULL; }
-  return gethostbyname(name);
+  int denied = blocked(name);
+  if (denied) { h_errno = HOST_NOT_FOUND; log_query("gethostbyname", name, 1, h_errno); return NULL; }
+  struct hostent *result = gethostbyname(name);
+  log_query("gethostbyname", name, 0, result == NULL ? h_errno : 0);
+  return result;
 }
 
 static struct hostent *mhg_gethostbyname2(const char *name, int family) {
-  if (blocked(name)) { h_errno = HOST_NOT_FOUND; return NULL; }
-  return gethostbyname2(name, family);
+  int denied = blocked(name);
+  if (denied) { h_errno = HOST_NOT_FOUND; log_query("gethostbyname2", name, 1, h_errno); return NULL; }
+  struct hostent *result = gethostbyname2(name, family);
+  log_query("gethostbyname2", name, 0, result == NULL ? h_errno : 0);
+  return result;
 }
 
 static int mhg_res_query(const char *name, int dns_class, int type,
                          unsigned char *answer, int length) {
-  if (blocked(name)) { h_errno = HOST_NOT_FOUND; return -1; }
-  return res_query(name, dns_class, type, answer, length);
+  int denied = blocked(name);
+  if (denied) { h_errno = HOST_NOT_FOUND; log_query("res_query", name, 1, h_errno); return -1; }
+  int result = res_query(name, dns_class, type, answer, length);
+  log_query("res_query", name, 0, result < 0 ? h_errno : 0);
+  return result;
 }
 
 #define MHG_INTERPOSE(replacement, replacee) \

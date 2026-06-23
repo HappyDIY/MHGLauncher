@@ -12,6 +12,7 @@ struct GameLaunchControls: View {
             }
             .pickerStyle(.segmented)
             Toggle("启动时显示 Metal HUD", isOn: $store.metalHudEnabled)
+            Toggle("记录每一条 DNS 查询（网络调试）", isOn: $store.networkDebugEnabled)
             HStack {
                 Button("启动游戏") {
                     Task { await store.launchGame() }

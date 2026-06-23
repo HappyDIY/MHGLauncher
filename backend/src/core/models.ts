@@ -33,8 +33,9 @@ export interface GameJob {
 }
 export type GameLaunchStatus = "preparing" | "starting" | "waiting_window" | "running" | "exited" | "failed";
 export type GamePerformanceProfile = "optimized" | "compatibility" | "baseline";
-interface GameLaunchLog { sequence: number; timestamp: string; message: string }
+interface GameLaunchLog { sequence: number; timestamp: string; kind: "launch" | "dns"; message: string }
 export interface GameLaunch {
   id: string; status: GameLaunchStatus; message: string; performance_profile: GamePerformanceProfile;
-  metal_hud: boolean; progress: number; logs: GameLaunchLog[]; started_at: string; updated_at: string;
+  metal_hud: boolean; network_debug: boolean; progress: number; logs: GameLaunchLog[];
+  started_at: string; updated_at: string;
 }

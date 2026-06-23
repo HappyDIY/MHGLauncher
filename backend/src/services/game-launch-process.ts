@@ -7,7 +7,7 @@ import { launchEnvironment, runtimePaths } from "./game-launch-environment";
 
 export interface LaunchRunInput {
   gameRoot: string; runtimeRoot: string; dataDir: string; sessionDir: string;
-  profile: GamePerformanceProfile; metalHud: boolean; framePacing: number;
+  profile: GamePerformanceProfile; metalHud: boolean; networkDebug: boolean; framePacing: number;
 }
 export type LaunchReporter = (status: GameLaunchStatus, message?: string, progress?: number) => void;
 export interface GameLaunchRunner { run(input: LaunchRunInput, report: LaunchReporter): Promise<number> }
@@ -18,7 +18,10 @@ export class WineLaunchRunner implements GameLaunchRunner {
     report("preparing", "正在初始化 Wine 容器", 0.3);
     this.preflight(paths.wine, paths.wineboot, paths.wineserver, paths.winemetal, prefix, input.profile);
     report("starting", "Wine 容器已切换为简体中文", 0.55);
-    const env = launchEnvironment(process.env, paths, prefix, input.sessionDir, input.profile, input.metalHud, input.framePacing);
+    const env = launchEnvironment(
+      process.env, paths, prefix, input.sessionDir, input.profile,
+      input.metalHud, input.networkDebug, input.framePacing,
+    );
     report("starting", "正在创建游戏进程", 0.68);
     const logDir = join(input.dataDir, "logs"); mkdirSync(logDir, { recursive: true, mode: 0o700 });
     const descriptor = openSync(join(logDir, "game-launch.log"), "a", 0o600);

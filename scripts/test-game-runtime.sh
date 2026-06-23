@@ -14,10 +14,12 @@ printf '%s\n' \
   | xcrun clang -arch x86_64 -x c - -lresolv -o "$stage/resolver"
 
 gate="$stage/enabled"
+dns_log="$stage/dns.log"
 touch "$gate"
 export DYLD_INSERT_LIBRARIES="$stage/gate.dylib"
 export MHG_DNS_GATE_FILE="$gate"
 export MHG_DNS_GATE_OWNER_PID="$$"
+export MHG_DNS_LOG_FILE="$dns_log"
 if "$stage/resolver" dispatchcnglobal.yuanshen.com; then
   printf '域名门控未屏蔽目标域名。\n' >&2
   exit 1
@@ -29,7 +31,10 @@ fi
 "$stage/resolver" localhost
 rm "$gate"
 "$stage/resolver" dispatchcnglobal.yuanshen.com
-unset DYLD_INSERT_LIBRARIES MHG_DNS_GATE_FILE MHG_DNS_GATE_OWNER_PID
+grep -q $'getaddrinfo\tdispatchcnglobal.yuanshen.com\tblocked' "$dns_log"
+grep -q $'getaddrinfo\tdispatchcnglobal.yuanshen.com\tallowed\t0' "$dns_log"
+grep -q $'res_query\tdispatchosglobal.yuanshen.com\tblocked' "$dns_log"
+unset DYLD_INSERT_LIBRARIES MHG_DNS_GATE_FILE MHG_DNS_GATE_OWNER_PID MHG_DNS_LOG_FILE
 
 if "$stage/window-probe" invalid; then
   printf '窗口探针未拒绝无效进程组。\n' >&2

@@ -26,7 +26,7 @@ describe("游戏启动会话", () => {
   test("启动期间替换 DLL 并在退出后恢复", async () => {
     const fixture = makeFixture();
     const service = new GameLaunchService(fixture.data, fixture.runtime, new FixtureRunner(), fixture.integrity);
-    const launch = service.start({ install_path: fixture.game, performance_profile: "optimized", metal_hud: true, frame_pacing: 60 });
+    const launch = service.start({ install_path: fixture.game, performance_profile: "optimized", metal_hud: true, network_debug: true, frame_pacing: 60 });
     await waitFor(() => service.get(launch.id).status === "exited");
     expect(readFileSync(join(fixture.game, "mhypbase.dll"), "utf8")).toBe("original-dll");
     expect(service.get(launch.id)).toMatchObject({ status: "exited", metal_hud: true, progress: 1 });
@@ -36,7 +36,7 @@ describe("游戏启动会话", () => {
   test("没有原 DLL 时退出后删除注入副本", async () => {
     const fixture = makeFixture(false);
     const service = new GameLaunchService(fixture.data, fixture.runtime, new FixtureRunner(), fixture.integrity);
-    const launch = service.start({ install_path: fixture.game, performance_profile: "compatibility", metal_hud: false, frame_pacing: 0 });
+    const launch = service.start({ install_path: fixture.game, performance_profile: "compatibility", metal_hud: false, network_debug: false, frame_pacing: 0 });
     await waitFor(() => service.get(launch.id).status === "exited");
     expect(existsSync(join(fixture.game, "mhypbase.dll"))).toBe(false);
   });

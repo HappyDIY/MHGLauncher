@@ -24,7 +24,7 @@ struct GameLaunchProgressView: View {
                                     Text(Self.time(entry.timestamp))
                                         .foregroundStyle(.tertiary)
                                     Text(entry.message)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(entry.kind == "dns" ? .cyan : .secondary)
                                 }
                                 .font(.caption.monospaced())
                                 .frame(maxWidth: .infinity, alignment: .leading)

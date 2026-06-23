@@ -120,8 +120,9 @@ struct APIModelTests {
               "message": "",
               "performance_profile": "optimized",
               "metal_hud": true,
+              "network_debug": true,
               "progress": 0.82,
-              "logs": [{"sequence":1,"timestamp":"2026-06-22T10:00:00Z","message":"正在等待窗口"}],
+              "logs": [{"sequence":1,"timestamp":"2026-06-22T10:00:00Z","kind":"dns","message":"DNS 查询成功"}],
               "started_at": "2026-06-22T10:00:00Z",
               "updated_at": "2026-06-22T10:00:01Z"
             }
@@ -131,7 +132,8 @@ struct APIModelTests {
         #expect(launch.status == .waitingWindow)
         #expect(launch.metalHud)
         #expect(launch.progress == 0.82)
-        #expect(launch.logs.first?.message == "正在等待窗口")
+        #expect(launch.networkDebug)
+        #expect(launch.logs.first?.kind == "dns")
     }
 
     @Test("编码请求使用蛇形字段")

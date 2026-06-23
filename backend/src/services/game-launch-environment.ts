@@ -21,13 +21,13 @@ export function runtimePaths(root: string): RuntimePaths {
 
 export function launchEnvironment(
   base: NodeJS.ProcessEnv, paths: RuntimePaths, prefix: string, sessionDir: string,
-  profile: GamePerformanceProfile, metalHud: boolean, framePacing: number,
+  profile: GamePerformanceProfile, metalHud: boolean, networkDebug: boolean, framePacing: number,
 ): NodeJS.ProcessEnv {
   const gate = join(sessionDir, "dns-gate");
   mkdirSync(sessionDir, { recursive: true, mode: 0o700 });
   writeFileSync(gate, String(process.pid), { mode: 0o600 });
   const optimized = profile === "optimized", compatibility = profile === "compatibility";
-  return {
+  const environment: NodeJS.ProcessEnv = {
     ...base, LANG: "zh_CN.UTF-8", LC_ALL: "zh_CN.UTF-8",
     WINEPREFIX: prefix, WINEARCH: "win64", WINEDEBUG: "-all", WINEDLLOVERRIDES: "winedbg.exe=d",
     WINEMSYNC: optimized ? "1" : "0", WINEESYNC: compatibility ? "1" : "0",
@@ -38,4 +38,10 @@ export function launchEnvironment(
     DXMT_SHADER_CACHE_PATH: join(base.HOME ?? "", "Library", "Caches", "MHGLauncher", "dxmt", "YuanShen.exe"),
     DXMT_CONFIG: framePacing > 0 ? `d3d11.preferredMaxFrameRate=${framePacing};` : "",
   };
+  if (networkDebug) {
+    const dnsLog = join(sessionDir, "dns.log");
+    writeFileSync(dnsLog, "", { mode: 0o600 });
+    environment.MHG_DNS_LOG_FILE = dnsLog;
+  }
+  return environment;
 }
