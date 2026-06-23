@@ -14,9 +14,13 @@ export async function installSophon(
   progress: (bytes: number) => void, chunkProgress: (name: string, done: number, total: number) => void, workers = 4,
 ): Promise<void> {
   mkdirSync(cache, { recursive: true });
+  const references = chunkReferences(assets);
   for (const asset of assets) {
     await control.checkpoint(); const target = safeTarget(staging, asset.name);
-    if (existsSync(target) && md5(target) === asset.md5.toLowerCase()) { for (const chunk of asset.chunks) { progress(chunk.size); chunkProgress(chunk.name, chunk.size, chunk.size); } continue; }
+    if (existsSync(target) && md5(target) === asset.md5.toLowerCase()) {
+      for (const chunk of asset.chunks) { progress(chunk.size); chunkProgress(chunk.name, chunk.size, chunk.size); }
+      releaseChunks(asset.chunks, cache, references); continue;
+    }
     const chunks = await concurrentMap(asset.chunks, workers, (chunk) => getChunk(chunk, cache, control, progress, chunkProgress));
     ensureParent(target); const descriptor = openSync(target, "w");
     try {
@@ -28,6 +32,7 @@ export async function installSophon(
       }
     } finally { closeSync(descriptor); }
     if (statSync(target).size !== asset.size || md5(target) !== asset.md5.toLowerCase()) { rmSync(target); throw new AppError("sophon_asset_invalid", `${asset.name} 文件校验失败`); }
+    releaseChunks(asset.chunks, cache, references);
   }
 }
 
@@ -46,6 +51,20 @@ async function concurrentMap<T, R>(items: T[], limit: number, task: (item: T) =>
   }
   await Promise.all(Array.from({ length: Math.min(Math.max(limit, 1), items.length) }, worker));
   return results;
+}
+
+function chunkReferences(assets: GameAsset[]): Map<string, number> {
+  const result = new Map<string, number>();
+  for (const chunk of assets.flatMap(({ chunks }) => chunks)) result.set(chunk.name, (result.get(chunk.name) ?? 0) + 1);
+  return result;
+}
+
+function releaseChunks(chunks: SophonChunk[], cache: string, references: Map<string, number>): void {
+  for (const chunk of chunks) {
+    const remaining = (references.get(chunk.name) ?? 1) - 1;
+    if (remaining > 0) references.set(chunk.name, remaining);
+    else { references.delete(chunk.name); rmSync(join(cache, chunk.name), { force: true }); }
+  }
 }
 
 async function xxh(path: string, name: string): Promise<boolean> { return (await xxhash()).h64Raw(readFileSync(path)).toString(16).padStart(16, "0") === name.split("_", 1)[0]?.toLowerCase(); }

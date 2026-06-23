@@ -95,6 +95,11 @@ struct GameView: View {
                 Text("分块 \(job.chunksCompleted) / \(job.chunksTotal)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if !job.message.isEmpty {
+                    Text(job.message)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
                 if !job.activeChunks.isEmpty {
                     Divider()
                     ForEach(job.activeChunks) { chunk in

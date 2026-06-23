@@ -71,7 +71,10 @@ export class GameService {
     job.status = "running";
     try {
       const cache = join(this.dataDir, "downloads", build.version), staging = `${path}.staging`;
-      stageExisting(job.kind === "update" ? path : "", staging); mkdirSync(cache, { recursive: true });
+      const marker = join(staging, ".mhg-staging-version");
+      const resumable = existsSync(marker) && readFileSync(marker, "utf8").trim() === build.version;
+      if (!resumable) { stageExisting(job.kind === "update" ? path : "", staging); writeFileSync(marker, build.version); }
+      mkdirSync(cache, { recursive: true });
       if (job.kind === "update" && build.kind !== "package_repair") removeRetired(staging, build);
       let speedBytes = 0, speedStarted = Date.now();
       const progress = (bytes: number): void => {
@@ -80,9 +83,11 @@ export class GameService {
         if (elapsed >= 500) { job.download_speed = Math.round(speedBytes * 1_000 / elapsed); speedBytes = 0; speedStarted = now; }
         job.last_update = new Date(now).toISOString();
       };
+      const completedChunks = new Set<string>();
       const chunk = (name: string, done: number, total: number): void => {
         const value = { name, bytes_done: done, total }; job.active_chunks = [...job.active_chunks.filter((item) => item.name !== name), value].slice(-4);
-        job.chunks_completed = Math.max(job.chunks_completed, job.active_chunks.filter((item) => item.bytes_done === item.total).length);
+        if (done === total) completedChunks.add(name);
+        job.chunks_completed = completedChunks.size;
       };
       if (build.patch_assets.length) { await installPatches(build.patch_assets, staging, cache, control, progress, chunk); for (const name of build.deprecated_files) removeSafe(staging, name); }
       else if (build.assets.length) await installSophon(build.assets, staging, cache, control, progress, chunk, this.downloadWorkers);
@@ -94,6 +99,7 @@ export class GameService {
       if (!existsSync(join(staging, "YuanShen.exe"))) {
         throw new AppError("game_install_incomplete", "资源安装完成后仍缺少 YuanShen.exe，未激活不完整目录");
       }
+      rmSync(marker, { force: true });
       writeFileSync(join(staging, ".mhg-version"), build.version);
       if (build.assets.length && build.kind !== "package_repair") writeFileSync(join(staging, ".mhg-assets.json"), JSON.stringify(build.assets.map(({ name }) => name)));
       activate(staging, path); this.saveState(path, build.version); rmSync(cache, { recursive: true, force: true });
@@ -101,7 +107,9 @@ export class GameService {
     } catch (error) {
       job.download_speed = 0; job.status = error instanceof DOMException && error.name === "AbortError" ? "cancelled" : "failed";
       job.message = error instanceof Error ? error.message : "游戏任务失败";
-    } finally { rmSync(`${path}.staging`, { recursive: true, force: true }); }
+    } finally {
+      if (job.status === "cancelled" || job.status === "completed") rmSync(`${path}.staging`, { recursive: true, force: true });
+    }
   }
 
   private saveState(path: string, version: string): void {
