@@ -79,7 +79,7 @@ extension LauncherStore {
                 let launch: GameLaunch = try await client.get("/v1/game/launches/\(id)")
                 gameLaunch = launch
                 if [.exited, .failed].contains(launch.status) { return }
-                try await Task.sleep(for: .milliseconds(500))
+                try await Task.sleep(for: .milliseconds(200))
             }
         } catch {
             message = Self.presentableMessage(error.localizedDescription)

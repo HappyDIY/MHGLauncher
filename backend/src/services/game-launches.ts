@@ -32,7 +32,8 @@ export class GameLaunchService {
     const now = new Date().toISOString();
     const launch: GameLaunch = {
       id: randomUUID(), status: "preparing", message: "", performance_profile: input.performance_profile,
-      metal_hud: input.metal_hud, started_at: now, updated_at: now,
+      metal_hud: input.metal_hud, progress: 0.05,
+      logs: [{ sequence: 1, timestamp: now, message: "启动任务已创建" }], started_at: now, updated_at: now,
     };
     this.launches.set(launch.id, launch); this.persist(launch);
     void this.execute(launch, detected.path, input.frame_pacing);
@@ -49,13 +50,15 @@ export class GameLaunchService {
     const sessionDir = join(this.dataDir, "launches", launch.id);
     let journal: DllJournal | null = null;
     try {
+      this.update(launch, "preparing", "正在校验并准备游戏文件", 0.1);
       journal = prepareDll(gameRoot, join(this.runtimeRoot, "assets", "mhypbase.dll"), sessionDir, this.integrity);
+      this.update(launch, "preparing", "游戏文件准备完成", 0.22);
       const code = await this.runner.run({
         gameRoot, runtimeRoot: this.runtimeRoot, dataDir: this.dataDir, sessionDir,
         profile: launch.performance_profile, metalHud: launch.metal_hud, framePacing,
-      }, (status, message = "") => this.update(launch, status, message));
+      }, (status, message = "", progress) => this.update(launch, status, message, progress));
       const warning = restoreDll(journal);
-      this.update(launch, code === 0 ? "exited" : "failed", warning || (code === 0 ? "" : `游戏进程退出码：${code}`));
+      this.update(launch, code === 0 ? "exited" : "failed", warning || (code === 0 ? "游戏已正常退出" : `游戏进程退出码：${code}`), 1);
     } catch (error) {
       const warning = restoreDll(journal);
       const message = error instanceof Error ? error.message : "游戏启动失败";
@@ -63,8 +66,12 @@ export class GameLaunchService {
     }
   }
 
-  private update(launch: GameLaunch, status: GameLaunch["status"], message: string): void {
-    launch.status = status; launch.message = message; launch.updated_at = new Date().toISOString(); this.persist(launch);
+  private update(launch: GameLaunch, status: GameLaunch["status"], message: string, progress?: number): void {
+    const now = new Date().toISOString();
+    launch.status = status; launch.message = message; launch.updated_at = now;
+    if (progress !== undefined) launch.progress = Math.max(launch.progress, Math.min(progress, 1));
+    if (message) launch.logs.push({ sequence: launch.logs.length + 1, timestamp: now, message });
+    this.persist(launch);
   }
 
   private persist(launch: GameLaunch): void {

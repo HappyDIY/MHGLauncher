@@ -28,7 +28,8 @@ export function launchEnvironment(
   writeFileSync(gate, String(process.pid), { mode: 0o600 });
   const optimized = profile === "optimized", compatibility = profile === "compatibility";
   return {
-    ...base, WINEPREFIX: prefix, WINEARCH: "win64", WINEDEBUG: "-all", WINEDLLOVERRIDES: "winedbg.exe=d",
+    ...base, LANG: "zh_CN.UTF-8", LC_ALL: "zh_CN.UTF-8",
+    WINEPREFIX: prefix, WINEARCH: "win64", WINEDEBUG: "-all", WINEDLLOVERRIDES: "winedbg.exe=d",
     WINEMSYNC: optimized ? "1" : "0", WINEESYNC: compatibility ? "1" : "0",
     DYLD_INSERT_LIBRARIES: paths.dnsGate, MHG_DNS_GATE_FILE: gate,
     MHG_DNS_GATE_HOSTS: "dispatchcnglobal.yuanshen.com,dispatchosglobal.yuanshen.com",

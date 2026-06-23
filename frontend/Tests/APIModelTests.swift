@@ -120,6 +120,8 @@ struct APIModelTests {
               "message": "",
               "performance_profile": "optimized",
               "metal_hud": true,
+              "progress": 0.82,
+              "logs": [{"sequence":1,"timestamp":"2026-06-22T10:00:00Z","message":"正在等待窗口"}],
               "started_at": "2026-06-22T10:00:00Z",
               "updated_at": "2026-06-22T10:00:01Z"
             }
@@ -128,6 +130,8 @@ struct APIModelTests {
         let launch = try JSONDecoder.api.decode(GameLaunch.self, from: data)
         #expect(launch.status == .waitingWindow)
         #expect(launch.metalHud)
+        #expect(launch.progress == 0.82)
+        #expect(launch.logs.first?.message == "正在等待窗口")
     }
 
     @Test("编码请求使用蛇形字段")

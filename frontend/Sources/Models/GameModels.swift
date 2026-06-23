@@ -95,8 +95,17 @@ struct GameLaunch: Codable, Sendable, Identifiable {
     let message: String
     let performanceProfile: GamePerformanceProfile
     let metalHud: Bool
+    let progress: Double
+    let logs: [GameLaunchLog]
     let startedAt: String
     let updatedAt: String
+}
+
+struct GameLaunchLog: Codable, Sendable, Identifiable {
+    var id: Int { sequence }
+    let sequence: Int
+    let timestamp: String
+    let message: String
 }
 
 struct StartGameLaunchRequest: Codable, Sendable {

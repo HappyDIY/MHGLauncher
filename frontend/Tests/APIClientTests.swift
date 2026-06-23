@@ -68,7 +68,7 @@ struct APIClientTests {
             #expect(value.performanceProfile == .optimized)
             #expect(value.metalHud)
             return json(202, """
-            {"id":"launch-1","status":"preparing","message":"","performance_profile":"optimized","metal_hud":true,"started_at":"now","updated_at":"now"}
+            {"id":"launch-1","status":"preparing","message":"","performance_profile":"optimized","metal_hud":true,"progress":0.05,"logs":[],"started_at":"now","updated_at":"now"}
             """)
         }
         let body = StartGameLaunchRequest(

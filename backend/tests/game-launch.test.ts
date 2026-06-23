@@ -13,7 +13,10 @@ const roots: string[] = [];
 class FixtureRunner implements GameLaunchRunner {
   constructor(private readonly code = 0) {}
   async run(_input: LaunchRunInput, report: LaunchReporter): Promise<number> {
-    report("starting"); report("waiting_window"); report("running"); return this.code;
+    report("starting", "正在创建游戏进程", 0.68);
+    report("waiting_window", "正在等待窗口", 0.82);
+    report("running", "域名屏蔽已解除", 1);
+    return this.code;
   }
 }
 
@@ -26,7 +29,8 @@ describe("游戏启动会话", () => {
     const launch = service.start({ install_path: fixture.game, performance_profile: "optimized", metal_hud: true, frame_pacing: 60 });
     await waitFor(() => service.get(launch.id).status === "exited");
     expect(readFileSync(join(fixture.game, "mhypbase.dll"), "utf8")).toBe("original-dll");
-    expect(service.get(launch.id)).toMatchObject({ status: "exited", metal_hud: true });
+    expect(service.get(launch.id)).toMatchObject({ status: "exited", metal_hud: true, progress: 1 });
+    expect(service.get(launch.id).logs.map((entry) => entry.message)).toContain("域名屏蔽已解除");
   });
 
   test("没有原 DLL 时退出后删除注入副本", async () => {

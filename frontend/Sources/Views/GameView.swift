@@ -46,6 +46,9 @@ struct GameView: View {
             GlassCard("游戏启动", icon: "play.circle") {
                 GameLaunchControls(store: store)
             }
+            if let launch = store.gameLaunch {
+                GameLaunchProgressView(launch: launch)
+            }
             if let job = store.gameJob {
                 jobCard(job)
             }
