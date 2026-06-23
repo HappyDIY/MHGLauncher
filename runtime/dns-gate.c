@@ -1,5 +1,4 @@
 #include <arpa/inet.h>
-#include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -26,12 +25,6 @@ static int blocked(const char *name) {
                 strcasecmp(name, "dispatchosglobal.yuanshen.com") == 0;
   if (matches) unlink(getenv("MHG_DNS_GATE_FILE"));
   return matches;
-}
-
-static void *original(const char *name) {
-  static void *system = NULL;
-  if (system == NULL) system = dlopen("/usr/lib/libSystem.B.dylib", RTLD_LAZY | RTLD_LOCAL);
-  return system == NULL ? NULL : dlsym(system, name);
 }
 
 static void log_query(const char *api, const char *name, int denied, int result, const char *address) {
@@ -64,8 +57,7 @@ static int mhg_getaddrinfo(const char *name, const char *service,
   const char *api = hints != NULL && hints->ai_family == AF_INET6 ? "getaddrinfo/AAAA" :
                     hints != NULL && hints->ai_family == AF_INET ? "getaddrinfo/A" : "getaddrinfo/ANY";
   if (denied) { log_query(api, name, 1, EAI_NONAME, NULL); return EAI_NONAME; }
-  int (*resolve)(const char *, const char *, const struct addrinfo *, struct addrinfo **) = original("getaddrinfo");
-  int code = resolve == NULL ? EAI_FAIL : resolve(name, service, hints, result);
+  int code = getaddrinfo(name, service, hints, result);
   char address[NI_MAXHOST] = "";
   if (code == 0 && result != NULL && *result != NULL) {
     getnameinfo((*result)->ai_addr, (*result)->ai_addrlen, address, sizeof(address), NULL, 0, NI_NUMERICHOST);
@@ -77,8 +69,7 @@ static int mhg_getaddrinfo(const char *name, const char *service,
 static struct hostent *mhg_gethostbyname(const char *name) {
   int denied = blocked(name);
   if (denied) { h_errno = HOST_NOT_FOUND; log_query("gethostbyname", name, 1, h_errno, NULL); return NULL; }
-  struct hostent *(*resolve)(const char *) = original("gethostbyname");
-  struct hostent *result = resolve == NULL ? NULL : resolve(name);
+  struct hostent *result = gethostbyname(name);
   char address[INET6_ADDRSTRLEN] = "";
   if (result != NULL && result->h_addr_list[0] != NULL) inet_ntop(result->h_addrtype, result->h_addr_list[0], address, sizeof(address));
   log_query("gethostbyname", name, 0, result == NULL ? h_errno : 0, address);
@@ -88,8 +79,7 @@ static struct hostent *mhg_gethostbyname(const char *name) {
 static struct hostent *mhg_gethostbyname2(const char *name, int family) {
   int denied = blocked(name);
   if (denied) { h_errno = HOST_NOT_FOUND; log_query("gethostbyname2", name, 1, h_errno, NULL); return NULL; }
-  struct hostent *(*resolve)(const char *, int) = original("gethostbyname2");
-  struct hostent *result = resolve == NULL ? NULL : resolve(name, family);
+  struct hostent *result = gethostbyname2(name, family);
   char address[INET6_ADDRSTRLEN] = "";
   if (result != NULL && result->h_addr_list[0] != NULL) inet_ntop(result->h_addrtype, result->h_addr_list[0], address, sizeof(address));
   log_query("gethostbyname2", name, 0, result == NULL ? h_errno : 0, address);
@@ -100,8 +90,7 @@ static int mhg_res_query(const char *name, int dns_class, int type,
                          unsigned char *answer, int length) {
   int denied = blocked(name);
   if (denied) { h_errno = HOST_NOT_FOUND; log_query("res_query", name, 1, h_errno, NULL); return -1; }
-  int (*resolve)(const char *, int, int, unsigned char *, int) = original("res_query");
-  int result = resolve == NULL ? -1 : resolve(name, dns_class, type, answer, length);
+  int result = res_query(name, dns_class, type, answer, length);
   log_query(type == ns_t_aaaa ? "res_query/AAAA" : type == ns_t_a ? "res_query/A" : "res_query", name,
             0, result < 0 ? h_errno : 0, NULL);
   return result;
