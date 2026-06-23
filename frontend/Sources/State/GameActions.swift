@@ -23,6 +23,10 @@ extension LauncherStore {
     }
 
     func startGameJob(_ kind: JobKind) async {
+        guard pendingGameJobKind == nil else { return }
+        pendingGameJobKind = kind
+        gameJob = nil
+        defer { pendingGameJobKind = nil }
         await perform {
             guard !installPath.isEmpty else {
                 message = "请先选择安装目录"
@@ -32,6 +36,7 @@ extension LauncherStore {
             let request = StartJobRequest(kind: kind, installPath: installPath)
             let job: GameJob = try await client.post("/v1/game/jobs", body: request)
             gameJob = job
+            pendingGameJobKind = nil
             try await pollJob(job.id, client: client)
         }
     }
