@@ -31,7 +31,7 @@ if "$stage/resolver" dispatchosglobal.yuanshen.com dns; then
   exit 1
 fi
 "$stage/resolver" localhost
-rm "$gate"
+rm -f "$gate"
 "$stage/resolver" dispatchcnglobal.yuanshen.com
 grep -q $'getaddrinfo/ANY\tdispatchcnglobal.yuanshen.com\tblocked' "$dns_log"
 grep -q $'getaddrinfo/ANY\tdispatchcnglobal.yuanshen.com\tallowed\t0\t' "$dns_log"
