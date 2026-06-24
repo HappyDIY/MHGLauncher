@@ -17,6 +17,7 @@ struct GeetestView: View {
                 }
                 Spacer()
                 Button("取消") { dismiss() }
+                    .motionHover()
             }
             .motionEntrance(order: 0)
             GeetestWebView(challenge: challenge) { value, validate in

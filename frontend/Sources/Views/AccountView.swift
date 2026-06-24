@@ -17,6 +17,7 @@ struct AccountView: View {
                     Task { await store.logout() }
                 }
                 .buttonStyle(.glass)
+                .motionHover(.destructive)
                 .motionEntrance(order: 3)
             } else {
                 loginCard.motionEntrance(order: 1)
@@ -88,6 +89,7 @@ struct AccountView: View {
                         Task { await store.beginQRLogin() }
                     }
                     .buttonStyle(.glassProminent)
+                    .motionHover(.prominent)
                     .disabled(store.isBusy || !store.backend.isReady)
                 }
             }

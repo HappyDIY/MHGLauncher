@@ -127,6 +127,7 @@ struct WishOperationOverlay: View {
                 Spacer()
                 Button("关闭") { close() }
                     .buttonStyle(.glassProminent)
+                    .motionHover(.prominent)
             }
         } else {
             Text(isRunning ? "正在安全处理数据，请勿关闭启动器" : "数据处理完成")

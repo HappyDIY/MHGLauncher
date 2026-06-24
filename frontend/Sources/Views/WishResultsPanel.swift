@@ -15,6 +15,7 @@ struct WishResultsPanel: View {
                         ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                             WishResultCard(item: item, mode: mode)
                                 .id("\(mode.rawValue)-\(item.id)")
+                                .motionScrollAppearance()
                                 .motionEntrance(order: index)
                         }
                     }
@@ -46,6 +47,7 @@ struct WishResultsPanel: View {
             .labelsHidden()
             .pickerStyle(.segmented)
             .frame(width: 180)
+            .motionHover(.subtle)
         }
     }
 

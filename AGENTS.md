@@ -60,6 +60,11 @@ integration, game-package operations, wish records, and real-time notes.
   repeating effects while retaining a brief opacity, color, or numeric update.
 - Preserve native macOS behavior for buttons, toggles, pickers, tables, sheets,
   alerts, focus rings, keyboard access, disabled states, and Liquid Glass.
+- Apply the shared semantic hover roles to custom buttons, menus, selectors, and
+  editable controls. Hover feedback must distinguish subtle, standard,
+  prominent, selected, and destructive actions without changing hit targets.
+- Disabled controls must not react to hover. Static cards must not imitate
+  buttons; use scroll appearance effects instead when spatial context benefits.
 - Infinite animation is allowed only while a visible loading or active operation
   is running. Stop it when the operation completes or the view disappears.
 - Use stable identities for animated collections. Cap staggered entry delays and

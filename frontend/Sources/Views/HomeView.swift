@@ -15,12 +15,20 @@ struct HomeView: View {
                 )
                 .motionEntrance(order: 1)
                 HStack(alignment: .top, spacing: 16) {
-                    gameCard.motionEntrance(order: 2)
-                    noteCard.motionEntrance(order: 3)
+                    gameCard
+                        .motionScrollAppearance()
+                        .motionEntrance(order: 2)
+                    noteCard
+                        .motionScrollAppearance()
+                        .motionEntrance(order: 3)
                 }
                 HStack(alignment: .top, spacing: 16) {
-                    wishCard.motionEntrance(order: 4)
-                    accountCard.motionEntrance(order: 5)
+                    wishCard
+                        .motionScrollAppearance()
+                        .motionEntrance(order: 4)
+                    accountCard
+                        .motionScrollAppearance()
+                        .motionEntrance(order: 5)
                 }
             }
         }

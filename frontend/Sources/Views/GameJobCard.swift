@@ -81,17 +81,20 @@ struct GameJobCard: View {
                 Button("暂停") {
                     Task { await store.controlGameJob("pause") }
                 }
+                .motionHover()
                 .motionTransition(.selection)
             } else if job.status == .paused {
                 Button("继续") {
                     Task { await store.controlGameJob("resume") }
                 }
+                .motionHover(.prominent)
                 .motionTransition(.selection)
             }
             if [.running, .paused, .queued].contains(job.status) {
                 Button("取消", role: .destructive) {
                     Task { await store.controlGameJob("cancel") }
                 }
+                .motionHover(.destructive)
                 .motionTransition(.selection)
             }
         }

@@ -51,4 +51,39 @@ struct MotionSystemTests {
             #expect(!spec.repeats)
         }
     }
+
+    @Test("悬停角色提供不同强度的交互反馈")
+    func hoverRoles() {
+        let subtle = LauncherInteractionMotion.hoverSpec(
+            for: .subtle,
+            reduceMotion: false
+        )
+        let prominent = LauncherInteractionMotion.hoverSpec(
+            for: .prominent,
+            reduceMotion: false
+        )
+        let selection = LauncherInteractionMotion.hoverSpec(
+            for: .selection,
+            reduceMotion: false
+        )
+        #expect(subtle.scale == 1)
+        #expect(prominent.scale > subtle.scale)
+        #expect(prominent.lift < subtle.lift)
+        #expect(selection.rotation > prominent.rotation)
+    }
+
+    @Test("减少动态效果仅保留悬停颜色反馈")
+    func reducedHover() {
+        for role in MotionHoverRole.allCases {
+            let spec = LauncherInteractionMotion.hoverSpec(
+                for: role,
+                reduceMotion: true
+            )
+            #expect(spec.scale == 1)
+            #expect(spec.lift == 0)
+            #expect(spec.rotation == 0)
+            #expect(spec.shadowRadius == 0)
+            #expect(spec.brightness > 0)
+        }
+    }
 }

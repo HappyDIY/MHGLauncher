@@ -38,6 +38,7 @@ struct GameView: View {
                     TextField("选择游戏目录", text: $store.installPath)
                     Button("选择") { chooseDirectory() }
                         .buttonStyle(.glass)
+                        .motionHover()
                 }
             }
             .motionEntrance(order: 2)

@@ -64,6 +64,7 @@ struct PoolSelector: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .motionHover(.selection)
         .glassEffect(
             isSelected
                 ? .regular.tint(detail.poolAccent.opacity(0.22)).interactive()

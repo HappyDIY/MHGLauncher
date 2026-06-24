@@ -12,8 +12,11 @@ struct GameLaunchControls: View {
                 }
             }
             .pickerStyle(.segmented)
+            .motionHover(.subtle)
             Toggle("启动时显示 Metal HUD", isOn: $store.metalHudEnabled)
+                .motionHover(.subtle)
             Toggle("记录每一条 DNS 查询（网络调试）", isOn: $store.networkDebugEnabled)
+                .motionHover(.subtle)
             HStack {
                 Button {
                     Task { await store.launchGame() }
@@ -26,9 +29,11 @@ struct GameLaunchControls: View {
                 }
                 .contentTransition(.opacity)
                 .buttonStyle(.borderedProminent)
+                .motionHover(.prominent)
                 .disabled(store.installPath.isEmpty || launchIsActive || store.isLaunchingGame)
                 if launchIsActive {
                     Button("停止游戏", role: .destructive) { confirmsStop = true }
+                        .motionHover(.destructive)
                         .disabled(store.isStoppingGame)
                         .motionTransition(.selection)
                 }

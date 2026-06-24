@@ -25,6 +25,7 @@ struct WishFiveStarTimeline: View {
                 LazyVStack(spacing: 8) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         FiveStarPullRow(item: item, maximum: maximum)
+                            .motionScrollAppearance()
                             .motionEntrance(order: index)
                     }
                 }

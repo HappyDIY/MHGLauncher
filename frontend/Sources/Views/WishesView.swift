@@ -85,10 +85,12 @@ struct WishesView: View {
                 Task { await store.syncWishes() }
             }
             .buttonStyle(.glassProminent)
+            .motionHover(.prominent)
             .disabled(store.wishOperation != nil)
 
             Button("详细记录", systemImage: "tablecells") { showsHistory = true }
                 .buttonStyle(.glass)
+                .motionHover()
                 .disabled(store.wishes.isEmpty || store.wishOperation != nil)
 
             Menu {
@@ -105,6 +107,7 @@ struct WishesView: View {
             }
             .menuStyle(.button)
             .buttonStyle(.glass)
+            .motionHover()
             .disabled(store.wishOperation != nil)
         }
     }
@@ -148,8 +151,10 @@ struct WishesView: View {
         } actions: {
             Button("立即同步") { Task { await store.syncWishes() } }
                 .buttonStyle(.glassProminent)
+                .motionHover(.prominent)
             Button("导入 UIGF") { importFile() }
                 .buttonStyle(.glass)
+                .motionHover()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .glassEffect(.regular, in: .rect(cornerRadius: 24))

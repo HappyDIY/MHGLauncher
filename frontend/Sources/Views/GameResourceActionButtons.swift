@@ -27,7 +27,8 @@ struct GameResourceActionButtons: View {
             }
             .contentTransition(.opacity)
         }
-        .disabled(!enabled || store.pendingGameJobKind != nil)
         .motionAnimation(.selection, value: store.pendingGameJobKind)
+        .motionHover(.prominent)
+        .disabled(!enabled || store.pendingGameJobKind != nil)
     }
 }
