@@ -18,10 +18,12 @@ struct GeetestView: View {
                 Spacer()
                 Button("取消") { dismiss() }
             }
+            .motionEntrance(order: 0)
             GeetestWebView(challenge: challenge) { value, validate in
                 onComplete(value, validate)
             }
             .clipShape(RoundedRectangle(cornerRadius: 12))
+            .motionEntrance(order: 1)
         }
         .padding(20)
         .frame(minWidth: 440, minHeight: 520)

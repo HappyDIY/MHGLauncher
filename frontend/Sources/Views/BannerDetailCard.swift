@@ -14,8 +14,10 @@ struct BannerDetailCard: View {
                 PoolSelector(details: details, selection: $selection)
                 if let detail = selectedDetail {
                     detailContent(detail)
+                        .id(detail.id)
+                        .motionTransition(.selection)
                 } else {
-                    emptySelection
+                    emptySelection.motionTransition(.content)
                 }
             }
             .padding(18)
@@ -26,6 +28,7 @@ struct BannerDetailCard: View {
             .regular.tint(selectedDetail?.poolAccent.opacity(0.08) ?? Color.accentColor.opacity(0.08)),
             in: .rect(cornerRadius: 22)
         )
+        .motionAnimation(.selection, value: selectedDetail?.id)
     }
 
     private func detailContent(_ detail: WishBannerDetail) -> some View {
@@ -109,6 +112,7 @@ struct BannerDetailCard: View {
                 .font(.title3.bold().monospacedDigit())
                 .foregroundStyle(color)
                 .contentTransition(.numericText())
+                .motionAnimation(.content, value: value)
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -146,6 +150,7 @@ private struct PityProgressRow: View {
             }
             ProgressView(value: min(Double(value) / Double(max(maximum, 1)), 1))
                 .tint(color)
+                .motionAnimation(.progress, value: value)
         }
     }
 }

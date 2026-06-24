@@ -24,24 +24,32 @@ struct GameLaunchControls: View {
                         Text("启动游戏")
                     }
                 }
+                .contentTransition(.opacity)
                 .buttonStyle(.borderedProminent)
                 .disabled(store.installPath.isEmpty || launchIsActive || store.isLaunchingGame)
                 if launchIsActive {
                     Button("停止游戏", role: .destructive) { confirmsStop = true }
                         .disabled(store.isStoppingGame)
+                        .motionTransition(.selection)
                 }
                 if let launch = store.gameLaunch {
                     Label(launch.status.title, systemImage: launch.status.icon)
                         .font(.caption)
                         .foregroundStyle(launch.status == .failed ? .red : .secondary)
+                        .contentTransition(.symbolEffect(.replace))
+                        .motionSymbolBounce(value: launch.status)
+                        .motionTransition(.selection)
                 }
             }
             if let message = store.gameLaunch?.message, !message.isEmpty {
                 Text(message)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .motionTransition(.content)
             }
         }
+        .motionAnimation(.selection, value: store.isLaunchingGame)
+        .motionAnimation(.selection, value: store.gameLaunch?.status)
         .confirmationDialog("确定停止游戏？", isPresented: $confirmsStop, titleVisibility: .visible) {
             Button("停止游戏", role: .destructive) { Task { await store.stopGame() } }
             Button("取消", role: .cancel) {}

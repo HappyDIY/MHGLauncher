@@ -8,14 +8,15 @@ struct GameLaunchProgressView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Label(launch.status.title, systemImage: launch.status.icon)
+                        .contentTransition(.symbolEffect(.replace))
                     Spacer()
                     Text(launch.progress, format: .percent.precision(.fractionLength(0)))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
                 }
                 ProgressView(value: launch.progress, total: 1)
                     .tint(launch.status == .failed ? .red : .blue)
-                    .animation(.easeOut(duration: 0.2), value: launch.progress)
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 7) {
@@ -29,6 +30,7 @@ struct GameLaunchProgressView: View {
                                 .font(.caption.monospaced())
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .id(entry.id)
+                                .motionTransition(.content)
                             }
                         }
                     }
@@ -41,6 +43,9 @@ struct GameLaunchProgressView: View {
                 }
             }
         }
+        .motionAnimation(.selection, value: launch.status)
+        .motionAnimation(.progress, value: launch.progress)
+        .motionAnimation(.content, value: launch.logs.count)
     }
 
     private static func time(_ value: String) -> String {

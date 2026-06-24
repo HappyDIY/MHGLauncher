@@ -48,6 +48,7 @@ struct WishOverviewHero: View {
                 .font(.title2.bold().monospacedDigit())
                 .foregroundStyle(color)
                 .contentTransition(.numericText())
+                .motionAnimation(.content, value: value)
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)

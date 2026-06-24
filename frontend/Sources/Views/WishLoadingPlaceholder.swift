@@ -2,6 +2,7 @@ import SwiftUI
 
 struct WishLoadingPlaceholder: View {
     @State private var offset: CGFloat = -420
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 24) {
@@ -24,7 +25,7 @@ struct WishLoadingPlaceholder: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .task { await run() }
+        .task(id: reduceMotion) { await run() }
     }
 
     private func shimmer(_ w: CGFloat?, _ h: CGFloat?, _ r: CGFloat) -> some View {
@@ -43,8 +44,12 @@ struct WishLoadingPlaceholder: View {
     }
 
     private func run() async {
+        guard !reduceMotion else {
+            offset = 0
+            return
+        }
         while !Task.isCancelled {
-            withAnimation(.linear(duration: 1.8)) { offset = 600 }
+            withAnimation(LauncherMotion.shimmer) { offset = 600 }
             try? await Task.sleep(for: .seconds(2.0))
             offset = -420
         }

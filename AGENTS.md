@@ -48,6 +48,27 @@ integration, game-package operations, wish records, and real-time notes.
 - Prefer small feature modules and dependency injection over global state.
 - Use structured parsers and typed models for API, manifest, and UIGF data.
 
+## Motion and Transition Standards
+
+- Use the shared `LauncherMotion` roles and motion view modifiers for SwiftUI
+  animation. Do not introduce one-off durations, springs, or easing curves.
+- Prefer short, state-driven spring or snappy animations that explain hierarchy,
+  selection, insertion, removal, or progress. Scope every implicit animation to
+  an explicit value; never attach broad animation modifiers to unrelated trees.
+- Every custom animation must honor `accessibilityReduceMotion`. Reduced motion
+  removes displacement, scaling, blur, parallax, matched-geometry travel, and
+  repeating effects while retaining a brief opacity, color, or numeric update.
+- Preserve native macOS behavior for buttons, toggles, pickers, tables, sheets,
+  alerts, focus rings, keyboard access, disabled states, and Liquid Glass.
+- Infinite animation is allowed only while a visible loading or active operation
+  is running. Stop it when the operation completes or the view disappears.
+- Use stable identities for animated collections. Cap staggered entry delays and
+  prefer compositor-friendly opacity and transforms over repeated layout work.
+- Linear animation is reserved for continuous physical progress, rotation, and
+  shimmer. All other transitions use the shared nonlinear motion roles.
+- Test normal and reduced-motion specifications, run the source-line check, and
+  keep animation tests deterministic and independent of clicks or network access.
+
 ## Commands
 
 ```bash

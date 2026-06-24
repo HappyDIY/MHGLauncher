@@ -17,6 +17,7 @@ struct NotesView: View {
                     }
                     .buttonStyle(.glassProminent)
                 }
+                .motionEntrance(order: 0)
                 if let note = store.dailyNote {
                     LazyVGrid(
                         columns: [GridItem(.flexible()), GridItem(.flexible())],
@@ -27,41 +28,50 @@ struct NotesView: View {
                             icon: "drop.fill",
                             value: "\(note.currentResin)/\(note.maxResin)"
                         )
+                        .motionEntrance(order: 1)
                         noteCard(
                             "每日委托",
                             icon: "checkmark.circle",
                             value: "\(note.finishedTasks)/\(note.totalTasks)"
                         )
+                        .motionEntrance(order: 2)
                         noteCard(
                             "探索派遣",
                             icon: "figure.walk",
                             value: "\(note.expeditionsFinished)/\(note.expeditionsTotal)"
                         )
+                        .motionEntrance(order: 3)
                         noteCard(
                             "洞天宝钱",
                             icon: "house",
                             value: "\(note.currentHomeCoin)/\(note.maxHomeCoin)"
                         )
+                        .motionEntrance(order: 4)
                         noteCard(
                             "周本折扣",
                             icon: "calendar",
                             value: "\(note.weeklyBossRemaining)"
                         )
+                        .motionEntrance(order: 5)
                         noteCard(
                             "参量质变仪",
                             icon: "arrow.triangle.2.circlepath",
                             value: note.transformerReady ? "可使用" : "冷却中"
                         )
+                        .motionEntrance(order: 6)
                     }
+                    .motionTransition(.content)
                 } else {
                     ContentUnavailableView(
                         "暂无便笺数据",
                         systemImage: "note.text",
                         description: Text("登录后点击刷新获取实时便笺")
                     )
+                    .motionTransition(.content)
                 }
             }
         }
+        .motionAnimation(.content, value: store.dailyNote != nil)
     }
 
     private var refreshedText: String {
@@ -78,6 +88,7 @@ struct NotesView: View {
             Text(value)
                 .font(.largeTitle.bold())
                 .contentTransition(.numericText())
+                .motionAnimation(.content, value: value)
         }
     }
 }

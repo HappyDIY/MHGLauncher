@@ -7,19 +7,20 @@ struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if isDebugMode {
-                    debugBanner
+                    debugBanner.motionEntrance(.emphasis)
                 }
                 PageHeader(
                     title: "欢迎回来",
                     subtitle: welcomeSubtitle
                 )
+                .motionEntrance(order: 1)
                 HStack(alignment: .top, spacing: 16) {
-                    gameCard
-                    noteCard
+                    gameCard.motionEntrance(order: 2)
+                    noteCard.motionEntrance(order: 3)
                 }
                 HStack(alignment: .top, spacing: 16) {
-                    wishCard
-                    accountCard
+                    wishCard.motionEntrance(order: 4)
+                    accountCard.motionEntrance(order: 5)
                 }
             }
         }
@@ -79,6 +80,7 @@ struct HomeView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .motionAnimation(.content, value: store.dailyNote != nil)
     }
 
     private var wishCard: some View {

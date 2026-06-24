@@ -50,6 +50,8 @@ struct WishHistoryPanel: View {
                     Text("\(filteredRecords.count) 条记录")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
+                        .motionAnimation(.content, value: filteredRecords.count)
                 }
                 Spacer()
                 Picker("星级", selection: $rankFilter) {
@@ -107,8 +109,10 @@ struct WishHistoryPanel: View {
                 }
                 .buttonStyle(.glass)
                 .controlSize(.small)
+                .motionTransition(.selection)
             }
         }
+        .motionAnimation(.selection, value: dateFrom != nil || dateTo != nil)
     }
 
     private var calendar: Calendar {

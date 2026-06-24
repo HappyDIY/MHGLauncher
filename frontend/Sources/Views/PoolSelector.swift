@@ -3,6 +3,8 @@ import SwiftUI
 struct PoolSelector: View {
     let details: [WishBannerDetail]
     @Binding var selection: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var selectionNamespace
 
     private var sorted: [WishBannerDetail] {
         let order: [String] = ["301", "400", "302", "200", "100"]
@@ -24,7 +26,10 @@ struct PoolSelector: View {
     private func poolButton(_ detail: WishBannerDetail) -> some View {
         let isSelected = selection == detail.id
         return Button {
-            withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) {
+            withAnimation(LauncherMotion.animation(
+                .selection,
+                reduceMotion: reduceMotion
+            )) {
                 selection = detail.id
             }
         } label: {
@@ -46,6 +51,16 @@ struct PoolSelector: View {
             }
             .padding(.horizontal, isSelected ? 14 : 8)
             .padding(.vertical, 8)
+            .background {
+                if isSelected && !reduceMotion {
+                    Capsule()
+                        .fill(detail.poolAccent.opacity(0.1))
+                        .matchedGeometryEffect(
+                            id: "pool-selection",
+                            in: selectionNamespace
+                        )
+                }
+            }
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
@@ -56,5 +71,6 @@ struct PoolSelector: View {
             in: .capsule
         )
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .motionAnimation(.selection, value: isSelected)
     }
 }

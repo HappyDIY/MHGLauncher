@@ -14,6 +14,7 @@ struct DownloadSpeedChart: View {
                 Spacer()
                 Text(formatSpeed(speed))
                     .monospacedDigit()
+                    .contentTransition(.numericText())
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -42,7 +43,9 @@ struct DownloadSpeedChart: View {
                 }
             }
             .frame(height: 92)
+            .motionAnimation(.progress, value: sampleID)
         }
+        .motionAnimation(.progress, value: speed)
         .onChange(of: sampleID, initial: true) { _, _ in
             guard isActive || speed > 0 else { return }
             samples.append(SpeedSample(time: Date(), bytesPerSecond: speed))

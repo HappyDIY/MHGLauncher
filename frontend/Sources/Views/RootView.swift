@@ -28,15 +28,27 @@ struct RootView: View {
     var body: some View {
         NavigationSplitView {
             List(Destination.allCases, selection: $store.selectedDestination) { destination in
-                Label(destination.rawValue, systemImage: destination.icon)
+                Label {
+                    Text(destination.rawValue)
+                } icon: {
+                    Image(systemName: destination.icon)
+                        .motionSymbolBounce(
+                            value: store.selectedDestination == destination
+                        )
+                }
                     .tag(destination)
             }
             .navigationTitle("MHGLauncher")
             .navigationSplitViewColumnWidth(min: 180, ideal: 210)
         } detail: {
-            content
-                .padding(24)
-                .background(background)
+            ZStack {
+                content
+                    .id(store.selectedDestination ?? .home)
+                    .motionTransition(.navigation)
+            }
+            .motionAnimation(.navigation, value: store.selectedDestination)
+            .padding(24)
+            .background(background)
         }
         .alert(
             "提示",
@@ -103,7 +115,7 @@ struct RootView: View {
     private var background: some View {
         LinearGradient(
             colors: [
-                Color.accentColor.opacity(0.12),
+                destinationAccent.opacity(0.12),
                 Color.purple.opacity(0.08),
                 Color.clear
             ],
@@ -111,6 +123,17 @@ struct RootView: View {
             endPoint: .bottomTrailing
         )
         .ignoresSafeArea()
+        .motionAnimation(.navigation, value: store.selectedDestination)
+    }
+
+    private var destinationAccent: Color {
+        switch store.selectedDestination ?? .home {
+        case .home: .blue
+        case .game: .indigo
+        case .wishes: .cyan
+        case .notes: .green
+        case .account: .orange
+        }
     }
 
     private func importFile() {

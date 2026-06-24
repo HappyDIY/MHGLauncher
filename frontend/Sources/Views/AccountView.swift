@@ -9,18 +9,21 @@ struct AccountView: View {
                 title: "账号",
                 subtitle: "国服米游社账号与绑定角色"
             )
+            .motionEntrance(order: 0)
             if let account = store.account {
-                accountCard(account)
-                rolesCard
+                accountCard(account).motionEntrance(order: 1)
+                rolesCard.motionEntrance(order: 2)
                 Button("退出登录", role: .destructive) {
                     Task { await store.logout() }
                 }
                 .buttonStyle(.glass)
+                .motionEntrance(order: 3)
             } else {
-                loginCard
+                loginCard.motionEntrance(order: 1)
             }
             Spacer()
         }
+        .motionAnimation(.emphasis, value: store.account?.aid)
     }
 
     private func accountCard(_ account: Account) -> some View {
@@ -47,8 +50,10 @@ struct AccountView: View {
                     if role.selected {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(.tint)
+                            .motionSymbolBounce(value: role.selected)
                     }
                 }
+                .motionEntrance(order: store.roles.firstIndex { $0.id == role.id } ?? 0)
             }
         }
     }
@@ -64,17 +69,21 @@ struct AccountView: View {
                         .frame(width: 180, height: 180)
                         .padding(10)
                         .background(.white, in: RoundedRectangle(cornerRadius: 12))
+                        .motionTransition(.emphasis)
                 } else {
                     Image(systemName: "qrcode")
                         .font(.system(size: 90))
                         .frame(width: 200, height: 200)
                         .foregroundStyle(.secondary)
+                        .motionTransition(.emphasis)
                 }
                 VStack(alignment: .leading, spacing: 12) {
                     Text("使用米游社 App 扫描二维码")
                         .font(.title3.bold())
                     Text(loginStatus)
                         .foregroundStyle(.secondary)
+                        .contentTransition(.opacity)
+                        .motionAnimation(.content, value: loginStatus)
                     Button(store.qrSession == nil ? "生成二维码" : "重新生成") {
                         Task { await store.beginQRLogin() }
                     }
@@ -82,6 +91,7 @@ struct AccountView: View {
                     .disabled(store.isBusy || !store.backend.isReady)
                 }
             }
+            .motionAnimation(.emphasis, value: store.qrSession?.url)
         }
     }
 

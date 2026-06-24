@@ -3,11 +3,6 @@ import SwiftUI
 
 struct GameView: View {
     @Bindable var store: LauncherStore
-    @State private var tick = 0
-    @State private var anchorBytes: Int64 = 0
-    @State private var anchorTime = Date()
-
-    private let ticker = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -15,6 +10,7 @@ struct GameView: View {
                 title: "游戏",
                 subtitle: "管理国服 Windows 客户端资源"
             )
+            .motionEntrance(order: 0)
             GlassCard("安装状态", icon: "internaldrive") {
                 HStack {
                     MetricView(
@@ -36,6 +32,7 @@ struct GameView: View {
                     .foregroundStyle(.secondary)
                 }
             }
+            .motionEntrance(order: 1)
             GlassCard("安装位置", icon: "folder") {
                 HStack {
                     TextField("选择游戏目录", text: $store.installPath)
@@ -43,120 +40,30 @@ struct GameView: View {
                         .buttonStyle(.glass)
                 }
             }
+            .motionEntrance(order: 2)
             GlassCard("游戏启动", icon: "play.circle") {
                 GameLaunchControls(store: store)
             }
+            .motionEntrance(order: 3)
             if let launch = store.gameLaunch {
                 GameLaunchProgressView(launch: launch)
+                    .motionTransition(.emphasis)
             }
             if let job = store.gameJob {
-                jobCard(job)
+                GameJobCard(store: store, job: job)
+                    .motionTransition(.emphasis)
             }
             GameResourceActionButtons(store: store)
+                .motionEntrance(order: 4)
             Spacer()
         }
-        .onReceive(ticker) { _ in tick &+= 1 }
-        .onChange(of: store.gameJob?.completedBytes) { _, newValue in
-            guard let newValue else { return }
-            anchorBytes = newValue
-            anchorTime = Date()
-        }
+        .motionAnimation(.emphasis, value: store.gameLaunch?.id)
+        .motionAnimation(.emphasis, value: store.gameJob?.id)
         .task(id: store.installPath) {
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
             await store.refreshGame()
         }
-    }
-
-    private func jobCard(_ job: GameJob) -> some View {
-        GlassCard("资源任务", icon: "arrow.down.circle") {
-            VStack(alignment: .leading, spacing: 10) {
-                ProgressView(value: smoothProgress(for: job))
-                    .animation(.linear(duration: 0.08), value: tick)
-                HStack {
-                    Text(job.status.title)
-                    Spacer()
-                    Text(smoothSizeLabel(for: job))
-                        .foregroundStyle(.secondary)
-                }
-                DownloadSpeedChart(
-                    speed: job.downloadSpeed,
-                    isActive: job.status == .running,
-                    sampleID: job.lastUpdate
-                )
-                Text("分块 \(job.chunksCompleted) / \(job.chunksTotal)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if !job.message.isEmpty {
-                    Text(job.message)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-                if !job.activeChunks.isEmpty {
-                    Divider()
-                    ForEach(job.activeChunks) { chunk in
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(chunk.name)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                            ProgressView(value: smoothChunkProgress(chunk, job: job))
-                                .animation(.linear(duration: 0.08), value: tick)
-                                .tint(.blue)
-                        }
-                    }
-                }
-                HStack {
-                    if job.status == .running {
-                        Button("暂停") {
-                            Task { await store.controlGameJob("pause") }
-                        }
-                    } else if job.status == .paused {
-                        Button("继续") {
-                            Task { await store.controlGameJob("resume") }
-                        }
-                    }
-                    if [.running, .paused, .queued].contains(job.status) {
-                        Button("取消", role: .destructive) {
-                            Task { await store.controlGameJob("cancel") }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func smoothProgress(for job: GameJob) -> Double {
-        guard job.totalBytes > 0 else { return 0 }
-        guard job.status == .running, job.downloadSpeed > 0 else { return job.progress }
-        let elapsed = Date().timeIntervalSince(anchorTime)
-        let predicted = Double(anchorBytes) + Double(job.downloadSpeed) * elapsed
-        return min(predicted / Double(job.totalBytes), 1.0)
-    }
-
-    private func smoothSizeLabel(for job: GameJob) -> String {
-        let current: Int64
-        if job.status == .running, job.downloadSpeed > 0 {
-            let elapsed = Date().timeIntervalSince(anchorTime)
-            let predicted = Double(anchorBytes) + Double(job.downloadSpeed) * elapsed
-            current = min(Int64(predicted), job.totalBytes)
-        } else {
-            current = job.completedBytes
-        }
-        let currentStr = ByteCountFormatter.string(fromByteCount: current, countStyle: .file)
-        let totalStr = ByteCountFormatter.string(fromByteCount: job.totalBytes, countStyle: .file)
-        return "\(currentStr) / \(totalStr)"
-    }
-
-    private func smoothChunkProgress(_ chunk: ChunkProgress, job: GameJob) -> Double {
-        guard chunk.total > 0 else { return 0 }
-        if job.status == .running, job.downloadSpeed > 0, chunk.bytesDone < chunk.total {
-            let perSlotSpeed = Double(job.downloadSpeed) / max(Double(job.activeChunks.count), 1)
-            let elapsed = Date().timeIntervalSince(anchorTime)
-            let predicted = Double(chunk.bytesDone) + perSlotSpeed * elapsed
-            return min(predicted / Double(chunk.total), 1.0)
-        }
-        return chunk.progress
     }
 
     private func chooseDirectory() {

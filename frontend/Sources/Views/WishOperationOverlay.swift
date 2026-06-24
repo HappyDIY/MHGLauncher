@@ -5,6 +5,7 @@ struct WishOperationOverlay: View {
     let close: () -> Void
     @State private var glow = false
     @State private var rotation = 0.0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -27,15 +28,10 @@ struct WishOperationOverlay: View {
             .shadow(color: accent.opacity(glow ? 0.65 : 0.24), radius: glow ? 38 : 18)
             .scaleEffect(glow ? 1 : 0.985)
         }
-        .transition(.opacity.combined(with: .scale(scale: 0.94)))
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
-                glow = true
-            }
-            withAnimation(.linear(duration: 1.3).repeatForever(autoreverses: false)) {
-                rotation = 360
-            }
-        }
+        .motionTransition(.emphasis)
+        .onAppear { updateActivityAnimation() }
+        .onChange(of: isRunning) { updateActivityAnimation() }
+        .onChange(of: reduceMotion) { updateActivityAnimation() }
     }
 
     private var header: some View {
@@ -46,6 +42,8 @@ struct WishOperationOverlay: View {
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(accent)
                     .rotationEffect(.degrees(isRunning ? rotation : 0))
+                    .contentTransition(.symbolEffect(.replace))
+                    .motionSymbolBounce(value: operation.status)
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text(operation.kind.title).font(.title2.bold())
@@ -64,6 +62,7 @@ struct WishOperationOverlay: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .motionAnimation(.emphasis, value: operation.status)
     }
 
     @ViewBuilder
@@ -79,7 +78,7 @@ struct WishOperationOverlay: View {
                 }
             }
             .frame(height: 10)
-            .animation(.spring(duration: 0.55), value: progress)
+            .motionAnimation(.progress, value: progress)
         } else if isRunning {
             ProgressView()
                 .progressViewStyle(.linear)
@@ -155,6 +154,25 @@ struct WishOperationOverlay: View {
         case .running: operation.kind.icon
         case .succeeded: "checkmark"
         case .failed: "xmark"
+        }
+    }
+
+    private func updateActivityAnimation() {
+        guard isRunning, !reduceMotion else {
+            withAnimation(LauncherMotion.animation(
+                .micro,
+                reduceMotion: reduceMotion
+            )) {
+                glow = false
+                rotation = 0
+            }
+            return
+        }
+        withAnimation(LauncherMotion.activityGlow) {
+            glow = true
+        }
+        withAnimation(LauncherMotion.activityRotation) {
+            rotation = 360
         }
     }
 }

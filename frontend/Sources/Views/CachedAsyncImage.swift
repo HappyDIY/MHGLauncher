@@ -26,12 +26,16 @@ struct CachedAsyncImage<Placeholder: View>: View {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
+                    .motionTransition(.content)
             } else if loading {
-                ProgressView().controlSize(.small)
+                ProgressView()
+                    .controlSize(.small)
+                    .motionTransition(.content)
             } else {
-                placeholder()
+                placeholder().motionTransition(.content)
             }
         }
+        .motionAnimation(.content, value: phase)
         .task(id: url) {
             image = nil
             guard let url else { return }
@@ -49,5 +53,10 @@ struct CachedAsyncImage<Placeholder: View>: View {
                 image = nil
             }
         }
+    }
+
+    private var phase: Int {
+        if image != nil { return 2 }
+        return loading ? 1 : 0
     }
 }
