@@ -13,7 +13,7 @@ export interface RegistryAccount {
 }
 
 export function writeGameAccountRegistry(wine: string, env: NodeJS.ProcessEnv, account: RegistryAccount): void {
-  const raw = createGameAccountRegistryValue(account, wineMacAddress(wine, env) || macAddress());
+  const raw = createGameAccountRegistryValue(account, cleanMac(env.MHG_GAME_ACCOUNT_MAC ?? "") || macAddress() || wineMacAddress(wine, env));
   const hex = Buffer.concat([Buffer.from(raw, "utf8"), Buffer.from([0])]).toString("hex");
   const result = spawnSync(wine, ["reg", "add", registryKey, "/v", registryValue, "/t", "REG_BINARY", "/d", hex, "/f"], {
     env, stdio: "ignore",
@@ -63,10 +63,16 @@ function encrypt(value: string, mac: string): string {
 }
 
 function macAddress(): string {
+  for (const command of [["/usr/sbin/networksetup", "-listallhardwareports"], ["/sbin/ifconfig", "en0"]] as const) {
+    const result = spawnSync(command[0], command.slice(1), { encoding: "utf8" });
+    const match = result.stdout.match(/(?:Ethernet Address|ether)\s+([0-9a-fA-F:]{17})/);
+    const value = match ? cleanMac(match[1] ?? "") : "";
+    if (validMac(value)) return value;
+  }
   for (const items of Object.values(networkInterfaces())) {
     for (const item of items ?? []) {
-      const value = item.mac.replaceAll(":", "").toUpperCase();
-      if (!item.internal && value && value !== "000000000000" && value !== "020000000000") return value;
+      const value = cleanMac(item.mac);
+      if (!item.internal && validMac(value)) return value;
     }
   }
   return "";
@@ -77,8 +83,16 @@ function wineMacAddress(wine: string, env: NodeJS.ProcessEnv): string {
   if (result.status !== 0) return "";
   const matches = result.stdout.matchAll(/Physical address[^:]*:\s*([0-9a-fA-F-]{17})/g);
   for (const match of matches) {
-    const value = String(match[1]).replaceAll("-", "").toUpperCase();
-    if (value && value !== "000000000000" && value !== "020000000000") return value;
+    const value = cleanMac(String(match[1]));
+    if (validMac(value)) return value;
   }
   return "";
+}
+
+function cleanMac(value: string): string {
+  return value.replaceAll(/[:-]/g, "").toUpperCase();
+}
+
+function validMac(value: string): boolean {
+  return /^[0-9A-F]{12}$/.test(value) && value !== "000000000000" && value !== "020000000000";
 }

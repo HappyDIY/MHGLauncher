@@ -86,6 +86,15 @@ describe("Provider 契约", () => {
     await expect(liveProvider().getDailyNote("stuid=10001; stoken=token", { uid: "100000001", region: "cn_gf01", nickname: "旅行者", level: 60, selected: true }))
       .rejects.toMatchObject({ code: "verification_required", status: 428, details: { gt: "gt", challenge: "challenge" } });
   });
+  test("实时便笺 10306 重新返回验证挑战", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("dailyNote")) return Response.json({ retcode: 10306, message: "", data: null });
+      if (String(input).includes("createVerification")) return Response.json({ retcode: 0, data: { gt: "gt2", challenge: "challenge2" } });
+      return Response.json({ retcode: 0, data: { device_fp: "fp" } });
+    });
+    await expect(liveProvider().getDailyNote("stuid=10001; stoken=token", { uid: "100000001", region: "cn_gf01", nickname: "旅行者", level: 60, selected: true }, "old"))
+      .rejects.toMatchObject({ code: "verification_required", status: 428, details: { gt: "gt2", challenge: "challenge2" } });
+  });
   test("实时便笺验证后仍 5003 返回账号风险提示", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       if (String(input).includes("dailyNote")) return Response.json({ retcode: 5003, message: "", data: null });

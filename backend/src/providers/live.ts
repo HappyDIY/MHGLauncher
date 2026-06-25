@@ -120,7 +120,7 @@ export class LiveProvider implements Provider {
     const url = `https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/dailyNote?${query}`;
     const response = await fetch(url, { headers, signal: AbortSignal.timeout(30_000) }), payload = await response.json() as JSONValue;
     const retcode = Number(payload.retcode ?? 0), message = String(payload.message ?? "");
-    if (retcode === 1034) throw new AppError("verification_required", "请完成人机验证后重试", 428, await this.createVerification(credential));
+    if ([1034, 10306].includes(retcode)) throw new AppError("verification_required", "验证已失效，请重新完成人机验证", 428, await this.createVerification(credential));
     if (retcode === 5003) {
       if (!challenge) throw new AppError("verification_required", "请完成人机验证后重试", 428, await this.createVerification(credential));
       throw new AppError("note_risk_limited", "当前账号存在风险，实时便笺暂无数据，请稍后重试或在米游社完成验证", 429, { retcode: "5003" });

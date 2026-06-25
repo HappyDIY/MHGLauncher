@@ -37,14 +37,14 @@ printf '%s\\n' "$@" > "$CAPTURE"
 `);
     chmodSync(wine, 0o755);
 
-    writeGameAccountRegistry(wine, { ...process.env, CAPTURE: capture }, account);
+    writeGameAccountRegistry(wine, { ...process.env, CAPTURE: capture, MHG_GAME_ACCOUNT_MAC: "FC-B2-14-50-82-E5" }, account);
     const args = readFileSync(capture, "utf8").trimEnd().split("\n");
     expect(args).toContain("REG_BINARY");
     const bytes = Buffer.from(args.at(args.indexOf("/d") + 1) ?? "", "hex");
     expect(bytes.at(-1)).toBe(0);
     expect(bytes.subarray(0, -1).toString("utf8")).toMatch(/^[A-Za-z0-9+/]+=*$/);
     const result = spawnSync("openssl", ["enc", "-d", "-des-cbc", "-provider", "legacy", "-provider", "default",
-      "-K", Buffer.from("AEC060E5", "utf8").toString("hex"), "-iv", "1234567890ABCDEF", "-base64", "-A"], {
+      "-K", Buffer.from("FCB21450", "utf8").toString("hex"), "-iv", "1234567890ABCDEF", "-base64", "-A"], {
       input: bytes.subarray(0, -1).toString("utf8"), encoding: "utf8",
     });
     expect(JSON.parse(result.stdout).data[0].mid).toBe("mid-1");
