@@ -13,7 +13,7 @@ export interface RegistryAccount {
 }
 
 export function writeGameAccountRegistry(wine: string, env: NodeJS.ProcessEnv, account: RegistryAccount): void {
-  const raw = mihoyoSdk(account);
+  const raw = createGameAccountRegistryValue(account);
   const hex = Buffer.concat([Buffer.from(raw, "utf8"), Buffer.from([0])]).toString("hex");
   const result = spawnSync(wine, ["reg", "add", registryKey, "/v", registryValue, "/t", "REG_BINARY", "/d", hex, "/f"], {
     env, stdio: "ignore",
@@ -25,8 +25,11 @@ export function launchAccount(account: Account, credential: string): RegistryAcc
   return { aid: account.aid, mid: account.mid, nickname: account.nickname, credential };
 }
 
-function mihoyoSdk(account: RegistryAccount): string {
-  const now = Math.floor(Date.now() / 1000);
+export function createGameAccountRegistryValue(account: RegistryAccount, mac = macAddress(), now = Math.floor(Date.now() / 1000)): string {
+  return mihoyoSdk(account, mac, now);
+}
+
+function mihoyoSdk(account: RegistryAccount, mac: string, now: number): string {
   const map = cookies(account.credential);
   const token = map.get("stoken") ?? map.get("ltoken") ?? "";
   const data = {
@@ -43,7 +46,7 @@ function mihoyoSdk(account: RegistryAccount): string {
       agree_persistent_login_data: true,
     }],
   };
-  return encrypt(JSON.stringify(data), macAddress());
+  return encrypt(JSON.stringify(data), mac);
 }
 
 function encrypt(value: string, mac: string): string {

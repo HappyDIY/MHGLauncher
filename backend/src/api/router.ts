@@ -11,6 +11,7 @@ const selectAccount = z.object({ aid: z.string().min(1) });
 const selectRole = z.object({ uid: z.string().min(1) });
 const mobile = z.object({ mobile: z.string().regex(/^1\d{10}$/) });
 const mobileLogin = z.object({ mobile: z.string().regex(/^1\d{10}$/), captcha: z.string().min(4), action_type: z.string().min(1), aigis: z.string().optional().nullable() });
+const mobileVerification = z.object({ mobile: z.string().regex(/^1\d{10}$/), session_id: z.string().min(1), challenge: z.string().min(1), validate: z.string().min(1) });
 const cookieLogin = z.object({ credential: z.string().min(1) });
 const complete = z.object({ identity: z.object({ aid: z.string(), mid: z.string(), nickname: z.string(), credential: z.string() }), credential_ref: z.string() });
 const refresh = z.object({ credential: z.string(), xrpc_challenge: z.string().default("") });
@@ -48,6 +49,10 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   const qr = match(path, /^\/auth\/qr-sessions\/([^/]+)$/);
   if (method === "GET" && qr) { const [session, identity] = await app.provider.queryQRSession(qr); return json({ session, identity }); }
   if (method === "POST" && path === "/auth/mobile-captcha") return json(await app.provider.createMobileCaptcha(mobile.parse(body).mobile));
+  if (method === "POST" && path === "/auth/mobile-captcha/verification") {
+    const value = mobileVerification.parse(body);
+    return json(await app.provider.verifyMobileCaptcha(value.mobile, value.session_id, value.challenge, value.validate));
+  }
   if (method === "POST" && path === "/auth/mobile-login") {
     const value = mobileLogin.parse(body), identity = await app.provider.loginByMobileCaptcha(value.mobile, value.captcha, value.action_type, value.aigis);
     const account = app.accounts.save(identity, `keychain:account:${identity.aid}`);

@@ -33,6 +33,10 @@ export class FixtureProvider implements Provider {
     return { mobile, action_type: "fixture-action", countdown: 60, aigis: null };
   }
 
+  async verifyMobileCaptcha(mobile: string, _sessionId: string, _challenge: string, _validate: string): Promise<MobileCaptchaSession> {
+    return { mobile, action_type: "fixture-action", countdown: 60, aigis: "fixture-aigis" };
+  }
+
   async loginByMobileCaptcha(mobile: string, _captcha: string, _actionType: string, _aigis?: string | null): Promise<AccountIdentity> {
     return { aid: "10001", mid: "fixture-mid", nickname: `手机用户${mobile.slice(-4)}`, credential: "stoken=fixture; mid=fixture-mid" };
   }

@@ -36,6 +36,10 @@ describe("本地 API 契约", () => {
     expect(cookie.account.credential_ref).toBe("keychain:account:10001");
     const captcha = await (await request("POST", "/v1/auth/mobile-captcha", { mobile: "13800138000" })).json();
     expect(captcha.action_type).toBe("fixture-action");
+    const verified = await (await request("POST", "/v1/auth/mobile-captcha/verification", {
+      mobile: "13800138000", session_id: "fixture-session", challenge: "challenge", validate: "validate",
+    })).json();
+    expect(verified.aigis).toBe("fixture-aigis");
     const sms = await (await request("POST", "/v1/auth/mobile-login", { mobile: "13800138000", captcha: "123456", action_type: captcha.action_type })).json();
     expect(sms.identity.credential).toContain("stoken=fixture");
     expect(sms.roles[0].uid).toBe("100000001");

@@ -15,6 +15,7 @@ export interface Provider {
   queryQRSession(id: string): Promise<[QRSession, AccountIdentity | null]>;
   identifyCredential(credential: string): Promise<AccountIdentity>;
   createMobileCaptcha(mobile: string): Promise<MobileCaptchaSession>;
+  verifyMobileCaptcha(mobile: string, sessionId: string, challenge: string, validate: string): Promise<MobileCaptchaSession>;
   loginByMobileCaptcha(mobile: string, captcha: string, actionType: string, aigis?: string | null): Promise<AccountIdentity>;
   getRoles(credential: string): Promise<GameRole[]>;
   getBuild(installedVersion?: string, audioLanguages?: string[]): Promise<GameBuild>;
