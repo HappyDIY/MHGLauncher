@@ -7,6 +7,9 @@ import { Device } from "./device";
 import type { GameBuild, Provider } from "./provider";
 import { Sophon } from "./sophon";
 import { cookies, sign } from "./signing";
+import { createAigisHeader, parseAigisSession, type AigisSession, verificationFromAigis } from "./aigis";
+import { qrConfirmedPayload, qrStatus } from "./qr";
+import { defaultWishSyncSleeper, normalizeWishSyncError, type WishSyncSleeper } from "./wish-sync";
 
 type JSONValue = Record<string, any>;
 const agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) miHoYoBBS/2.95.1";
@@ -18,8 +21,8 @@ CgGs52bFoYMtyi+xEQIDAQAB
 -----END PUBLIC KEY-----`;
 
 export class LiveProvider implements Provider {
-  private readonly device: Device; private readonly sophon = new Sophon(); private readonly sessions = new Map<string, QRSession>();
-  constructor(config: Settings) { this.device = new Device(join(config.dataDir, "device.json")); }
+  private readonly device: Device; private readonly sophon = new Sophon(); private readonly sessions = new Map<string, QRSession>(); private readonly aigisSessions = new Map<string, AigisSession>();
+  constructor(config: Settings, private readonly wishSleep: WishSyncSleeper = defaultWishSyncSleeper) { this.device = new Device(join(config.dataDir, "device.json")); }
 
   async createQRSession(): Promise<QRSession> {
     const data = await this.request("https://passport-api.mihoyo.com/account/ma-cn-passport/app/createQRLogin", { method: "POST", headers: this.qrHeaders(), body: "{}" });
@@ -30,11 +33,10 @@ export class LiveProvider implements Provider {
   async queryQRSession(id: string): Promise<[QRSession, AccountIdentity | null]> {
     const data = await this.request("https://passport-api.mihoyo.com/account/ma-cn-passport/app/queryQRLoginStatus", { method: "POST", headers: this.qrHeaders(), body: JSON.stringify({ ticket: id }) });
     const prior = this.sessions.get(id); if (!prior) throw new AppError("qr_session_missing", "二维码会话不存在", 404);
-    const raw = String(data.status ?? data.stat ?? data.qr_status).toLowerCase(); const status = ["confirmed", "confirm", "3"].includes(raw) ? "confirmed" : ["scanned", "scan", "2"].includes(raw) ? "scanned" : ["expired", "expire", "4"].includes(raw) ? "expired" : "created";
-    const session: QRSession = { ...prior, status }; if (status !== "confirmed") return [session, null];
-    const payload = (data.payload ?? data) as JSONValue;
-    const token = (payload.tokens as JSONValue[] | undefined)?.find((value) => Number(value.token_type) === 1)?.token ?? payload.stoken ?? payload.token;
-    const user = (payload.user_info ?? payload.user) as JSONValue | undefined; if (!user || !token) throw new AppError("qr_payload_invalid", "二维码登录结果缺少凭据", 502);
+    const status = qrStatus(data);
+    const session: QRSession = prior.status === "confirmed" && status !== "confirmed" ? prior : { ...prior, status };
+    this.sessions.set(id, session); if (session.status !== "confirmed" || status !== "confirmed") return [session, null];
+    const { user, token } = qrConfirmedPayload(data);
     return [session, await this.identity(user, String(token))];
   }
 
@@ -43,14 +45,30 @@ export class LiveProvider implements Provider {
   }
 
   async createMobileCaptcha(mobile: string): Promise<MobileCaptchaSession> {
+    return this.createMobileCaptchaWithAigis(mobile, "");
+  }
+
+  async verifyMobileCaptcha(mobile: string, sessionId: string, challenge: string, validate: string): Promise<MobileCaptchaSession> {
+    if (!this.aigisSessions.has(sessionId)) throw new AppError("aigis_session_missing", "验证码验证会话不存在或已过期", 404);
+    const session = await this.createMobileCaptchaWithAigis(mobile, createAigisHeader(sessionId, challenge, validate));
+    this.aigisSessions.delete(sessionId); return session;
+  }
+
+  private async createMobileCaptchaWithAigis(mobile: string, aigis: string): Promise<MobileCaptchaSession> {
     const body = JSON.stringify({ area_code: this.encrypt("+86"), mobile: this.encrypt(mobile) });
     const response = await fetch("https://passport-api.mihoyo.com/account/ma-cn-verifier/verifier/createLoginCaptcha", {
-      method: "POST", headers: { ...this.passportHeaders("", sign("prod", body)), "x-rpc-aigis": "" }, body, signal: AbortSignal.timeout(30_000),
+      method: "POST", headers: { ...this.passportHeaders("", sign("prod", body)), "x-rpc-aigis": aigis }, body, signal: AbortSignal.timeout(30_000),
     });
     const payload = await response.json() as JSONValue;
+    const rawAigis = response.headers.get("x-rpc-aigis");
+    const aigisSession = parseAigisSession(rawAigis);
+    if (aigisSession) {
+      this.aigisSessions.set(aigisSession.session_id, aigisSession);
+      throw new AppError("verification_required", "请完成人机验证后重试", 428, { ...verificationFromAigis(aigisSession) });
+    }
     if (!response.ok || Number(payload.retcode ?? 0) !== 0) throw new AppError("mihoyo_error", String(payload.message || "验证码发送失败"), 502);
     const data = payload.data as JSONValue ?? {};
-    return { mobile, action_type: String(data.action_type), countdown: Number(data.countdown ?? 60), aigis: response.headers.get("x-rpc-aigis") };
+    return { mobile, action_type: String(data.action_type), countdown: Number(data.countdown ?? 60), aigis: rawAigis };
   }
 
   async loginByMobileCaptcha(mobile: string, captcha: string, actionType: string, aigis?: string | null): Promise<AccountIdentity> {
@@ -69,16 +87,23 @@ export class LiveProvider implements Provider {
   }
 
   getBuild(version = "", audioLanguages?: string[]): Promise<GameBuild> { return this.sophon.build(version, audioLanguages); }
+  getPredownloadBuild(audioLanguages?: string[]): Promise<GameBuild | null> { return this.sophon.predownloadBuild(audioLanguages); }
 
   async *wishes(credential: string, role: GameRole, newest: Record<string, string>): AsyncIterable<WishRecord[]> {
-    const authkey = await this.authkey(credential, role);
+    let authkey = "";
+    try { authkey = await this.authkey(credential, role); } catch (error) { normalizeWishSyncError(error); }
     for (const type of ["100", "200", "301", "302"]) {
+      const collected: WishRecord[] = [];
       let end = "0"; while (true) {
         const query = new URLSearchParams({ auth_appid: "webview_gacha", authkey_ver: "1", sign_type: "2", authkey, lang: "zh-cn", gacha_type: type, size: "20", end_id: end });
-        const data = await this.request(`https://public-operation-hk4e.mihoyo.com/gacha_info/api/getGachaLog?${query}`);
+        let data: JSONValue = {};
+        try { data = await this.request(`https://public-operation-hk4e.mihoyo.com/gacha_info/api/getGachaLog?${query}`); } catch (error) { normalizeWishSyncError(error); }
         const records = (data.list as JSONValue[] ?? []).map((v) => this.wish(role.uid, v)); const checkpoint = newest[type]; const index = checkpoint ? records.findIndex((v) => v.id === checkpoint) : -1;
-        const fresh = index < 0 ? records : records.slice(0, index); if (fresh.length) yield fresh; if (fresh.length < records.length || records.length < 20) break; end = records.at(-1)?.id ?? "0";
+        const fresh = index < 0 ? records : records.slice(0, index); collected.push(...fresh); await this.wishSleep();
+        if (fresh.length < records.length || records.length < 20) break; end = records.at(-1)?.id ?? "0";
       }
+      if (collected.length) yield collected;
+      await this.wishSleep();
     }
   }
 
@@ -87,8 +112,15 @@ export class LiveProvider implements Provider {
     const headers = this.headers(credential, sign("x4", "", query)); if (challenge) headers["x-rpc-challenge"] = challenge;
     const url = `https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/dailyNote?${query}`;
     const response = await fetch(url, { headers, signal: AbortSignal.timeout(30_000) }), payload = await response.json() as JSONValue;
-    if (Number(payload.retcode) === 1034) throw new AppError("verification_required", "请完成人机验证后重试", 428, await this.createVerification(credential));
-    if (!response.ok || Number(payload.retcode ?? 0) !== 0) throw new AppError("mihoyo_error", String(payload.message || "米游社请求失败"), 502);
+    const retcode = Number(payload.retcode ?? 0), message = String(payload.message ?? "");
+    if (retcode === 1034) {
+      if (challenge) throw new AppError("note_verification_failed", "实时便笺验证未通过或已失效，请重新刷新后再验证", 429, { retcode: "1034" });
+      throw new AppError("verification_required", "请完成人机验证后重试", 428, await this.createVerification(credential));
+    }
+    if (retcode === 5003) throw new AppError("note_risk_limited", "当前账号存在风险，实时便笺暂无数据，请稍后重试或在米游社完成验证", 429, { retcode: "5003" });
+    if ([10102, 10103, 10104].includes(retcode)) throw new AppError("note_unavailable", message || "实时便笺当前不可用，请检查米游社数据公开或账号状态", 403, { retcode: String(retcode) });
+    if (message.toLowerCase().includes("visit too frequently")) throw new AppError("note_sync_limited", "访问过于频繁，请稍后再刷新实时便笺", 429, { retcode: String(retcode || "unknown") });
+    if (!response.ok || retcode !== 0) throw new AppError("mihoyo_error", message || `米游社请求失败（错误码 ${payload.retcode ?? "未知"}）`, 502, { retcode: String(payload.retcode ?? "unknown") });
     const data = payload.data as JSONValue ?? {};
     const expeditions = data.expeditions as JSONValue[] ?? [], recovery = (data.transformer as JSONValue | undefined)?.recovery_time as JSONValue | undefined;
     return { uid: role.uid, current_resin: Number(data.current_resin ?? 0), max_resin: Number(data.max_resin ?? 200), finished_tasks: Number(data.finished_task_num ?? 0), total_tasks: Number(data.total_task_num ?? 4),
@@ -98,8 +130,18 @@ export class LiveProvider implements Provider {
 
   async verifyNoteChallenge(credential: string, challenge: string, validate: string): Promise<string> {
     const body = JSON.stringify({ geetest_challenge: challenge, geetest_validate: validate, geetest_seccode: `${validate}|jordan` });
-    const data = await this.api("https://api-takumi-record.mihoyo.com/game_record/app/card/wapi/verifyVerification", credential, sign("x4", body), { method: "POST", body });
+    const data = await this.api("https://api-takumi-record.mihoyo.com/game_record/app/card/wapi/verifyVerification", credential, sign("x4", body), { method: "POST", body, headers: this.noteVerificationHeaders() });
     return String(data.challenge);
+  }
+
+  async createAuthTicket(credential: string): Promise<string> {
+    const map = cookies(credential), stoken = map.get("stoken") ?? "", mid = map.get("mid") ?? "", aid = map.get("stuid") ?? map.get("account_id") ?? "";
+    if (!stoken || !mid || !aid) throw new AppError("credential_invalid", "Cookie 缺少 stoken/mid/stuid，无法创建游戏登录票据", 422);
+    const body = JSON.stringify({ game_biz: "hk4e_cn", mid, stoken, uid: Number(aid) });
+    const data = await this.request("https://passport-api.mihoyo.com/account/ma-cn-verifier/app/createAuthTicketByGameBiz", {
+      method: "POST", headers: { Cookie: credential, "User-Agent": "HYPContainer/1.1.4.133", "x-rpc-app_id": "ddxf5dufpuyo", "x-rpc-client_type": "3", "x-rpc-device_id": this.device.loginDeviceId, "Content-Type": "application/json" }, body,
+    });
+    return String((data as JSONValue).ticket ?? "");
   }
 
   private async identity(user: JSONValue, token: string): Promise<AccountIdentity> { const credential = await this.enrichCredential(`stuid=${user.aid}; stoken=${token}; mid=${user.mid}`); return { aid: String(user.aid), mid: String(user.mid ?? ""), nickname: String(user.account_name || "米游社用户"), credential }; }
@@ -123,10 +165,11 @@ export class LiveProvider implements Provider {
       throw error;
     }
   }
-  private async createVerification(value: string): Promise<Record<string, string>> { const query = "is_high=true", data = await this.api(`https://api-takumi-record.mihoyo.com/game_record/app/card/wapi/createVerification?${query}`, value, sign("x4", "", query)); return { gt: String(data.gt), challenge: String(data.challenge) }; }
+  private async createVerification(value: string): Promise<Record<string, string>> { const query = "is_high=true", data = await this.api(`https://api-takumi-record.mihoyo.com/game_record/app/card/wapi/createVerification?${query}`, value, sign("x4", "", query), { headers: this.noteVerificationHeaders() }); return { gt: String(data.gt), challenge: String(data.challenge) }; }
   private async authkey(value: string, role: GameRole): Promise<string> { const body = JSON.stringify({ auth_appid: "webview_gacha", game_biz: "hk4e_cn", game_uid: Number(role.uid), region: role.region }); return String((await this.api("https://api-takumi.mihoyo.com/binding/api/genAuthKey", value, sign("lk2", "", "", 1), { method: "POST", body })).authkey); }
   private wish(uid: string, v: JSONValue): WishRecord { const type = String(v.gacha_type); return { id: String(v.id), uid, gacha_type: type, uigf_gacha_type: type === "400" ? "301" : type, item_id: String(v.item_id), name: String(v.name), item_type: String(v.item_type), rank: Number(v.rank_type), time: String(v.time).replace(" ", "T") }; }
   private headers(cookie: string, ds: string): Record<string, string> { return { Cookie: cookie, DS: ds, "User-Agent": agent, "x-rpc-app_version": "2.95.1", "x-rpc-client_type": "5", "x-rpc-device_id": this.device.deviceId, "x-rpc-device_fp": this.device.deviceFP, "Content-Type": "application/json" }; }
+  private noteVerificationHeaders(): Record<string, string> { return { "x-rpc-challenge_game": "2", "x-rpc-challenge_path": "https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/dailyNote" }; }
   private passportHeaders(cookie: string, ds: string): Record<string, string> {
     return {
       Cookie: cookie, DS: ds, "User-Agent": agent, "x-rpc-aigis": "", "x-rpc-app_id": "bll8iq97cem8",

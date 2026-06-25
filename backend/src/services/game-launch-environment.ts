@@ -21,7 +21,7 @@ export function runtimePaths(root: string): RuntimePaths {
 
 export function launchEnvironment(
   base: NodeJS.ProcessEnv, paths: RuntimePaths, prefix: string, sessionDir: string,
-  profile: GamePerformanceProfile, metalHud: boolean, networkDebug: boolean, framePacing: number,
+  profile: GamePerformanceProfile, metalHud: boolean, networkDebug: boolean, wineLog: boolean, framePacing: number,
 ): NodeJS.ProcessEnv {
   const gate = join(sessionDir, "dns-gate");
   mkdirSync(sessionDir, { recursive: true, mode: 0o700 });
@@ -29,7 +29,7 @@ export function launchEnvironment(
   const optimized = profile === "optimized", compatibility = profile === "compatibility";
   const environment: NodeJS.ProcessEnv = {
     ...base, LANG: "zh_CN.UTF-8", LANGUAGE: "zh_CN:zh", LC_ALL: "zh_CN.UTF-8", LC_MESSAGES: "zh_CN.UTF-8",
-    WINEPREFIX: prefix, WINEARCH: "win64", WINEDEBUG: "-all", WINEDLLOVERRIDES: "winedbg.exe=d",
+    WINEPREFIX: prefix, WINEARCH: "win64", WINEDEBUG: wineLog ? "fixme-all" : "-all", WINEDLLOVERRIDES: "winedbg.exe=d",
     WINEMSYNC: optimized ? "1" : "0", WINEESYNC: compatibility ? "1" : "0",
     DYLD_INSERT_LIBRARIES: paths.dnsGate, MHG_DNS_GATE_FILE: gate,
     MHG_DNS_GATE_HOSTS: "dispatchcnglobal.yuanshen.com,dispatchosglobal.yuanshen.com",

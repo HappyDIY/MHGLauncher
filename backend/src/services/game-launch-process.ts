@@ -1,5 +1,5 @@
 import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { AppError } from "../core/errors";
 import type { GameLaunchStatus, GamePerformanceProfile } from "../core/models";
@@ -9,8 +9,9 @@ import { writeGameAccountRegistry, type RegistryAccount } from "./game-account-r
 
 export interface LaunchRunInput {
   gameRoot: string; runtimeRoot: string; dataDir: string; sessionDir: string;
-  profile: GamePerformanceProfile; metalHud: boolean; networkDebug: boolean; framePacing: number; signal: AbortSignal;
-  account?: RegistryAccount;
+  profile: GamePerformanceProfile; metalHud: boolean; networkDebug: boolean; wineLog: boolean;
+  framePacing: number; signal: AbortSignal;
+  account?: RegistryAccount; authTicket?: string;
 }
 export type LaunchReporter = (status: GameLaunchStatus, message?: string, progress?: number) => void;
 export interface GameLaunchRunner { run(input: LaunchRunInput, report: LaunchReporter): Promise<number> }
@@ -25,7 +26,7 @@ export class WineLaunchRunner implements GameLaunchRunner {
     report("starting", "Wine 容器已切换为简体中文", 0.55);
     const env = launchEnvironment(
       process.env, paths, prefix, input.sessionDir, input.profile,
-      input.metalHud, input.networkDebug, input.framePacing,
+      input.metalHud, input.networkDebug, input.wineLog, input.framePacing,
     );
     if (input.account) {
       writeGameAccountRegistry(paths.wine, env, input.account);
@@ -34,9 +35,14 @@ export class WineLaunchRunner implements GameLaunchRunner {
     report("starting", "正在创建游戏进程", 0.68);
     const snapshot = spawnSync(paths.probe, ["--snapshot"], { encoding: "utf8" }).stdout
       .trim().split("\n").filter(Boolean).join(",");
-    const logDir = join(input.dataDir, "logs"); mkdirSync(logDir, { recursive: true, mode: 0o700 });
-    const descriptor = openSync(join(logDir, "game-launch.log"), "a", 0o600);
-    const child = spawn(paths.wine, [join(input.gameRoot, "YuanShen.exe"), "-force-d3d11"], {
+    const logPath = input.wineLog
+      ? join(input.sessionDir, "wine.log")
+      : join(input.dataDir, "logs", "game-launch.log");
+    mkdirSync(dirname(logPath), { recursive: true, mode: 0o700 });
+    const descriptor = openSync(logPath, "a", 0o600);
+    const exeArgs = [join(input.gameRoot, "YuanShen.exe"), "-force-d3d11"];
+    if (input.authTicket) exeArgs.push(`login_auth_ticket=${input.authTicket}`);
+    const child = spawn(paths.wine, exeArgs, {
       cwd: input.gameRoot, detached: true, env, stdio: ["ignore", descriptor, descriptor],
     });
     closeSync(descriptor);

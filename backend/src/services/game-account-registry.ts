@@ -13,7 +13,7 @@ export interface RegistryAccount {
 }
 
 export function writeGameAccountRegistry(wine: string, env: NodeJS.ProcessEnv, account: RegistryAccount): void {
-  const raw = mihoyoSdk(account);
+  const raw = createGameAccountRegistryValue(account);
   const hex = Buffer.concat([Buffer.from(raw, "utf8"), Buffer.from([0])]).toString("hex");
   const result = spawnSync(wine, ["reg", "add", registryKey, "/v", registryValue, "/t", "REG_BINARY", "/d", hex, "/f"], {
     env, stdio: "ignore",
@@ -25,17 +25,21 @@ export function launchAccount(account: Account, credential: string): RegistryAcc
   return { aid: account.aid, mid: account.mid, nickname: account.nickname, credential };
 }
 
-function mihoyoSdk(account: RegistryAccount): string {
-  const now = Math.floor(Date.now() / 1000);
+export function createGameAccountRegistryValue(account: RegistryAccount, mac = macAddress(), now = Math.floor(Date.now() / 1000)): string {
+  return mihoyoSdk(account, mac, now);
+}
+
+function mihoyoSdk(account: RegistryAccount, mac: string, now: number): string {
   const map = cookies(account.credential);
-  const token = map.get("stoken") ?? map.get("ltoken") ?? "";
+  const cookieToken = map.get("cookie_token") ?? map.get("ltoken") ?? map.get("stoken") ?? "";
+  const sToken = map.get("stoken") ?? map.get("ltoken") ?? cookieToken;
   const data = {
     data: [{
       uid: account.aid, mid: account.mid, name: account.nickname, email: "", mobile: "",
       is_email_verify: false, realname: "", identity_card: "", token_type: 1,
-      token, stoken: token, is_guest: false, guest_id: "", safe_mobile: "",
+      token: cookieToken, stoken: sToken, is_guest: false, guest_id: "", safe_mobile: "",
       account: account.aid, is_login: true, login_type: 1, payload: "",
-      channel_id: 1, asterisk_name: account.nickname, accessToken: token,
+      channel_id: 1, asterisk_name: account.nickname, accessToken: cookieToken,
       deviceId: "", country: "CN", area_code: "+86", reactivate_ticket: "",
       device_grant_ticket: "", thirdLoginTimestamp: now, account_display_type: "1",
       imageName: "", loginPattern: 1, loginTime: now, agreeSaveAccount: true,
@@ -43,7 +47,7 @@ function mihoyoSdk(account: RegistryAccount): string {
       agree_persistent_login_data: true,
     }],
   };
-  return encrypt(JSON.stringify(data), macAddress());
+  return encrypt(JSON.stringify(data), mac);
 }
 
 function encrypt(value: string, mac: string): string {

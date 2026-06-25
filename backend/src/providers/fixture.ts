@@ -33,6 +33,10 @@ export class FixtureProvider implements Provider {
     return { mobile, action_type: "fixture-action", countdown: 60, aigis: null };
   }
 
+  async verifyMobileCaptcha(mobile: string, _sessionId: string, _challenge: string, _validate: string): Promise<MobileCaptchaSession> {
+    return { mobile, action_type: "fixture-action", countdown: 60, aigis: "fixture-aigis" };
+  }
+
   async loginByMobileCaptcha(mobile: string, _captcha: string, _actionType: string, _aigis?: string | null): Promise<AccountIdentity> {
     return { aid: "10001", mid: "fixture-mid", nickname: `手机用户${mobile.slice(-4)}`, credential: "stoken=fixture; mid=fixture-mid" };
   }
@@ -43,6 +47,11 @@ export class FixtureProvider implements Provider {
 
   async getBuild(_installedVersion = "", _audioLanguages?: string[]): Promise<GameBuild> {
     return normalizeBuild(this.json<Partial<GameBuild> & Pick<GameBuild, "version">>("build.json"));
+  }
+
+  async getPredownloadBuild(_audioLanguages?: string[]): Promise<GameBuild | null> {
+    try { return normalizeBuild(this.json<Partial<GameBuild> & Pick<GameBuild, "version">>("predownload.json")); }
+    catch { return null; }
   }
 
   async *wishes(_credential: string, _role: GameRole, _newest: Record<string, string>): AsyncIterable<WishRecord[]> {
@@ -58,6 +67,10 @@ export class FixtureProvider implements Provider {
 
   async verifyNoteChallenge(_credential: string, _challenge: string, _validate: string): Promise<string> {
     return "fixture-xrpc-challenge";
+  }
+
+  async createAuthTicket(_credential: string): Promise<string> {
+    return "fixture-auth-ticket";
   }
 
   private session(id: string, status: QRSession["status"]): QRSession {
