@@ -2,24 +2,39 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-binary="$root/build/backend/dist/MHGLauncherBackend/MHGLauncherBackend"
+app_dir="$root/build/backend/dist/MHGLauncherBackend/app"
+node_root="$("$root/scripts/fetch-node.sh")"
 socket="$(mktemp -u /tmp/mhg-features.XXXXXX).sock"
 data="$(mktemp -d)"
+log="$(mktemp)"
 token="feature-test-token"
 
 cleanup() {
   [[ -n "${pid:-}" ]] && kill "$pid" 2>/dev/null || true
   [[ -n "${pid:-}" ]] && wait "$pid" 2>/dev/null || true
-  rm -f "$socket"
+  rm -f "$socket" "$log"
   rm -rf "$data"
 }
 trap cleanup EXIT
 
-MHG_SOCKET_PATH="$socket" MHG_DATA_DIR="$data" MHG_API_TOKEN="$token" \
-MHG_PROVIDER_MODE=fixture MHG_FIXTURE_DIR="$root/backend/fixtures" "$binary" >/dev/null 2>&1 &
+if [[ ! -d "$app_dir" ]]; then
+  "$root/scripts/build-backend.sh"
+fi
+ln -sfn "$("$root/scripts/prepare-smoke-node-modules.sh")" "$app_dir/node_modules"
+
+(
+  cd "$app_dir"
+  MHG_SOCKET_PATH="$socket" MHG_DATA_DIR="$data" MHG_API_TOKEN="$token" \
+  MHG_PROVIDER_MODE=fixture MHG_FIXTURE_DIR="$root/backend/fixtures" \
+  NODE_ENV=production MHG_HPATCHZ="$data/hpatchz" MHG_RUNTIME_ROOT="$data/runtime" \
+  "$node_root/bin/node" build/server.js
+) >"$log" 2>&1 &
 pid=$!
 for _ in {1..100}; do [[ -S "$socket" ]] && break; sleep 0.05; done
-test -S "$socket"
+if [[ ! -S "$socket" ]]; then
+  cat "$log" >&2
+  exit 1
+fi
 
 request() {
   curl --fail --silent --unix-socket "$socket" -H "Authorization: Bearer $token" \

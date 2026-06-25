@@ -114,6 +114,7 @@ extension LauncherStore {
                 message = "请先选择安装目录"
                 return
             }
+            try await ensureGameRuntime()
             let client = try requireClient()
             let request = StartGameLaunchRequest(
                 installPath: installPath,

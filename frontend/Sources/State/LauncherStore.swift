@@ -5,8 +5,17 @@ import Observation
 @Observable
 final class LauncherStore {
     let backend = BackendProcess()
+    let runtimeInstaller = RuntimeInstaller()
     let keychain = KeychainStore()
     let deviceOwnerAuthenticator = DeviceOwnerAuthenticator()
+
+    var runtimeProgress: RuntimeProgress?
+    var runtimeErrorMessage: String?
+    var isBootstrapping = false
+    var isInstallingCoreRuntime = false
+    var isInstallingGameRuntime = false
+    var gameRuntimeReady = false
+    private var installedRuntime: InstalledRuntime?
 
     var account: Account?
     var accounts: [Account] = []
@@ -65,7 +74,25 @@ final class LauncherStore {
     }
 
     func bootstrap() async {
-        await backend.start()
+        guard !isBootstrapping else { return }
+        isBootstrapping = true
+        defer { isBootstrapping = false }
+        do {
+            isInstallingCoreRuntime = true
+            let runtime = try await runtimeInstaller.ensureCore { progress in
+                self.runtimeProgress = progress
+            }
+            installedRuntime = runtime
+            gameRuntimeReady = runtimeInstaller.isGameInstalled()
+            runtimeErrorMessage = nil
+            isInstallingCoreRuntime = false
+            await backend.start(runtime: runtime)
+        } catch {
+            isInstallingCoreRuntime = false
+            runtimeErrorMessage = Self.presentableMessage(error.localizedDescription)
+            message = runtimeErrorMessage
+            return
+        }
         guard backend.client != nil else {
             message = backend.errorMessage
             return
@@ -78,6 +105,28 @@ final class LauncherStore {
         if selectedRole != nil {
             await loadCompanionData()
         }
+    }
+
+    func retryBootstrap() async {
+        backend.stop()
+        runtimeProgress = nil
+        await bootstrap()
+    }
+
+    func checkGameRuntime() {
+        gameRuntimeReady = runtimeInstaller.isGameInstalled()
+    }
+
+    func ensureGameRuntime() async throws {
+        if gameRuntimeReady { return }
+        isInstallingGameRuntime = true
+        defer { isInstallingGameRuntime = false }
+        let runtime = try await runtimeInstaller.ensureGame { progress in
+            self.runtimeProgress = progress
+        }
+        installedRuntime = runtime
+        gameRuntimeReady = true
+        runtimeErrorMessage = nil
     }
 
     func perform(_ operation: () async throws -> Void) async {

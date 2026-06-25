@@ -77,8 +77,10 @@ test("基准：有索引但文件被修改过的校验耗时", () => {
   writeIntegrityIndex(root, build);
 
   for (let i = 0; i < 20; i += 1) {
-    const target = join(root, assets[i].name.replaceAll("\\", "/"));
-    writeFileSync(target, randomBytes(assets[i].size));
+    const asset = assets[i];
+    if (!asset) continue;
+    const target = join(root, asset.name.replaceAll("\\", "/"));
+    writeFileSync(target, randomBytes(asset.size));
   }
 
   const start = performance.now();

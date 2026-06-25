@@ -79,7 +79,6 @@ backend_cache="$root/build/backend-debug-cache/$backend_hash/MHGLauncherBackend"
 run_dir="$root/build/debug-run/$source_hash"
 run_app="$run_dir/MHGLauncher.app"
 run_binary="$run_app/Contents/MacOS/MHGLauncher"
-run_backend="$run_app/Contents/Resources/Backend/MHGLauncherBackend/MHGLauncherBackend"
 
 pkill -x MHGLauncher 2>/dev/null || true
 pkill -x MHGLauncherBackend 2>/dev/null || true
@@ -115,11 +114,14 @@ printf '关闭 MHGLauncher 后将保留此 App。\n'
 rm -rf "$run_dir"
 mkdir -p "$run_dir"
 cp -cR "$cached_app" "$run_app"
-chmod +x "$run_binary" "$run_backend"
+chmod +x "$run_binary"
 
-MHG_DEBUG_MODE=1 \
-MHG_BACKEND_EXECUTABLE="$run_backend" \
-"$run_binary" &
+runtime_env=()
+if [[ -n "${MHG_RUNTIME_MANIFEST_URL:-}" ]]; then
+  runtime_env+=(MHG_RUNTIME_MANIFEST_URL="$MHG_RUNTIME_MANIFEST_URL")
+fi
+
+env MHG_DEBUG_MODE=1 "${runtime_env[@]}" "$run_binary" &
 app_pid=$!
 
 set +e

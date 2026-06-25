@@ -12,7 +12,7 @@ final class BackendProcess {
 
     var isReady: Bool { client != nil }
 
-    func start() async {
+    func start(runtime: InstalledRuntime) async {
         guard process == nil, !isStarting else { return }
         isStarting = true
         errorMessage = nil
@@ -21,14 +21,19 @@ final class BackendProcess {
         do {
             let token = UUID().uuidString
             let socketPath = Self.makeSocketPath()
-            let executable = try executableURL()
             let pipe = Pipe()
             let errorPipe = Pipe()
             let process = Process()
-            process.executableURL = executable
+            process.executableURL = runtime.nodeURL
+            process.arguments = ["build/server.js"]
+            process.currentDirectoryURL = runtime.backendAppURL
             process.standardOutput = pipe
             process.standardError = errorPipe
-            process.environment = environment(token: token, socketPath: socketPath)
+            process.environment = Self.environment(
+                token: token,
+                socketPath: socketPath,
+                runtime: runtime
+            )
             try process.run()
             self.process = process
             let readyPath = try await Self.readSocketPath(from: pipe.fileHandleForReading)
@@ -51,29 +56,22 @@ final class BackendProcess {
         client = nil
     }
 
-    private func executableURL() throws -> URL {
-        if let url = Bundle.main.url(
-            forResource: "MHGLauncherBackend",
-            withExtension: nil,
-            subdirectory: "Backend/MHGLauncherBackend"
-        ) {
-            return url
-        }
-        if let override = ProcessInfo.processInfo.environment["MHG_BACKEND_EXECUTABLE"] {
-            return URL(fileURLWithPath: override)
-        }
-        throw CocoaError(.fileNoSuchFile)
-    }
-
-    private func environment(token: String, socketPath: String) -> [String: String] {
-        var values = ProcessInfo.processInfo.environment
+    nonisolated static func environment(
+        token: String,
+        socketPath: String,
+        runtime: InstalledRuntime,
+        base: [String: String] = ProcessInfo.processInfo.environment
+    ) -> [String: String] {
+        var values = base
         values["MHG_API_TOKEN"] = token
         values["MHG_PARENT_PID"] = String(ProcessInfo.processInfo.processIdentifier)
         values["MHG_SOCKET_PATH"] = socketPath
-        values["MHG_DATA_DIR"] = FileManager.default
+        values["MHG_DATA_DIR"] = base["MHG_DATA_DIR"] ?? FileManager.default
             .homeDirectoryForCurrentUser
-            .appending(path: "Library/Application Support/MHGLauncher")
-            .path
+            .appending(path: "Library/Application Support/MHGLauncher").path
+        values["NODE_ENV"] = "production"
+        values["MHG_HPATCHZ"] = runtime.hpatchzURL.path
+        values["MHG_RUNTIME_ROOT"] = runtime.gameRuntimeURL.path
         return values
     }
 
