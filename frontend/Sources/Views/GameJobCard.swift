@@ -17,8 +17,7 @@ struct GameJobCard: View {
     var body: some View {
         GlassCard("资源任务", icon: "arrow.down.circle") {
             VStack(alignment: .leading, spacing: 10) {
-                ProgressView(value: smoothProgress)
-                    .animation(LauncherMotion.progressTick, value: tick)
+                progressBar(smoothProgress)
                 HStack {
                     Text(job.status.title)
                         .contentTransition(.opacity)
@@ -48,7 +47,6 @@ struct GameJobCard: View {
                     Divider()
                     ForEach(job.activeChunks) { chunk in
                         chunkProgress(chunk)
-                            .motionTransition(.content)
                     }
                 }
                 controls
@@ -69,9 +67,8 @@ struct GameJobCard: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-            ProgressView(value: smoothChunkProgress(chunk))
-                .animation(LauncherMotion.progressTick, value: tick)
-                .tint(.blue)
+            progressBar(smoothChunkProgress(chunk), tint: .blue)
+                    .motionAnimation(.content, value: chunk.bytesDone)
         }
     }
 
@@ -143,5 +140,18 @@ struct GameJobCard: View {
             return min(predicted / Double(chunk.total), 1)
         }
         return chunk.progress
+    }
+
+    private func progressBar(_ progress: Double, tint: Color = .accentColor) -> some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(.secondary.opacity(0.12))
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(tint)
+                    .frame(width: max(geometry.size.width * progress, progress > 0.001 ? 4 : 0))
+            }
+        }
+        .frame(height: 6)
     }
 }
