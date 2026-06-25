@@ -27,8 +27,9 @@ type GameStatus = "not_installed" | "ready" | "update_available" | "busy" | "dam
 export interface GameState {
   install_path: string; installed_version: string; available_version: string; status: GameStatus;
   update_kind: string; download_bytes: number;
+  predownload_version: string | null; predownload_finished: boolean;
 }
-export type JobKind = "install" | "update" | "verify";
+export type JobKind = "install" | "update" | "verify" | "predownload";
 type JobStatus = "queued" | "running" | "paused" | "completed" | "cancelled" | "failed";
 interface ChunkProgress { name: string; bytes_done: number; total: number }
 export interface GameJob {
@@ -36,11 +37,12 @@ export interface GameJob {
   message: string; download_speed: number; chunks_completed: number; chunks_total: number;
   active_chunks: ChunkProgress[]; last_update: string;
 }
+export interface PredownloadStatus { tag: string; finished: boolean; total_chunks: number }
 export type GameLaunchStatus = "preparing" | "starting" | "waiting_window" | "running" | "stopping" | "stopped" | "exited" | "failed";
 export type GamePerformanceProfile = "optimized" | "compatibility" | "baseline";
-interface GameLaunchLog { sequence: number; timestamp: string; kind: "launch" | "dns"; message: string }
+interface GameLaunchLog { sequence: number; timestamp: string; kind: "launch" | "dns" | "wine"; message: string }
 export interface GameLaunch {
   id: string; status: GameLaunchStatus; message: string; performance_profile: GamePerformanceProfile;
-  metal_hud: boolean; network_debug: boolean; progress: number; logs: GameLaunchLog[];
+  metal_hud: boolean; network_debug: boolean; wine_log: boolean; progress: number; logs: GameLaunchLog[];
   started_at: string; updated_at: string;
 }

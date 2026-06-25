@@ -14,7 +14,7 @@ const roots: string[] = [];
 function liveProvider(): LiveProvider {
   const dataDir = mkdtempSync(join(tmpdir(), "mhg-live-test-")); roots.push(dataDir);
   return new LiveProvider({ dataDir, databasePath: join(dataDir, "test.db"), apiToken: "", providerMode: "live",
-    fixtureDir: join(process.cwd(), "fixtures"), requestTimeout: 30_000, downloadWorkers: 4, socketPath: join(dataDir, "test.sock") });
+    fixtureDir: join(process.cwd(), "fixtures"), requestTimeout: 30_000, downloadWorkers: 4, downloadSpeedLimitKB: 0, socketPath: join(dataDir, "test.sock") });
 }
 afterEach(() => { vi.restoreAllMocks(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 describe("Provider 契约", () => {
@@ -78,30 +78,30 @@ describe("Provider 契约", () => {
     expect(urls[1]).toContain("getCookieAccountInfoBySToken");
     expect(identity.credential).toContain("stoken=new-stoken");
   });
-  test("实时便笺 5003 首次返回验证挑战", async () => {
+  test("实时便笺 5003 始终返回账号风险提示", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       if (String(input).includes("dailyNote")) return Response.json({ retcode: 5003, message: "", data: null });
+      return Response.json({ retcode: 0, data: { device_fp: "fp" } });
+    });
+    await expect(liveProvider().getDailyNote("stuid=10001; stoken=token", { uid: "100000001", region: "cn_gf01", nickname: "旅行者", level: 60, selected: true }))
+      .rejects.toMatchObject({ code: "note_risk_limited", status: 429, message: "当前账号存在风险，实时便笺暂无数据，请稍后重试或在米游社完成验证", details: { retcode: "5003" } });
+  });
+  test("实时便笺 1034 首次返回验证挑战", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("dailyNote")) return Response.json({ retcode: 1034, message: "", data: null });
       if (String(input).includes("createVerification")) return Response.json({ retcode: 0, data: { gt: "gt", challenge: "challenge" } });
       return Response.json({ retcode: 0, data: { device_fp: "fp" } });
     });
     await expect(liveProvider().getDailyNote("stuid=10001; stoken=token", { uid: "100000001", region: "cn_gf01", nickname: "旅行者", level: 60, selected: true }))
       .rejects.toMatchObject({ code: "verification_required", status: 428, details: { gt: "gt", challenge: "challenge" } });
   });
-  test("实时便笺验证后 10306 不再重复创建验证码", async () => {
+  test("实时便笺验证后仍 1034 提示验证失效", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
-      if (String(input).includes("dailyNote")) return Response.json({ retcode: 10306, message: "", data: null });
+      if (String(input).includes("dailyNote")) return Response.json({ retcode: 1034, message: "", data: null });
       return Response.json({ retcode: 0, data: { device_fp: "fp" } });
     });
     await expect(liveProvider().getDailyNote("stuid=10001; stoken=token", { uid: "100000001", region: "cn_gf01", nickname: "旅行者", level: 60, selected: true }, "old"))
-      .rejects.toMatchObject({ code: "note_verification_failed", status: 429, details: { retcode: "10306" } });
-  });
-  test("实时便笺验证后仍 5003 返回账号风险提示", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
-      if (String(input).includes("dailyNote")) return Response.json({ retcode: 5003, message: "", data: null });
-      return Response.json({ retcode: 0, data: { device_fp: "fp" } });
-    });
-    await expect(liveProvider().getDailyNote("stuid=10001; stoken=token", { uid: "100000001", region: "cn_gf01", nickname: "旅行者", level: 60, selected: true }, "verified"))
-      .rejects.toMatchObject({ code: "note_risk_limited", status: 429, message: "当前账号存在风险，实时便笺暂无数据，请稍后重试或在米游社完成验证", details: { retcode: "5003" } });
+      .rejects.toMatchObject({ code: "note_verification_failed", status: 429, details: { retcode: "1034" } });
   });
   test("实时便笺验证请求携带源项目挑战头", async () => {
     let headers: Headers | undefined;
@@ -114,7 +114,7 @@ describe("Provider 契约", () => {
     await expect(liveProvider().verifyNoteChallenge("stuid=10001; stoken=token", "challenge", "validate")).resolves.toBe("xrpc-challenge");
     expect(body).toEqual({ geetest_challenge: "challenge", geetest_validate: "validate", geetest_seccode: "validate|jordan" });
     expect(headers?.get("x-rpc-challenge_game")).toBe("2");
-    expect(headers?.get("x-rpc-challenge_path")).toBe("/game_record/app/genshin/api/dailyNote");
+    expect(headers?.get("x-rpc-challenge_path")).toBe("https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/dailyNote");
   });
   test("创建游戏登录票据使用 HoyoPlay 头并返回 ticket", async () => {
     let url: string | undefined;

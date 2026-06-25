@@ -12,14 +12,23 @@ import { installPatches } from "./patch-install";
 import { prepareBuild, removeRetired, removeSafe } from "./game-build";
 import { ensureGameConfiguration } from "./game-config";
 import { writeIntegrityIndex } from "./game-integrity";
+import { diskSpaceInfo } from "./disk-space";
+import { maybeRateLimiter } from "./rate-limiter";
+import { makeProgress } from "./job-progress";
+import { downloadChunksOnly, downloadPatchesOnly } from "./predownload";
+import { readPredownloadStatus, writePredownloadStatus, clearPredownloadStatus } from "./predownload-status";
 
 export class GameService {
   private readonly jobs = new Map<string, GameJob>();
   private readonly controls = new Map<string, DownloadControl>();
+  private mutableSpeedLimitKB = 0;
   constructor(
     private readonly store: Store, private readonly provider: Provider, private readonly dataDir: string,
-    private readonly downloadWorkers = 4,
-  ) {}
+    private readonly downloadWorkers = 4, downloadSpeedLimitKB = 0,
+  ) { this.mutableSpeedLimitKB = downloadSpeedLimitKB; }
+
+  setSpeedLimit(kb: number): void { this.mutableSpeedLimitKB = Math.max(0, kb); }
+  getSpeedLimit(): number { return this.mutableSpeedLimitKB; }
 
   busy(): boolean {
     return [...this.jobs.values()].some(({ status }) => ["queued", "running", "paused"].includes(status));
@@ -34,15 +43,35 @@ export class GameService {
     if (!detected) return output(candidate, "", build, "not_installed");
     this.saveState(detected.path, detected.version);
     const current = detected.version === build.version && !build.assets.length;
-    return output(detected.path, detected.version, build, current ? "ready" : "update_available");
+    const predownload = await this.predownloadInfo(detected.path);
+    return output(detected.path, detected.version, build, current ? "ready" : "update_available", predownload);
+  }
+
+  spaceCheck(path: string, installBytes: number): { available: number; required: number; sufficient: boolean } {
+    return diskSpaceInfo(path, installBytes);
+  }
+
+  private async predownloadInfo(gamePath: string): Promise<{ version: string | null; finished: boolean }> {
+    try {
+      const preBuild = await this.provider.getPredownloadBuild(audioLanguages(gamePath));
+      if (!preBuild) return { version: null, finished: false };
+      const cache = join(this.dataDir, "downloads", preBuild.version);
+      const status = readPredownloadStatus(cache);
+      return { version: preBuild.version, finished: status?.finished ?? false };
+    } catch { return { version: null, finished: false }; }
   }
 
   async start(kind: JobKind, path: string): Promise<GameJob> {
     if (this.busy()) throw new AppError("game_job_busy", "已有游戏资源任务正在运行", 409);
     const detected = detectGame(path);
     if (kind === "update" && !detected) throw new AppError("game_not_installed", "所选目录中未检测到可更新的原神客户端");
+    if (kind === "predownload" && !detected) throw new AppError("game_not_installed", "预下载需要已安装的游戏客户端");
     const root = detected?.path ?? resolve(path);
-    const build = prepareBuild(await this.provider.getBuild(detected?.version ?? "", audioLanguages(root)), detected?.path ?? "", detected?.version ?? "");
+    const build = kind === "predownload"
+      ? (await this.provider.getPredownloadBuild(audioLanguages(root)) ?? (() => { throw new AppError("predownload_unavailable", "当前没有可用的预下载版本"); })())
+      : prepareBuild(await this.provider.getBuild(detected?.version ?? "", audioLanguages(root)), detected?.path ?? "", detected?.version ?? "");
+    const spaceInfo = diskSpaceInfo(root, size(build));
+    if (!spaceInfo.sufficient) throw new AppError("disk_space_insufficient", `磁盘空间不足：需要 ${spaceInfo.required} 字节，可用 ${spaceInfo.available} 字节`, 422, { available: spaceInfo.available, required: spaceInfo.required, sufficient: spaceInfo.sufficient });
     const job: GameJob = {
       id: randomUUID(), kind, status: "queued", completed_bytes: 0, total_bytes: size(build), message: "",
       download_speed: 0, chunks_completed: 0, chunks_total: build.assets.reduce((n, value) => n + value.chunks.length, 0),
@@ -71,6 +100,7 @@ export class GameService {
 
   private async run(job: GameJob, control: DownloadControl, path: string, build: GameBuild): Promise<void> {
     job.status = "running";
+    if (job.kind === "predownload") return this.runPredownload(job, control, path, build);
     const inPlace = job.kind !== "install" && build.kind === "package_repair";
     try {
       const cache = join(this.dataDir, "downloads", build.version), staging = inPlace ? path : `${path}.staging`;
@@ -79,42 +109,47 @@ export class GameService {
       if (!inPlace && !resumable) { stageExisting(job.kind === "update" ? path : "", staging); writeFileSync(marker, build.version); }
       mkdirSync(cache, { recursive: true });
       if (job.kind === "update" && build.kind !== "package_repair") removeRetired(staging, build);
-      let speedBytes = 0, speedStarted = Date.now();
-      const progress = (bytes: number): void => {
-        job.completed_bytes = Math.max(0, job.completed_bytes + bytes); speedBytes += Math.max(0, bytes);
-        const now = Date.now(), elapsed = now - speedStarted;
-        if (elapsed >= 500) { job.download_speed = Math.round(speedBytes * 1_000 / elapsed); speedBytes = 0; speedStarted = now; }
-        job.last_update = new Date(now).toISOString();
-      };
-      const completedChunks = new Set<string>();
-      const chunk = (name: string, done: number, total: number): void => {
-        const value = { name, bytes_done: done, total }; job.active_chunks = [...job.active_chunks.filter((item) => item.name !== name), value].slice(-4);
-        if (done === total) completedChunks.add(name);
-        job.chunks_completed = completedChunks.size;
-      };
+      const limiter = maybeRateLimiter(this.mutableSpeedLimitKB);
+      const { progress, chunk } = makeProgress(job);
       if (build.patch_assets.length) { await installPatches(build.patch_assets, staging, cache, control, progress, chunk); for (const name of build.deprecated_files) removeSafe(staging, name); }
-      else if (build.assets.length) await installSophon(build.assets, staging, cache, control, progress, chunk, this.downloadWorkers);
+      else if (build.assets.length) await installSophon(build.assets, staging, cache, control, progress, chunk, this.downloadWorkers, limiter);
       else {
         const archives: string[] = [];
         for (const segment of build.segments) archives.push(await download(segment, join(cache, segment.filename), control, progress));
         extract(archives, staging); verify(staging);
       }
-      if (!existsSync(join(staging, "YuanShen.exe"))) {
-        throw new AppError("game_install_incomplete", "资源安装完成后仍缺少 YuanShen.exe，未激活不完整目录");
-      }
+      if (!existsSync(join(staging, "YuanShen.exe"))) throw new AppError("game_install_incomplete", "资源安装完成后仍缺少 YuanShen.exe，未激活不完整目录");
       if (!inPlace) rmSync(marker, { force: true });
       writeFileSync(join(staging, ".mhg-version"), build.version);
       ensureGameConfiguration(staging, build.version);
       writeIntegrityIndex(staging, build);
       if (build.assets.length && build.kind !== "package_repair") writeFileSync(join(staging, ".mhg-assets.json"), JSON.stringify(build.assets.map(({ name }) => name)));
       if (!inPlace) activate(staging, path);
-      this.saveState(path, build.version); rmSync(cache, { recursive: true, force: true });
+      this.saveState(path, build.version); rmSync(cache, { recursive: true, force: true }); clearPredownloadStatus(cache);
       job.completed_bytes = job.total_bytes; job.download_speed = 0; job.status = "completed";
     } catch (error) {
       job.download_speed = 0; job.status = error instanceof DOMException && error.name === "AbortError" ? "cancelled" : "failed";
       job.message = error instanceof Error ? error.message : "游戏任务失败";
     } finally {
       if (!inPlace && (job.status === "cancelled" || job.status === "completed")) rmSync(`${path}.staging`, { recursive: true, force: true });
+    }
+  }
+
+  private async runPredownload(job: GameJob, control: DownloadControl, _path: string, build: GameBuild): Promise<void> {
+    try {
+      const cache = join(this.dataDir, "downloads", build.version);
+      mkdirSync(cache, { recursive: true });
+      const limiter = maybeRateLimiter(this.mutableSpeedLimitKB);
+      const { progress, chunk } = makeProgress(job);
+      const totalChunks = build.assets.reduce((n, v) => n + v.chunks.length, 0) + build.patch_assets.length;
+      writePredownloadStatus(cache, { tag: build.version, finished: false, total_chunks: totalChunks });
+      if (build.patch_assets.length) await downloadPatchesOnly(build.patch_assets, cache, control, progress, chunk, limiter);
+      else if (build.assets.length) await downloadChunksOnly(build.assets, cache, control, progress, chunk, this.downloadWorkers, limiter);
+      writePredownloadStatus(cache, { tag: build.version, finished: true, total_chunks: totalChunks });
+      job.completed_bytes = job.total_bytes; job.download_speed = 0; job.status = "completed";
+    } catch (error) {
+      job.download_speed = 0; job.status = error instanceof DOMException && error.name === "AbortError" ? "cancelled" : "failed";
+      job.message = error instanceof Error ? error.message : "预下载失败";
     }
   }
 
@@ -125,8 +160,8 @@ export class GameService {
   }
 }
 
-function output(path: string, installed: string, build: GameBuild, status: GameState["status"]): GameState {
-  return { install_path: path, installed_version: installed, available_version: build.version, status, update_kind: build.kind, download_bytes: size(build) };
+function output(path: string, installed: string, build: GameBuild, status: GameState["status"], predownload?: { version: string | null; finished: boolean }): GameState {
+  return { install_path: path, installed_version: installed, available_version: build.version, status, update_kind: build.kind, download_bytes: size(build), predownload_version: predownload?.version ?? null, predownload_finished: predownload?.finished ?? false };
 }
 
 function size(build: GameBuild): number {

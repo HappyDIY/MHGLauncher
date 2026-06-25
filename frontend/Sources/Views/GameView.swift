@@ -5,65 +5,71 @@ struct GameView: View {
     @Bindable var store: LauncherStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            PageHeader(
-                title: "游戏",
-                subtitle: "管理国服 Windows 客户端资源"
-            )
-            .motionEntrance(order: 0)
-            GlassCard("安装状态", icon: "internaldrive") {
-                HStack {
-                    MetricView(
-                        value: store.gameState?.installedVersion.nonempty ?? "未安装",
-                        label: "当前版本"
-                    )
-                    MetricView(
-                        value: store.gameState?.availableVersion.nonempty ?? "未知",
-                        label: "可用版本"
-                    )
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text(store.gameState?.status.title ?? "检查中")
-                        if let update = updateSummary {
-                            Text(update)
-                                .font(.caption)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                PageHeader(
+                    title: "游戏",
+                    subtitle: "管理国服 Windows 客户端资源"
+                )
+                .motionEntrance(order: 0)
+                GlassCard("安装状态", icon: "internaldrive") {
+                    HStack {
+                        MetricView(
+                            value: store.gameState?.installedVersion.nonempty ?? "未安装",
+                            label: "当前版本"
+                        )
+                        MetricView(
+                            value: store.gameState?.availableVersion.nonempty ?? "未知",
+                            label: "可用版本"
+                        )
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text(store.gameState?.status.title ?? "检查中")
+                            if let update = updateSummary {
+                                Text(update)
+                                    .font(.caption)
+                            }
+                            if let preVersion = store.gameState?.predownloadVersion, !preVersion.isEmpty {
+                                Text(store.gameState?.predownloadFinished == true ? "预下载完成 \(preVersion)" : "可预下载 \(preVersion)")
+                                    .font(.caption)
+                            }
                         }
+                        .foregroundStyle(.secondary)
                     }
-                    .foregroundStyle(.secondary)
                 }
-            }
-            .motionEntrance(order: 1)
-            GlassCard("安装位置", icon: "folder") {
-                HStack {
-                    TextField("选择游戏目录", text: $store.installPath)
-                    Button("选择") { chooseDirectory() }
-                        .buttonStyle(.glass)
-                        .motionHover()
+                .motionEntrance(order: 1)
+                GlassCard("安装位置", icon: "folder") {
+                    HStack {
+                        TextField("选择游戏目录", text: $store.installPath)
+                        Button("选择") { chooseDirectory() }
+                            .buttonStyle(.glass)
+                            .motionHover()
+                    }
                 }
+                .motionEntrance(order: 2)
+                GlassCard("游戏启动", icon: "play.circle") {
+                    GameLaunchControls(store: store)
+                }
+                .motionEntrance(order: 3)
+                if let launch = store.gameLaunch {
+                    GameLaunchProgressView(launch: launch)
+                        .motionTransition(.emphasis)
+                }
+                if let job = store.gameJob {
+                    GameJobCard(store: store, job: job)
+                        .motionTransition(.emphasis)
+                }
+                GameResourceActionButtons(store: store)
+                    .motionEntrance(order: 4)
+                Spacer()
             }
-            .motionEntrance(order: 2)
-            GlassCard("游戏启动", icon: "play.circle") {
-                GameLaunchControls(store: store)
+            .motionAnimation(.emphasis, value: store.gameLaunch?.id)
+            .motionAnimation(.emphasis, value: store.gameJob?.id)
+            .task(id: store.installPath) {
+                try? await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled else { return }
+                await store.refreshGame()
             }
-            .motionEntrance(order: 3)
-            if let launch = store.gameLaunch {
-                GameLaunchProgressView(launch: launch)
-                    .motionTransition(.emphasis)
-            }
-            if let job = store.gameJob {
-                GameJobCard(store: store, job: job)
-                    .motionTransition(.emphasis)
-            }
-            GameResourceActionButtons(store: store)
-                .motionEntrance(order: 4)
-            Spacer()
-        }
-        .motionAnimation(.emphasis, value: store.gameLaunch?.id)
-        .motionAnimation(.emphasis, value: store.gameJob?.id)
-        .task(id: store.installPath) {
-            try? await Task.sleep(for: .milliseconds(400))
-            guard !Task.isCancelled else { return }
-            await store.refreshGame()
         }
     }
 

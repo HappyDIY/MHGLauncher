@@ -16,11 +16,13 @@ const cookieLogin = z.object({ credential: z.string().min(1) });
 const complete = z.object({ identity: z.object({ aid: z.string(), mid: z.string(), nickname: z.string(), credential: z.string() }), credential_ref: z.string() });
 const refresh = z.object({ credential: z.string(), xrpc_challenge: z.string().default("") });
 const verification = z.object({ credential: z.string(), challenge: z.string(), validate: z.string() });
-const startJob = z.object({ kind: z.enum(["install", "update", "verify"]), install_path: z.string().min(1) });
+const startJob = z.object({ kind: z.enum(["install", "update", "verify", "predownload"]), install_path: z.string().min(1) });
 const controlJob = z.object({ action: z.enum(["pause", "resume", "cancel"]) });
+const speedLimit = z.object({ speed_limit_kb: z.number().int().min(0) });
 const startLaunch = z.object({
   install_path: z.string().min(1), performance_profile: z.enum(["optimized", "compatibility", "baseline"]).default("optimized"),
   metal_hud: z.boolean().default(false), network_debug: z.boolean().default(false),
+  wine_log: z.boolean().default(false),
   frame_pacing: z.number().int().min(0).max(240).default(0), credential: z.string().min(1).optional(),
 });
 
@@ -69,7 +71,10 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   }
   if (method === "GET" && path === "/game/status") return json(await app.games.state());
   if (method === "GET" && path === "/game/status/path") return json(await app.games.state(required(query, "install_path")));
+  if (method === "GET" && path === "/game/space-check") { const installPath = required(query, "install_path"); const state = await app.games.state(installPath); return json(app.games.spaceCheck(installPath, state.download_bytes)); }
   if (method === "POST" && path === "/game/jobs") { const value = startJob.parse(body); return json(await app.games.start(value.kind as JobKind, value.install_path), 202); }
+  if (method === "GET" && path === "/settings/speed-limit") return json({ speed_limit_kb: app.games.getSpeedLimit() });
+  if (method === "POST" && path === "/settings/speed-limit") { const value = speedLimit.parse(body); app.games.setSpeedLimit(value.speed_limit_kb); return json({ speed_limit_kb: value.speed_limit_kb }); }
   const gameJob = match(path, /^\/game\/jobs\/([^/]+)$/);
   if (method === "GET" && gameJob) return json(app.games.get(gameJob));
   const gameControl = match(path, /^\/game\/jobs\/([^/]+)\/control$/);

@@ -1,0 +1,13 @@
+{
+  "version": "5.9.0",
+  "segments": [
+    {
+      "url": "https://example.invalid/predownload.zip",
+      "md5": "00000000000000000000000000000000",
+      "size": 1,
+      "filename": "predownload.zip"
+    }
+  ],
+  "deprecated_files": [],
+  "is_predownload": true
+}

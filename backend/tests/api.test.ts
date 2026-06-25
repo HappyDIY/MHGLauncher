@@ -55,4 +55,26 @@ describe("本地 API 契约", () => {
   test("删除账号返回 204", async () => expect((await request("DELETE", "/v1/account")).status).toBe(204));
   test("同步旧端点已删除", async () => expect((await request("POST", "/v1/wishes/sync", { credential: "x" })).status).toBe(404));
   test("图片端点需要鉴权", async () => expect((await request("GET", "/v1/images/gacha/0000000000000000000000000000000000000000.png", undefined, "bad")).status).toBe(401));
+
+  test("限速设置读写", async () => {
+    const initial = await (await request("GET", "/v1/settings/speed-limit")).json();
+    expect(initial.speed_limit_kb).toBe(0);
+    await request("POST", "/v1/settings/speed-limit", { speed_limit_kb: 2048 });
+    const updated = await (await request("GET", "/v1/settings/speed-limit")).json();
+    expect(updated.speed_limit_kb).toBe(2048);
+  });
+
+  test("游戏状态包含预下载字段", async () => {
+    const state = await (await request("GET", "/v1/game/status")).json();
+    expect(state).toHaveProperty("predownload_version");
+    expect(state).toHaveProperty("predownload_finished");
+  });
+
+  test("空间检查返回必要字段", async () => {
+    const response = await request("GET", "/v1/game/space-check?install_path=/tmp");
+    const info = await response.json();
+    expect(info).toHaveProperty("available");
+    expect(info).toHaveProperty("required");
+    expect(info).toHaveProperty("sufficient");
+  });
 });

@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import MHGLauncher
 
@@ -61,6 +62,32 @@ struct GameModelTests {
     func statusTitle() {
         #expect(GameStatus.updateAvailable.title == "有可用更新")
         #expect(JobStatus.paused.title == "已暂停")
+    }
+
+    @Test("预下载任务类型解码")
+    func predownloadKindDecodes() throws {
+        let json = Data(#""predownload""#.utf8)
+        let decoded = try JSONDecoder.api.decode(JobKind.self, from: json)
+        #expect(decoded == .predownload)
+    }
+
+    @Test("磁盘空间检查结果解码")
+    func spaceCheckDecodes() throws {
+        let json = Data(#"{"available":1024,"required":2048,"sufficient":false}"#.utf8)
+        let result = try JSONDecoder.api.decode(SpaceCheckResult.self, from: json)
+        #expect(result.available == 1024)
+        #expect(result.required == 2048)
+        #expect(result.sufficient == false)
+    }
+
+    @Test("游戏状态包含预下载字段")
+    func gameStateWithPredownload() throws {
+        let json = Data(#"""
+        {"install_path":"/games/gi","installed_version":"5.5.0","available_version":"5.6.0","status":"update_available","update_kind":"version_diff","download_bytes":1024,"predownload_version":"5.6.0","predownload_finished":false}
+        """#.utf8)
+        let state = try JSONDecoder.api.decode(GameState.self, from: json)
+        #expect(state.predownloadVersion == "5.6.0")
+        #expect(state.predownloadFinished == false)
     }
 }
 

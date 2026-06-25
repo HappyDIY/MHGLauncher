@@ -28,6 +28,9 @@ final class LauncherStore {
     var networkDebugEnabled = UserDefaults.standard.bool(forKey: "networkDebugEnabled") {
         didSet { UserDefaults.standard.set(networkDebugEnabled, forKey: "networkDebugEnabled") }
     }
+    var wineLogEnabled = UserDefaults.standard.bool(forKey: "wineLogEnabled") {
+        didSet { UserDefaults.standard.set(wineLogEnabled, forKey: "wineLogEnabled") }
+    }
     var wishes: [WishRecord] = []
     var wishStatistics: [WishStatistics] = []
     var bannerDetails: [WishBannerDetail] = []
@@ -48,6 +51,7 @@ final class LauncherStore {
     var triggerWishExport = false
     var triggerWishClear = false
     var showsLoginBeforeLaunch = false
+    var speedLimitKB = 0
 
     let loginDeferralKey = "loginLaunchDeferrals"
 
@@ -68,6 +72,7 @@ final class LauncherStore {
         }
         await refreshAccount()
         await refreshGame()
+        await refreshSpeedLimit()
         if selectedRole != nil {
             await loadCompanionData()
         }

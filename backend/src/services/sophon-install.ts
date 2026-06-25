@@ -8,10 +8,13 @@ import type { GameAsset, SophonChunk } from "../providers/provider";
 import { DownloadControl } from "./download";
 import { streamDownload } from "./download-transfer";
 import { ensureParent, safeTarget } from "./installer";
+import { preallocateFileDescriptor } from "./file-allocation";
+import type { TokenBucketRateLimiter } from "./rate-limiter";
 
 export async function installSophon(
   assets: GameAsset[], staging: string, cache: string, control: DownloadControl,
   progress: (bytes: number) => void, chunkProgress: (name: string, done: number, total: number) => void, workers = 4,
+  rateLimiter?: TokenBucketRateLimiter | null,
 ): Promise<void> {
   mkdirSync(cache, { recursive: true });
   const references = chunkReferences(assets);
@@ -21,10 +24,11 @@ export async function installSophon(
       for (const chunk of asset.chunks) { progress(chunk.size); chunkProgress(chunk.name, chunk.size, chunk.size); }
       releaseChunks(asset.chunks, cache, references); continue;
     }
-    const chunks = await concurrentMap(asset.chunks, workers, (chunk) => getChunk(chunk, cache, control, progress, chunkProgress));
+    const chunks = await concurrentMap(asset.chunks, workers, (chunk) => getChunk(chunk, cache, control, progress, chunkProgress, rateLimiter));
     ensureParent(target); const temporary = `${target}.${process.pid}.mhg-installing`; rmSync(temporary, { force: true });
     try {
       const descriptor = openSync(temporary, "w");
+      preallocateFileDescriptor(descriptor, asset.size);
       try {
         for (let index = 0; index < chunks.length; index += 1) {
           const chunk = asset.chunks[index], path = chunks[index]; if (!chunk || !path) continue;
@@ -40,10 +44,10 @@ export async function installSophon(
   }
 }
 
-async function getChunk(chunk: SophonChunk, cache: string, control: DownloadControl, progress: (n: number) => void, report: (name: string, done: number, total: number) => void): Promise<string> {
+async function getChunk(chunk: SophonChunk, cache: string, control: DownloadControl, progress: (n: number) => void, report: (name: string, done: number, total: number) => void, rateLimiter?: TokenBucketRateLimiter | null): Promise<string> {
   const path = join(cache, chunk.name); if (existsSync(path) && await xxh(path, chunk.name)) { progress(chunk.size); report(chunk.name, chunk.size, chunk.size); return path; }
   const partial = `${path}.part`;
-  await streamDownload(chunk.url, partial, chunk.size, chunk.name, control, progress, (done) => report(chunk.name, done, chunk.size));
+  await streamDownload(chunk.url, partial, chunk.size, chunk.name, control, progress, (done) => report(chunk.name, done, chunk.size), rateLimiter);
   if (!await xxh(partial, chunk.name)) { progress(-chunk.size); rmSync(partial); throw new AppError("sophon_chunk_invalid", `${chunk.name} 分块校验失败`); }
   renameSync(partial, path); return path;
 }

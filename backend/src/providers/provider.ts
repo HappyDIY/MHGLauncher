@@ -8,6 +8,7 @@ export interface GamePatchAsset { name: string; size: number; md5: string; patch
 export interface GameBuild {
   version: string; kind: string; pending_bytes: number; segments: PackageSegment[];
   assets: GameAsset[]; patch_assets: GamePatchAsset[]; deprecated_files: string[];
+  is_predownload?: boolean;
 }
 
 export interface Provider {
@@ -19,6 +20,7 @@ export interface Provider {
   loginByMobileCaptcha(mobile: string, captcha: string, actionType: string, aigis?: string | null): Promise<AccountIdentity>;
   getRoles(credential: string): Promise<GameRole[]>;
   getBuild(installedVersion?: string, audioLanguages?: string[]): Promise<GameBuild>;
+  getPredownloadBuild(audioLanguages?: string[]): Promise<GameBuild | null>;
   wishes(credential: string, role: GameRole, newest: Record<string, string>): AsyncIterable<WishRecord[]>;
   getDailyNote(credential: string, role: GameRole, challenge?: string): Promise<DailyNote>;
   verifyNoteChallenge(credential: string, challenge: string, validate: string): Promise<string>;
@@ -29,6 +31,6 @@ export function normalizeBuild(value: Partial<GameBuild> & Pick<GameBuild, "vers
   return {
     version: value.version, kind: value.kind ?? "full", pending_bytes: value.pending_bytes ?? 0,
     segments: value.segments ?? [], assets: value.assets ?? [], patch_assets: value.patch_assets ?? [],
-    deprecated_files: value.deprecated_files ?? [],
+    deprecated_files: value.deprecated_files ?? [], is_predownload: value.is_predownload ?? false,
   };
 }

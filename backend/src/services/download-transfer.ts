@@ -2,12 +2,14 @@ import { closeSync, existsSync, mkdirSync, openSync, rmSync, statSync, writeSync
 import { dirname } from "node:path";
 import { AppError } from "../core/errors";
 import type { DownloadControl } from "./download";
+import type { TokenBucketRateLimiter } from "./rate-limiter";
 
 const retryLimit = 5;
 
 export async function streamDownload(
   url: string, partial: string, expectedSize: number, label: string, control: DownloadControl,
   progress: (delta: number) => void, report: (done: number) => void = () => undefined,
+  rateLimiter?: TokenBucketRateLimiter | null,
 ): Promise<void> {
   mkdirSync(dirname(partial), { recursive: true });
   let offset = existsSync(partial) ? statSync(partial).size : 0;
@@ -29,6 +31,7 @@ export async function streamDownload(
           await control.checkpoint();
           const value = await reader.read();
           if (value.done) break;
+          if (rateLimiter) await acquireBytes(rateLimiter, value.value.length, control);
           writeSync(descriptor, value.value); offset += value.value.length;
           progress(value.value.length); report(offset);
           if (offset > expectedSize) throw new Error("响应大小超出清单");
@@ -49,6 +52,16 @@ export async function streamDownload(
         progress(-offset); offset = 0; report(0); rmSync(partial, { force: true });
       }
     }
+  }
+}
+
+async function acquireBytes(limiter: TokenBucketRateLimiter, bytes: number, control: DownloadControl): Promise<void> {
+  let remaining = bytes;
+  while (remaining > 0) {
+    await control.checkpoint();
+    const { acquired, retryAfterMs } = limiter.tryAcquire(remaining);
+    remaining -= acquired;
+    if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, Math.max(retryAfterMs, 1)));
   }
 }
 

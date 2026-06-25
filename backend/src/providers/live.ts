@@ -87,6 +87,7 @@ export class LiveProvider implements Provider {
   }
 
   getBuild(version = "", audioLanguages?: string[]): Promise<GameBuild> { return this.sophon.build(version, audioLanguages); }
+  getPredownloadBuild(audioLanguages?: string[]): Promise<GameBuild | null> { return this.sophon.predownloadBuild(audioLanguages); }
 
   async *wishes(credential: string, role: GameRole, newest: Record<string, string>): AsyncIterable<WishRecord[]> {
     let authkey = "";
@@ -112,14 +113,11 @@ export class LiveProvider implements Provider {
     const url = `https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/dailyNote?${query}`;
     const response = await fetch(url, { headers, signal: AbortSignal.timeout(30_000) }), payload = await response.json() as JSONValue;
     const retcode = Number(payload.retcode ?? 0), message = String(payload.message ?? "");
-    if ([1034, 10306].includes(retcode)) {
-      if (challenge) throw new AppError("note_verification_failed", "实时便笺验证未通过或已失效，请重新刷新后再验证", 429, { retcode: String(retcode) });
+    if (retcode === 1034) {
+      if (challenge) throw new AppError("note_verification_failed", "实时便笺验证未通过或已失效，请重新刷新后再验证", 429, { retcode: "1034" });
       throw new AppError("verification_required", "请完成人机验证后重试", 428, await this.createVerification(credential));
     }
-    if (retcode === 5003) {
-      if (!challenge) throw new AppError("verification_required", "请完成人机验证后重试", 428, await this.createVerification(credential));
-      throw new AppError("note_risk_limited", "当前账号存在风险，实时便笺暂无数据，请稍后重试或在米游社完成验证", 429, { retcode: "5003" });
-    }
+    if (retcode === 5003) throw new AppError("note_risk_limited", "当前账号存在风险，实时便笺暂无数据，请稍后重试或在米游社完成验证", 429, { retcode: "5003" });
     if ([10102, 10103, 10104].includes(retcode)) throw new AppError("note_unavailable", message || "实时便笺当前不可用，请检查米游社数据公开或账号状态", 403, { retcode: String(retcode) });
     if (message.toLowerCase().includes("visit too frequently")) throw new AppError("note_sync_limited", "访问过于频繁，请稍后再刷新实时便笺", 429, { retcode: String(retcode || "unknown") });
     if (!response.ok || retcode !== 0) throw new AppError("mihoyo_error", message || `米游社请求失败（错误码 ${payload.retcode ?? "未知"}）`, 502, { retcode: String(payload.retcode ?? "unknown") });
@@ -171,7 +169,7 @@ export class LiveProvider implements Provider {
   private async authkey(value: string, role: GameRole): Promise<string> { const body = JSON.stringify({ auth_appid: "webview_gacha", game_biz: "hk4e_cn", game_uid: Number(role.uid), region: role.region }); return String((await this.api("https://api-takumi.mihoyo.com/binding/api/genAuthKey", value, sign("lk2", "", "", 1), { method: "POST", body })).authkey); }
   private wish(uid: string, v: JSONValue): WishRecord { const type = String(v.gacha_type); return { id: String(v.id), uid, gacha_type: type, uigf_gacha_type: type === "400" ? "301" : type, item_id: String(v.item_id), name: String(v.name), item_type: String(v.item_type), rank: Number(v.rank_type), time: String(v.time).replace(" ", "T") }; }
   private headers(cookie: string, ds: string): Record<string, string> { return { Cookie: cookie, DS: ds, "User-Agent": agent, "x-rpc-app_version": "2.95.1", "x-rpc-client_type": "5", "x-rpc-device_id": this.device.deviceId, "x-rpc-device_fp": this.device.deviceFP, "Content-Type": "application/json" }; }
-  private noteVerificationHeaders(): Record<string, string> { return { "x-rpc-challenge_game": "2", "x-rpc-challenge_path": "/game_record/app/genshin/api/dailyNote" }; }
+  private noteVerificationHeaders(): Record<string, string> { return { "x-rpc-challenge_game": "2", "x-rpc-challenge_path": "https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/dailyNote" }; }
   private passportHeaders(cookie: string, ds: string): Record<string, string> {
     return {
       Cookie: cookie, DS: ds, "User-Agent": agent, "x-rpc-aigis": "", "x-rpc-app_id": "bll8iq97cem8",

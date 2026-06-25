@@ -15,12 +15,29 @@ struct GameState: Codable, Sendable {
     let status: GameStatus
     let updateKind: String?
     let downloadBytes: Int64?
+    let predownloadVersion: String?
+    let predownloadFinished: Bool?
 }
 
 enum JobKind: String, Codable {
     case install
     case update
     case verify
+    case predownload
+}
+
+struct SpaceCheckResult: Codable, Sendable {
+    let available: Int64
+    let required: Int64
+    let sufficient: Bool
+}
+
+struct SpeedLimitResponse: Codable, Sendable {
+    let speedLimitKB: Int
+}
+
+struct SpeedLimitRequest: Codable {
+    let speedLimitKB: Int
 }
 
 enum JobStatus: String, Codable, Sendable {
@@ -98,6 +115,7 @@ struct GameLaunch: Codable, Sendable, Identifiable {
     let performanceProfile: GamePerformanceProfile
     let metalHud: Bool
     let networkDebug: Bool
+    let wineLog: Bool
     let progress: Double
     let logs: [GameLaunchLog]
     let startedAt: String
@@ -117,6 +135,7 @@ struct StartGameLaunchRequest: Codable, Sendable {
     let performanceProfile: GamePerformanceProfile
     let metalHud: Bool
     let networkDebug: Bool
+    let wineLog: Bool
     let framePacing: Int
     let credential: String?
 }

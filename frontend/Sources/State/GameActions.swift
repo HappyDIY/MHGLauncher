@@ -33,7 +33,25 @@ extension LauncherStore {
                 return
             }
             let client = try requireClient()
-            let request = StartJobRequest(kind: kind, installPath: installPath)
+            let path = installPath.trimmingCharacters(in: .whitespacesAndNewlines)
+            let checkPath = path.isEmpty ? "/v1/game/status" : "/v1/game/status/path"
+            let query = path.isEmpty ? [] : [URLQueryItem(name: "install_path", value: path)]
+            let state: GameState = try await client.get(checkPath, query: query)
+            guard state.status != .notInstalled || kind == .install else {
+                message = "所选目录中未检测到游戏客户端"
+                return
+            }
+            let spaceCheck: SpaceCheckResult = try await client.get(
+                "/v1/game/space-check",
+                query: [URLQueryItem(name: "install_path", value: state.installPath)]
+            )
+            guard spaceCheck.sufficient else {
+                let available = ByteCountFormatter.string(fromByteCount: spaceCheck.available, countStyle: .file)
+                let required = ByteCountFormatter.string(fromByteCount: spaceCheck.required, countStyle: .file)
+                message = "磁盘空间不足：需要 \(required)，可用 \(available)"
+                return
+            }
+            let request = StartJobRequest(kind: kind, installPath: state.installPath)
             let job: GameJob = try await client.post("/v1/game/jobs", body: request)
             gameJob = job
             pendingGameJobKind = nil
@@ -51,6 +69,23 @@ extension LauncherStore {
                 body: request
             )
             gameJob = updated
+        }
+    }
+
+    func refreshSpeedLimit() async {
+        await perform {
+            let client = try requireClient()
+            let response: SpeedLimitResponse = try await client.get("/v1/settings/speed-limit")
+            speedLimitKB = response.speedLimitKB
+        }
+    }
+
+    func setSpeedLimit(_ kb: Int) async {
+        await perform {
+            let client = try requireClient()
+            let request = SpeedLimitRequest(speedLimitKB: kb)
+            let response: SpeedLimitResponse = try await client.post("/v1/settings/speed-limit", body: request)
+            speedLimitKB = response.speedLimitKB
         }
     }
 
@@ -84,6 +119,7 @@ extension LauncherStore {
                 performanceProfile: gamePerformanceProfile,
                 metalHud: metalHudEnabled,
                 networkDebug: networkDebugEnabled,
+                wineLog: wineLogEnabled,
                 framePacing: Self.preferredFrameRate(for: NSScreen.main?.maximumFramesPerSecond ?? 0),
                 credential: credential
             )
@@ -130,7 +166,7 @@ extension LauncherStore {
                 await refreshGame()
                 return
             }
-            try await Task.sleep(for: .milliseconds(500))
+            try await Task.sleep(for: .milliseconds(250))
         }
     }
 }

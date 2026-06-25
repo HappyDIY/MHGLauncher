@@ -9,6 +9,7 @@ export interface Settings {
   fixtureDir: string;
   requestTimeout: number;
   downloadWorkers: number;
+  downloadSpeedLimitKB: number;
   socketPath: string;
 }
 
@@ -27,6 +28,7 @@ export function settings(env: NodeJS.ProcessEnv = process.env): Settings {
     fixtureDir: resolve(env.MHG_FIXTURE_DIR ?? join(dataDir, "fixtures")),
     requestTimeout: integer(env.MHG_REQUEST_TIMEOUT, 30_000),
     downloadWorkers: integer(env.MHG_DOWNLOAD_WORKERS, 4),
+    downloadSpeedLimitKB: integer(env.MHG_DOWNLOAD_SPEED_LIMIT, 0),
     socketPath: resolve(env.MHG_SOCKET_PATH ?? join(tmpdir(), `mhg-${process.pid}.sock`)),
   };
 }

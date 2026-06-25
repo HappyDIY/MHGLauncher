@@ -11,7 +11,7 @@ const roots: string[] = [];
 function liveProvider(): LiveProvider {
   const dataDir = mkdtempSync(join(tmpdir(), "mhg-auth-risk-")); roots.push(dataDir);
   return new LiveProvider({ dataDir, databasePath: join(dataDir, "test.db"), apiToken: "", providerMode: "live",
-    fixtureDir: join(process.cwd(), "fixtures"), requestTimeout: 30_000, downloadWorkers: 4, socketPath: join(dataDir, "test.sock") });
+    fixtureDir: join(process.cwd(), "fixtures"), requestTimeout: 30_000, downloadWorkers: 4, downloadSpeedLimitKB: 0, socketPath: join(dataDir, "test.sock") });
 }
 
 afterEach(() => { vi.restoreAllMocks(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });

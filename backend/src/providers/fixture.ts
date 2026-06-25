@@ -49,6 +49,11 @@ export class FixtureProvider implements Provider {
     return normalizeBuild(this.json<Partial<GameBuild> & Pick<GameBuild, "version">>("build.json"));
   }
 
+  async getPredownloadBuild(_audioLanguages?: string[]): Promise<GameBuild | null> {
+    try { return normalizeBuild(this.json<Partial<GameBuild> & Pick<GameBuild, "version">>("predownload.json")); }
+    catch { return null; }
+  }
+
   async *wishes(_credential: string, _role: GameRole, _newest: Record<string, string>): AsyncIterable<WishRecord[]> {
     yield this.json<WishRecord[]>("wishes.json").map((value) => ({
       ...value, uigf_gacha_type: value.uigf_gacha_type || (value.gacha_type === "400" ? "301" : value.gacha_type),

@@ -36,6 +36,17 @@ export class Sophon {
     this.cached = { time: Date.now(), key, build }; return build;
   }
 
+  async predownloadBuild(audioLanguages = ["zh-cn"]): Promise<GameBuild | null> {
+    const languages = [...new Set(audioLanguages)].sort();
+    const { pre } = await this.branches();
+    if (!pre) return null;
+    const key = `pre:${languages.join(",")}`;
+    if (this.cached?.key === key && Date.now() - this.cached.time < 300_000) return this.cached.build;
+    const build = await this.fullBuild(pre, languages);
+    const result = { ...build, is_predownload: true };
+    this.cached = { time: Date.now(), key, build: result }; return result;
+  }
+
   private async fullBuild(branch: JSONValue, languages: string[]): Promise<GameBuild> {
     const query = new URLSearchParams({ branch: String(branch.branch), package_id: String(branch.package_id), password: String(branch.password), tag: String(branch.tag) });
     const data = await this.data(`https://downloader-api.mihoyo.com/downloader/sophon_chunk/api/getBuild?${query}`);
@@ -62,10 +73,17 @@ export class Sophon {
   }
 
   private async branch(): Promise<JSONValue> {
+    const { main } = await this.branches(); return main;
+  }
+
+  private async branches(): Promise<{ main: JSONValue; pre: JSONValue | null }> {
     const query = new URLSearchParams({ "game_ids[]": "1Z8W5NHUQb", launcher_id: "jGHBHlcOq1" });
     const data = await this.data(`https://hyp-api.mihoyo.com/hyp/hyp-connect/api/getGameBranches?${query}`);
-    const value = (data.game_branches as JSONValue[] | undefined)?.[0]?.main as JSONValue | undefined;
-    if (!value) throw new AppError("sophon_branch_missing", "未找到国服游戏分支", 502); return value;
+    const entry = (data.game_branches as JSONValue[] | undefined)?.[0];
+    const main = entry?.main as JSONValue | undefined;
+    if (!main) throw new AppError("sophon_branch_missing", "未找到国服游戏分支", 502);
+    const pre = (entry?.pre_download as JSONValue | undefined) ?? null;
+    return { main, pre };
   }
 
   private async assets(item: JSONValue): Promise<GameAsset[]> {

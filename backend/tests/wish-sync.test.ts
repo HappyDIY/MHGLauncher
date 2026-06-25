@@ -19,7 +19,7 @@ const role: GameRole = { uid: "100000001", nickname: "旅行者", region: "cn_gf
 function liveProvider(sleep: () => Promise<void>): LiveProvider {
   const dataDir = mkdtempSync(join(tmpdir(), "mhg-wish-sync-")); roots.push(dataDir);
   return new LiveProvider({ dataDir, databasePath: join(dataDir, "test.db"), apiToken: "", providerMode: "live",
-    fixtureDir: join(process.cwd(), "fixtures"), requestTimeout: 30_000, downloadWorkers: 4, socketPath: join(dataDir, "test.sock") }, sleep);
+    fixtureDir: join(process.cwd(), "fixtures"), requestTimeout: 30_000, downloadWorkers: 4, downloadSpeedLimitKB: 0, socketPath: join(dataDir, "test.sock") }, sleep);
 }
 
 function wish(id: string, type: string): WishRecord {
