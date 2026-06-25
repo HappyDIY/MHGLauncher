@@ -13,7 +13,7 @@ export interface RegistryAccount {
 }
 
 export function writeGameAccountRegistry(wine: string, env: NodeJS.ProcessEnv, account: RegistryAccount): void {
-  const raw = createGameAccountRegistryValue(account);
+  const raw = createGameAccountRegistryValue(account, wineMacAddress(wine, env) || macAddress());
   const hex = Buffer.concat([Buffer.from(raw, "utf8"), Buffer.from([0])]).toString("hex");
   const result = spawnSync(wine, ["reg", "add", registryKey, "/v", registryValue, "/t", "REG_BINARY", "/d", hex, "/f"], {
     env, stdio: "ignore",
@@ -62,8 +62,19 @@ function macAddress(): string {
   for (const items of Object.values(networkInterfaces())) {
     for (const item of items ?? []) {
       const value = item.mac.replaceAll(":", "").toUpperCase();
-      if (!item.internal && value && value !== "000000000000") return value;
+      if (!item.internal && value && value !== "000000000000" && value !== "020000000000") return value;
     }
+  }
+  return "";
+}
+
+function wineMacAddress(wine: string, env: NodeJS.ProcessEnv): string {
+  const result = spawnSync(wine, ["ipconfig", "/all"], { env, encoding: "utf8" });
+  if (result.status !== 0) return "";
+  const matches = result.stdout.matchAll(/Physical address[^:]*:\s*([0-9a-fA-F-]{17})/g);
+  for (const match of matches) {
+    const value = String(match[1]).replaceAll("-", "").toUpperCase();
+    if (value && value !== "000000000000" && value !== "020000000000") return value;
   }
   return "";
 }

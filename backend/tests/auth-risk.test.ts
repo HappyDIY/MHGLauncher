@@ -67,4 +67,16 @@ describe("登录风控兼容", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => Response.json({ retcode: 0, data: { status: "Expired" } }));
     expect((await provider.queryQRSession(created.id))[0].status).toBe("confirmed");
   });
+
+  test("二维码过期 retcode 只更新会话状态", async () => {
+    const provider = liveProvider();
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("createQRLogin")) return Response.json({ retcode: 0, data: { ticket: "ticket", url: "https://example.invalid/qr" } });
+      return Response.json({ retcode: -3501, message: "Expired", data: null });
+    });
+    const created = await provider.createQRSession();
+    const [expired, identity] = await provider.queryQRSession(created.id);
+    expect(expired.status).toBe("expired");
+    expect(identity).toBeNull();
+  });
 });

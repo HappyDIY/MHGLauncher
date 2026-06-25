@@ -31,8 +31,16 @@ export class LiveProvider implements Provider {
   }
 
   async queryQRSession(id: string): Promise<[QRSession, AccountIdentity | null]> {
-    const data = await this.request("https://passport-api.mihoyo.com/account/ma-cn-passport/app/queryQRLoginStatus", { method: "POST", headers: this.qrHeaders(), body: JSON.stringify({ ticket: id }) });
+    const response = await fetch("https://passport-api.mihoyo.com/account/ma-cn-passport/app/queryQRLoginStatus", {
+      method: "POST", headers: this.qrHeaders(), body: JSON.stringify({ ticket: id }), signal: AbortSignal.timeout(30_000),
+    });
+    const payload = await response.json() as JSONValue;
     const prior = this.sessions.get(id); if (!prior) throw new AppError("qr_session_missing", "二维码会话不存在", 404);
+    if (Number(payload.retcode) === -3501) {
+      const session: QRSession = { ...prior, status: "expired" }; this.sessions.set(id, session); return [session, null];
+    }
+    if (!response.ok || Number(payload.retcode ?? 0) !== 0) throw new AppError("mihoyo_error", String(payload.message || "二维码状态查询失败"), 502, { retcode: String(payload.retcode ?? "unknown") });
+    const data = payload.data as JSONValue ?? {};
     const status = qrStatus(data);
     const session: QRSession = prior.status === "confirmed" && status !== "confirmed" ? prior : { ...prior, status };
     this.sessions.set(id, session); if (session.status !== "confirmed" || status !== "confirmed") return [session, null];
