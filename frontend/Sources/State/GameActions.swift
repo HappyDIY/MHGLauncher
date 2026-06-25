@@ -79,13 +79,14 @@ extension LauncherStore {
                 return
             }
             let client = try requireClient()
+            let launchCredential = try requireLaunchCredential()
             let request = StartGameLaunchRequest(
                 installPath: installPath,
                 performanceProfile: gamePerformanceProfile,
                 metalHud: metalHudEnabled,
                 networkDebug: networkDebugEnabled,
                 framePacing: Self.preferredFrameRate(for: NSScreen.main?.maximumFramesPerSecond ?? 0),
-                credential: credential
+                credential: launchCredential
             )
             let launch: GameLaunch = try await client.post("/v1/game/launch", body: request)
             gameLaunch = launch

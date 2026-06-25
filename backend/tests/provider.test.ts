@@ -77,6 +77,14 @@ describe("Provider 契约", () => {
     expect(urls[1]).toContain("getCookieAccountInfoBySToken");
     expect(identity.credential).toContain("stoken=new-stoken");
   });
+  test("实时便笺 5003 返回账号风险提示", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("dailyNote")) return Response.json({ retcode: 5003, message: "", data: null });
+      return Response.json({ retcode: 0, data: { device_fp: "fp" } });
+    });
+    await expect(liveProvider().getDailyNote("stuid=10001; stoken=token", { uid: "100000001", region: "cn_gf01", nickname: "旅行者", level: 60, selected: true }))
+      .rejects.toMatchObject({ code: "note_risk_limited", status: 429, message: "当前账号存在风险，实时便笺暂无数据，请稍后重试或在米游社完成验证", details: { retcode: "5003" } });
+  });
   test("领域错误保持统一响应", async () => expect(await errorResponse(new AppError("x", "错误", 409)).json()).toEqual({ code: "x", message: "错误", details: {} }));
   test("构建模型填充默认集合", () => expect(normalizeBuild({ version: "1" }).assets).toEqual([]));
   test("Sophon 清单保留下划线字段", () => {

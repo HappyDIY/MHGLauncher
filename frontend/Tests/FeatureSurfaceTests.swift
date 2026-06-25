@@ -119,6 +119,28 @@ struct FeatureSurfaceTests {
         #expect(try store.read(account: account) == nil)
     }
 
+    @Test("有账号启动必须读取钥匙串凭据")
+    @MainActor
+    func launchCredentialRequiresKeychainValue() throws {
+        let store = LauncherStore()
+        let aid = "test-\(UUID().uuidString)"
+        store.account = Account(
+            aid: aid,
+            mid: "mid",
+            nickname: "旅行者",
+            credentialRef: "keychain:account:\(aid)",
+            selected: true,
+            updatedAt: .now
+        )
+        defer { try? store.keychain.delete(account: store.keychainAccount(for: aid)) }
+
+        #expect(throws: LauncherError.credentialMissing) {
+            _ = try store.requireLaunchCredential()
+        }
+        try store.keychain.save("stoken=test-secret", account: store.keychainAccount(for: aid))
+        #expect(try store.requireLaunchCredential() == "stoken=test-secret")
+    }
+
     @Test("后端 Socket 握手支持分段输出")
     func splitBackendReadyFrame() async throws {
         let pipe = Pipe()

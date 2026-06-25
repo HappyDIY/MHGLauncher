@@ -112,12 +112,20 @@ final class LauncherStore {
         return credential
     }
 
+    func requireLaunchCredential() throws -> String? {
+        guard let account else { return nil }
+        guard let credential = try keychain.read(account: keychainAccount(for: account.aid)) else {
+            throw LauncherError.credentialMissing
+        }
+        return credential
+    }
+
     func keychainAccount(for aid: String) -> String {
         "account:\(aid)"
     }
 }
 
-enum LauncherError: LocalizedError {
+enum LauncherError: LocalizedError, Equatable {
     case backendUnavailable
     case credentialMissing
     case roleMissing
