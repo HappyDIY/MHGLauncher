@@ -51,6 +51,10 @@ struct GameView: View {
                     GameLaunchControls(store: store)
                 }
                 .motionEntrance(order: 3)
+                GlassCard("下载设置", icon: "arrow.down.circle") {
+                    downloadSettings
+                }
+                .motionEntrance(order: 4)
                 if let launch = store.gameLaunch {
                     GameLaunchProgressView(launch: launch)
                         .motionTransition(.emphasis)
@@ -60,7 +64,7 @@ struct GameView: View {
                         .motionTransition(.emphasis)
                 }
                 GameResourceActionButtons(store: store)
-                    .motionEntrance(order: 4)
+                    .motionEntrance(order: 5)
                 Spacer()
             }
             .motionAnimation(.emphasis, value: store.gameLaunch?.id)
@@ -99,5 +103,28 @@ struct GameView: View {
             countStyle: .file
         )
         return "\(kind) · \(size)"
+    }
+
+    private var downloadSettings: some View {
+        HStack {
+            Text("下载速度限制")
+            Spacer()
+            HStack(spacing: 4) {
+                TextField(
+                    "0",
+                    value: $store.speedLimitKB,
+                    format: .number.grouping(.never)
+                )
+                .frame(width: 60)
+                .multilineTextAlignment(.trailing)
+                .onSubmit {
+                    let value = max(0, store.speedLimitKB)
+                    store.speedLimitKB = value
+                    Task { await store.setSpeedLimit(value) }
+                }
+                Text("KB/s")
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }

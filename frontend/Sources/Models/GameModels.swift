@@ -33,11 +33,11 @@ struct SpaceCheckResult: Codable, Sendable {
 }
 
 struct SpeedLimitResponse: Codable, Sendable {
-    let speedLimitKB: Int
+    let speedLimitKb: Int
 }
 
 struct SpeedLimitRequest: Codable {
-    let speedLimitKB: Int
+    let speedLimitKb: Int
 }
 
 enum JobStatus: String, Codable, Sendable {

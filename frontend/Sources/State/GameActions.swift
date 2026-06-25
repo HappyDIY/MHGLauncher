@@ -76,16 +76,17 @@ extension LauncherStore {
         await perform {
             let client = try requireClient()
             let response: SpeedLimitResponse = try await client.get("/v1/settings/speed-limit")
-            speedLimitKB = response.speedLimitKB
+            speedLimitKB = response.speedLimitKb
         }
     }
 
     func setSpeedLimit(_ kb: Int) async {
         await perform {
             let client = try requireClient()
-            let request = SpeedLimitRequest(speedLimitKB: kb)
+            let request = SpeedLimitRequest(speedLimitKb: kb)
             let response: SpeedLimitResponse = try await client.post("/v1/settings/speed-limit", body: request)
-            speedLimitKB = response.speedLimitKB
+            speedLimitKB = response.speedLimitKb
+            UserDefaults.standard.set(speedLimitKB, forKey: "downloadSpeedLimitKB")
         }
     }
 

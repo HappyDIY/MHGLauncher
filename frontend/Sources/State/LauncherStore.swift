@@ -73,6 +73,8 @@ final class LauncherStore {
         await refreshAccount()
         await refreshGame()
         await refreshSpeedLimit()
+        let savedKB = UserDefaults.standard.integer(forKey: "downloadSpeedLimitKB")
+        if savedKB > 0 { await setSpeedLimit(savedKB) }
         if selectedRole != nil {
             await loadCompanionData()
         }
