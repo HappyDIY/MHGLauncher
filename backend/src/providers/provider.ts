@@ -1,4 +1,4 @@
-import type { AccountIdentity, DailyNote, GameRole, QRSession, WishRecord } from "../core/models";
+import type { AccountIdentity, DailyNote, GameRole, MobileCaptchaSession, QRSession, WishRecord } from "../core/models";
 
 export interface PackageSegment { url: string; md5: string; size: number; filename: string }
 export interface SophonChunk { name: string; decompressed_md5: string; offset: number; size: number; decompressed_size: number; url: string }
@@ -13,6 +13,9 @@ export interface GameBuild {
 export interface Provider {
   createQRSession(): Promise<QRSession>;
   queryQRSession(id: string): Promise<[QRSession, AccountIdentity | null]>;
+  identifyCredential(credential: string): Promise<AccountIdentity>;
+  createMobileCaptcha(mobile: string): Promise<MobileCaptchaSession>;
+  loginByMobileCaptcha(mobile: string, captcha: string, actionType: string, aigis?: string | null): Promise<AccountIdentity>;
   getRoles(credential: string): Promise<GameRole[]>;
   getBuild(installedVersion?: string, audioLanguages?: string[]): Promise<GameBuild>;
   wishes(credential: string, role: GameRole, newest: Record<string, string>): AsyncIterable<WishRecord[]>;

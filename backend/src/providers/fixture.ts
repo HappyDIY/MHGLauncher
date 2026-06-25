@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { AccountIdentity, DailyNote, GameRole, QRSession, WishRecord } from "../core/models";
+import type { AccountIdentity, DailyNote, GameRole, MobileCaptchaSession, QRSession, WishRecord } from "../core/models";
 import type { GameBuild, Provider } from "./provider";
 import { normalizeBuild } from "./provider";
 
@@ -23,6 +23,18 @@ export class FixtureProvider implements Provider {
       credential: "stoken=fixture; mid=fixture-mid",
     };
     return [session, identity];
+  }
+
+  async identifyCredential(credential: string): Promise<AccountIdentity> {
+    return { aid: "10001", mid: "fixture-mid", nickname: "测试旅行者", credential };
+  }
+
+  async createMobileCaptcha(mobile: string): Promise<MobileCaptchaSession> {
+    return { mobile, action_type: "fixture-action", countdown: 60, aigis: null };
+  }
+
+  async loginByMobileCaptcha(mobile: string, _captcha: string, _actionType: string, _aigis?: string | null): Promise<AccountIdentity> {
+    return { aid: "10001", mid: "fixture-mid", nickname: `手机用户${mobile.slice(-4)}`, credential: "stoken=fixture; mid=fixture-mid" };
   }
 
   async getRoles(_credential: string): Promise<GameRole[]> {

@@ -31,6 +31,16 @@ describe("本地 API 契约", () => {
     expect((await (await request("GET", "/v1/account")).json()).aid).toBe("10002");
   });
 
+  test("Cookie 与短信验证码登录归一为账号会话", async () => {
+    const cookie = await (await request("POST", "/v1/auth/cookie-login", { credential: "stuid=10001; stoken=fixture; mid=fixture-mid" })).json();
+    expect(cookie.account.credential_ref).toBe("keychain:account:10001");
+    const captcha = await (await request("POST", "/v1/auth/mobile-captcha", { mobile: "13800138000" })).json();
+    expect(captcha.action_type).toBe("fixture-action");
+    const sms = await (await request("POST", "/v1/auth/mobile-login", { mobile: "13800138000", captcha: "123456", action_type: captcha.action_type })).json();
+    expect(sms.identity.credential).toContain("stoken=fixture");
+    expect(sms.roles[0].uid).toBe("100000001");
+  });
+
   test("游戏启动校验安装目录", async () => {
     const response = await request("POST", "/v1/game/launch", { install_path: "/tmp/mhg-missing-game" });
     expect(response.status).toBe(409); expect(await response.json()).toMatchObject({ code: "game_not_installed" });

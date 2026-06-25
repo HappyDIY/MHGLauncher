@@ -15,6 +15,10 @@ export class Device {
     this.deviceFP = value.profile === "android-v1" ? value.device_fp ?? "" : ""; if (!this.deviceFP) this.save();
   }
 
+  get loginDeviceId(): string {
+    return this.deviceId.replaceAll("-", "").toLowerCase().padEnd(53, "0").slice(0, 53);
+  }
+
   async fingerprint(): Promise<string> {
     if (this.deviceFP) return this.deviceFP;
     const response = await fetch("https://public-data-api.mihoyo.com/device-fp/api/getFp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(this.payload()) });

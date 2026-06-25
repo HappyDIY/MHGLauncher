@@ -52,6 +52,13 @@ struct AccountIdentity: Codable, Sendable {
     let credential: String
 }
 
+struct MobileCaptchaSession: Codable, Sendable {
+    let mobile: String
+    let actionType: String
+    let countdown: Int
+    let aigis: String?
+}
+
 struct QRResult: Codable, Sendable {
     let session: QRSession
     let identity: AccountIdentity?
@@ -64,10 +71,26 @@ struct LoginCompleteRequest: Codable {
 
 struct LoginCompleteResponse: Codable {
     let account: Account
+    let identity: AccountIdentity?
     let roles: [GameRole]
 }
 
 struct AccountSelectionResponse: Codable {
     let account: Account
     let roles: [GameRole]
+}
+
+struct MobileCaptchaRequest: Codable {
+    let mobile: String
+}
+
+struct MobileLoginRequest: Codable {
+    let mobile: String
+    let captcha: String
+    let actionType: String
+    let aigis: String?
+}
+
+struct CookieLoginRequest: Codable {
+    let credential: String
 }

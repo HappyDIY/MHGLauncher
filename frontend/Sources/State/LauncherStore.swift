@@ -33,6 +33,10 @@ final class LauncherStore {
     var bannerDetails: [WishBannerDetail] = []
     var dailyNote: DailyNote?
     var qrSession: QRSession?
+    var mobileCaptchaSession: MobileCaptchaSession?
+    var loginMobile = ""
+    var loginCaptcha = ""
+    var loginCookie = ""
     var noteVerification: GeetestChallenge?
     var selectedDestination: Destination? = .home
     var installPath = ""

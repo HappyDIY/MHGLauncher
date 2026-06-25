@@ -19,6 +19,51 @@ extension LauncherStore {
         }
     }
 
+    func sendMobileCaptcha() async {
+        await perform {
+            let client = try requireClient()
+            mobileCaptchaSession = try await client.post(
+                "/v1/auth/mobile-captcha",
+                body: MobileCaptchaRequest(mobile: loginMobile)
+            )
+            message = "验证码已发送"
+        }
+    }
+
+    func loginByMobileCaptcha() async {
+        await perform {
+            let client = try requireClient()
+            guard let session = mobileCaptchaSession else { return }
+            let request = MobileLoginRequest(
+                mobile: session.mobile,
+                captcha: loginCaptcha,
+                actionType: session.actionType,
+                aigis: session.aigis
+            )
+            let response: LoginCompleteResponse = try await client.post(
+                "/v1/auth/mobile-login",
+                body: request
+            )
+            try await acceptLogin(response, credential: response.identity?.credential, client: client)
+            loginCaptcha = ""
+        }
+    }
+
+    func loginByCookie() async {
+        await perform {
+            let client = try requireClient()
+            let request = CookieLoginRequest(
+                credential: loginCookie
+            )
+            let response: LoginCompleteResponse = try await client.post(
+                "/v1/auth/cookie-login",
+                body: request
+            )
+            try await acceptLogin(response, credential: loginCookie, client: client)
+            loginCookie = ""
+        }
+    }
+
     func logout() async {
         await perform {
             let client = try requireClient()
@@ -88,14 +133,25 @@ extension LauncherStore {
                     "/v1/auth/complete",
                     body: request
                 )
-                account = response.account
-                roles = response.roles
-                accounts = try await client.get("/v1/accounts")
+                try await acceptLogin(response, credential: identity.credential, client: client)
                 qrSession = nil
-                await loadCompanionData()
                 return
             }
             try await Task.sleep(for: .seconds(2))
         }
+    }
+
+    private func acceptLogin(
+        _ response: LoginCompleteResponse,
+        credential: String?,
+        client: APIClient
+    ) async throws {
+        account = response.account
+        roles = response.roles
+        if let credential {
+            try keychain.save(credential, account: keychainAccount(for: response.account.aid))
+        }
+        accounts = try await client.get("/v1/accounts")
+        await loadCompanionData()
     }
 }
