@@ -113,6 +113,8 @@ struct FeatureSurfaceTests {
 
         try store.save("stoken=test-secret", account: account)
         #expect(try store.read(account: account) == "stoken=test-secret")
+        try store.save("stoken=updated-secret", account: account)
+        #expect(try store.read(account: account) == "stoken=updated-secret")
         try store.delete(account: account)
         #expect(try store.read(account: account) == nil)
     }

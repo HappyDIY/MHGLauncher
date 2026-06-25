@@ -39,7 +39,7 @@ export class LiveProvider implements Provider {
   }
 
   async identifyCredential(credential: string): Promise<AccountIdentity> {
-    return this.identityFromCredential(await this.enrichCredential(credential));
+    return this.identityFromCredential(await this.enrichCredential(await this.normalizeCredential(credential), true));
   }
 
   async createMobileCaptcha(mobile: string): Promise<MobileCaptchaSession> {
@@ -102,9 +102,27 @@ export class LiveProvider implements Provider {
     return String(data.challenge);
   }
 
-  private async identity(user: JSONValue, token: string): Promise<AccountIdentity> { const credential = await this.enrichCredential(`stuid=${user.aid}; stoken=${token}; mid=${user.mid}`); return { aid: String(user.aid), mid: String(user.mid), nickname: String(user.account_name || "米游社用户"), credential }; }
-  private async identityFromCredential(credential: string): Promise<AccountIdentity> { const map = cookies(credential), aid = map.get("stuid") ?? map.get("account_id") ?? "", mid = map.get("mid") ?? ""; if (!aid || !map.get("stoken")) throw new AppError("credential_invalid", "Cookie 缺少 stuid/stoken", 422); return { aid, mid, nickname: "米游社用户", credential }; }
-  private async enrichCredential(value: string): Promise<string> { const data = await this.request("https://passport-api.mihoyo.com/account/auth/api/getCookieAccountInfoBySToken", { headers: this.passportHeaders(value, sign("prod")) }); const map = cookies(value); map.set("cookie_token", String(data.cookie_token)); map.set("account_id", String(data.uid)); return [...map].map(([k, v]) => `${k}=${v}`).join("; "); }
+  private async identity(user: JSONValue, token: string): Promise<AccountIdentity> { const credential = await this.enrichCredential(`stuid=${user.aid}; stoken=${token}; mid=${user.mid}`); return { aid: String(user.aid), mid: String(user.mid ?? ""), nickname: String(user.account_name || "米游社用户"), credential }; }
+  private async identityFromCredential(credential: string): Promise<AccountIdentity> { const map = cookies(credential), aid = map.get("stuid") ?? map.get("account_id") ?? "", mid = map.get("mid") ?? ""; if (!aid || !map.get("stoken")) throw new AppError("credential_invalid", "Cookie 缺少 stuid/stoken，或 login_ticket/login_uid", 422); return { aid, mid, nickname: "米游社用户", credential }; }
+  private async normalizeCredential(value: string): Promise<string> {
+    const map = cookies(value); if (map.get("stoken")) return this.serialize(map);
+    const ticket = map.get("login_ticket"), uid = map.get("login_uid");
+    if (!ticket || !uid) throw new AppError("credential_invalid", "Cookie 缺少 stuid/stoken，或 login_ticket/login_uid", 422);
+    const query = new URLSearchParams({ login_ticket: ticket, uid, token_types: "3" });
+    const data = await this.request(`https://api-takumi.mihoyo.com/auth/api/getMultiTokenByLoginTicket?${query}`);
+    const stoken = (data.list as JSONValue[] | undefined)?.find((item) => item.name === "stoken")?.token;
+    if (!stoken) throw new AppError("credential_invalid", "Cookie 登录票据无法换取 stoken，请重新获取 Cookie", 422);
+    map.set("stuid", uid); map.set("stoken", String(stoken)); return this.serialize(map);
+  }
+  private async enrichCredential(value: string, cookieImport = false): Promise<string> {
+    try {
+      const data = await this.request("https://passport-api.mihoyo.com/account/auth/api/getCookieAccountInfoBySToken", { headers: this.passportHeaders(value, sign("prod")) });
+      const map = cookies(value); map.set("cookie_token", String(data.cookie_token)); map.set("account_id", String(data.uid)); return this.serialize(map);
+    } catch (error) {
+      if (cookieImport && error instanceof AppError && error.code === "mihoyo_error") throw new AppError("credential_expired", "米游社返回登录状态失效，请重新获取 Cookie 后重试", 401, error.details);
+      throw error;
+    }
+  }
   private async createVerification(value: string): Promise<Record<string, string>> { const query = "is_high=true", data = await this.api(`https://api-takumi-record.mihoyo.com/game_record/app/card/wapi/createVerification?${query}`, value, sign("x4", "", query)); return { gt: String(data.gt), challenge: String(data.challenge) }; }
   private async authkey(value: string, role: GameRole): Promise<string> { const body = JSON.stringify({ auth_appid: "webview_gacha", game_biz: "hk4e_cn", game_uid: Number(role.uid), region: role.region }); return String((await this.api("https://api-takumi.mihoyo.com/binding/api/genAuthKey", value, sign("lk2", "", "", 1), { method: "POST", body })).authkey); }
   private wish(uid: string, v: JSONValue): WishRecord { const type = String(v.gacha_type); return { id: String(v.id), uid, gacha_type: type, uigf_gacha_type: type === "400" ? "301" : type, item_id: String(v.item_id), name: String(v.name), item_type: String(v.item_type), rank: Number(v.rank_type), time: String(v.time).replace(" ", "T") }; }
@@ -120,5 +138,6 @@ export class LiveProvider implements Provider {
   private qrHeaders(): Record<string, string> { return { "User-Agent": "HYPContainer/1.1.4.133", "x-rpc-app_id": "ddxf5dufpuyo", "x-rpc-client_type": "3", "x-rpc-device_id": this.device.loginDeviceId, "Content-Type": "application/json" }; }
   private api(url: string, cookie: string, ds: string, init: RequestInit = {}): Promise<JSONValue> { return this.request(url, { ...init, headers: { ...this.headers(cookie, ds), ...init.headers } }); }
   private async request(url: string, init?: RequestInit): Promise<JSONValue> { const response = await fetch(url, { ...init, signal: AbortSignal.timeout(30_000) }); const payload = await response.json() as JSONValue; if (!response.ok || Number(payload.retcode ?? 0) !== 0) throw new AppError("mihoyo_error", String(payload.message || `米游社请求失败（错误码 ${payload.retcode ?? "未知"}）`), 502, { retcode: String(payload.retcode ?? "unknown") }); return payload.data as JSONValue ?? {}; }
+  private serialize(map: Map<string, string>): string { return [...map].map(([k, v]) => `${k}=${v}`).join("; "); }
   private encrypt(value: string): string { return publicEncrypt({ key: passportKey, padding: 1 }, Buffer.from(value)).toString("base64"); }
 }

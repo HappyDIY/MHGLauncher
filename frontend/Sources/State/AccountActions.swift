@@ -124,7 +124,6 @@ extension LauncherStore {
                 return
             }
             if let identity = result.identity {
-                try keychain.save(identity.credential, account: keychainAccount(for: identity.aid))
                 let request = LoginCompleteRequest(
                     identity: identity,
                     credentialRef: "keychain:\(keychainAccount(for: identity.aid))"
