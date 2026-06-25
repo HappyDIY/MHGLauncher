@@ -26,6 +26,7 @@ export function decodeSophonManifest(buffer: Uint8Array): JSONValue {
 
 export class Sophon {
   private cached?: { time: number; key: string; build: GameBuild };
+  private branchesCache?: { time: number; value: { main: JSONValue; pre: JSONValue | null } };
 
   async build(version = "", audioLanguages = ["zh-cn"]): Promise<GameBuild> {
     const languages = [...new Set(audioLanguages)].sort(), key = `${version}:${languages.join(",")}`;
@@ -77,13 +78,15 @@ export class Sophon {
   }
 
   private async branches(): Promise<{ main: JSONValue; pre: JSONValue | null }> {
+    if (this.branchesCache && Date.now() - this.branchesCache.time < 300_000) return this.branchesCache.value;
     const query = new URLSearchParams({ "game_ids[]": "1Z8W5NHUQb", launcher_id: "jGHBHlcOq1" });
     const data = await this.data(`https://hyp-api.mihoyo.com/hyp/hyp-connect/api/getGameBranches?${query}`);
     const entry = (data.game_branches as JSONValue[] | undefined)?.[0];
     const main = entry?.main as JSONValue | undefined;
     if (!main) throw new AppError("sophon_branch_missing", "未找到国服游戏分支", 502);
     const pre = (entry?.pre_download as JSONValue | undefined) ?? null;
-    return { main, pre };
+    const result = { main, pre };
+    this.branchesCache = { time: Date.now(), value: result }; return result;
   }
 
   private async assets(item: JSONValue): Promise<GameAsset[]> {
