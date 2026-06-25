@@ -94,6 +94,16 @@ describe("Provider 契约", () => {
     await expect(liveProvider().getDailyNote("stuid=10001; stoken=token", { uid: "100000001", region: "cn_gf01", nickname: "旅行者", level: 60, selected: true }, "verified"))
       .rejects.toMatchObject({ code: "note_risk_limited", status: 429, message: "当前账号存在风险，实时便笺暂无数据，请稍后重试或在米游社完成验证", details: { retcode: "5003" } });
   });
+  test("实时便笺验证请求携带源项目挑战头", async () => {
+    let headers: Headers | undefined;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      headers = new Headers(init?.headers);
+      return Response.json({ retcode: 0, data: { challenge: "xrpc-challenge" } });
+    });
+    await expect(liveProvider().verifyNoteChallenge("stuid=10001; stoken=token", "challenge", "validate")).resolves.toBe("xrpc-challenge");
+    expect(headers?.get("x-rpc-challenge_game")).toBe("2");
+    expect(headers?.get("x-rpc-challenge_path")).toBe("/game_record/app/genshin/api/dailyNote");
+  });
   test("领域错误保持统一响应", async () => expect(await errorResponse(new AppError("x", "错误", 409)).json()).toEqual({ code: "x", message: "错误", details: {} }));
   test("构建模型填充默认集合", () => expect(normalizeBuild({ version: "1" }).assets).toEqual([]));
   test("Sophon 清单保留下划线字段", () => {

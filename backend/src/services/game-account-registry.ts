@@ -51,11 +51,15 @@ function mihoyoSdk(account: RegistryAccount, mac: string, now: number): string {
 
 function encrypt(value: string, mac: string): string {
   const key = Buffer.from((mac.length >= 8 ? mac.slice(0, 8) : "FFFFFFFFFFFF").slice(0, 8), "utf8").toString("hex");
-  const result = spawnSync("openssl", ["enc", "-des-cbc", "-provider", "legacy", "-provider", "default", "-K", key, "-iv", iv, "-base64", "-A"], {
-    input: value, encoding: "utf8",
-  });
-  if (result.status !== 0 || !result.stdout.trim()) throw new AppError("game_account_encrypt_failed", "游戏账号注册表数据加密失败", 500);
-  return result.stdout.trim();
+  const args = ["enc", "-des-cbc", "-K", key, "-iv", iv, "-base64", "-A"];
+  const errors: string[] = [];
+  for (const command of ["/usr/bin/openssl", "/opt/homebrew/bin/openssl", "openssl"]) {
+    const extra = command === "/usr/bin/openssl" ? [] : ["-provider", "legacy", "-provider", "default"];
+    const result = spawnSync(command, [...args.slice(0, 2), ...extra, ...args.slice(2)], { input: value, encoding: "utf8" });
+    if (result.status === 0 && result.stdout.trim()) return result.stdout.trim();
+    errors.push(`${command}: ${result.error?.message ?? result.stderr.trim() ?? `status ${result.status}`}`);
+  }
+  throw new AppError("game_account_encrypt_failed", "游戏账号注册表数据加密失败", 500, { openssl: errors.join("; ") });
 }
 
 function macAddress(): string {
