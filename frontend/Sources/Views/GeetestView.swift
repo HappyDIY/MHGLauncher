@@ -23,6 +23,7 @@ struct GeetestView: View {
             .motionEntrance(order: 0)
             GeetestWebView(challenge: challenge) { value, validate in
                 onComplete(value, validate)
+                dismiss()
             }
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .motionEntrance(order: 1)
