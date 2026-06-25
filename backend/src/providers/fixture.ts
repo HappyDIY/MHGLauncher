@@ -64,6 +64,10 @@ export class FixtureProvider implements Provider {
     return "fixture-xrpc-challenge";
   }
 
+  async createAuthTicket(_credential: string): Promise<string> {
+    return "fixture-auth-ticket";
+  }
+
   private session(id: string, status: QRSession["status"]): QRSession {
     return { id, url: "https://example.invalid/fixture-login", status, expires_at: new Date(Date.now() + 300_000).toISOString() };
   }

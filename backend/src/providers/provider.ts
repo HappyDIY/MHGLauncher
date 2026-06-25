@@ -22,6 +22,7 @@ export interface Provider {
   wishes(credential: string, role: GameRole, newest: Record<string, string>): AsyncIterable<WishRecord[]>;
   getDailyNote(credential: string, role: GameRole, challenge?: string): Promise<DailyNote>;
   verifyNoteChallenge(credential: string, challenge: string, validate: string): Promise<string>;
+  createAuthTicket(credential: string): Promise<string>;
 }
 
 export function normalizeBuild(value: Partial<GameBuild> & Pick<GameBuild, "version">): GameBuild {

@@ -76,7 +76,8 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   if (method === "POST" && gameControl) return json(app.games.control(gameControl, controlJob.parse(body).action));
   if (method === "POST" && path === "/game/launch") {
     const value = startLaunch.parse(body), account = app.accounts.get();
-    return json(app.launches.start({ ...value, account: account && value.credential ? launchAccount(account, value.credential) : undefined }), 202);
+    const authTicket = account && value.credential ? await app.provider.createAuthTicket(value.credential) : undefined;
+    return json(app.launches.start({ ...value, account: account && value.credential ? launchAccount(account, value.credential) : undefined, auth_ticket: authTicket }), 202);
   }
   const launchStop = match(path, /^\/game\/launches\/([^/]+)\/stop$/);
   if (method === "POST" && launchStop) return json(app.launches.stop(launchStop), 202);

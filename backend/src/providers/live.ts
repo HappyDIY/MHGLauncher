@@ -131,9 +131,19 @@ export class LiveProvider implements Provider {
   }
 
   async verifyNoteChallenge(credential: string, challenge: string, validate: string): Promise<string> {
-    const body = JSON.stringify({ challenge, validate });
+    const body = JSON.stringify({ geetest_challenge: challenge, geetest_validate: validate, geetest_seccode: `${validate}|jordan` });
     const data = await this.api("https://api-takumi-record.mihoyo.com/game_record/app/card/wapi/verifyVerification", credential, sign("x4", body), { method: "POST", body, headers: this.noteVerificationHeaders() });
     return String(data.challenge);
+  }
+
+  async createAuthTicket(credential: string): Promise<string> {
+    const map = cookies(credential), stoken = map.get("stoken") ?? "", mid = map.get("mid") ?? "", aid = map.get("stuid") ?? map.get("account_id") ?? "";
+    if (!stoken || !mid || !aid) throw new AppError("credential_invalid", "Cookie 缺少 stoken/mid/stuid，无法创建游戏登录票据", 422);
+    const body = JSON.stringify({ game_biz: "hk4e_cn", mid, stoken, uid: Number(aid) });
+    const data = await this.request("https://passport-api.mihoyo.com/account/ma-cn-verifier/app/createAuthTicketByGameBiz", {
+      method: "POST", headers: { Cookie: credential, "User-Agent": "HYPContainer/1.1.4.133", "x-rpc-app_id": "ddxf5dufpuyo", "x-rpc-client_type": "3", "x-rpc-device_id": this.device.loginDeviceId, "Content-Type": "application/json" }, body,
+    });
+    return String((data as JSONValue).ticket ?? "");
   }
 
   private async identity(user: JSONValue, token: string): Promise<AccountIdentity> { const credential = await this.enrichCredential(`stuid=${user.aid}; stoken=${token}; mid=${user.mid}`); return { aid: String(user.aid), mid: String(user.mid ?? ""), nickname: String(user.account_name || "米游社用户"), credential }; }

@@ -10,7 +10,7 @@ import { writeGameAccountRegistry, type RegistryAccount } from "./game-account-r
 export interface LaunchRunInput {
   gameRoot: string; runtimeRoot: string; dataDir: string; sessionDir: string;
   profile: GamePerformanceProfile; metalHud: boolean; networkDebug: boolean; framePacing: number; signal: AbortSignal;
-  account?: RegistryAccount;
+  account?: RegistryAccount; authTicket?: string;
 }
 export type LaunchReporter = (status: GameLaunchStatus, message?: string, progress?: number) => void;
 export interface GameLaunchRunner { run(input: LaunchRunInput, report: LaunchReporter): Promise<number> }
@@ -36,7 +36,9 @@ export class WineLaunchRunner implements GameLaunchRunner {
       .trim().split("\n").filter(Boolean).join(",");
     const logDir = join(input.dataDir, "logs"); mkdirSync(logDir, { recursive: true, mode: 0o700 });
     const descriptor = openSync(join(logDir, "game-launch.log"), "a", 0o600);
-    const child = spawn(paths.wine, [join(input.gameRoot, "YuanShen.exe"), "-force-d3d11"], {
+    const exeArgs = [join(input.gameRoot, "YuanShen.exe"), "-force-d3d11"];
+    if (input.authTicket) exeArgs.push(`login_auth_ticket=${input.authTicket}`);
+    const child = spawn(paths.wine, exeArgs, {
       cwd: input.gameRoot, detached: true, env, stdio: ["ignore", descriptor, descriptor],
     });
     closeSync(descriptor);
