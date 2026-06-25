@@ -81,6 +81,7 @@ export class WineLaunchRunner implements GameLaunchRunner {
       if (result.status !== 0) throw new AppError("wineprefix_init_failed", "Wine 运行环境初始化失败", 500);
     }
     this.configureChineseLocale(wine, localeEnv);
+    this.configureRetinaMode(wine, localeEnv);
     configureChineseGameLanguage(wine, localeEnv);
     this.stopServer(wineserver, prefix);
     const system32 = join(prefix, "drive_c", "windows", "system32"); mkdirSync(system32, { recursive: true });
@@ -104,6 +105,14 @@ export class WineLaunchRunner implements GameLaunchRunner {
       });
       if (result.status !== 0) throw new AppError("wine_locale_failed", "Wine 中文环境配置失败", 500);
     }
+  }
+
+  private configureRetinaMode(wine: string, env: NodeJS.ProcessEnv): void {
+    const result = spawnSync(wine, [
+      "reg", "add", "HKCU\\Software\\Wine\\Mac Driver",
+      "/v", "RetinaMode", "/t", "REG_SZ", "/d", "Y", "/f",
+    ], { env, stdio: "ignore" });
+    if (result.status !== 0) throw new AppError("wine_retina_failed", "Wine 高分辨率模式配置失败", 500);
   }
 
   private stopServer(wineserver: string, prefix: string): void {
