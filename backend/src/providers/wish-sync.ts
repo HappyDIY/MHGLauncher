@@ -16,7 +16,7 @@ export function normalizeWishSyncError(error: unknown): never {
   throw error;
 }
 
-export function isVisitTooFrequently(error: unknown): boolean {
+function isVisitTooFrequently(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   return error.message.toLowerCase().includes("visit too frequently");
 }

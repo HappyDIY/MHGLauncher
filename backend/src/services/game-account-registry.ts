@@ -31,14 +31,15 @@ export function createGameAccountRegistryValue(account: RegistryAccount, mac = m
 
 function mihoyoSdk(account: RegistryAccount, mac: string, now: number): string {
   const map = cookies(account.credential);
-  const token = map.get("stoken") ?? map.get("ltoken") ?? "";
+  const cookieToken = map.get("cookie_token") ?? map.get("ltoken") ?? map.get("stoken") ?? "";
+  const sToken = map.get("stoken") ?? map.get("ltoken") ?? cookieToken;
   const data = {
     data: [{
       uid: account.aid, mid: account.mid, name: account.nickname, email: "", mobile: "",
       is_email_verify: false, realname: "", identity_card: "", token_type: 1,
-      token, stoken: token, is_guest: false, guest_id: "", safe_mobile: "",
+      token: cookieToken, stoken: sToken, is_guest: false, guest_id: "", safe_mobile: "",
       account: account.aid, is_login: true, login_type: 1, payload: "",
-      channel_id: 1, asterisk_name: account.nickname, accessToken: token,
+      channel_id: 1, asterisk_name: account.nickname, accessToken: cookieToken,
       deviceId: "", country: "CN", area_code: "+86", reactivate_ticket: "",
       device_grant_ticket: "", thirdLoginTimestamp: now, account_display_type: "1",
       imageName: "", loginPattern: 1, loginTime: now, agreeSaveAccount: true,
