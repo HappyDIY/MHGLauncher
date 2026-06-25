@@ -13,20 +13,61 @@ extension LauncherStore {
     func beginQRLogin() async {
         await perform {
             let client = try requireClient()
+            showAccountLogin()
+            let attempt = startQRLoginAttempt()
             let session: QRSession = try await client.post("/v1/auth/qr-sessions")
-            qrSession = session
-            try await pollQR(session.id, client: client)
+            guard applyQRSession(session, attempt: attempt) else { return }
+            try await pollQR(session.id, attempt: attempt, client: client)
         }
     }
 
     func sendMobileCaptcha() async {
-        await perform {
+        isBusy = true
+        defer { isBusy = false }
+        do {
             let client = try requireClient()
+            mobileCaptchaSession = nil
+            mobileCaptchaVerification = nil
             mobileCaptchaSession = try await client.post(
                 "/v1/auth/mobile-captcha",
                 body: MobileCaptchaRequest(mobile: loginMobile)
             )
+            mobileCaptchaVerification = mobileCaptchaSession?.verification.map {
+                MobileCaptchaVerificationContext(mobile: loginMobile, verification: $0)
+            }
             message = "验证码已发送"
+        } catch let error as APIErrorPayload {
+            if error.code == "verification_required", let value = mobileVerification(from: error) {
+                mobileCaptchaVerification = value
+            } else {
+                message = Self.presentableMessage(error.message)
+            }
+        } catch {
+            message = Self.presentableMessage(error.localizedDescription)
+        }
+    }
+
+    func completeMobileCaptchaVerification(challenge: String, validate: String) async {
+        guard let verification = mobileCaptchaVerification else { return }
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            let client = try requireClient()
+            mobileCaptchaSession = try await client.post(
+                "/v1/auth/mobile-captcha/verification",
+                body: MobileCaptchaVerificationRequest(
+                    mobile: verification.mobile,
+                    sessionId: verification.verification.sessionId,
+                    challenge: challenge,
+                    validate: validate
+                )
+            )
+            mobileCaptchaVerification = nil
+            message = "验证码已发送"
+        } catch let error as APIErrorPayload {
+            message = Self.presentableMessage(error.message)
+        } catch {
+            message = Self.presentableMessage(error.localizedDescription)
         }
     }
 
@@ -78,6 +119,8 @@ extension LauncherStore {
             bannerDetails = []
             dailyNote = nil
             qrSession = nil
+            loginFormPresented = false
+            mobileCaptchaVerification = nil
         }
     }
 
@@ -115,12 +158,11 @@ extension LauncherStore {
         }
     }
 
-    private func pollQR(_ id: String, client: APIClient) async throws {
+    private func pollQR(_ id: String, attempt: Int, client: APIClient) async throws {
         while !Task.isCancelled {
             let result: QRResult = try await client.get("/v1/auth/qr-sessions/\(id)")
-            qrSession = result.session
+            guard applyQRSession(result.session, attempt: attempt) else { return }
             if result.session.status == "expired" {
-                message = "二维码已过期，请重新生成"
                 return
             }
             if let identity = result.identity {
@@ -133,7 +175,7 @@ extension LauncherStore {
                     body: request
                 )
                 try await acceptLogin(response, credential: identity.credential, client: client)
-                qrSession = nil
+                finishQRLoginAttempt(attempt)
                 return
             }
             try await Task.sleep(for: .seconds(2))
@@ -151,6 +193,7 @@ extension LauncherStore {
             try keychain.save(credential, account: keychainAccount(for: response.account.aid))
         }
         accounts = try await client.get("/v1/accounts")
+        loginFormPresented = false
         await loadCompanionData()
     }
 }

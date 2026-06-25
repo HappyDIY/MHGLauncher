@@ -24,7 +24,8 @@ struct WishOperationModelTests {
                 WishTaskLogPayload(sequence: 1, message: "已读取第 1 页", emphasized: false)
             ],
             result: nil,
-            error: ""
+            error: "",
+            errorCode: nil
         )
         operation.apply(task)
         operation.apply(task)

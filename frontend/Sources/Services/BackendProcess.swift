@@ -51,6 +51,11 @@ final class BackendProcess {
         client = nil
     }
 
+    func useClient(_ client: APIClient) {
+        self.client = client
+        errorMessage = nil
+    }
+
     private func executableURL() throws -> URL {
         if let url = Bundle.main.url(
             forResource: "MHGLauncherBackend",

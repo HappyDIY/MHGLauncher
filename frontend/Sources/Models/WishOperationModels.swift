@@ -52,6 +52,14 @@ struct WishTaskSnapshot: Codable, Sendable {
     let logs: [WishTaskLogPayload]
     let result: [String: Int]?
     let error: String
+    let errorCode: String?
+
+    var failureMessage: String {
+        switch errorCode {
+        case "wish_sync_limited": "访问过于频繁，请稍后再同步祈愿记录"
+        default: error
+        }
+    }
 }
 
 struct WishOperationLog: Identifiable, Sendable {

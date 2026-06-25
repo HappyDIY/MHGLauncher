@@ -34,10 +34,12 @@ final class LauncherStore {
     var dailyNote: DailyNote?
     var qrSession: QRSession?
     var mobileCaptchaSession: MobileCaptchaSession?
+    var mobileCaptchaVerification: MobileCaptchaVerificationContext?
     var loginMobile = ""
     var loginCaptcha = ""
     var loginCookie = ""
     var noteVerification: GeetestChallenge?
+    var loginFormPresented = false
     var selectedDestination: Destination? = .home
     var installPath = ""
     var isBusy = false
@@ -50,6 +52,7 @@ final class LauncherStore {
     var showsLoginBeforeLaunch = false
 
     let loginDeferralKey = "loginLaunchDeferrals"
+    var qrLoginAttempt = 0
 
     var selectedRole: GameRole? {
         roles.first(where: \.selected) ?? roles.first

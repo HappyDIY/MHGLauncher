@@ -16,7 +16,7 @@ struct AccountView: View {
                 rolesCard.motionEntrance(order: 3)
                 HStack {
                     Button("添加账号") {
-                        Task { await store.beginQRLogin() }
+                        Task { await store.beginAddingAccount() }
                     }
                     .buttonStyle(.glassProminent)
                     .motionHover(.prominent)
@@ -27,6 +27,9 @@ struct AccountView: View {
                     .motionHover(.destructive)
                 }
                 .motionEntrance(order: 4)
+                if store.loginFormPresented {
+                    AccountLoginView(store: store).motionEntrance(order: 5)
+                }
             } else {
                 AccountLoginView(store: store).motionEntrance(order: 1)
             }

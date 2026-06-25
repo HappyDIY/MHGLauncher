@@ -63,9 +63,19 @@ struct RootView: View {
         }
         .environment(\.apiClient, store.backend.client)
         .sheet(item: $store.noteVerification) { challenge in
-            GeetestView(challenge: challenge) { value, validate in
+            GeetestView(challenge: challenge, subtitle: "完成验证后将自动刷新实时便笺") { value, validate in
                 Task {
                     await store.completeNoteVerification(
+                        challenge: value,
+                        validate: validate
+                    )
+                }
+            }
+        }
+        .sheet(item: $store.mobileCaptchaVerification) { verification in
+            GeetestView(challenge: verification.geetest, subtitle: "完成验证后将自动发送短信验证码") { value, validate in
+                Task {
+                    await store.completeMobileCaptchaVerification(
                         challenge: value,
                         validate: validate
                     )

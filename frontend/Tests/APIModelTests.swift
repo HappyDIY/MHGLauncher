@@ -110,6 +110,7 @@ struct APIModelTests {
         #expect(task.progress == nil)
         #expect(task.logs.first?.sequence == 1)
         #expect(task.logs.first?.message.contains("20 条记录") == true)
+        #expect(task.errorCode == nil)
     }
 
     @Test("解码游戏启动会话")
