@@ -121,7 +121,10 @@ export class LiveProvider implements Provider {
     const response = await fetch(url, { headers, signal: AbortSignal.timeout(30_000) }), payload = await response.json() as JSONValue;
     const retcode = Number(payload.retcode ?? 0), message = String(payload.message ?? "");
     if (retcode === 1034) throw new AppError("verification_required", "请完成人机验证后重试", 428, await this.createVerification(credential));
-    if (retcode === 5003) throw new AppError("note_risk_limited", "当前账号存在风险，实时便笺暂无数据，请稍后重试或在米游社完成验证", 429, { retcode: "5003" });
+    if (retcode === 5003) {
+      if (!challenge) throw new AppError("verification_required", "请完成人机验证后重试", 428, await this.createVerification(credential));
+      throw new AppError("note_risk_limited", "当前账号存在风险，实时便笺暂无数据，请稍后重试或在米游社完成验证", 429, { retcode: "5003" });
+    }
     if ([10102, 10103, 10104].includes(retcode)) throw new AppError("note_unavailable", message || "实时便笺当前不可用，请检查米游社数据公开或账号状态", 403, { retcode: String(retcode) });
     if (message.toLowerCase().includes("visit too frequently")) throw new AppError("note_sync_limited", "访问过于频繁，请稍后再刷新实时便笺", 429, { retcode: String(retcode || "unknown") });
     if (!response.ok || retcode !== 0) throw new AppError("mihoyo_error", message || `米游社请求失败（错误码 ${payload.retcode ?? "未知"}）`, 502, { retcode: String(payload.retcode ?? "unknown") });
