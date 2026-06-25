@@ -56,6 +56,21 @@ extension LauncherStore {
 
     func launchGame() async {
         guard !isLaunchingGame else { return }
+        if account == nil, UserDefaults.standard.integer(forKey: loginDeferralKey) < 2 {
+            showsLoginBeforeLaunch = true
+            return
+        }
+        await startLaunch()
+    }
+
+    func deferLoginAndLaunch() async {
+        let count = UserDefaults.standard.integer(forKey: loginDeferralKey)
+        UserDefaults.standard.set(count + 1, forKey: loginDeferralKey)
+        showsLoginBeforeLaunch = false
+        await startLaunch()
+    }
+
+    private func startLaunch() async {
         isLaunchingGame = true
         defer { isLaunchingGame = false }
         await perform {
@@ -69,7 +84,8 @@ extension LauncherStore {
                 performanceProfile: gamePerformanceProfile,
                 metalHud: metalHudEnabled,
                 networkDebug: networkDebugEnabled,
-                framePacing: Self.preferredFrameRate(for: NSScreen.main?.maximumFramesPerSecond ?? 0)
+                framePacing: Self.preferredFrameRate(for: NSScreen.main?.maximumFramesPerSecond ?? 0),
+                credential: credential
             )
             let launch: GameLaunch = try await client.post("/v1/game/launch", body: request)
             gameLaunch = launch

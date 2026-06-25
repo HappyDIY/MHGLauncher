@@ -11,6 +11,7 @@ struct Account: Codable, Sendable {
     let mid: String
     let nickname: String
     let credentialRef: String
+    let selected: Bool
     let updatedAt: Date
 
     func displayName(role: GameRole?) -> String {
@@ -62,6 +63,11 @@ struct LoginCompleteRequest: Codable {
 }
 
 struct LoginCompleteResponse: Codable {
+    let account: Account
+    let roles: [GameRole]
+}
+
+struct AccountSelectionResponse: Codable {
     let account: Account
     let roles: [GameRole]
 }

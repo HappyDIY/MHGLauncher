@@ -4,6 +4,7 @@ extension LauncherStore {
     func refreshAccount() async {
         await perform {
             let client = try requireClient()
+            accounts = try await client.get("/v1/accounts")
             account = try await client.get("/v1/account")
             roles = try await client.get("/v1/roles")
         }
@@ -21,15 +22,51 @@ extension LauncherStore {
     func logout() async {
         await perform {
             let client = try requireClient()
+            let oldAid = account?.aid
             try await client.delete("/v1/account")
-            try keychain.delete(account: credentialAccount)
-            account = nil
-            roles = []
+            if let oldAid { try keychain.delete(account: keychainAccount(for: oldAid)) }
+            accounts = try await client.get("/v1/accounts")
+            account = try await client.get("/v1/account")
+            roles = try await client.get("/v1/roles")
             wishes = []
             wishStatistics = []
             bannerDetails = []
             dailyNote = nil
             qrSession = nil
+        }
+    }
+
+    func selectAccount(_ value: Account) async {
+        await perform {
+            let client = try requireClient()
+            let response: AccountSelectionResponse = try await client.post(
+                "/v1/account/select",
+                body: ["aid": value.aid]
+            )
+            account = response.account
+            roles = response.roles
+            accounts = try await client.get("/v1/accounts")
+            await loadCompanionData()
+        }
+    }
+
+    func selectRole(_ value: GameRole) async {
+        await perform {
+            let client = try requireClient()
+            let selected: GameRole = try await client.post(
+                "/v1/roles/select",
+                body: ["uid": value.uid]
+            )
+            roles = roles.map { role in
+                GameRole(
+                    uid: role.uid,
+                    nickname: role.nickname,
+                    region: role.region,
+                    level: role.level,
+                    selected: role.uid == selected.uid
+                )
+            }
+            await loadCompanionData()
         }
     }
 
@@ -42,10 +79,10 @@ extension LauncherStore {
                 return
             }
             if let identity = result.identity {
-                try keychain.save(identity.credential, account: credentialAccount)
+                try keychain.save(identity.credential, account: keychainAccount(for: identity.aid))
                 let request = LoginCompleteRequest(
                     identity: identity,
-                    credentialRef: "keychain:\(credentialAccount)"
+                    credentialRef: "keychain:\(keychainAccount(for: identity.aid))"
                 )
                 let response: LoginCompleteResponse = try await client.post(
                     "/v1/auth/complete",
@@ -53,6 +90,7 @@ extension LauncherStore {
                 )
                 account = response.account
                 roles = response.roles
+                accounts = try await client.get("/v1/accounts")
                 qrSession = nil
                 await loadCompanionData()
                 return
@@ -61,4 +99,3 @@ extension LauncherStore {
         }
     }
 }
-

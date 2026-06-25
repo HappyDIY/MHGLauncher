@@ -5,10 +5,12 @@ import { AppError } from "../core/errors";
 import type { GameLaunchStatus, GamePerformanceProfile } from "../core/models";
 import { launchEnvironment, runtimePaths } from "./game-launch-environment";
 import { configureChineseGameLanguage } from "./game-launch-language";
+import { writeGameAccountRegistry, type RegistryAccount } from "./game-account-registry";
 
 export interface LaunchRunInput {
   gameRoot: string; runtimeRoot: string; dataDir: string; sessionDir: string;
   profile: GamePerformanceProfile; metalHud: boolean; networkDebug: boolean; framePacing: number; signal: AbortSignal;
+  account?: RegistryAccount;
 }
 export type LaunchReporter = (status: GameLaunchStatus, message?: string, progress?: number) => void;
 export interface GameLaunchRunner { run(input: LaunchRunInput, report: LaunchReporter): Promise<number> }
@@ -25,6 +27,10 @@ export class WineLaunchRunner implements GameLaunchRunner {
       process.env, paths, prefix, input.sessionDir, input.profile,
       input.metalHud, input.networkDebug, input.framePacing,
     );
+    if (input.account) {
+      writeGameAccountRegistry(paths.wine, env, input.account);
+      report("starting", "已将启动器账号写入游戏登录状态", 0.62);
+    }
     report("starting", "正在创建游戏进程", 0.68);
     const snapshot = spawnSync(paths.probe, ["--snapshot"], { encoding: "utf8" }).stdout
       .trim().split("\n").filter(Boolean).join(",");

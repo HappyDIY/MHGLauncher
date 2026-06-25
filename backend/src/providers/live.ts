@@ -23,10 +23,11 @@ export class LiveProvider implements Provider {
   async queryQRSession(id: string): Promise<[QRSession, AccountIdentity | null]> {
     const data = await this.request("https://passport-api.mihoyo.com/account/ma-cn-passport/app/queryQRLoginStatus", { method: "POST", headers: this.qrHeaders(), body: JSON.stringify({ ticket: id }) });
     const prior = this.sessions.get(id); if (!prior) throw new AppError("qr_session_missing", "二维码会话不存在", 404);
-    const raw = String(data.status).toLowerCase(); const status = ["confirmed", "3"].includes(raw) ? "confirmed" : ["scanned", "2"].includes(raw) ? "scanned" : ["expired", "4"].includes(raw) ? "expired" : "created";
+    const raw = String(data.status ?? data.stat ?? data.qr_status).toLowerCase(); const status = ["confirmed", "confirm", "3"].includes(raw) ? "confirmed" : ["scanned", "scan", "2"].includes(raw) ? "scanned" : ["expired", "expire", "4"].includes(raw) ? "expired" : "created";
     const session: QRSession = { ...prior, status }; if (status !== "confirmed") return [session, null];
-    const token = (data.tokens as JSONValue[] | undefined)?.find((value) => value.token_type === 1)?.token;
-    const user = data.user_info as JSONValue | undefined; if (!user || !token) throw new AppError("qr_payload_invalid", "二维码登录结果缺少凭据", 502);
+    const payload = (data.payload ?? data) as JSONValue;
+    const token = (payload.tokens as JSONValue[] | undefined)?.find((value) => Number(value.token_type) === 1)?.token ?? payload.stoken ?? payload.token;
+    const user = (payload.user_info ?? payload.user) as JSONValue | undefined; if (!user || !token) throw new AppError("qr_payload_invalid", "二维码登录结果缺少凭据", 502);
     let credential = `stuid=${user.aid}; stoken=${token}; mid=${user.mid}`; credential = await this.enrichCredential(credential);
     return [session, { aid: String(user.aid), mid: String(user.mid), nickname: String(user.account_name || "米游社用户"), credential }];
   }

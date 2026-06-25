@@ -13,6 +13,7 @@ struct APIModelTests {
               "mid": "mid",
               "nickname": "旅行者",
               "credential_ref": "keychain:current",
+              "selected": true,
               "updated_at": "2026-06-11T08:00:00Z"
             }
             """.utf8
@@ -31,6 +32,7 @@ struct APIModelTests {
               "mid": "mid",
               "nickname": "旅行者",
               "credential_ref": "keychain:current",
+              "selected": true,
               "updated_at": "2026-06-11T08:00:00.123456Z"
             }
             """.utf8
@@ -153,6 +155,7 @@ struct APIModelTests {
             mid: "mid",
             nickname: "  ",
             credentialRef: "keychain:current",
+            selected: true,
             updatedAt: .now
         )
         let role = GameRole(

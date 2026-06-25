@@ -118,4 +118,5 @@ struct StartGameLaunchRequest: Codable, Sendable {
     let metalHud: Bool
     let networkDebug: Bool
     let framePacing: Int
+    let credential: String?
 }

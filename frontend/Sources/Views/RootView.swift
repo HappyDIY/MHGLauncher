@@ -99,6 +99,21 @@ struct RootView: View {
         } message: {
             Text("此操作无法撤销，继续后需要使用 Touch ID 或 Mac 登录密码确认。")
         }
+        .confirmationDialog(
+            "建议先登录启动器账号",
+            isPresented: $store.showsLoginBeforeLaunch,
+            titleVisibility: .visible
+        ) {
+            Button("前往登录") {
+                store.selectedDestination = .account
+            }
+            Button("本次直接启动") {
+                Task { await store.deferLoginAndLaunch() }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("登录后启动器会把账号透传给游戏，并可在启动器内切换账号和角色。多次跳过后将不再提示。")
+        }
     }
 
     @ViewBuilder
