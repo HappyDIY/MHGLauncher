@@ -17,6 +17,8 @@ struct GameLaunchControls: View {
                 .motionHover(.subtle)
             Toggle("记录每一条 DNS 查询（网络调试）", isOn: $store.networkDebugEnabled)
                 .motionHover(.subtle)
+            Toggle("显示 Wine 原生日志（调试用）", isOn: $store.wineLogEnabled)
+                .motionHover(.subtle)
             HStack {
                 Button {
                     Task { await store.launchGame() }

@@ -123,6 +123,7 @@ struct APIModelTests {
               "performance_profile": "optimized",
               "metal_hud": true,
               "network_debug": true,
+              "wine_log": false,
               "progress": 0.82,
               "logs": [{"sequence":1,"timestamp":"2026-06-22T10:00:00Z","kind":"dns","message":"DNS 查询成功"}],
               "started_at": "2026-06-22T10:00:00Z",

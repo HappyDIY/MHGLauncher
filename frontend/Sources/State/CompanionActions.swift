@@ -63,6 +63,7 @@ extension LauncherStore {
         challenge: String,
         validate: String
     ) async {
+        noteVerification = nil
         isBusy = true
         defer { isBusy = false }
         do {
@@ -83,7 +84,6 @@ extension LauncherStore {
                     xrpcChallenge: verification.xrpcChallenge
                 )
             )
-            noteVerification = nil
         } catch let error as APIErrorPayload {
             message = Self.presentableMessage(error.message)
         } catch {

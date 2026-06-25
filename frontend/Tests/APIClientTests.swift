@@ -68,12 +68,12 @@ struct APIClientTests {
             #expect(value.performanceProfile == .optimized)
             #expect(value.metalHud)
             return json(202, """
-            {"id":"launch-1","status":"preparing","message":"","performance_profile":"optimized","metal_hud":true,"network_debug":true,"progress":0.05,"logs":[],"started_at":"now","updated_at":"now"}
+            {"id":"launch-1","status":"preparing","message":"","performance_profile":"optimized","metal_hud":true,"network_debug":true,"wine_log":false,"progress":0.05,"logs":[],"started_at":"now","updated_at":"now"}
             """)
         }
         let body = StartGameLaunchRequest(
             installPath: "/tmp/game", performanceProfile: .optimized,
-            metalHud: true, networkDebug: true, framePacing: 120, credential: nil
+            metalHud: true, networkDebug: true, wineLog: false, framePacing: 120, credential: nil
         )
         let launch: GameLaunch = try await client.post("/v1/game/launch", body: body)
         #expect(launch.status == .preparing)

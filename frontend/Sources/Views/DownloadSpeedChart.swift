@@ -6,6 +6,7 @@ struct DownloadSpeedChart: View {
     let isActive: Bool
     let sampleID: String?
     @State private var samples: [SpeedSample] = []
+    @State private var updatePhase = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -23,7 +24,13 @@ struct DownloadSpeedChart: View {
                     x: .value("时间", sample.time),
                     y: .value("速度", sample.megabytesPerSecond)
                 )
-                .foregroundStyle(.blue.opacity(0.12))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.blue.opacity(0.18), .blue.opacity(0.02)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
                 LineMark(
                     x: .value("时间", sample.time),
                     y: .value("速度", sample.megabytesPerSecond)
@@ -43,13 +50,14 @@ struct DownloadSpeedChart: View {
                 }
             }
             .frame(height: 92)
-            .motionAnimation(.progress, value: sampleID)
+            .motionAnimation(.progress, value: updatePhase)
         }
         .motionAnimation(.progress, value: speed)
         .onChange(of: sampleID, initial: true) { _, _ in
             guard isActive || speed > 0 else { return }
             samples.append(SpeedSample(time: Date(), bytesPerSecond: speed))
             samples = Array(samples.suffix(60))
+            updatePhase &+= 1
         }
     }
 
