@@ -50,6 +50,8 @@ struct WishHistoryPanel: View {
                     Text("\(filteredRecords.count) 条记录")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
+                        .motionAnimation(.content, value: filteredRecords.count)
                 }
                 Spacer()
                 Picker("星级", selection: $rankFilter) {
@@ -60,11 +62,13 @@ struct WishHistoryPanel: View {
                 .labelsHidden()
                 .pickerStyle(.segmented)
                 .frame(width: 180)
+                .motionHover(.subtle)
                 TextField("搜索名称", text: $searchText)
                     .textFieldStyle(.plain)
                     .padding(.horizontal, 11)
                     .frame(width: 150, height: 30)
                     .glassEffect(.clear.interactive(), in: .capsule)
+                    .motionHover(.subtle)
             }
             dateFilterRow
         }
@@ -83,6 +87,7 @@ struct WishHistoryPanel: View {
             .labelsHidden()
             .datePickerStyle(.compact)
             .frame(width: 120)
+            .motionHover(.subtle)
 
             Text("至")
                 .font(.caption)
@@ -99,6 +104,7 @@ struct WishHistoryPanel: View {
             .labelsHidden()
             .datePickerStyle(.compact)
             .frame(width: 120)
+            .motionHover(.subtle)
 
             if dateFrom != nil || dateTo != nil {
                 Button("清除") {
@@ -107,8 +113,11 @@ struct WishHistoryPanel: View {
                 }
                 .buttonStyle(.glass)
                 .controlSize(.small)
+                .motionHover()
+                .motionTransition(.selection)
             }
         }
+        .motionAnimation(.selection, value: dateFrom != nil || dateTo != nil)
     }
 
     private var calendar: Calendar {

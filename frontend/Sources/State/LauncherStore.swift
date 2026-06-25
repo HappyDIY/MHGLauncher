@@ -9,6 +9,7 @@ final class LauncherStore {
     let deviceOwnerAuthenticator = DeviceOwnerAuthenticator()
 
     var account: Account?
+    var accounts: [Account] = []
     var roles: [GameRole] = []
     var gameState: GameState?
     var gameJob: GameJob?
@@ -32,6 +33,10 @@ final class LauncherStore {
     var bannerDetails: [WishBannerDetail] = []
     var dailyNote: DailyNote?
     var qrSession: QRSession?
+    var mobileCaptchaSession: MobileCaptchaSession?
+    var loginMobile = ""
+    var loginCaptcha = ""
+    var loginCookie = ""
     var noteVerification: GeetestChallenge?
     var selectedDestination: Destination? = .home
     var installPath = ""
@@ -42,15 +47,17 @@ final class LauncherStore {
     var triggerWishImport = false
     var triggerWishExport = false
     var triggerWishClear = false
+    var showsLoginBeforeLaunch = false
 
-    let credentialAccount = "current"
+    let loginDeferralKey = "loginLaunchDeferrals"
 
     var selectedRole: GameRole? {
         roles.first(where: \.selected) ?? roles.first
     }
 
     var credential: String? {
-        try? keychain.read(account: credentialAccount)
+        guard let account else { return nil }
+        return try? keychain.read(account: keychainAccount(for: account.aid))
     }
 
     func bootstrap() async {
@@ -100,6 +107,10 @@ final class LauncherStore {
     func requireCredential() throws -> String {
         guard let credential else { throw LauncherError.credentialMissing }
         return credential
+    }
+
+    func keychainAccount(for aid: String) -> String {
+        "account:\(aid)"
     }
 }
 

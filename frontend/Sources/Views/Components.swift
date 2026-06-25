@@ -36,6 +36,7 @@ struct MetricView: View {
             Text(value)
                 .font(.title2.bold())
                 .contentTransition(.numericText())
+                .motionAnimation(.content, value: value)
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -53,6 +54,8 @@ struct PageHeader: View {
                 .font(.largeTitle.bold())
             Text(subtitle)
                 .foregroundStyle(.secondary)
+                .contentTransition(.opacity)
+                .motionAnimation(.content, value: subtitle)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

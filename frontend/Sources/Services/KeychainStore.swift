@@ -7,7 +7,12 @@ struct KeychainStore: Sendable {
     func save(_ value: String, account: String) throws {
         let data = Data(value.utf8)
         let query = baseQuery(account: account)
-        SecItemDelete(query as CFDictionary)
+        let updates = [kSecValueData as String: data]
+        let updateStatus = SecItemUpdate(query as CFDictionary, updates as CFDictionary)
+        if updateStatus == errSecSuccess { return }
+        guard updateStatus == errSecItemNotFound else {
+            throw KeychainError.status(updateStatus)
+        }
         var attributes = query
         attributes[kSecValueData as String] = data
         let status = SecItemAdd(attributes as CFDictionary, nil)
@@ -44,7 +49,14 @@ struct KeychainStore: Sendable {
     }
 }
 
-enum KeychainError: Error {
+enum KeychainError: LocalizedError {
     case status(OSStatus)
-}
 
+    var errorDescription: String? {
+        switch self {
+        case .status(let status):
+            let message = SecCopyErrorMessageString(status, nil) as String?
+            return "钥匙串操作失败（OSStatus \(status)）：\(message ?? "未知错误")"
+        }
+    }
+}

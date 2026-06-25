@@ -68,7 +68,31 @@ struct AppCommands: Commands {
 
             Divider()
 
+            if let store, !store.accounts.isEmpty {
+                Menu("切换账号") {
+                    ForEach(store.accounts, id: \.aid) { account in
+                        Button(account.displayName(role: nil)) {
+                            Task { await store.selectAccount(account) }
+                        }
+                    }
+                }
+                if !store.roles.isEmpty {
+                    Menu("切换角色") {
+                        ForEach(store.roles) { role in
+                            Button("\(role.nickname) · UID \(role.uid)") {
+                                Task { await store.selectRole(role) }
+                            }
+                        }
+                    }
+                }
+                Divider()
+            }
+
             if store?.account != nil {
+                Button("添加账号") {
+                    store?.selectedDestination = .account
+                    Task { await store?.beginQRLogin() }
+                }
                 Button("退出登录") {
                     Task { await store?.logout() }
                 }

@@ -28,15 +28,27 @@ struct RootView: View {
     var body: some View {
         NavigationSplitView {
             List(Destination.allCases, selection: $store.selectedDestination) { destination in
-                Label(destination.rawValue, systemImage: destination.icon)
+                Label {
+                    Text(destination.rawValue)
+                } icon: {
+                    Image(systemName: destination.icon)
+                        .motionSymbolBounce(
+                            value: store.selectedDestination == destination
+                        )
+                }
                     .tag(destination)
             }
             .navigationTitle("MHGLauncher")
             .navigationSplitViewColumnWidth(min: 180, ideal: 210)
         } detail: {
-            content
-                .padding(24)
-                .background(background)
+            ZStack {
+                content
+                    .id(store.selectedDestination ?? .home)
+                    .motionTransition(.navigation)
+            }
+            .motionAnimation(.navigation, value: store.selectedDestination)
+            .padding(24)
+            .background(background)
         }
         .alert(
             "提示",
@@ -87,6 +99,21 @@ struct RootView: View {
         } message: {
             Text("此操作无法撤销，继续后需要使用 Touch ID 或 Mac 登录密码确认。")
         }
+        .confirmationDialog(
+            "建议先登录启动器账号",
+            isPresented: $store.showsLoginBeforeLaunch,
+            titleVisibility: .visible
+        ) {
+            Button("前往登录") {
+                store.selectedDestination = .account
+            }
+            Button("本次直接启动") {
+                Task { await store.deferLoginAndLaunch() }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("登录后启动器会把账号透传给游戏，并可在启动器内切换账号和角色。多次跳过后将不再提示。")
+        }
     }
 
     @ViewBuilder
@@ -103,7 +130,7 @@ struct RootView: View {
     private var background: some View {
         LinearGradient(
             colors: [
-                Color.accentColor.opacity(0.12),
+                destinationAccent.opacity(0.12),
                 Color.purple.opacity(0.08),
                 Color.clear
             ],
@@ -111,6 +138,17 @@ struct RootView: View {
             endPoint: .bottomTrailing
         )
         .ignoresSafeArea()
+        .motionAnimation(.navigation, value: store.selectedDestination)
+    }
+
+    private var destinationAccent: Color {
+        switch store.selectedDestination ?? .home {
+        case .home: .blue
+        case .game: .indigo
+        case .wishes: .cyan
+        case .notes: .green
+        case .account: .orange
+        }
     }
 
     private func importFile() {

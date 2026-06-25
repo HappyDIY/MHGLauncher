@@ -1,7 +1,8 @@
 import { join } from "node:path";
+import { publicEncrypt } from "node:crypto";
 import type { Settings } from "../core/config";
 import { AppError } from "../core/errors";
-import type { AccountIdentity, DailyNote, GameRole, QRSession, WishRecord } from "../core/models";
+import type { AccountIdentity, DailyNote, GameRole, MobileCaptchaSession, QRSession, WishRecord } from "../core/models";
 import { Device } from "./device";
 import type { GameBuild, Provider } from "./provider";
 import { Sophon } from "./sophon";
@@ -9,6 +10,12 @@ import { cookies, sign } from "./signing";
 
 type JSONValue = Record<string, any>;
 const agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) miHoYoBBS/2.95.1";
+const passportKey = `-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDDvekdPMHN3AYhm/vktJT+YJr7
+cI5DcsNKqdsx5DZX0gDuWFuIjzdwButrIYPNmRJ1G8ybDIF7oDW2eEpm5sMbL9zs
+9ExXCdvqrn51qELbqj0XxtMTIpaCHFSI50PfPpTFV9Xt/hmyVwokoOXFlAEgCn+Q
+CgGs52bFoYMtyi+xEQIDAQAB
+-----END PUBLIC KEY-----`;
 
 export class LiveProvider implements Provider {
   private readonly device: Device; private readonly sophon = new Sophon(); private readonly sessions = new Map<string, QRSession>();
@@ -23,16 +30,41 @@ export class LiveProvider implements Provider {
   async queryQRSession(id: string): Promise<[QRSession, AccountIdentity | null]> {
     const data = await this.request("https://passport-api.mihoyo.com/account/ma-cn-passport/app/queryQRLoginStatus", { method: "POST", headers: this.qrHeaders(), body: JSON.stringify({ ticket: id }) });
     const prior = this.sessions.get(id); if (!prior) throw new AppError("qr_session_missing", "二维码会话不存在", 404);
-    const raw = String(data.status).toLowerCase(); const status = ["confirmed", "3"].includes(raw) ? "confirmed" : ["scanned", "2"].includes(raw) ? "scanned" : ["expired", "4"].includes(raw) ? "expired" : "created";
+    const raw = String(data.status ?? data.stat ?? data.qr_status).toLowerCase(); const status = ["confirmed", "confirm", "3"].includes(raw) ? "confirmed" : ["scanned", "scan", "2"].includes(raw) ? "scanned" : ["expired", "expire", "4"].includes(raw) ? "expired" : "created";
     const session: QRSession = { ...prior, status }; if (status !== "confirmed") return [session, null];
-    const token = (data.tokens as JSONValue[] | undefined)?.find((value) => value.token_type === 1)?.token;
-    const user = data.user_info as JSONValue | undefined; if (!user || !token) throw new AppError("qr_payload_invalid", "二维码登录结果缺少凭据", 502);
-    let credential = `stuid=${user.aid}; stoken=${token}; mid=${user.mid}`; credential = await this.enrichCredential(credential);
-    return [session, { aid: String(user.aid), mid: String(user.mid), nickname: String(user.account_name || "米游社用户"), credential }];
+    const payload = (data.payload ?? data) as JSONValue;
+    const token = (payload.tokens as JSONValue[] | undefined)?.find((value) => Number(value.token_type) === 1)?.token ?? payload.stoken ?? payload.token;
+    const user = (payload.user_info ?? payload.user) as JSONValue | undefined; if (!user || !token) throw new AppError("qr_payload_invalid", "二维码登录结果缺少凭据", 502);
+    return [session, await this.identity(user, String(token))];
+  }
+
+  async identifyCredential(credential: string): Promise<AccountIdentity> {
+    return this.identityFromCredential(await this.enrichCredential(await this.normalizeCredential(credential), true));
+  }
+
+  async createMobileCaptcha(mobile: string): Promise<MobileCaptchaSession> {
+    const body = JSON.stringify({ area_code: this.encrypt("+86"), mobile: this.encrypt(mobile) });
+    const response = await fetch("https://passport-api.mihoyo.com/account/ma-cn-verifier/verifier/createLoginCaptcha", {
+      method: "POST", headers: { ...this.passportHeaders("", sign("prod", body)), "x-rpc-aigis": "" }, body, signal: AbortSignal.timeout(30_000),
+    });
+    const payload = await response.json() as JSONValue;
+    if (!response.ok || Number(payload.retcode ?? 0) !== 0) throw new AppError("mihoyo_error", String(payload.message || "验证码发送失败"), 502);
+    const data = payload.data as JSONValue ?? {};
+    return { mobile, action_type: String(data.action_type), countdown: Number(data.countdown ?? 60), aigis: response.headers.get("x-rpc-aigis") };
+  }
+
+  async loginByMobileCaptcha(mobile: string, captcha: string, actionType: string, aigis?: string | null): Promise<AccountIdentity> {
+    const body = JSON.stringify({ area_code: this.encrypt("+86"), action_type: actionType, captcha, mobile: this.encrypt(mobile) });
+    const headers = this.passportHeaders("", sign("prod", body)); if (aigis) headers["x-rpc-aigis"] = aigis;
+    const data = await this.request("https://passport-api.mihoyo.com/account/ma-cn-passport/app/loginByMobileCaptcha", { method: "POST", headers, body });
+    const token = (data.token as JSONValue | undefined)?.token;
+    const user = data.user_info as JSONValue | undefined;
+    if (!user || !token) throw new AppError("login_payload_invalid", "短信登录结果缺少凭据", 502);
+    return this.identity(user, String(token));
   }
 
   async getRoles(credential: string): Promise<GameRole[]> {
-    const data = await this.api("https://api-takumi.mihoyo.com/binding/api/getUserGameRolesByStoken", credential, sign("lk2", "", "", 1));
+    const data = await this.api("https://api-takumi.mihoyo.com/binding/api/getUserGameRolesByStoken", credential, sign("lk2", "", "", 1), { headers: { Referer: "https://app.mihoyo.com" } });
     return (data.list as JSONValue[] ?? []).filter((v) => v.game_biz === "hk4e_cn").map((v) => ({ uid: String(v.game_uid), nickname: String(v.nickname), region: String(v.region), level: Number(v.level), selected: Boolean(v.is_chosen) }));
   }
 
@@ -70,12 +102,42 @@ export class LiveProvider implements Provider {
     return String(data.challenge);
   }
 
-  private async enrichCredential(value: string): Promise<string> { const data = await this.api("https://passport-api.mihoyo.com/account/auth/api/getCookieAccountInfoBySToken", value, sign("prod", "{}")); const map = cookies(value); map.set("cookie_token", String(data.cookie_token)); map.set("account_id", String(data.uid)); return [...map].map(([k, v]) => `${k}=${v}`).join("; "); }
+  private async identity(user: JSONValue, token: string): Promise<AccountIdentity> { const credential = await this.enrichCredential(`stuid=${user.aid}; stoken=${token}; mid=${user.mid}`); return { aid: String(user.aid), mid: String(user.mid ?? ""), nickname: String(user.account_name || "米游社用户"), credential }; }
+  private async identityFromCredential(credential: string): Promise<AccountIdentity> { const map = cookies(credential), aid = map.get("stuid") ?? map.get("account_id") ?? "", mid = map.get("mid") ?? ""; if (!aid || !map.get("stoken")) throw new AppError("credential_invalid", "Cookie 缺少 stuid/stoken，或 login_ticket/login_uid", 422); return { aid, mid, nickname: "米游社用户", credential }; }
+  private async normalizeCredential(value: string): Promise<string> {
+    const map = cookies(value); if (map.get("stoken")) return this.serialize(map);
+    const ticket = map.get("login_ticket"), uid = map.get("login_uid");
+    if (!ticket || !uid) throw new AppError("credential_invalid", "Cookie 缺少 stuid/stoken，或 login_ticket/login_uid", 422);
+    const query = new URLSearchParams({ login_ticket: ticket, uid, token_types: "3" });
+    const data = await this.request(`https://api-takumi.mihoyo.com/auth/api/getMultiTokenByLoginTicket?${query}`);
+    const stoken = (data.list as JSONValue[] | undefined)?.find((item) => item.name === "stoken")?.token;
+    if (!stoken) throw new AppError("credential_invalid", "Cookie 登录票据无法换取 stoken，请重新获取 Cookie", 422);
+    map.set("stuid", uid); map.set("stoken", String(stoken)); return this.serialize(map);
+  }
+  private async enrichCredential(value: string, cookieImport = false): Promise<string> {
+    try {
+      const data = await this.request("https://passport-api.mihoyo.com/account/auth/api/getCookieAccountInfoBySToken", { headers: this.passportHeaders(value, sign("prod")) });
+      const map = cookies(value); map.set("cookie_token", String(data.cookie_token)); map.set("account_id", String(data.uid)); return this.serialize(map);
+    } catch (error) {
+      if (cookieImport && error instanceof AppError && error.code === "mihoyo_error") throw new AppError("credential_expired", "米游社返回登录状态失效，请重新获取 Cookie 后重试", 401, error.details);
+      throw error;
+    }
+  }
   private async createVerification(value: string): Promise<Record<string, string>> { const query = "is_high=true", data = await this.api(`https://api-takumi-record.mihoyo.com/game_record/app/card/wapi/createVerification?${query}`, value, sign("x4", "", query)); return { gt: String(data.gt), challenge: String(data.challenge) }; }
   private async authkey(value: string, role: GameRole): Promise<string> { const body = JSON.stringify({ auth_appid: "webview_gacha", game_biz: "hk4e_cn", game_uid: Number(role.uid), region: role.region }); return String((await this.api("https://api-takumi.mihoyo.com/binding/api/genAuthKey", value, sign("lk2", "", "", 1), { method: "POST", body })).authkey); }
   private wish(uid: string, v: JSONValue): WishRecord { const type = String(v.gacha_type); return { id: String(v.id), uid, gacha_type: type, uigf_gacha_type: type === "400" ? "301" : type, item_id: String(v.item_id), name: String(v.name), item_type: String(v.item_type), rank: Number(v.rank_type), time: String(v.time).replace(" ", "T") }; }
   private headers(cookie: string, ds: string): Record<string, string> { return { Cookie: cookie, DS: ds, "User-Agent": agent, "x-rpc-app_version": "2.95.1", "x-rpc-client_type": "5", "x-rpc-device_id": this.device.deviceId, "x-rpc-device_fp": this.device.deviceFP, "Content-Type": "application/json" }; }
-  private qrHeaders(): Record<string, string> { return { "User-Agent": "HYPContainer/1.1.4.133", "x-rpc-app_id": "ddxf5dufpuyo", "x-rpc-client_type": "3", "x-rpc-device_id": this.device.deviceId, "Content-Type": "application/json" }; }
+  private passportHeaders(cookie: string, ds: string): Record<string, string> {
+    return {
+      Cookie: cookie, DS: ds, "User-Agent": agent, "x-rpc-aigis": "", "x-rpc-app_id": "bll8iq97cem8",
+      "x-rpc-app_version": "2.95.1", "x-rpc-client_type": "2", "x-rpc-device_id": this.device.deviceId,
+      "x-rpc-device_name": "", "x-rpc-game_biz": "bbs_cn", "x-rpc-sdk_version": "2.16.0",
+      "Content-Type": "application/json",
+    };
+  }
+  private qrHeaders(): Record<string, string> { return { "User-Agent": "HYPContainer/1.1.4.133", "x-rpc-app_id": "ddxf5dufpuyo", "x-rpc-client_type": "3", "x-rpc-device_id": this.device.loginDeviceId, "Content-Type": "application/json" }; }
   private api(url: string, cookie: string, ds: string, init: RequestInit = {}): Promise<JSONValue> { return this.request(url, { ...init, headers: { ...this.headers(cookie, ds), ...init.headers } }); }
   private async request(url: string, init?: RequestInit): Promise<JSONValue> { const response = await fetch(url, { ...init, signal: AbortSignal.timeout(30_000) }); const payload = await response.json() as JSONValue; if (!response.ok || Number(payload.retcode ?? 0) !== 0) throw new AppError("mihoyo_error", String(payload.message || `米游社请求失败（错误码 ${payload.retcode ?? "未知"}）`), 502, { retcode: String(payload.retcode ?? "unknown") }); return payload.data as JSONValue ?? {}; }
+  private serialize(map: Map<string, string>): string { return [...map].map(([k, v]) => `${k}=${v}`).join("; "); }
+  private encrypt(value: string): string { return publicEncrypt({ key: passportKey, padding: 1 }, Buffer.from(value)).toString("base64"); }
 }

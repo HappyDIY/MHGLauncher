@@ -25,7 +25,10 @@ struct GameResourceActionButtons: View {
                     Text(title)
                 }
             }
+            .contentTransition(.opacity)
         }
+        .motionAnimation(.selection, value: store.pendingGameJobKind)
+        .motionHover(.prominent)
         .disabled(!enabled || store.pendingGameJobKind != nil)
     }
 }

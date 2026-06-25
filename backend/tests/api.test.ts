@@ -18,6 +18,29 @@ describe("本地 API 契约", () => {
     const value = await response.json(); expect(value.account.credential_ref).toBe("keychain:test"); expect(value.roles[0].uid).toBe("100000001");
   });
 
+  test("多账号保留当前账号与角色选择", async () => {
+    const first = { aid: "10001", mid: "mid-1", nickname: "一号", credential: "stoken=1; mid=mid-1" };
+    const second = { aid: "10002", mid: "mid-2", nickname: "二号", credential: "stoken=2; mid=mid-2" };
+    await request("POST", "/v1/auth/complete", { identity: first, credential_ref: "keychain:account:10001" });
+    await request("POST", "/v1/auth/complete", { identity: second, credential_ref: "keychain:account:10002" });
+    expect((await (await request("GET", "/v1/accounts")).json()).map((value: { aid: string }) => value.aid)).toEqual(["10002", "10001"]);
+    const selected = await (await request("POST", "/v1/account/select", { aid: "10001" })).json();
+    expect(selected.account.selected).toBe(true);
+    expect(selected.roles[0].uid).toBe("100000001");
+    await request("DELETE", "/v1/account");
+    expect((await (await request("GET", "/v1/account")).json()).aid).toBe("10002");
+  });
+
+  test("Cookie 与短信验证码登录归一为账号会话", async () => {
+    const cookie = await (await request("POST", "/v1/auth/cookie-login", { credential: "stuid=10001; stoken=fixture; mid=fixture-mid" })).json();
+    expect(cookie.account.credential_ref).toBe("keychain:account:10001");
+    const captcha = await (await request("POST", "/v1/auth/mobile-captcha", { mobile: "13800138000" })).json();
+    expect(captcha.action_type).toBe("fixture-action");
+    const sms = await (await request("POST", "/v1/auth/mobile-login", { mobile: "13800138000", captcha: "123456", action_type: captcha.action_type })).json();
+    expect(sms.identity.credential).toContain("stoken=fixture");
+    expect(sms.roles[0].uid).toBe("100000001");
+  });
+
   test("游戏启动校验安装目录", async () => {
     const response = await request("POST", "/v1/game/launch", { install_path: "/tmp/mhg-missing-game" });
     expect(response.status).toBe(409); expect(await response.json()).toMatchObject({ code: "game_not_installed" });

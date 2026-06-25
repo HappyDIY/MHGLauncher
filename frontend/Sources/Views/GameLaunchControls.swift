@@ -12,8 +12,11 @@ struct GameLaunchControls: View {
                 }
             }
             .pickerStyle(.segmented)
+            .motionHover(.subtle)
             Toggle("启动时显示 Metal HUD", isOn: $store.metalHudEnabled)
+                .motionHover(.subtle)
             Toggle("记录每一条 DNS 查询（网络调试）", isOn: $store.networkDebugEnabled)
+                .motionHover(.subtle)
             HStack {
                 Button {
                     Task { await store.launchGame() }
@@ -24,24 +27,34 @@ struct GameLaunchControls: View {
                         Text("启动游戏")
                     }
                 }
+                .contentTransition(.opacity)
                 .buttonStyle(.borderedProminent)
+                .motionHover(.prominent)
                 .disabled(store.installPath.isEmpty || launchIsActive || store.isLaunchingGame)
                 if launchIsActive {
                     Button("停止游戏", role: .destructive) { confirmsStop = true }
+                        .motionHover(.destructive)
                         .disabled(store.isStoppingGame)
+                        .motionTransition(.selection)
                 }
                 if let launch = store.gameLaunch {
                     Label(launch.status.title, systemImage: launch.status.icon)
                         .font(.caption)
                         .foregroundStyle(launch.status == .failed ? .red : .secondary)
+                        .contentTransition(.symbolEffect(.replace))
+                        .motionSymbolBounce(value: launch.status)
+                        .motionTransition(.selection)
                 }
             }
             if let message = store.gameLaunch?.message, !message.isEmpty {
                 Text(message)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .motionTransition(.content)
             }
         }
+        .motionAnimation(.selection, value: store.isLaunchingGame)
+        .motionAnimation(.selection, value: store.gameLaunch?.status)
         .confirmationDialog("确定停止游戏？", isPresented: $confirmsStop, titleVisibility: .visible) {
             Button("停止游戏", role: .destructive) { Task { await store.stopGame() } }
             Button("取消", role: .cancel) {}

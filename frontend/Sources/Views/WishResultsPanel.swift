@@ -12,8 +12,11 @@ struct WishResultsPanel: View {
             } else {
                 ScrollView {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
-                        ForEach(items) { item in
+                        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                             WishResultCard(item: item, mode: mode)
+                                .id("\(mode.rawValue)-\(item.id)")
+                                .motionScrollAppearance()
+                                .motionEntrance(order: index)
                         }
                     }
                     .padding(2)
@@ -23,7 +26,7 @@ struct WishResultsPanel: View {
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
-        .animation(.snappy, value: mode)
+        .motionAnimation(.selection, value: mode)
     }
 
     private var heading: some View {
@@ -44,6 +47,7 @@ struct WishResultsPanel: View {
             .labelsHidden()
             .pickerStyle(.segmented)
             .frame(width: 180)
+            .motionHover(.subtle)
         }
     }
 
@@ -82,6 +86,7 @@ private struct WishResultCard: View {
                 Text(amountText)
                     .font(.caption.bold().monospacedDigit())
                     .foregroundStyle(.secondary)
+                    .contentTransition(.numericText())
             }
         }
         .padding(10)
@@ -89,6 +94,7 @@ private struct WishResultCard: View {
             .clear.tint(accent.opacity(0.1)).interactive(),
             in: .rect(cornerRadius: 16)
         )
+        .motionAnimation(.content, value: amountText)
     }
 
     private var artwork: some View {

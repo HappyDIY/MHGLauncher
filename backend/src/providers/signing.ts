@@ -10,5 +10,12 @@ export function sign(kind: keyof typeof salts, body = "", query = "", generation
 }
 
 export function cookies(raw: string): Map<string, string> {
-  return new Map(raw.split(";").map((value) => value.trim().split("=", 2)).filter((value) => value.length === 2) as [string, string][]);
+  const map = new Map<string, string>();
+  for (const item of raw.replaceAll(" ", "").split(";")) {
+    const index = item.indexOf("=");
+    if (index <= 0) continue;
+    const key = item.slice(0, index);
+    if (!map.has(key)) map.set(key, item.slice(index + 1));
+  }
+  return map;
 }

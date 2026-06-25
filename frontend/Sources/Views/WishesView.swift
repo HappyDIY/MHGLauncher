@@ -12,17 +12,21 @@ struct WishesView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
+                .motionEntrance(order: 0)
             if !store.companionLoaded {
                 loadingPlaceholder
+                    .motionTransition(.content)
             } else if store.wishes.isEmpty {
                 emptyState
+                    .motionTransition(.content)
             } else {
                 WishOverviewHero(
                     records: store.wishes,
                     details: store.bannerDetails,
                     uid: store.selectedRole?.uid
                 )
-                workspace
+                .motionEntrance(order: 1)
+                workspace.motionEntrance(order: 2)
             }
         }
         .overlay {
@@ -32,9 +36,8 @@ struct WishesView: View {
                 }
             }
         }
-        .animation(.spring(duration: 0.42), value: selectedDetail?.id)
-        .animation(.spring(duration: 0.45), value: store.wishOperation?.id)
-        .animation(.spring(duration: 0.5), value: store.companionLoaded)
+        .motionAnimation(.emphasis, value: store.wishOperation?.id)
+        .motionAnimation(.content, value: store.companionLoaded)
         .confirmationDialog(
             "永久清空全部祈愿记录？",
             isPresented: $confirmsClear,
@@ -82,10 +85,12 @@ struct WishesView: View {
                 Task { await store.syncWishes() }
             }
             .buttonStyle(.glassProminent)
+            .motionHover(.prominent)
             .disabled(store.wishOperation != nil)
 
             Button("详细记录", systemImage: "tablecells") { showsHistory = true }
                 .buttonStyle(.glass)
+                .motionHover()
                 .disabled(store.wishes.isEmpty || store.wishOperation != nil)
 
             Menu {
@@ -102,6 +107,7 @@ struct WishesView: View {
             }
             .menuStyle(.button)
             .buttonStyle(.glass)
+            .motionHover()
             .disabled(store.wishOperation != nil)
         }
     }
@@ -145,8 +151,10 @@ struct WishesView: View {
         } actions: {
             Button("立即同步") { Task { await store.syncWishes() } }
                 .buttonStyle(.glassProminent)
+                .motionHover(.prominent)
             Button("导入 UIGF") { importFile() }
                 .buttonStyle(.glass)
+                .motionHover()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .glassEffect(.regular, in: .rect(cornerRadius: 24))

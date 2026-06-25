@@ -1,7 +1,8 @@
 type QRStatus = "created" | "scanned" | "confirmed" | "expired";
 export interface QRSession { id: string; url: string; status: QRStatus; expires_at: string; credential?: string | null }
 export interface AccountIdentity { aid: string; mid: string; nickname: string; credential: string }
-export interface Account { aid: string; mid: string; nickname: string; credential_ref: string; updated_at: string }
+export interface MobileCaptchaSession { mobile: string; action_type: string; countdown: number; aigis?: string | null }
+export interface Account { aid: string; mid: string; nickname: string; credential_ref: string; selected: boolean; updated_at: string }
 export interface GameRole { uid: string; nickname: string; region: string; level: number; selected: boolean }
 export interface WishRecord {
   id: string; uid: string; gacha_type: string; uigf_gacha_type: string;

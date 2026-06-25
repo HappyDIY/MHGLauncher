@@ -23,8 +23,10 @@ struct WishFiveStarTimeline: View {
                 .controlSize(.small)
             } else {
                 LazyVStack(spacing: 8) {
-                    ForEach(items) { item in
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         FiveStarPullRow(item: item, maximum: maximum)
+                            .motionScrollAppearance()
+                            .motionEntrance(order: index)
                     }
                 }
             }
@@ -48,6 +50,7 @@ private struct FiveStarPullRow: View {
             }
         }
         .frame(height: 52)
+        .motionAnimation(.progress, value: item.pity)
         .overlay {
             RoundedRectangle(cornerRadius: 11)
                 .stroke(.white.opacity(0.08))

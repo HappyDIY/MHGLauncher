@@ -3,16 +3,23 @@ import { dirname } from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
 import { AppError } from "../core/errors";
 
-interface Saved { profile?: string; device_id?: string; fp_device_id?: string; device_name?: string; product_name?: string; device_fp?: string }
+interface Saved { profile?: string; device_id?: string; fp_device_id?: string; hoyoplay_device_id?: string; device_name?: string; product_name?: string; device_fp?: string }
 const text = (length: number): string => randomBytes(length).toString("base64url").toUpperCase().slice(0, length);
+const lowerText = (length: number): string => [...randomBytes(length)].map((value) => "0123456789abcdefghijklmnopqrstuvwxyz"[value % 36]).join("");
 
 export class Device {
-  readonly deviceId: string; readonly fpDeviceId: string; readonly deviceName: string; readonly productName: string;
+  readonly deviceId: string; readonly fpDeviceId: string; readonly hoyoplayDeviceId: string; readonly deviceName: string; readonly productName: string;
   deviceFP: string;
   constructor(private readonly path: string) {
     const value = this.load(); this.deviceId = value.device_id ?? randomUUID(); this.fpDeviceId = value.fp_device_id ?? randomBytes(8).toString("hex");
+    this.hoyoplayDeviceId = value.hoyoplay_device_id?.match(/^[0-9a-z]{53}$/) ? value.hoyoplay_device_id : lowerText(53);
     this.deviceName = value.device_name ?? text(12); this.productName = value.product_name ?? text(6);
-    this.deviceFP = value.profile === "android-v1" ? value.device_fp ?? "" : ""; if (!this.deviceFP) this.save();
+    this.deviceFP = value.profile === "android-v1" ? value.device_fp ?? "" : "";
+    if (!value.hoyoplay_device_id || !this.deviceFP) this.save();
+  }
+
+  get loginDeviceId(): string {
+    return this.hoyoplayDeviceId;
   }
 
   async fingerprint(): Promise<string> {
@@ -34,7 +41,7 @@ export class Device {
   private load(): Saved { try { return existsSync(this.path) ? JSON.parse(readFileSync(this.path, "utf8")) as Saved : {}; } catch { return {}; } }
   private save(): void {
     mkdirSync(dirname(this.path), { recursive: true }); const temporary = `${this.path}.tmp`;
-    writeFileSync(temporary, JSON.stringify({ profile: "android-v1", device_id: this.deviceId, fp_device_id: this.fpDeviceId,
+    writeFileSync(temporary, JSON.stringify({ profile: "android-v1", device_id: this.deviceId, fp_device_id: this.fpDeviceId, hoyoplay_device_id: this.hoyoplayDeviceId,
       device_name: this.deviceName, product_name: this.productName, device_fp: this.deviceFP }));
     chmodSync(temporary, 0o600); renameSync(temporary, this.path);
   }
