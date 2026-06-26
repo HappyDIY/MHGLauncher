@@ -14,9 +14,12 @@ function all(): Record<string, Metadata> {
 
 function remote(meta: Metadata): string {
   if (!meta[3]) return "";
+  // 与源项目一致：使用普通方形图标（AvatarIcon/EquipIcon），而非祈愿大立绘
+  // （GachaAvatarIcon/GachaEquipIcon）。方形紧凑图标在小卡片中不会被裁切，
+  // 也不留大量空白。
   const avatar = meta[1] === "角色";
-  const icon = avatar ? meta[3].replace("UI_AvatarIcon_", "UI_Gacha_AvatarIcon_") : meta[3].replace("UI_", "UI_Gacha_");
-  return `https://api.snaphutaorp.org/static/raw/${avatar ? "GachaAvatarIcon" : "GachaEquipIcon"}/${icon}.png`;
+  const icon = meta[3];
+  return `https://api.snaphutaorp.org/static/raw/${avatar ? "AvatarIcon" : "EquipIcon"}/${icon}.png`;
 }
 
 export function enrich(record: WishRecord, images?: ImageCache): WishRecord {
