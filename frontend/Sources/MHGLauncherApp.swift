@@ -91,7 +91,7 @@ struct AppCommands: Commands {
             if store?.account != nil {
                 Button("添加账号") {
                     store?.selectedDestination = .account
-                    Task { await store?.beginQRLogin() }
+                    Task { await store?.beginAddingAccount() }
                 }
                 Button("退出登录") {
                     Task { await store?.logout() }

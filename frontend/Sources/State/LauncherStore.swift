@@ -46,10 +46,12 @@ final class LauncherStore {
     var dailyNote: DailyNote?
     var qrSession: QRSession?
     var mobileCaptchaSession: MobileCaptchaSession?
+    var mobileCaptchaVerification: MobileCaptchaVerificationContext?
     var loginMobile = ""
     var loginCaptcha = ""
     var loginCookie = ""
     var noteVerification: GeetestChallenge?
+    var loginFormPresented = false
     var selectedDestination: Destination? = .home
     var installPath = ""
     var isBusy = false
@@ -63,7 +65,7 @@ final class LauncherStore {
     var speedLimitKB = 0
 
     let loginDeferralKey = "loginLaunchDeferrals"
-
+    var qrLoginAttempt = 0
     var selectedRole: GameRole? {
         roles.first(where: \.selected) ?? roles.first
     }
@@ -170,12 +172,20 @@ final class LauncherStore {
         return credential
     }
 
+    func requireLaunchCredential() throws -> String? {
+        guard let account else { return nil }
+        guard let credential = try keychain.read(account: keychainAccount(for: account.aid)) else {
+            throw LauncherError.credentialMissing
+        }
+        return credential
+    }
+
     func keychainAccount(for aid: String) -> String {
         "account:\(aid)"
     }
 }
 
-enum LauncherError: LocalizedError {
+enum LauncherError: LocalizedError, Equatable {
     case backendUnavailable
     case credentialMissing
     case roleMissing

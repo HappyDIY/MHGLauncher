@@ -57,6 +57,23 @@ struct MobileCaptchaSession: Codable, Sendable {
     let actionType: String
     let countdown: Int
     let aigis: String?
+    let verification: MobileCaptchaVerification?
+}
+
+struct MobileCaptchaVerification: Codable, Sendable {
+    let gt: String
+    let challenge: String
+    let sessionId: String
+}
+
+struct MobileCaptchaVerificationContext: Identifiable, Sendable {
+    var id: String { verification.sessionId }
+    let mobile: String
+    let verification: MobileCaptchaVerification
+
+    var geetest: GeetestChallenge {
+        GeetestChallenge(gt: verification.gt, challenge: verification.challenge)
+    }
 }
 
 struct QRResult: Codable, Sendable {
@@ -82,6 +99,13 @@ struct AccountSelectionResponse: Codable {
 
 struct MobileCaptchaRequest: Codable {
     let mobile: String
+}
+
+struct MobileCaptchaVerificationRequest: Codable, Sendable {
+    let mobile: String
+    let sessionId: String
+    let challenge: String
+    let validate: String
 }
 
 struct MobileLoginRequest: Codable {

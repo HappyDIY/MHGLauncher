@@ -68,13 +68,15 @@ struct RootView: View {
             Text(store.message ?? "")
         }
         .environment(\.apiClient, store.backend.client)
-        .sheet(item: $store.noteVerification) { challenge in
-            GeetestView(challenge: challenge) { value, validate in
+        .sheet(item: geetestSheet) { sheet in
+            GeetestView(challenge: sheet.challenge, subtitle: sheet.subtitle) { value, validate in
                 Task {
-                    await store.completeNoteVerification(
-                        challenge: value,
-                        validate: validate
-                    )
+                    switch sheet {
+                    case .note:
+                        await store.completeNoteVerification(challenge: value, validate: validate)
+                    case .mobile:
+                        await store.completeMobileCaptchaVerification(challenge: value, validate: validate)
+                    }
                 }
             }
         }
@@ -158,6 +160,20 @@ struct RootView: View {
         case .wishes: .cyan
         case .notes: .green
         case .account: .orange
+        }
+    }
+
+    private var geetestSheet: Binding<GeetestSheet?> {
+        Binding {
+            if let verification = store.mobileCaptchaVerification {
+                return .mobile(verification)
+            }
+            return store.noteVerification.map(GeetestSheet.note)
+        } set: { value in
+            if value == nil {
+                store.mobileCaptchaVerification = nil
+                store.noteVerification = nil
+            }
         }
     }
 

@@ -3,6 +3,7 @@ import WebKit
 
 struct GeetestView: View {
     let challenge: GeetestChallenge
+    let subtitle: String
     let onComplete: (String, String) -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -12,7 +13,7 @@ struct GeetestView: View {
                 VStack(alignment: .leading) {
                     Text("米游社人机验证")
                         .font(.title2.bold())
-                    Text("完成验证后将自动刷新实时便笺")
+                    Text(subtitle)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -22,6 +23,7 @@ struct GeetestView: View {
             .motionEntrance(order: 0)
             GeetestWebView(challenge: challenge) { value, validate in
                 onComplete(value, validate)
+                dismiss()
             }
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .motionEntrance(order: 1)

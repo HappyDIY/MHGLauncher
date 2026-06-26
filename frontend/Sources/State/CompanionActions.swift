@@ -85,8 +85,16 @@ extension LauncherStore {
                 )
             )
         } catch let error as APIErrorPayload {
-            message = Self.presentableMessage(error.message)
+            if error.code == "verification_required",
+               let gt = error.details?["gt"],
+               let challenge = error.details?["challenge"] {
+                noteVerification = GeetestChallenge(gt: gt, challenge: challenge)
+            } else {
+                noteVerification = nil
+                message = Self.presentableMessage(error.message)
+            }
         } catch {
+            noteVerification = nil
             message = Self.presentableMessage(error.localizedDescription)
         }
     }

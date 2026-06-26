@@ -56,6 +56,11 @@ final class BackendProcess {
         client = nil
     }
 
+    func useClient(_ client: APIClient) {
+        self.client = client
+        errorMessage = nil
+    }
+
     nonisolated static func environment(
         token: String,
         socketPath: String,

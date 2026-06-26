@@ -31,8 +31,16 @@ export class LiveProvider implements Provider {
   }
 
   async queryQRSession(id: string): Promise<[QRSession, AccountIdentity | null]> {
-    const data = await this.request("https://passport-api.mihoyo.com/account/ma-cn-passport/app/queryQRLoginStatus", { method: "POST", headers: this.qrHeaders(), body: JSON.stringify({ ticket: id }) });
+    const response = await fetch("https://passport-api.mihoyo.com/account/ma-cn-passport/app/queryQRLoginStatus", {
+      method: "POST", headers: this.qrHeaders(), body: JSON.stringify({ ticket: id }), signal: AbortSignal.timeout(30_000),
+    });
+    const payload = await response.json() as JSONValue;
     const prior = this.sessions.get(id); if (!prior) throw new AppError("qr_session_missing", "二维码会话不存在", 404);
+    if (Number(payload.retcode) === -3501) {
+      const session: QRSession = { ...prior, status: "expired" }; this.sessions.set(id, session); return [session, null];
+    }
+    if (!response.ok || Number(payload.retcode ?? 0) !== 0) throw new AppError("mihoyo_error", String(payload.message || "二维码状态查询失败"), 502, { retcode: String(payload.retcode ?? "unknown") });
+    const data = payload.data as JSONValue ?? {};
     const status = qrStatus(data);
     const session: QRSession = prior.status === "confirmed" && status !== "confirmed" ? prior : { ...prior, status };
     this.sessions.set(id, session); if (session.status !== "confirmed" || status !== "confirmed") return [session, null];
@@ -117,6 +125,7 @@ export class LiveProvider implements Provider {
       if (challenge) throw new AppError("note_verification_failed", "实时便笺验证未通过或已失效，请重新刷新后再验证", 429, { retcode: "1034" });
       throw new AppError("verification_required", "请完成人机验证后重试", 428, await this.createVerification(credential));
     }
+    if (retcode === 10306) throw new AppError("verification_required", "验证已失效，请重新完成人机验证", 428, await this.createVerification(credential));
     if (retcode === 5003) throw new AppError("note_risk_limited", "当前账号存在风险，实时便笺暂无数据，请稍后重试或在米游社完成验证", 429, { retcode: "5003" });
     if ([10102, 10103, 10104].includes(retcode)) throw new AppError("note_unavailable", message || "实时便笺当前不可用，请检查米游社数据公开或账号状态", 403, { retcode: String(retcode) });
     if (message.toLowerCase().includes("visit too frequently")) throw new AppError("note_sync_limited", "访问过于频繁，请稍后再刷新实时便笺", 429, { retcode: String(retcode || "unknown") });
@@ -169,7 +178,7 @@ export class LiveProvider implements Provider {
   private async authkey(value: string, role: GameRole): Promise<string> { const body = JSON.stringify({ auth_appid: "webview_gacha", game_biz: "hk4e_cn", game_uid: Number(role.uid), region: role.region }); return String((await this.api("https://api-takumi.mihoyo.com/binding/api/genAuthKey", value, sign("lk2", "", "", 1), { method: "POST", body })).authkey); }
   private wish(uid: string, v: JSONValue): WishRecord { const type = String(v.gacha_type); return { id: String(v.id), uid, gacha_type: type, uigf_gacha_type: type === "400" ? "301" : type, item_id: String(v.item_id), name: String(v.name), item_type: String(v.item_type), rank: Number(v.rank_type), time: String(v.time).replace(" ", "T") }; }
   private headers(cookie: string, ds: string): Record<string, string> { return { Cookie: cookie, DS: ds, "User-Agent": agent, "x-rpc-app_version": "2.95.1", "x-rpc-client_type": "5", "x-rpc-device_id": this.device.deviceId, "x-rpc-device_fp": this.device.deviceFP, "Content-Type": "application/json" }; }
-  private noteVerificationHeaders(): Record<string, string> { return { "x-rpc-challenge_game": "2", "x-rpc-challenge_path": "https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/dailyNote" }; }
+  private noteVerificationHeaders(): Record<string, string> { return { "x-rpc-challenge_game": "2", "x-rpc-challenge_path": "/game_record/app/genshin/api/dailyNote" }; }
   private passportHeaders(cookie: string, ds: string): Record<string, string> {
     return {
       Cookie: cookie, DS: ds, "User-Agent": agent, "x-rpc-aigis": "", "x-rpc-app_id": "bll8iq97cem8",

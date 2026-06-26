@@ -13,7 +13,7 @@ export interface RegistryAccount {
 }
 
 export function writeGameAccountRegistry(wine: string, env: NodeJS.ProcessEnv, account: RegistryAccount): void {
-  const raw = createGameAccountRegistryValue(account);
+  const raw = createGameAccountRegistryValue(account, cleanMac(env.MHG_GAME_ACCOUNT_MAC ?? "") || macAddress() || wineMacAddress(wine, env));
   const hex = Buffer.concat([Buffer.from(raw, "utf8"), Buffer.from([0])]).toString("hex");
   const result = spawnSync(wine, ["reg", "add", registryKey, "/v", registryValue, "/t", "REG_BINARY", "/d", hex, "/f"], {
     env, stdio: "ignore",
@@ -52,19 +52,48 @@ function mihoyoSdk(account: RegistryAccount, mac: string, now: number): string {
 
 function encrypt(value: string, mac: string): string {
   const key = Buffer.from((mac.length >= 8 ? mac.slice(0, 8) : "FFFFFFFFFFFF").slice(0, 8), "utf8").toString("hex");
-  const result = spawnSync("openssl", ["enc", "-des-cbc", "-provider", "legacy", "-provider", "default", "-K", key, "-iv", iv, "-base64", "-A"], {
-    input: value, encoding: "utf8",
-  });
-  if (result.status !== 0 || !result.stdout.trim()) throw new AppError("game_account_encrypt_failed", "游戏账号注册表数据加密失败", 500);
-  return result.stdout.trim();
+  const args = ["enc", "-des-cbc", "-K", key, "-iv", iv, "-base64", "-A"];
+  const errors: string[] = [];
+  for (const command of ["/usr/bin/openssl", "/opt/homebrew/bin/openssl", "openssl"]) {
+    const extra = command === "/usr/bin/openssl" ? [] : ["-provider", "legacy", "-provider", "default"];
+    const result = spawnSync(command, [...args.slice(0, 2), ...extra, ...args.slice(2)], { input: value, encoding: "utf8" });
+    if (result.status === 0 && result.stdout.trim()) return result.stdout.trim();
+    errors.push(`${command}: ${result.error?.message ?? result.stderr.trim() ?? `status ${result.status}`}`);
+  }
+  throw new AppError("game_account_encrypt_failed", "游戏账号注册表数据加密失败", 500, { openssl: errors.join("; ") });
 }
 
 function macAddress(): string {
+  for (const command of [["/usr/sbin/networksetup", "-listallhardwareports"], ["/sbin/ifconfig", "en0"]] as const) {
+    const result = spawnSync(command[0], command.slice(1), { encoding: "utf8" });
+    const match = result.stdout.match(/(?:Ethernet Address|ether)\s+([0-9a-fA-F:]{17})/);
+    const value = match ? cleanMac(match[1] ?? "") : "";
+    if (validMac(value)) return value;
+  }
   for (const items of Object.values(networkInterfaces())) {
     for (const item of items ?? []) {
-      const value = item.mac.replaceAll(":", "").toUpperCase();
-      if (!item.internal && value && value !== "000000000000") return value;
+      const value = cleanMac(item.mac);
+      if (!item.internal && validMac(value)) return value;
     }
   }
   return "";
+}
+
+function wineMacAddress(wine: string, env: NodeJS.ProcessEnv): string {
+  const result = spawnSync(wine, ["ipconfig", "/all"], { env, encoding: "utf8" });
+  if (result.status !== 0) return "";
+  const matches = result.stdout.matchAll(/Physical address[^:]*:\s*([0-9a-fA-F-]{17})/g);
+  for (const match of matches) {
+    const value = cleanMac(String(match[1]));
+    if (validMac(value)) return value;
+  }
+  return "";
+}
+
+function cleanMac(value: string): string {
+  return value.replaceAll(/[:-]/g, "").toUpperCase();
+}
+
+function validMac(value: string): boolean {
+  return /^[0-9A-F]{12}$/.test(value) && value !== "000000000000" && value !== "020000000000";
 }
