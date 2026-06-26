@@ -115,7 +115,7 @@ struct MHGLauncherApp: App {
         let store = LauncherStore()
         _store = State(initialValue: store)
         if ProcessInfo.processInfo.environment["MHG_SMOKE_MODE"] == "1" {
-            Task { @MainActor in await store.backend.start() }
+            Task { @MainActor in await store.bootstrap() }
         }
     }
 

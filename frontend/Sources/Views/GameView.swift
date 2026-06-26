@@ -51,10 +51,14 @@ struct GameView: View {
                     GameLaunchControls(store: store)
                 }
                 .motionEntrance(order: 3)
+                GlassCard("游戏运行时", icon: "shippingbox") {
+                    RuntimeStatusView(store: store)
+                }
+                .motionEntrance(order: 4)
                 GlassCard("下载设置", icon: "arrow.down.circle") {
                     downloadSettings
                 }
-                .motionEntrance(order: 4)
+                .motionEntrance(order: 5)
                 if let launch = store.gameLaunch {
                     GameLaunchProgressView(launch: launch)
                         .motionTransition(.emphasis)
@@ -64,12 +68,13 @@ struct GameView: View {
                         .motionTransition(.emphasis)
                 }
                 GameResourceActionButtons(store: store)
-                    .motionEntrance(order: 5)
+                    .motionEntrance(order: 6)
                 Spacer()
             }
             .motionAnimation(.emphasis, value: store.gameLaunch?.id)
             .motionAnimation(.emphasis, value: store.gameJob?.id)
             .task(id: store.installPath) {
+                store.checkGameRuntime()
                 try? await Task.sleep(for: .milliseconds(400))
                 guard !Task.isCancelled else { return }
                 await store.refreshGame()
