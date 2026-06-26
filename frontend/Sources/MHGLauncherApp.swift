@@ -122,7 +122,7 @@ struct MHGLauncherApp: App {
     var body: some Scene {
         WindowGroup {
             RootView(store: store)
-                .frame(minWidth: 1150, minHeight: 750)
+                .frame(width: 1150, height: 750)
                 .task {
                     await store.bootstrap()
                     await store.runNoteRefreshLoop()
@@ -131,6 +131,7 @@ struct MHGLauncherApp: App {
                 .focusedSceneValue(\.launcherStore, store)
         }
         .windowStyle(.automatic)
+        .windowResizability(.contentSize)
         .commands {
             AppCommands()
         }
