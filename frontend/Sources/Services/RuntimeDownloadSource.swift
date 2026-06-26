@@ -15,8 +15,8 @@ enum RuntimeMirrorCatalog {
             return [RuntimeDownloadSource(id: "manifest", baseURL: assetBaseURL)]
         }
         let mirrors = [
-            "https://gh-proxy.com/",
             "https://github.boki.moe/",
+            "https://gh-proxy.com/",
             "https://ghproxy.imciel.com/",
             "https://ghproxy.net/",
             "https://ghfast.top/"
@@ -31,7 +31,7 @@ enum RuntimeMirrorCatalog {
             guard let url = URL(string: prefix + assetBaseURL.absoluteString) else { return nil }
             return RuntimeDownloadSource(id: "mirror-\(index)", baseURL: url)
         }
-        return unique([official] + sources)
+        return unique(sources + [official])
     }
 
     private static func isOfficialRelease(_ url: URL) -> Bool {

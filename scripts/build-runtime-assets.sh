@@ -8,17 +8,29 @@ stage="$(mktemp -d)"
 asset_base="https://github.com/HappyDIY/MHGLauncher/releases/download/$tag"
 split_bytes="${MHG_RELEASE_ASSET_SPLIT_BYTES:-1900m}"
 component_file="$stage/components.jsonl"
+signing_key="${MHG_RUNTIME_MANIFEST_SIGNING_KEY:-$HOME/.config/MHGLauncher/runtime-manifest-ed25519.pem}"
+signing_public_key="DvswOM/iIXbp+jB12AmqWUqU/gYv7xG7RYWu7dIa+Sk="
 dxmt_url="https://github.com/3Shain/dxmt/releases/download/v0.80/dxmt-v0.80-builtin.tar.gz"
 dxmt_sha="8f260e36b5739e68f3bad613381441385c4dc7b85b78ba8de653d5a6a264529d"
 
 cleanup() { rm -rf "$stage"; }
 trap cleanup EXIT
 
+test -f "$signing_key" || { printf '未找到运行时清单 Ed25519 私钥。\n' >&2; exit 1; }
+test "$(openssl pkey -in "$signing_key" -pubout -outform DER | tail -c 32 | base64)" = "$signing_public_key" \
+  || { printf '运行时清单 Ed25519 私钥与应用内公钥不匹配。\n' >&2; exit 1; }
+
 json_string() { jq -Rn --arg value "$1" '$value'; }
 
 sha256() { shasum -a 256 "$1" | awk '{print $1}'; }
 
 size() { stat -f %z "$1"; }
+
+sign_manifest() {
+  [[ -f "$signing_key" ]]
+  openssl pkeyutl -sign -rawin -inkey "$signing_key" -in "$1" -out "$2"
+  test "$(size "$2")" = 64
+}
 
 fetch() {
   local url="$1" sha="$2" destination="$3"
@@ -168,5 +180,6 @@ jq -s \
   --arg assetBaseURL "$asset_base" \
   '{schemaVersion:1,tag:$tag,generatedAt:$generatedAt,assetBaseURL:$assetBaseURL,components:.}' \
   "$component_file" >"$out/runtime-manifest.json"
+sign_manifest "$out/runtime-manifest.json" "$out/runtime-manifest.json.sig"
 
 printf '运行时发布资产已生成：%s\n' "$out"

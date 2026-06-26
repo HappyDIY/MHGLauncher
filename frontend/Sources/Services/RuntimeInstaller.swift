@@ -126,13 +126,7 @@ final class RuntimeInstaller: @unchecked Sendable {
     }
 
     private func loadManifest() async throws -> RuntimeManifest {
-        let url = manifestURL()
-        let data: Data
-        if url.isFileURL {
-            data = try Data(contentsOf: url)
-        } else {
-            data = try await URLSession.shared.data(from: url).0
-        }
+        let data = try await RuntimeManifestDownload.load(from: manifestURL(), environment: environment)
         let manifest = try JSONDecoder().decode(RuntimeManifest.self, from: data)
         guard manifest.schemaVersion == 1, manifest.tag == tag() else {
             throw RuntimeInstallError.invalidManifest

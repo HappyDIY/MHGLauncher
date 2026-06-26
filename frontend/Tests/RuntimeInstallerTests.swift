@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import Testing
 @testable import MHGLauncher
 
@@ -65,8 +66,16 @@ struct RuntimeInstallerTests {
         let base = URL(string: "https://github.com/HappyDIY/MHGLauncher/releases/download/v0.1.0")!
         let sources = RuntimeMirrorCatalog.sources(for: base, environment: [:])
         #expect(sources.count == 6)
-        #expect(sources.first?.id == "github")
+        #expect(sources.last?.id == "github")
         #expect(sources.contains { $0.baseURL.host == "github.boki.moe" })
+    }
+
+    @Test("镜像清单必须通过签名验证")
+    func verifiesManifestSignature() throws {
+        let key = Curve25519.Signing.PrivateKey(), manifest = Data("manifest".utf8)
+        let signature = try key.signature(for: manifest)
+        #expect(RuntimeManifestVerifier.isValid(manifest, signature: signature, publicKey: key.publicKey.rawRepresentation))
+        #expect(!RuntimeManifestVerifier.isValid(Data("changed".utf8), signature: signature, publicKey: key.publicKey.rawRepresentation))
     }
 
     @Test("下载源失败时切换镜像")
