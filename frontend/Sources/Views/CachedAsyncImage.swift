@@ -1,6 +1,28 @@
 import AppKit
 import SwiftUI
 
+// 内存级图片缓存与并发下载协调器，避免滚动复用时的重复下载与解码。
+actor ImageMemoryCache {
+    static let shared = ImageMemoryCache()
+    private let cache = NSCache<NSString, NSImage>()
+    private var inFlight: [String: Task<NSImage?, Never>] = [:]
+
+    init() { cache.countLimit = 256 }
+
+    func image(forKey key: String) -> NSImage? { cache.object(forKey: key as NSString) }
+
+    func load(forKey key: String, fetch: @escaping @Sendable () async -> NSImage?) async -> NSImage? {
+        if let cached = cache.object(forKey: key as NSString) { return cached }
+        if let existing = inFlight[key] { return await existing.value }
+        let task = Task { await fetch() }
+        inFlight[key] = task
+        let result = await task.value
+        inFlight[key] = nil
+        if let result { cache.setObject(result, forKey: key as NSString) }
+        return result
+    }
+}
+
 struct CachedAsyncImage<Placeholder: View>: View {
     let url: URL?
     let contentMode: ContentMode
@@ -37,22 +59,36 @@ struct CachedAsyncImage<Placeholder: View>: View {
         }
         .motionAnimation(.content, value: phase)
         .task(id: url) {
-            image = nil
+            // 先查内存缓存，命中则直接展示，避免滚动复用时的重复下载与解码。
+            if let url, let cached = await ImageMemoryCache.shared.image(forKey: cacheKey(for: url)) {
+                image = cached
+                loading = false
+                return
+            }
             guard let url else { return }
             loading = true
-            defer { loading = false }
-            do {
-                let data: Data
-                if url.scheme == nil, let client {
-                    data = try await client.download(url.relativeString)
-                } else {
-                    data = try await URLSession.shared.data(from: url).0
+            let key = cacheKey(for: url)
+            let result = await ImageMemoryCache.shared.load(forKey: key) { [client] () -> NSImage? in
+                do {
+                    let data: Data
+                    if url.scheme == nil, let client {
+                        data = try await client.download(url.relativeString)
+                    } else {
+                        data = try await URLSession.shared.data(from: url).0
+                    }
+                    return NSImage(data: data)
+                } catch {
+                    return nil
                 }
-                image = NSImage(data: data)
-            } catch {
-                image = nil
             }
+            image = result
+            loading = false
         }
+    }
+
+    // 统一缓存键：相对路径与绝对 URL 均稳定。
+    private func cacheKey(for url: URL) -> String {
+        url.scheme == nil ? url.relativeString : url.absoluteString
     }
 
     private var phase: Int {

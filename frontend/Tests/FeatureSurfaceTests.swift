@@ -65,7 +65,9 @@ struct FeatureSurfaceTests {
             lastPurplePity: 0,
             guaranteeThreshold: 80,
             fiveStarItems: [],
-            fourStarItems: []
+            fourStarItems: [],
+            averageUpPity: 0,
+            smallGuaranteeWinRate: 0
         )
         #expect(detail.poolName == "武器活动祈愿")
         #expect(detail.poolIcon == "shield.lefthalf.filled")
