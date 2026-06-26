@@ -18,8 +18,7 @@ final class RuntimeInstaller: @unchecked Sendable {
     }
 
     func ensureCore(progress: RuntimeProgressHandler? = nil) async throws -> InstalledRuntime {
-        let installed = paths()
-        if coreReady(installed) { return installed }
+        if let installed = installedCoreRuntime() { return installed }
         let manifest = try await loadManifest()
         let runtime = paths(tag: manifest.tag)
         let stage = stageURL(tag: manifest.tag, suffix: "core")
@@ -78,6 +77,11 @@ final class RuntimeInstaller: @unchecked Sendable {
     func isGameInstalled() -> Bool {
         let runtime = paths(tag: tag())
         return gameReady(runtime)
+    }
+
+    func installedCoreRuntime() -> InstalledRuntime? {
+        let runtime = paths()
+        return coreReady(runtime) ? runtime : nil
     }
 
     func paths(tag: String? = nil) -> InstalledRuntime {

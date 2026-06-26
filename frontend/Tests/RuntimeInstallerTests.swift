@@ -56,6 +56,7 @@ struct RuntimeInstallerTests {
     func reusesInstalledCore() async throws {
         let fixture = try CoreFixture(), installer = RuntimeInstaller(environment: fixture.environment)
         let installed = try await installer.ensureCore()
+        #expect(installer.installedCoreRuntime() == installed)
         try FileManager.default.removeItem(atPath: fixture.environment["MHG_RUNTIME_MANIFEST_URL"]!)
         let reused = try await installer.ensureCore()
         #expect(installed == reused)
