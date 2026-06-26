@@ -122,7 +122,7 @@ struct MHGLauncherApp: App {
     var body: some Scene {
         WindowGroup {
             RootView(store: store)
-                .frame(minWidth: 980, minHeight: 680)
+                .frame(minWidth: 1150, minHeight: 750)
                 .task {
                     await store.bootstrap()
                     await store.runNoteRefreshLoop()
