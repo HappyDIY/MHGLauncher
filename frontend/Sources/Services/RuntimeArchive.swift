@@ -4,6 +4,7 @@ import Foundation
 enum RuntimeInstallError: LocalizedError, Equatable {
     case invalidManifest
     case missingBundledBackend
+    case downloadFailed(String)
     case checksumMismatch(String)
     case archiveTraversal(String)
     case processFailed(String)
@@ -12,6 +13,7 @@ enum RuntimeInstallError: LocalizedError, Equatable {
         switch self {
         case .invalidManifest: "运行时清单无效"
         case .missingBundledBackend: "应用内缺少后端资源"
+        case let .downloadFailed(file): "无法下载 \(file)"
         case let .checksumMismatch(file): "\(file) 校验失败"
         case let .archiveTraversal(path): "运行时压缩包包含不安全路径：\(path)"
         case let .processFailed(command): "运行时命令执行失败：\(command)"
@@ -23,7 +25,8 @@ enum RuntimeArchive {
     static func materialize(
         component: RuntimeComponent,
         manifest: RuntimeManifest,
-        cacheURL: URL
+        cacheURL: URL,
+        sources: [RuntimeDownloadSource] = []
     ) async throws -> URL {
         try FileManager.default.createDirectory(
             at: cacheURL,
@@ -34,15 +37,9 @@ enum RuntimeArchive {
             return archiveURL
         }
         if let parts = component.parts, !parts.isEmpty {
-            try await combine(parts: parts, manifest: manifest, cacheURL: cacheURL, output: archiveURL)
+            try await combine(parts: parts, manifest: manifest, cacheURL: cacheURL, output: archiveURL, sources: sources)
         } else {
-            try await download(
-                named: component.file,
-                manifest: manifest,
-                cacheURL: cacheURL,
-                size: component.size,
-                sha256: component.sha256
-            )
+            try await download(named: component.file, manifest: manifest, cacheURL: cacheURL, size: component.size, sha256: component.sha256, sources: sources)
         }
         guard isValid(archiveURL, size: component.size, sha256: component.sha256) else {
             throw RuntimeInstallError.checksumMismatch(component.file)
@@ -86,7 +83,8 @@ enum RuntimeArchive {
         parts: [RuntimeAssetPart],
         manifest: RuntimeManifest,
         cacheURL: URL,
-        output: URL
+        output: URL,
+        sources: [RuntimeDownloadSource]
     ) async throws {
         let partial = output.appendingPathExtension("part")
         try? FileManager.default.removeItem(at: partial)
@@ -94,13 +92,7 @@ enum RuntimeArchive {
         let writer = try FileHandle(forWritingTo: partial)
         defer { try? writer.close() }
         for part in parts {
-            let partURL = try await download(
-                named: part.file,
-                manifest: manifest,
-                cacheURL: cacheURL,
-                size: part.size,
-                sha256: part.sha256
-            )
+            let partURL = try await download(named: part.file, manifest: manifest, cacheURL: cacheURL, size: part.size, sha256: part.sha256, sources: sources)
             let reader = try FileHandle(forReadingFrom: partURL)
             defer { try? reader.close() }
             while true {
@@ -119,25 +111,39 @@ enum RuntimeArchive {
         manifest: RuntimeManifest,
         cacheURL: URL,
         size: Int64,
-        sha256 expected: String
+        sha256 expected: String,
+        sources: [RuntimeDownloadSource]
     ) async throws -> URL {
         let destination = cacheURL.appending(path: file)
         if isValid(destination, size: size, sha256: expected) { return destination }
-        let partial = destination.appendingPathExtension("part")
-        try? FileManager.default.removeItem(at: partial)
-        let source = manifest.assetBaseURL.appending(path: file)
-        if source.isFileURL {
-            try FileManager.default.copyItem(at: source, to: partial)
-        } else {
-            let (temporary, _) = try await URLSession.shared.download(from: source)
-            try FileManager.default.moveItem(at: temporary, to: partial)
+        let candidates = sources.isEmpty
+            ? [RuntimeDownloadSource(id: "manifest", baseURL: manifest.assetBaseURL)]
+            : sources
+        var checksumFailed = false
+        for candidate in candidates {
+            let partial = destination.appendingPathExtension("part")
+            try? FileManager.default.removeItem(at: partial)
+            let source = candidate.assetURL(named: file)
+            do {
+                if source.isFileURL {
+                    try FileManager.default.copyItem(at: source, to: partial)
+                } else {
+                    let (temporary, _) = try await URLSession.shared.download(from: source)
+                    try FileManager.default.moveItem(at: temporary, to: partial)
+                }
+                guard isValid(partial, size: size, sha256: expected) else {
+                    checksumFailed = true
+                    continue
+                }
+                try? FileManager.default.removeItem(at: destination)
+                try FileManager.default.moveItem(at: partial, to: destination)
+                return destination
+            } catch {
+                try? FileManager.default.removeItem(at: partial)
+            }
         }
-        guard isValid(partial, size: size, sha256: expected) else {
-            throw RuntimeInstallError.checksumMismatch(file)
-        }
-        try? FileManager.default.removeItem(at: destination)
-        try FileManager.default.moveItem(at: partial, to: destination)
-        return destination
+        try? FileManager.default.removeItem(at: destination.appendingPathExtension("part"))
+        throw checksumFailed ? RuntimeInstallError.checksumMismatch(file) : RuntimeInstallError.downloadFailed(file)
     }
 
     private static func isValid(_ url: URL, size: Int64, sha256 expected: String) -> Bool {

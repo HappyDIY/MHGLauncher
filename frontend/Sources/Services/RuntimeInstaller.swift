@@ -103,12 +103,20 @@ final class RuntimeInstaller: @unchecked Sendable {
     ) async throws {
         let total = components.map(\.size).reduce(0, +)
         var completed: Int64 = 0
+        if let first = components.first {
+            await report(progress, scope, first.id, "正在测速下载源", completed, total)
+        }
+        let sources = await RuntimeMirrorBenchmarker.ranked(
+            RuntimeMirrorCatalog.sources(for: manifest.assetBaseURL, environment: environment),
+            probeFile: components.first?.file
+        )
         for component in components {
             await report(progress, scope, component.id, "正在下载 \(component.id)", completed, total)
             let archive = try await RuntimeArchive.materialize(
                 component: component,
                 manifest: manifest,
-                cacheURL: cacheURL(tag: manifest.tag)
+                cacheURL: cacheURL(tag: manifest.tag),
+                sources: sources
             )
             await report(progress, scope, component.id, "正在安装 \(component.id)", completed, total)
             try RuntimeArchive.extractTarGzip(archive, to: destination)

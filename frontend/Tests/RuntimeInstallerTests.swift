@@ -59,6 +59,31 @@ struct RuntimeInstallerTests {
             _ = try await installer.ensureCore()
         }
     }
+
+    @Test("官方 Release 使用已验证镜像池")
+    func releaseMirrors() {
+        let base = URL(string: "https://github.com/HappyDIY/MHGLauncher/releases/download/v0.1.0")!
+        let sources = RuntimeMirrorCatalog.sources(for: base, environment: [:])
+        #expect(sources.count == 6)
+        #expect(sources.first?.id == "github")
+        #expect(sources.contains { $0.baseURL.host == "github.boki.moe" })
+    }
+
+    @Test("下载源失败时切换镜像")
+    func fallsBackToNextSource() async throws {
+        let root = try tempDir(), assets = root.appending(path: "assets")
+        try FileManager.default.createDirectory(at: assets, withIntermediateDirectories: true)
+        let component = try makeComponent(id: "node", file: "node.tar.gz", root: root, assets: assets)
+        let manifest = RuntimeManifest(schemaVersion: 1, tag: "vtest", generatedAt: "", assetBaseURL: assets, components: [component])
+        let archive = try await RuntimeArchive.materialize(
+            component: component, manifest: manifest, cacheURL: root.appending(path: "cache"),
+            sources: [
+                RuntimeDownloadSource(id: "failed", baseURL: root.appending(path: "missing")),
+                RuntimeDownloadSource(id: "available", baseURL: assets)
+            ]
+        )
+        #expect(FileManager.default.fileExists(atPath: archive.path))
+    }
 }
 
 private struct CoreFixture {
