@@ -82,15 +82,24 @@ private struct FiveStarPullRow: View {
     }
 
     private var artwork: some View {
-        CachedAsyncImage(url: item.iconUrl, contentMode: .fill) {
+        // 普通方形图标等比显示，与源项目 ItemIcon 风格一致。
+        CachedAsyncImage(url: item.iconUrl, contentMode: .fit) {
             Image(systemName: item.itemType == "角色" ? "person.fill" : "sparkles")
+                .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(.white.opacity(0.86))
         }
-        .scaleEffect(item.itemType == "角色" ? 1.28 : 1.12)
         .frame(width: 52, height: 52)
-        .background(.orange.opacity(0.18))
-        .clipped()
+        .background(qualityBackground)
         .clipShape(.rect(cornerRadius: 11))
+    }
+
+    // 五星品质底色，模拟源项目 ItemIcon 的品质背景。
+    private var qualityBackground: LinearGradient {
+        LinearGradient(
+            colors: [.orange.opacity(0.55), .orange.opacity(0.25)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
     }
 
     private var progress: Double {
