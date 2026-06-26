@@ -124,10 +124,6 @@ struct RootView: View {
 
     private var showsRuntimeSetup: Bool {
         !store.backend.isReady
-            && (store.isBootstrapping
-                || store.isInstallingCoreRuntime
-                || store.runtimeErrorMessage != nil
-                || store.backend.errorMessage != nil)
     }
 
     @ViewBuilder
