@@ -97,13 +97,15 @@ private struct WishResultCard: View {
     }
 
     private var artwork: some View {
-        // 固定方形插图区，避免弹性宽度下方形立绘被裁切。
+        // 固定方形插图区，参考源项目 ItemIcon 的方形等比显示。
+        // 角色祈愿立绘（UI_Gacha_AvatarIcon_*）与武器图标（UI_Gacha_EquipIcon_*）
+        // 均为带透明背景的完整方形图，统一用 .fit 等比显示，不裁切。
         Color.clear
             .aspectRatio(1, contentMode: .fit)
             .overlay {
                 CachedAsyncImage(
                     url: item.iconUrl,
-                    contentMode: mode == .character ? .fill : .fit
+                    contentMode: .fit
                 ) {
                     Image(systemName: mode == .character ? "person.fill" : "sparkles")
                         .font(.system(size: 30, weight: .medium))
@@ -111,14 +113,17 @@ private struct WishResultCard: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .background(
-                LinearGradient(
-                    colors: [accent.opacity(0.8), .indigo.opacity(0.42)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
+            .background(qualityBackground)
             .clipShape(.rect(cornerRadius: 12))
+    }
+
+    // 模拟源项目品质背景底色：五星偏金橙、四星偏紫，自上而下渐变。
+    private var qualityBackground: some View {
+        LinearGradient(
+            colors: [accent.opacity(0.55), accent.opacity(0.25)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
     }
 
     private var amountText: String {
