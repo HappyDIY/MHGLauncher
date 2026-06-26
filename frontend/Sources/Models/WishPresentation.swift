@@ -73,6 +73,14 @@ extension WishBannerDetail {
         }
     }
 
+    // 是否为具备 50/50 机制的限定卡池（角色活动/武器活动）。
+    var isLimitedPool: Bool { gachaType == "301" || gachaType == "302" }
+
+    // 每个限定五星所需的原石数量：依据平均 UP 出金抽数 × 单抽 160 原石推算。
+    var primogemsPerLimitedFiveStar: Int {
+        averageUpPity > 0 ? Int((averageUpPity * 160).rounded()) : 0
+    }
+
     var poolIcon: String {
         switch gachaType {
         case "301": "person.2.fill"

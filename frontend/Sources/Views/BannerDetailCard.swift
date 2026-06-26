@@ -14,8 +14,6 @@ struct BannerDetailCard: View {
                 PoolSelector(details: details, selection: $selection)
                 if let detail = selectedDetail {
                     detailContent(detail)
-                        .id(detail.id)
-                        .motionTransition(.selection)
                 } else {
                     emptySelection.motionTransition(.content)
                 }
@@ -59,9 +57,16 @@ struct BannerDetailCard: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(detail.poolName)
                     .font(.title3.bold())
-                Text("\(detail.total) 抽 · \(detail.fiveStarCount) 个五星")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Text("\(detail.total)").contentTransition(.numericText())
+                    Text("抽 ·")
+                    Text("\(detail.fiveStarCount)").contentTransition(.numericText())
+                    Text("个五星")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .motionAnimation(.content, value: detail.total)
+                .motionAnimation(.content, value: detail.fiveStarCount)
             }
             Spacer()
             Image(systemName: detail.poolIcon)
@@ -101,8 +106,20 @@ struct BannerDetailCard: View {
                 detail.averagePity > 0 ? String(format: "%.1f", detail.averagePity) : "--", "平均出金",
                 .yellow
             )
-            metricCard(detail.maxPity > 0 ? "\(detail.maxPity)" : "--", "最晚出金", .red)
-            metricCard(detail.minPity > 0 ? "\(detail.minPity)" : "--", "最快出金", .green)
+            // 限定池显示每个限定五星所需原石；常驻/新手池保留最晚出金。
+            metricCard(
+                detail.isLimitedPool
+                    ? (detail.primogemsPerLimitedFiveStar > 0 ? "\(detail.primogemsPerLimitedFiveStar)" : "--")
+                    : (detail.maxPity > 0 ? "\(detail.maxPity)" : "--"),
+                detail.isLimitedPool ? "原石/限定" : "最晚出金", .red
+            )
+            // 限定池显示小保底不歪率；常驻/新手池保留最快出金。
+            metricCard(
+                detail.isLimitedPool
+                    ? (detail.smallGuaranteeWinRate > 0 ? String(format: "%.1f%%", detail.smallGuaranteeWinRate * 100) : "--")
+                    : (detail.minPity > 0 ? "\(detail.minPity)" : "--"),
+                detail.isLimitedPool ? "小保底率" : "最快出金", .green
+            )
         }
     }
 

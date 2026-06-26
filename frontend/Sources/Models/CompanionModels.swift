@@ -54,6 +54,10 @@ struct WishBannerDetail: Codable, Sendable, Identifiable {
     let guaranteeThreshold: Int
     let fiveStarItems: [WishBannerItem]
     let fourStarItems: [WishBannerItem]
+    // 限定池专属：每个限定五星所需的原石数量依据平均 UP 出金抽数推算；常驻/新手池为 0。
+    let averageUpPity: Double
+    // 限定池专属：小保底不歪率（排除大保底后的 50/50 胜率）；常驻/新手池为 0。
+    let smallGuaranteeWinRate: Double
 }
 
 struct DailyNote: Codable, Sendable {

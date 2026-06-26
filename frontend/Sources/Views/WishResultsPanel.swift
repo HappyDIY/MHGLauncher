@@ -15,7 +15,6 @@ struct WishResultsPanel: View {
                         ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                             WishResultCard(item: item, mode: mode)
                                 .id("\(mode.rawValue)-\(item.id)")
-                                .motionScrollAppearance()
                                 .motionEntrance(order: index)
                         }
                     }
@@ -98,24 +97,28 @@ private struct WishResultCard: View {
     }
 
     private var artwork: some View {
-        CachedAsyncImage(
-            url: item.iconUrl,
-            contentMode: mode == .character ? .fill : .fit
-        ) {
-            Image(systemName: mode == .character ? "person.fill" : "sparkles")
-                .font(.system(size: 30, weight: .medium))
-                .foregroundStyle(.white.opacity(0.85))
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 104)
-        .background(
-            LinearGradient(
-                colors: [accent.opacity(0.8), .indigo.opacity(0.42)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+        // 固定方形插图区，避免弹性宽度下方形立绘被裁切。
+        Color.clear
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                CachedAsyncImage(
+                    url: item.iconUrl,
+                    contentMode: mode == .character ? .fill : .fit
+                ) {
+                    Image(systemName: mode == .character ? "person.fill" : "sparkles")
+                        .font(.system(size: 30, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.85))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .background(
+                LinearGradient(
+                    colors: [accent.opacity(0.8), .indigo.opacity(0.42)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
             )
-        )
-        .clipShape(.rect(cornerRadius: 12))
+            .clipShape(.rect(cornerRadius: 12))
     }
 
     private var amountText: String {
