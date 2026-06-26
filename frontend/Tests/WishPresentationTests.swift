@@ -57,6 +57,29 @@ struct WishPresentationTests {
         #expect(results[1].count == 2)
     }
 
+    @Test("卡池统计兼容缺失限定指标的旧版后端")
+    func decodeBannerDetailWithoutLimitedMetrics() throws {
+        // 旧版后端未返回 average_up_pity / small_guarantee_win_rate 字段。
+        // 前端须向后兼容，解码成功且限定指标为 nil，避免页面卡在「正在载入」。
+        let data = Data(
+            """
+            {
+              "uid": "230289829", "gacha_type": "301", "total": 10,
+              "time_from": null, "time_to": null,
+              "five_star_count": 1, "four_star_count": 1, "three_star_count": 8,
+              "five_star_percent": 0.1, "four_star_percent": 0.1, "three_star_percent": 0.8,
+              "max_pity": 10, "min_pity": 10, "average_pity": 10,
+              "last_pity": 0, "last_purple_pity": 0, "guarantee_threshold": 90,
+              "five_star_items": [], "four_star_items": []
+            }
+            """.utf8
+        )
+        let detail = try JSONDecoder.api.decode(WishBannerDetail.self, from: data)
+        #expect(detail.averageUpPity == nil)
+        #expect(detail.smallGuaranteeWinRate == nil)
+        #expect(detail.primogemsPerLimitedFiveStar == 0)
+    }
+
     private func record(
         id: String,
         itemId: String,

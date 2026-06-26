@@ -116,7 +116,7 @@ struct BannerDetailCard: View {
             // 限定池显示小保底不歪率；常驻/新手池保留最快出金。
             metricCard(
                 detail.isLimitedPool
-                    ? (detail.smallGuaranteeWinRate > 0 ? String(format: "%.1f%%", detail.smallGuaranteeWinRate * 100) : "--")
+                    ? (detail.smallGuaranteeWinRate.map { String(format: "%.1f%%", $0 * 100) } ?? "--")
                     : (detail.minPity > 0 ? "\(detail.minPity)" : "--"),
                 detail.isLimitedPool ? "小保底率" : "最快出金", .green
             )
