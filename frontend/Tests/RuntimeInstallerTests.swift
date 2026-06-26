@@ -52,6 +52,15 @@ struct RuntimeInstallerTests {
         #expect(FileManager.default.fileExists(atPath: runtime.backendAppURL.appending(path: "node_modules").path))
     }
 
+    @Test("已安装相同版本无需读取清单")
+    func reusesInstalledCore() async throws {
+        let fixture = try CoreFixture(), installer = RuntimeInstaller(environment: fixture.environment)
+        let installed = try await installer.ensureCore()
+        try FileManager.default.removeItem(atPath: fixture.environment["MHG_RUNTIME_MANIFEST_URL"]!)
+        let reused = try await installer.ensureCore()
+        #expect(installed == reused)
+    }
+
     @Test("下载产物校验失败时中止")
     func checksumMismatch() async throws {
         let fixture = try CoreFixture(corruptFirstComponent: true)

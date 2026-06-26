@@ -18,9 +18,10 @@ final class RuntimeInstaller: @unchecked Sendable {
     }
 
     func ensureCore(progress: RuntimeProgressHandler? = nil) async throws -> InstalledRuntime {
+        let installed = paths()
+        if coreReady(installed) { return installed }
         let manifest = try await loadManifest()
         let runtime = paths(tag: manifest.tag)
-        if coreReady(runtime) { return runtime }
         let stage = stageURL(tag: manifest.tag, suffix: "core")
         try? fileManager.removeItem(at: stage)
         try fileManager.createDirectory(at: stage, withIntermediateDirectories: true)
