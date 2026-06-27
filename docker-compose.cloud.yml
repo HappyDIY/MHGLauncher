@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: mhglauncher
       POSTGRES_PASSWORD: mhglauncher
     volumes:
-      - mhglauncher-cloud-db:/var/lib/postgresql/data
+      - mhglauncher-cloud-db:/var/lib/postgresql
     ports:
       - "54329:5432"
   cloud:
