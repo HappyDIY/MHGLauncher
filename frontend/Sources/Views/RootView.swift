@@ -1,26 +1,6 @@
 import AppKit
 import SwiftUI
 
-enum Destination: String, CaseIterable, Identifiable {
-    case home = "主页"
-    case game = "游戏"
-    case wishes = "祈愿记录"
-    case notes = "实时便笺"
-    case account = "账号"
-
-    var id: String { rawValue }
-
-    var icon: String {
-        switch self {
-        case .home: "house"
-        case .game: "gamecontroller"
-        case .wishes: "sparkles"
-        case .notes: "note.text"
-        case .account: "person.crop.circle"
-        }
-    }
-}
-
 struct RootView: View {
     @Bindable var store: LauncherStore
     @State private var confirmsClear = false
@@ -134,7 +114,15 @@ struct RootView: View {
         case .home: HomeView(store: store)
         case .game: GameView(store: store)
         case .wishes: WishesView(store: store)
+        case .gachaHistory: GachaHistoryView(store: store)
+        case .cloudSync: CloudSyncView(store: store)
         case .notes: NotesView(store: store)
+        case .characters: CharactersView(store: store)
+        case .achievements: AchievementsView(store: store)
+        case .abyss: CycleRecordsView(store: store, kind: .abyss)
+        case .theatre: CycleRecordsView(store: store, kind: .theatre)
+        case .hard: CycleRecordsView(store: store, kind: .hard)
+        case .notifications: NotificationsView(store: store)
         case .account: AccountView(store: store)
         }
     }
@@ -142,8 +130,8 @@ struct RootView: View {
     private var background: some View {
         LinearGradient(
             colors: [
-                destinationAccent.opacity(0.12),
-                Color.purple.opacity(0.08),
+                (store.selectedDestination ?? .home).accent.opacity(0.10),
+                Color.primary.opacity(0.03),
                 Color.clear
             ],
             startPoint: .topLeading,
@@ -151,16 +139,6 @@ struct RootView: View {
         )
         .ignoresSafeArea()
         .motionAnimation(.navigation, value: store.selectedDestination)
-    }
-
-    private var destinationAccent: Color {
-        switch store.selectedDestination ?? .home {
-        case .home: .blue
-        case .game: .indigo
-        case .wishes: .cyan
-        case .notes: .green
-        case .account: .orange
-        }
     }
 
     private var geetestSheet: Binding<GeetestSheet?> {

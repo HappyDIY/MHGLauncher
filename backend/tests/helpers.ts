@@ -9,7 +9,7 @@ const roots: string[] = [];
 export function fixture(): Container {
   const dataDir = mkdtempSync(join(tmpdir(), "mhg-test-")); roots.push(dataDir);
   const value = new Container({ dataDir, databasePath: join(dataDir, "test.db"), apiToken: "test-token", providerMode: "fixture",
-    fixtureDir: join(process.cwd(), "fixtures"), requestTimeout: 30_000, downloadWorkers: 4, downloadSpeedLimitKB: 0, socketPath: join(dataDir, "test.sock") });
+	    fixtureDir: join(process.cwd(), "fixtures"), requestTimeout: 30_000, downloadWorkers: 4, downloadSpeedLimitKB: 0, socketPath: join(dataDir, "test.sock"), cloudBaseUrl: "" });
   globalThis.mhgContainer = value; return value;
 }
 export async function request(method: string, path: string, body?: unknown, token = "test-token"): Promise<Response> {

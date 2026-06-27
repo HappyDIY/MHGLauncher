@@ -106,4 +106,5 @@ struct CountResponse: Codable {
     let inserted: Int?
     let imported: Int?
     let deleted: Int?
+    let uploaded: Int?
 }

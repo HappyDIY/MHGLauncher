@@ -70,11 +70,41 @@ describe("本地 API 契约", () => {
     expect(state).toHaveProperty("predownload_finished");
   });
 
-  test("空间检查返回必要字段", async () => {
-    const response = await request("GET", "/v1/game/space-check?install_path=/tmp");
-    const info = await response.json();
-    expect(info).toHaveProperty("available");
-    expect(info).toHaveProperty("required");
-    expect(info).toHaveProperty("sufficient");
-  });
-});
+	  test("空间检查返回必要字段", async () => {
+	    const response = await request("GET", "/v1/game/space-check?install_path=/tmp");
+	    const info = await response.json();
+	    expect(info).toHaveProperty("available");
+	    expect(info).toHaveProperty("required");
+	    expect(info).toHaveProperty("sufficient");
+	  });
+
+	  test("增值服务接口支持离线 fixture 数据", async () => {
+	    const identity = { aid: "10001", mid: "fixture-mid", nickname: "旅行者", credential: "stoken=fixture; mid=fixture-mid" };
+	    await request("POST", "/v1/auth/complete", { identity, credential_ref: "keychain:account:10001" });
+	    const body = { credential: identity.credential };
+	    const characters = await (await request("POST", "/v1/characters/refresh", body)).json();
+	    expect(characters[0].name).toBe("芙宁娜");
+	    const events = await (await request("POST", "/v1/gacha-events/refresh", body)).json();
+	    expect(events[0].orange_up.length).toBeGreaterThan(0);
+	    const cycles = await (await request("POST", "/v1/cycles/abyss/refresh", body)).json();
+	    expect(cycles[0].kind).toBe("abyss");
+	  });
+
+	  test("成就档案支持保存与导出 UIAF", async () => {
+	    const archive = await (await request("POST", "/v1/achievements/archives", { name: "主档案" })).json();
+	    await request("POST", "/v1/achievements", { archive_id: archive.id, items: [{ achievement_id: 84501, current: 1, status: 2, timestamp: 1_756_000_000 }] });
+	    const items = await (await request("GET", `/v1/achievements?archive_id=${archive.id}`)).json();
+	    expect(items[0].achievement_id).toBe(84501);
+	    const exported = await (await request("GET", `/v1/achievements/export?archive_id=${archive.id}`)).json();
+	    expect(exported.list[0].id).toBe(84501);
+	  });
+
+	  test("云同步和通知设置提供本地代理", async () => {
+	    const login = await (await request("POST", "/v1/cloud/login", { gacha_url: "https://public-operation-hk4e.mihoyo.com/gacha_info/api/getGachaLog?authkey=fixture&uid=100000001" })).json();
+	    expect(login.uid).toBe("100000001");
+	    const upload = await (await request("POST", "/v1/cloud/wishes/upload", { uid: login.uid, token: login.token })).json();
+	    expect(upload.uploaded).toBeGreaterThanOrEqual(0);
+	    const settings = await (await request("PUT", "/v1/notifications/settings", { daily_commission_enabled: true, daily_commission_time: "00:00" })).json();
+	    expect(settings.daily_commission_enabled).toBe(true);
+	  });
+	});

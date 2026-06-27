@@ -10,7 +10,8 @@ export interface Settings {
   requestTimeout: number;
   downloadWorkers: number;
   downloadSpeedLimitKB: number;
-  socketPath: string;
+	  socketPath: string;
+	  cloudBaseUrl?: string;
 }
 
 function integer(value: string | undefined, fallback: number): number {
@@ -29,6 +30,7 @@ export function settings(env: NodeJS.ProcessEnv = process.env): Settings {
     requestTimeout: integer(env.MHG_REQUEST_TIMEOUT, 30_000),
     downloadWorkers: integer(env.MHG_DOWNLOAD_WORKERS, 4),
     downloadSpeedLimitKB: integer(env.MHG_DOWNLOAD_SPEED_LIMIT, 0),
-    socketPath: resolve(env.MHG_SOCKET_PATH ?? join(tmpdir(), `mhg-${process.pid}.sock`)),
-  };
-}
+	    socketPath: resolve(env.MHG_SOCKET_PATH ?? join(tmpdir(), `mhg-${process.pid}.sock`)),
+	    cloudBaseUrl: env.MHG_CLOUD_BASE_URL ?? "",
+	  };
+	}

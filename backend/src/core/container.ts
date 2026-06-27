@@ -12,6 +12,15 @@ import { ImageCache } from "../services/images";
 import { NoteService } from "../services/notes";
 import { WishService } from "../services/wishes";
 import { WishTasks } from "../services/wish-tasks";
+import type { GameRecordSource } from "../providers/game-record";
+import { FixtureGameRecordSource } from "../providers/fixture-game-record";
+import { LiveGameRecordSource } from "../providers/live-game-record";
+import { CharacterService } from "../services/characters";
+import { CycleService } from "../services/cycles";
+import { AchievementService } from "../services/achievements";
+import { NotificationService } from "../services/notifications";
+import { GachaEventService } from "../services/gacha-events";
+import { CloudSyncService } from "../services/cloud-sync";
 
 export class Container {
   readonly settings: Settings;
@@ -23,12 +32,20 @@ export class Container {
   readonly images: ImageCache;
   readonly notes: NoteService;
   readonly wishes: WishService;
-  readonly wishTasks: WishTasks;
+	  readonly wishTasks: WishTasks;
+	  readonly records: GameRecordSource;
+	  readonly characters: CharacterService;
+	  readonly cycles: CycleService;
+	  readonly achievements: AchievementService;
+	  readonly notifications: NotificationService;
+	  readonly gachaEvents: GachaEventService;
+	  readonly cloud: CloudSyncService;
 
   constructor(config = settings()) {
     this.settings = config; mkdirSync(config.dataDir, { recursive: true });
     this.store = new Store(config.databasePath);
-    this.provider = config.providerMode === "fixture" ? new FixtureProvider(config.fixtureDir) : new LiveProvider(config);
+	    this.provider = config.providerMode === "fixture" ? new FixtureProvider(config.fixtureDir) : new LiveProvider(config);
+	    this.records = config.providerMode === "fixture" ? new FixtureGameRecordSource(config.fixtureDir) : new LiveGameRecordSource(config);
     this.images = new ImageCache(config.dataDir);
     this.accounts = new AccountService(this.store, this.provider);
     this.games = new GameService(this.store, this.provider, config.dataDir, config.downloadWorkers, config.downloadSpeedLimitKB);
@@ -37,9 +54,15 @@ export class Container {
       () => this.games.busy(),
     );
     this.notes = new NoteService(this.store, this.provider);
-    this.wishes = new WishService(this.store, this.provider, this.images);
-    this.wishTasks = new WishTasks(this.accounts, this.wishes);
-  }
+	    this.wishes = new WishService(this.store, this.provider, this.images);
+	    this.wishTasks = new WishTasks(this.accounts, this.wishes);
+	    this.characters = new CharacterService(this.store, this.records);
+	    this.cycles = new CycleService(this.store, this.records);
+	    this.achievements = new AchievementService(this.store);
+	    this.gachaEvents = new GachaEventService(this.store, this.records);
+	    this.notifications = new NotificationService(this.store);
+	    this.cloud = new CloudSyncService(config, this.store, this.records, this.wishes, this.cycles);
+	  }
 
   close(): void { this.store.close(); }
 }

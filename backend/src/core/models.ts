@@ -23,6 +23,40 @@ export interface DailyNote {
   expeditions_finished: number; expeditions_total: number; current_home_coin: number; max_home_coin: number;
   weekly_boss_remaining: number; transformer_ready: boolean; refreshed_at: string;
 }
+export interface GameCharacter {
+  uid: string; avatar_id: string; name: string; element: string; level: number; rarity: number;
+  constellation: number; fetter: number; weapon_name: string; weapon_level: number;
+  icon_url?: string | null; payload: unknown; updated_at: string;
+}
+export type CycleKind = "abyss" | "theatre" | "hard";
+export interface CycleRecord {
+  uid: string; kind: CycleKind; schedule_id: string; title: string; summary: string;
+  started_at: string | null; ended_at: string | null; uploaded_at: string | null;
+  payload: unknown; updated_at: string;
+}
+export interface AchievementArchive {
+  id: string; name: string; selected: boolean; created_at: string; updated_at: string;
+}
+export interface AchievementItem {
+  archive_id: string; achievement_id: number; current: number; status: number;
+  timestamp: number; updated_at: string;
+}
+export interface GachaEvent {
+  id: string; version: string; gacha_type: string; name: string;
+  started_at: string; ended_at: string; orange_up: string[]; purple_up: string[];
+  banner_url?: string | null; updated_at: string;
+}
+export interface NotificationSettings {
+  daily_commission_enabled: boolean; daily_commission_time: string; resin_full_enabled: boolean;
+  abyss_refresh_enabled: boolean; theatre_refresh_enabled: boolean; hard_refresh_enabled: boolean;
+  gacha_refresh_enabled: boolean; version_update_enabled: boolean;
+}
+export interface NotificationEvent {
+  key: string; title: string; body: string; destination: string; created_at: string;
+}
+export interface CloudLoginResult {
+  uid: string; token: string; token_ref: string; reverified_at: string;
+}
 type GameStatus = "not_installed" | "ready" | "update_available" | "busy" | "damaged";
 export interface GameState {
   install_path: string; installed_version: string; available_version: string; status: GameStatus;

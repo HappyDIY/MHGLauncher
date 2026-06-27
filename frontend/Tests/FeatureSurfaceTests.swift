@@ -4,13 +4,21 @@ import Testing
 
 @Suite("功能界面")
 struct FeatureSurfaceTests {
-    @Test("导航仅包含约定的五个入口")
+    @Test("导航包含增值服务入口")
     func destinations() {
         #expect(Destination.allCases.map(\.rawValue) == [
             "主页",
             "游戏",
             "祈愿记录",
+            "历史卡池",
+            "云同步",
             "实时便笺",
+            "我的角色",
+            "成就管理",
+            "深渊",
+            "剧诗",
+            "危战",
+            "消息提醒",
             "账号"
         ])
     }

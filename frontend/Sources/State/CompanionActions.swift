@@ -7,6 +7,7 @@ extension LauncherStore {
             try? await Task.sleep(for: .seconds(300))
             if NSApplication.shared.isActive, credential != nil {
                 await refreshNote()
+                await evaluateNotifications()
             }
         }
     }

@@ -5,6 +5,7 @@ import { AppError, errorResponse } from "../core/errors";
 import type { JobKind } from "../core/models";
 import { exportUIGF } from "../services/uigf";
 import { launchAccount } from "../services/game-account-registry";
+import { valueRoute } from "./value-routes";
 
 const credential = z.object({ credential: z.string().min(1) });
 const selectAccount = z.object({ aid: z.string().min(1) });
@@ -30,7 +31,7 @@ export async function dispatch(request: Request): Promise<Response> {
   try {
     authorize(request);
     const url = new URL(request.url), path = url.pathname.replace(/^\/v1/, "");
-    const body = request.method === "POST" ? await request.json() : undefined;
+    const body = request.method === "POST" || request.method === "PUT" ? await request.json() : undefined;
     return await route(request.method, path, url.searchParams, body);
   } catch (error) {
     if (error instanceof z.ZodError) return Response.json({ detail: error.issues }, { status: 422 });
@@ -104,10 +105,12 @@ async function route(method: string, path: string, query: URLSearchParams, body:
     return json(await app.notes.refresh(value.credential, role, value.xrpc_challenge));
   }
   if (method === "POST" && path === "/notes/verification") { const value = verification.parse(body); return json({ xrpc_challenge: await app.notes.verify(value.credential, value.challenge, value.validate) }); }
-  const image = match(path, /^\/images\/gacha\/([^/]+)$/);
-  if (method === "GET" && image) { const data = await app.images.get(image); if (!data) throw new AppError("image_missing", "图片未缓存", 404); return new Response(new Uint8Array(data), { headers: { "Content-Type": "image/png" } }); }
-  throw new AppError("not_found", "接口不存在", 404);
-}
+	  const image = match(path, /^\/images\/gacha\/([^/]+)$/);
+	  if (method === "GET" && image) { const data = await app.images.get(image); if (!data) throw new AppError("image_missing", "图片未缓存", 404); return new Response(new Uint8Array(data), { headers: { "Content-Type": "image/png" } }); }
+	  const value = await valueRoute(app, method, path, query, body);
+	  if (value) return value;
+	  throw new AppError("not_found", "接口不存在", 404);
+	}
 
 function authorize(request: Request): void {
   const expected = container().settings.apiToken;

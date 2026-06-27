@@ -53,6 +53,14 @@ struct APIClient: Sendable {
         try await send(path: path, method: "POST", body: Data("{}".utf8))
     }
 
+    func put<T: Decodable, Body: Encodable>(_ path: String, body: Body) async throws -> T {
+        try await send(
+            path: path,
+            method: "PUT",
+            body: JSONEncoder.api.encode(body)
+        )
+    }
+
     func upload<T: Decodable>(_ path: String, json: Data) async throws -> T {
         try await send(path: path, method: "POST", body: json)
     }
