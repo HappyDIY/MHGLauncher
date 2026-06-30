@@ -102,7 +102,8 @@ struct APIModelTests {
                 "emphasized": false
               }],
               "result": null,
-              "error": ""
+              "error": "",
+              "revision": 3
             }
             """.utf8
         )
@@ -111,6 +112,7 @@ struct APIModelTests {
         #expect(task.logs.first?.sequence == 1)
         #expect(task.logs.first?.message.contains("20 条记录") == true)
         #expect(task.errorCode == nil)
+        #expect(task.revision == 3)
     }
 
     @Test("解码游戏启动会话")
@@ -128,7 +130,8 @@ struct APIModelTests {
               "progress": 0.82,
               "logs": [{"sequence":1,"timestamp":"2026-06-22T10:00:00Z","kind":"dns","message":"DNS 查询成功"}],
               "started_at": "2026-06-22T10:00:00Z",
-              "updated_at": "2026-06-22T10:00:01Z"
+              "updated_at": "2026-06-22T10:00:01Z",
+              "revision": 4
             }
             """.utf8
         )
@@ -138,6 +141,7 @@ struct APIModelTests {
         #expect(launch.progress == 0.82)
         #expect(launch.networkDebug)
         #expect(launch.logs.first?.kind == "dns")
+        #expect(launch.revision == 4)
     }
 
     @Test("编码请求使用蛇形字段")

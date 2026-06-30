@@ -52,7 +52,7 @@ struct DownloadSpeedChart: View {
             .frame(height: 92)
             .motionAnimation(.progress, value: updatePhase)
         }
-        .motionAnimation(.progress, value: speed)
+        .motionAnimation(.progress, value: sampleID)
         .onChange(of: sampleID, initial: true) { _, _ in
             guard isActive || speed > 0 else { return }
             samples.append(SpeedSample(time: Date(), bytesPerSecond: speed))

@@ -137,23 +137,16 @@ extension LauncherStore {
 
     private func fetchCompanionData(uid: String) async throws {
         let client = try requireClient()
-        async let records: [WishRecord] = client.get(
-            "/v1/wishes",
+        let snapshot: CompanionSnapshot = try await client.get(
+            "/v1/companion/snapshot",
             query: [URLQueryItem(name: "uid", value: uid)]
         )
-        async let statistics: [WishStatistics] = client.get(
-            "/v1/wishes/statistics",
-            query: [URLQueryItem(name: "uid", value: uid)]
+        (wishes, wishStatistics, bannerDetails, dailyNote) = (
+            snapshot.wishes,
+            snapshot.statistics,
+            snapshot.bannerStatistics,
+            snapshot.note
         )
-        async let details: [WishBannerDetail] = client.get(
-            "/v1/wishes/banner-statistics",
-            query: [URLQueryItem(name: "uid", value: uid)]
-        )
-        async let note: DailyNote? = client.get(
-            "/v1/notes",
-            query: [URLQueryItem(name: "uid", value: uid)]
-        )
-        (wishes, wishStatistics, bannerDetails, dailyNote) = try await (records, statistics, details, note)
         companionLoaded = true
     }
 }

@@ -3,21 +3,31 @@ import type { GameJob } from "../core/models";
 export interface ProgressCallbacks {
   progress: (bytes: number) => void;
   chunk: (name: string, done: number, total: number) => void;
+  flush: () => void;
 }
 
-export function makeProgress(job: GameJob): ProgressCallbacks {
-  let speedBytes = 0, speedStarted = Date.now();
+export function makeProgress(job: GameJob, notify: () => void = () => undefined): ProgressCallbacks {
+  let speedBytes = 0, speedStarted = Date.now(), lastPublished = 0;
+  const active = new Map<string, { name: string; bytes_done: number; total: number }>();
+  const completedChunks = new Set<string>();
+  const publish = (force = false): void => {
+    const now = Date.now();
+    if (!force && now - lastPublished < 500) return;
+    job.last_update = new Date(now).toISOString();
+    job.active_chunks = [...active.values()].slice(-4);
+    lastPublished = now; notify();
+  };
   const progress = (bytes: number): void => {
     job.completed_bytes = Math.max(0, job.completed_bytes + bytes); speedBytes += Math.max(0, bytes);
     const now = Date.now(), elapsed = now - speedStarted;
     if (elapsed >= 500) { job.download_speed = Math.round(speedBytes * 1_000 / elapsed); speedBytes = 0; speedStarted = now; }
-    job.last_update = new Date(now).toISOString();
+    publish(elapsed >= 500);
   };
-  const completedChunks = new Set<string>();
   const chunk = (name: string, done: number, total: number): void => {
-    const value = { name, bytes_done: done, total }; job.active_chunks = [...job.active_chunks.filter((item) => item.name !== name), value].slice(-4);
+    active.delete(name); active.set(name, { name, bytes_done: done, total });
     if (done === total) completedChunks.add(name);
     job.chunks_completed = completedChunks.size;
+    publish(done === total);
   };
-  return { progress, chunk };
+  return { progress, chunk, flush: () => publish(true) };
 }

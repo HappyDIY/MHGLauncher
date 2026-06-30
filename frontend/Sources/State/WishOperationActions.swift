@@ -71,8 +71,10 @@ extension LauncherStore {
             case .failed:
                 throw WishTaskFailure(message: snapshot.failureMessage)
             case .queued, .running:
-                try await Task.sleep(for: .milliseconds(250))
-                snapshot = try await client.get("/v1/wishes/tasks/\(snapshot.id)")
+                snapshot = try await client.get(
+                    "/v1/wishes/tasks/\(snapshot.id)",
+                    query: LongPollQuery.items(after: snapshot.revision)
+                )
             }
         }
     }
@@ -87,19 +89,16 @@ extension LauncherStore {
 
     func reloadWishes(client: APIClient) async throws {
         guard let uid = selectedRole?.uid else { throw LauncherError.roleMissing }
-        async let records: [WishRecord] = client.get(
-            "/v1/wishes",
+        let snapshot: CompanionSnapshot = try await client.get(
+            "/v1/companion/snapshot",
             query: [URLQueryItem(name: "uid", value: uid)]
         )
-        async let statistics: [WishStatistics] = client.get(
-            "/v1/wishes/statistics",
-            query: [URLQueryItem(name: "uid", value: uid)]
+        (wishes, wishStatistics, bannerDetails, dailyNote) = (
+            snapshot.wishes,
+            snapshot.statistics,
+            snapshot.bannerStatistics,
+            snapshot.note
         )
-        async let details: [WishBannerDetail] = client.get(
-            "/v1/wishes/banner-statistics",
-            query: [URLQueryItem(name: "uid", value: uid)]
-        )
-        (wishes, wishStatistics, bannerDetails) = try await (records, statistics, details)
         companionLoaded = true
     }
 }

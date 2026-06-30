@@ -157,11 +157,15 @@ extension LauncherStore {
 
     private func pollLaunch(_ id: String, client: APIClient) async {
         do {
+            var revision = gameLaunch?.revision
             while !Task.isCancelled {
-                let launch: GameLaunch = try await client.get("/v1/game/launches/\(id)")
+                let launch: GameLaunch = try await client.get(
+                    "/v1/game/launches/\(id)",
+                    query: LongPollQuery.items(after: revision)
+                )
                 gameLaunch = launch
+                revision = launch.revision
                 if [.stopped, .exited, .failed].contains(launch.status) { return }
-                try await Task.sleep(for: .milliseconds(200))
             }
         } catch {
             message = Self.presentableMessage(error.localizedDescription)
@@ -169,14 +173,18 @@ extension LauncherStore {
     }
 
     private func pollJob(_ id: String, client: APIClient) async throws {
+        var revision = gameJob?.revision
         while !Task.isCancelled {
-            let job: GameJob = try await client.get("/v1/game/jobs/\(id)")
+            let job: GameJob = try await client.get(
+                "/v1/game/jobs/\(id)",
+                query: LongPollQuery.items(after: revision)
+            )
             gameJob = job
+            revision = job.revision
             if [.completed, .cancelled, .failed].contains(job.status) {
                 await refreshGame()
                 return
             }
-            try await Task.sleep(for: .milliseconds(250))
         }
     }
 }

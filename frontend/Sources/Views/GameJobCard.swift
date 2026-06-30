@@ -9,7 +9,7 @@ struct GameJobCard: View {
     @State private var anchorTime = Date()
 
     private let ticker = Timer.publish(
-        every: 0.05,
+        every: 0.2,
         on: .main,
         in: .common
     ).autoconnect()
@@ -30,7 +30,7 @@ struct GameJobCard: View {
                 DownloadSpeedChart(
                     speed: job.downloadSpeed,
                     isActive: job.status == .running,
-                    sampleID: job.lastUpdate
+                    sampleID: job.lastUpdate ?? job.revision.map(String.init)
                 )
                 Text("分块 \(job.chunksCompleted) / \(job.chunksTotal)")
                     .font(.caption)
@@ -52,7 +52,9 @@ struct GameJobCard: View {
                 controls
             }
         }
-        .onReceive(ticker) { _ in tick &+= 1 }
+        .onReceive(ticker) { _ in
+            if job.status == .running { tick &+= 1 }
+        }
         .onChange(of: job.completedBytes, initial: true) { _, value in
             anchorBytes = value
             anchorTime = Date()

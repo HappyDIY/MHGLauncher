@@ -1,11 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import xxhash from "xxhash-wasm";
 import { AppError } from "../core/errors";
 import type { GameAsset, SophonChunk, GamePatchAsset } from "../providers/provider";
 import { DownloadControl } from "./download";
 import { streamDownload } from "./download-transfer";
 import type { TokenBucketRateLimiter } from "./rate-limiter";
+import { xxhash64File } from "./file-hash";
 
 export async function downloadChunksOnly(
   assets: GameAsset[], cache: string, control: DownloadControl,
@@ -51,4 +51,6 @@ async function concurrentMap<T, R>(items: T[], limit: number, task: (item: T) =>
   return results;
 }
 
-async function xxh(path: string, name: string): Promise<boolean> { return (await xxhash()).h64Raw(readFileSync(path)).toString(16).padStart(16, "0") === name.split("_", 1)[0]?.toLowerCase(); }
+async function xxh(path: string, name: string): Promise<boolean> {
+  return await xxhash64File(path) === name.split("_", 1)[0]?.toLowerCase();
+}

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NotificationsView: View {
     @Bindable var store: LauncherStore
+    @State private var updateTask: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -34,6 +35,7 @@ struct NotificationsView: View {
             Spacer()
         }
         .task { await store.loadValueData() }
+        .onDisappear { updateTask?.cancel() }
         .motionEntrance(.content)
     }
 
@@ -44,7 +46,7 @@ struct NotificationsView: View {
             guard var settings = store.value.notificationSettings else { return }
             settings[keyPath: keyPath] = newValue
             store.value.notificationSettings = settings
-            Task { await store.updateNotificationSettings(settings) }
+            scheduleSettingsUpdate(settings)
         }
     }
 
@@ -55,7 +57,16 @@ struct NotificationsView: View {
             guard var settings = store.value.notificationSettings else { return }
             settings[keyPath: keyPath] = newValue
             store.value.notificationSettings = settings
-            Task { await store.updateNotificationSettings(settings) }
+            scheduleSettingsUpdate(settings)
+        }
+    }
+
+    private func scheduleSettingsUpdate(_ settings: NotificationSettings) {
+        updateTask?.cancel()
+        updateTask = Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            await store.updateNotificationSettings(settings)
         }
     }
 }

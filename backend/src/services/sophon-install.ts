@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, openSync, closeSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import { zstdDecompressSync } from "node:zlib";
-import xxhash from "xxhash-wasm";
 import { AppError } from "../core/errors";
 import type { GameAsset, SophonChunk } from "../providers/provider";
 import { DownloadControl } from "./download";
@@ -10,6 +9,7 @@ import { streamDownload } from "./download-transfer";
 import { ensureParent, safeTarget } from "./installer";
 import { preallocateFileDescriptor } from "./file-allocation";
 import type { TokenBucketRateLimiter } from "./rate-limiter";
+import { hashFile, xxhash64File } from "./file-hash";
 
 export async function installSophon(
   assets: GameAsset[], staging: string, cache: string, control: DownloadControl,
@@ -20,7 +20,7 @@ export async function installSophon(
   const references = chunkReferences(assets);
   for (const asset of assets) {
     await control.checkpoint(); const target = safeTarget(staging, asset.name);
-    if (existsSync(target) && md5(target) === asset.md5.toLowerCase()) {
+    if (existsSync(target) && await hashFile(target, "md5") === asset.md5.toLowerCase()) {
       for (const chunk of asset.chunks) { progress(chunk.size); chunkProgress(chunk.name, chunk.size, chunk.size); }
       releaseChunks(asset.chunks, cache, references); continue;
     }
@@ -37,7 +37,7 @@ export async function installSophon(
           writeSync(descriptor, decoded, 0, decoded.length, chunk.offset);
         }
       } finally { closeSync(descriptor); }
-      if (statSync(temporary).size !== asset.size || md5(temporary) !== asset.md5.toLowerCase()) throw new AppError("sophon_asset_invalid", `${asset.name} 文件校验失败`);
+      if (statSync(temporary).size !== asset.size || await hashFile(temporary, "md5") !== asset.md5.toLowerCase()) throw new AppError("sophon_asset_invalid", `${asset.name} 文件校验失败`);
       renameSync(temporary, target);
     } catch (error) { rmSync(temporary, { force: true }); throw error; }
     releaseChunks(asset.chunks, cache, references);
@@ -75,5 +75,6 @@ function releaseChunks(chunks: SophonChunk[], cache: string, references: Map<str
   }
 }
 
-async function xxh(path: string, name: string): Promise<boolean> { return (await xxhash()).h64Raw(readFileSync(path)).toString(16).padStart(16, "0") === name.split("_", 1)[0]?.toLowerCase(); }
-function md5(path: string): string { return createHash("md5").update(readFileSync(path)).digest("hex"); }
+async function xxh(path: string, name: string): Promise<boolean> {
+  return await xxhash64File(path) === name.split("_", 1)[0]?.toLowerCase();
+}

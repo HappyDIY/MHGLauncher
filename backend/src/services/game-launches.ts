@@ -9,6 +9,7 @@ import { recoverInterruptedDlls } from "./game-launch-recovery";
 import { ensureGameConfiguration } from "./game-config";
 import { detectGame } from "./games";
 import type { RegistryAccount } from "./game-account-registry";
+import { RevisionNotifier } from "./revision-notifier";
 
 export interface StartLaunch {
   install_path: string; performance_profile: GamePerformanceProfile; metal_hud: boolean;
@@ -19,7 +20,10 @@ export class GameLaunchService {
   private readonly launches = new Map<string, GameLaunch>();
   private readonly dnsLines = new Map<string, number>();
   private readonly wineLines = new Map<string, number>();
+  private readonly logReadAt = new Map<string, number>();
   private readonly controllers = new Map<string, AbortController>();
+  private readonly notifier = new RevisionNotifier<GameLaunch>();
+  private readonly persisted = new Map<string, string>();
   constructor(
     private readonly dataDir: string,
     private readonly runtimeRoot: string,
@@ -41,12 +45,16 @@ export class GameLaunchService {
       id: randomUUID(), status: "preparing", message: "", performance_profile: input.performance_profile,
       metal_hud: input.metal_hud, network_debug: input.network_debug, wine_log: input.wine_log, progress: 0.05,
       logs: [{ sequence: 1, timestamp: now, kind: "launch", message: "启动任务已创建" }],
-      started_at: now, updated_at: now,
+      started_at: now, updated_at: now, revision: 0,
     };
-    this.launches.set(launch.id, launch); this.persist(launch);
+    this.launches.set(launch.id, this.notifier.mark(launch.id, launch)); this.persist(launch);
     const controller = new AbortController(); this.controllers.set(launch.id, controller);
     setImmediate(() => void this.execute(launch, detected.path, input.frame_pacing, controller.signal, input.wine_log, input.account, input.auth_ticket));
     return launch;
+  }
+
+  async wait(id: string, after: number, waitMs: number): Promise<GameLaunch> {
+    return this.notifier.wait(id, after, waitMs, () => this.get(id));
   }
 
   get(id: string): GameLaunch {
@@ -90,6 +98,7 @@ export class GameLaunchService {
       this.controllers.delete(launch.id);
       this.dnsLines.delete(launch.id);
       this.wineLines.delete(launch.id);
+      this.logReadAt.delete(launch.id);
     }
   }
 
@@ -98,12 +107,13 @@ export class GameLaunchService {
     launch.status = status; launch.message = message; launch.updated_at = now;
     if (progress !== undefined) launch.progress = Math.max(launch.progress, Math.min(progress, 1));
     if (message) launch.logs.push({ sequence: launch.logs.length + 1, timestamp: now, kind: "launch", message });
-    this.persist(launch);
+    this.notifier.mark(launch.id, launch); this.persist(launch);
   }
 
   private readDnsLogs(launch: GameLaunch): void {
     const path = join(this.dataDir, "launches", launch.id, "dns.log");
     if (!existsSync(path)) return;
+    if (!this.canReadLogs(`${launch.id}:dns`)) return;
     const lines = readFileSync(path, "utf8").split("\n").filter(Boolean);
     const offset = this.dnsLines.get(launch.id) ?? 0;
     for (const line of lines.slice(offset)) {
@@ -115,12 +125,13 @@ export class GameLaunchService {
         message: `DNS · PID ${pid} · ${api} · ${host} · ${state}`,
       });
     }
-    this.dnsLines.set(launch.id, lines.length);
+    if (lines.length !== offset) { this.dnsLines.set(launch.id, lines.length); this.notifier.mark(launch.id, launch); this.persist(launch); }
   }
 
   private readWineLogs(launch: GameLaunch): void {
     const path = join(this.dataDir, "launches", launch.id, "wine.log");
     if (!existsSync(path)) return;
+    if (!this.canReadLogs(`${launch.id}:wine`)) return;
     const fd = openSync(path, "r");
     try {
       const size = fstatSync(fd).size;
@@ -143,14 +154,24 @@ export class GameLaunchService {
       }
       const limit = 200;
       if (launch.logs.length > limit) launch.logs = launch.logs.slice(-limit);
+      if (recent.length) { this.notifier.mark(launch.id, launch); this.persist(launch); }
     } finally {
       closeSync(fd);
     }
   }
 
   private persist(launch: GameLaunch): void {
+    const payload = JSON.stringify(launch);
+    if (this.persisted.get(launch.id) === payload) return;
+    this.persisted.set(launch.id, payload);
     const directory = join(this.dataDir, "launches", launch.id); mkdirSync(directory, { recursive: true, mode: 0o700 });
     const target = join(directory, "status.json"), temp = `${target}.${process.pid}.tmp`;
-    writeFileSync(temp, JSON.stringify(launch), { mode: 0o600 }); chmodSync(temp, 0o600); renameSync(temp, target);
+    writeFileSync(temp, payload, { mode: 0o600 }); chmodSync(temp, 0o600); renameSync(temp, target);
+  }
+
+  private canReadLogs(id: string): boolean {
+    const now = Date.now(), previous = this.logReadAt.get(id) ?? 0;
+    if (now - previous < 1_000) return false;
+    this.logReadAt.set(id, now); return true;
   }
 }

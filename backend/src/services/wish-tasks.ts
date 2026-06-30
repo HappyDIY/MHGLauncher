@@ -4,9 +4,11 @@ import type { WishTask } from "../core/models";
 import type { AccountService } from "./accounts";
 import { importUIGF } from "./uigf";
 import type { WishService } from "./wishes";
+import { RevisionNotifier } from "./revision-notifier";
 
 export class WishTasks {
   private readonly jobs = new Map<string, WishTask>();
+  private readonly notifier = new RevisionNotifier<WishTask>();
   constructor(private readonly accounts: AccountService, private readonly wishes: WishService) {}
 
   startSync(credential: string): WishTask {
@@ -38,14 +40,18 @@ export class WishTasks {
     return value;
   }
 
+  async wait(id: string, after: number, waitMs: number): Promise<WishTask> {
+    return this.notifier.wait(id, after, waitMs, () => this.get(id));
+  }
+
   private create(kind: string): WishTask {
     if ([...this.jobs.values()].some(({ status }) => status === "queued" || status === "running")) throw new AppError("wish_task_busy", "已有祈愿任务正在运行", 409);
-    const job: WishTask = { id: randomUUID(), kind, status: "queued", progress: 0, logs: [], result: null, error: "" };
+    const job: WishTask = { id: randomUUID(), kind, status: "queued", progress: 0, logs: [], result: null, error: "", revision: 0 };
     this.jobs.set(job.id, job); this.append(job, "后端已创建任务"); return job;
   }
 
   private async run(job: WishTask, operation: () => Promise<{ result: Record<string, number>; message: string }>): Promise<void> {
-    try { job.status = "running"; const value = await operation(); job.result = value.result; job.status = "completed"; this.append(job, value.message, 1, true); }
+    try { job.status = "running"; this.touch(job); const value = await operation(); job.result = value.result; job.status = "completed"; this.append(job, value.message, 1, true); }
     catch (error) {
       job.status = "failed"; job.error = error instanceof Error ? error.message : "祈愿任务执行失败";
       job.error_code = error instanceof AppError ? error.code : "unknown_error";
@@ -56,5 +62,8 @@ export class WishTasks {
   private append(job: WishTask, message: string, progress?: number | null, emphasized = false): void {
     if (progress !== undefined) job.progress = progress;
     job.logs.push({ sequence: job.logs.length + 1, message, emphasized });
+    this.touch(job);
   }
+
+  private touch(job: WishTask): void { this.notifier.mark(job.id, job); }
 }

@@ -53,6 +53,7 @@ struct WishTaskSnapshot: Codable, Sendable {
     let result: [String: Int]?
     let error: String
     let errorCode: String?
+    let revision: Int?
 
     var failureMessage: String {
         switch errorCode {

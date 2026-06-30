@@ -17,6 +17,10 @@ interface WishTaskLog { sequence: number; message: string; emphasized: boolean }
 export interface WishTask {
   id: string; kind: string; status: "queued" | "running" | "completed" | "failed";
   progress: number | null; logs: WishTaskLog[]; result: Record<string, number> | null; error: string; error_code?: string;
+  revision?: number;
+}
+export interface CompanionSnapshot {
+  wishes: WishRecord[]; statistics: WishStatistics[]; banner_statistics: unknown[]; note: DailyNote | null;
 }
 export interface DailyNote {
   uid: string; current_resin: number; max_resin: number; finished_tasks: number; total_tasks: number;
@@ -69,7 +73,7 @@ interface ChunkProgress { name: string; bytes_done: number; total: number }
 export interface GameJob {
   id: string; kind: JobKind; status: JobStatus; completed_bytes: number; total_bytes: number;
   message: string; download_speed: number; chunks_completed: number; chunks_total: number;
-  active_chunks: ChunkProgress[]; last_update: string;
+  active_chunks: ChunkProgress[]; last_update: string; revision?: number;
 }
 export interface PredownloadStatus { tag: string; finished: boolean; total_chunks: number }
 export type GameLaunchStatus = "preparing" | "starting" | "waiting_window" | "running" | "stopping" | "stopped" | "exited" | "failed";
@@ -78,5 +82,5 @@ interface GameLaunchLog { sequence: number; timestamp: string; kind: "launch" | 
 export interface GameLaunch {
   id: string; status: GameLaunchStatus; message: string; performance_profile: GamePerformanceProfile;
   metal_hud: boolean; network_debug: boolean; wine_log: boolean; progress: number; logs: GameLaunchLog[];
-  started_at: string; updated_at: string;
+  started_at: string; updated_at: string; revision?: number;
 }

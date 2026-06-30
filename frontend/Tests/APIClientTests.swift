@@ -79,7 +79,7 @@ struct APIClientTests {
             #expect(value.metalHud)
             #expect(value.credential == "stoken=fixture; mid=mid")
             return json(202, """
-            {"id":"launch-1","status":"preparing","message":"","performance_profile":"optimized","metal_hud":true,"network_debug":true,"wine_log":false,"progress":0.05,"logs":[],"started_at":"now","updated_at":"now"}
+            {"id":"launch-1","status":"preparing","message":"","performance_profile":"optimized","metal_hud":true,"network_debug":true,"wine_log":false,"progress":0.05,"logs":[],"started_at":"now","updated_at":"now","revision":1}
             """)
         }
         let body = StartGameLaunchRequest(
@@ -89,6 +89,22 @@ struct APIClientTests {
         )
         let launch: GameLaunch = try await client.post("/v1/game/launch", body: body)
         #expect(launch.status == .preparing)
+        #expect(launch.revision == 1)
+    }
+
+    @Test("长轮询查询参数编码")
+    func longPollQueryEncoding() async throws {
+        let client = makeClient { request in
+            #expect(request.path == "/v1/game/jobs/job-1?after_revision=5&wait_ms=2000")
+            return json(200, """
+            {"id":"job-1","kind":"install","status":"running","completed_bytes":0,"total_bytes":1,"message":"","download_speed":0,"chunks_completed":0,"chunks_total":0,"active_chunks":[],"last_update":"now","revision":6}
+            """)
+        }
+        let job: GameJob = try await client.get(
+            "/v1/game/jobs/job-1",
+            query: LongPollQuery.items(after: 5)
+        )
+        #expect(job.revision == 6)
     }
 
     private func makeClient(

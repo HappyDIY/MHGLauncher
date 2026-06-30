@@ -48,17 +48,34 @@ struct GameLaunchProgressView: View {
         .motionAnimation(.content, value: launch.logs.count)
     }
 
-    private static func time(_ value: String) -> String {
+    @MainActor
+    private static let fractionalFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        var date = formatter.date(from: value)
+        return formatter
+    }()
+
+    @MainActor
+    private static let internetFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
-        date = date ?? formatter.date(from: value)
-        guard let date else { return "--:--:--" }
+        return formatter
+    }()
+
+    @MainActor
+    private static let displayFormatter: DateFormatter = {
         let display = DateFormatter()
         display.locale = .current
         display.timeZone = .current
         display.dateFormat = "HH:mm:ss"
-        return display.string(from: date)
+        return display
+    }()
+
+    @MainActor
+    private static func time(_ value: String) -> String {
+        var date = fractionalFormatter.date(from: value)
+        date = date ?? internetFormatter.date(from: value)
+        guard let date else { return "--:--:--" }
+        return displayFormatter.string(from: date)
     }
 }

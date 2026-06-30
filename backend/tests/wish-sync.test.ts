@@ -77,6 +77,31 @@ describe("祈愿同步限流", () => {
     await waitFor(() => tasks.get(job.id).status === "failed");
     expect(tasks.get(job.id)).toMatchObject({ error_code: "wish_sync_limited", error: wishSyncLimitedMessage });
   });
+
+  test("祈愿任务长轮询会在 revision 更新后返回", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const tasks = new WishTasks({ selectedRole: () => role } as AccountService, {
+      sync: async () => { await gate; return 1; },
+    } as unknown as WishService);
+    const job = tasks.startSync("stoken=fixture"), revision = job.revision ?? 0;
+    const waiting = tasks.wait(job.id, revision, 1_000);
+    release();
+    const updated = await waiting;
+    expect(updated.revision).toBeGreaterThan(revision);
+    expect(updated.status).toBe("completed");
+  });
+
+  test("祈愿任务长轮询超时返回当前状态", async () => {
+    const tasks = new WishTasks({ selectedRole: () => role } as AccountService, {
+      sync: async () => 0,
+    } as unknown as WishService);
+    const job = tasks.startSync("stoken=fixture");
+    await waitFor(() => tasks.get(job.id).status === "completed");
+    const revision = tasks.get(job.id).revision ?? 0;
+    const updated = await tasks.wait(job.id, revision + 10, 1);
+    expect(updated.revision).toBe(revision);
+  });
 });
 
 async function waitFor(predicate: () => boolean): Promise<void> {
