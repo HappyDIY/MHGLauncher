@@ -47,8 +47,13 @@ export class GameService {
     return output(detected.path, detected.version, build, current ? "ready" : "update_available", predownload);
   }
 
-  spaceCheck(path: string, installBytes: number): { available: number; required: number; sufficient: boolean } {
-    return diskSpaceInfo(path, installBytes);
+  async spaceCheck(path: string, installBytes: number, kind: JobKind = "update"): Promise<{ available: number; required: number; sufficient: boolean }> {
+    if (kind !== "predownload") return diskSpaceInfo(path, installBytes);
+    const detected = detectGame(path);
+    if (!detected) throw new AppError("game_not_installed", "预下载需要已安装的游戏客户端");
+    const build = await this.provider.getPredownloadBuild(audioLanguages(detected.path));
+    if (!build) throw new AppError("predownload_unavailable", "当前没有可用的预下载版本");
+    return diskSpaceInfo(detected.path, size(build));
   }
 
   private async predownloadInfo(gamePath: string): Promise<{ version: string | null; finished: boolean }> {

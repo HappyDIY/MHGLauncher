@@ -1,9 +1,22 @@
 import Foundation
 
-struct APIErrorPayload: Codable, Error {
+struct APIErrorPayload: Decodable, Error {
     let code: String
     let message: String
     let details: [String: String]?
+
+    private enum CodingKeys: String, CodingKey {
+        case code
+        case message
+        case details
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        code = try container.decode(String.self, forKey: .code)
+        message = try container.decode(String.self, forKey: .message)
+        details = try? container.decode([String: String].self, forKey: .details)
+    }
 }
 
 struct Account: Codable, Sendable {

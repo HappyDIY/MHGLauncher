@@ -43,6 +43,16 @@ struct APIClientTests {
         #expect(records.isEmpty)
     }
 
+    @Test("后端错误允许混合类型详情")
+    func errorPayloadWithMixedDetails() async throws {
+        let client = makeClient { _ in
+            json(422, #"{"code":"disk_space_insufficient","message":"磁盘空间不足","details":{"required":130,"sufficient":false}}"#)
+        }
+        await #expect(throws: APIErrorPayload.self) {
+            let _: EmptyResponse = try await client.get("/v1/game/space-check")
+        }
+    }
+
     @Test("解码清空记录结果")
     func deleteResponse() async throws {
         let client = makeClient { request in

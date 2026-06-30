@@ -20,6 +20,12 @@ test("仅有版本标记不视为已安装", async () => {
   expect((await response.json()).status).toBe("not_installed");
 });
 test("未安装时禁止更新", async () => expect((await request("POST", "/v1/game/jobs", { kind: "update", install_path: "/tmp/missing" })).status).toBe(400));
+test("预下载空间检查使用预下载构建", async () => {
+  const game = mkdtempSync(join(tmpdir(), "game-"));
+  writeFileSync(join(game, "YuanShen.exe"), ""); writeFileSync(join(game, ".mhg-version"), "5.8.0");
+  const info = await (await request("GET", `/v1/game/space-check?kind=predownload&install_path=${encodeURIComponent(game)}`)).json();
+  expect(info.required).toBe(1073741825);
+});
 test("常驻资源目录清单不视为待下载内容", () => {
   const root = mkdtempSync(join(tmpdir(), "hotfix-")), persistent = join(root, "YuanShen_Data/Persistent"); mkdirSync(persistent, { recursive: true });
   writeFileSync(join(persistent, "data_versions_remote"), JSON.stringify({ fileSize: 12 }));

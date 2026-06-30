@@ -43,7 +43,10 @@ extension LauncherStore {
             }
             let spaceCheck: SpaceCheckResult = try await client.get(
                 "/v1/game/space-check",
-                query: [URLQueryItem(name: "install_path", value: state.installPath)]
+                query: [
+                    URLQueryItem(name: "install_path", value: state.installPath),
+                    URLQueryItem(name: "kind", value: kind.rawValue)
+                ]
             )
             guard spaceCheck.sufficient else {
                 let available = ByteCountFormatter.string(fromByteCount: spaceCheck.available, countStyle: .file)

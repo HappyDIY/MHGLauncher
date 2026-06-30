@@ -72,7 +72,7 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   }
   if (method === "GET" && path === "/game/status") return json(await app.games.state());
   if (method === "GET" && path === "/game/status/path") return json(await app.games.state(required(query, "install_path")));
-  if (method === "GET" && path === "/game/space-check") { const installPath = required(query, "install_path"); const state = await app.games.state(installPath); return json(app.games.spaceCheck(installPath, state.download_bytes)); }
+  if (method === "GET" && path === "/game/space-check") { const installPath = required(query, "install_path"); const state = await app.games.state(installPath); return json(await app.games.spaceCheck(installPath, state.download_bytes, (query.get("kind") ?? "update") as JobKind)); }
   if (method === "POST" && path === "/game/jobs") { const value = startJob.parse(body); return json(await app.games.start(value.kind as JobKind, value.install_path), 202); }
   if (method === "GET" && path === "/settings/speed-limit") return json({ speed_limit_kb: app.games.getSpeedLimit() });
   if (method === "POST" && path === "/settings/speed-limit") { const value = speedLimit.parse(body); app.games.setSpeedLimit(value.speed_limit_kb); return json({ speed_limit_kb: value.speed_limit_kb }); }
