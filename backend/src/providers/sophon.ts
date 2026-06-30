@@ -49,7 +49,8 @@ export class Sophon {
   }
 
   private async fullBuild(branch: JSONValue, languages: string[]): Promise<GameBuild> {
-    const query = new URLSearchParams({ branch: String(branch.branch), package_id: String(branch.package_id), password: String(branch.password), tag: String(branch.tag) });
+    const query = new URLSearchParams({ branch: String(branch.branch), package_id: String(branch.package_id), password: String(branch.password) });
+    if (String(branch.branch).toLowerCase() !== "predownload") query.set("tag", String(branch.tag));
     const data = await this.data(`https://downloader-api.mihoyo.com/downloader/sophon_chunk/api/getBuild?${query}`);
     const assets: GameAsset[] = [];
     for (const item of this.selected(data, languages)) assets.push(...await this.assets(item));

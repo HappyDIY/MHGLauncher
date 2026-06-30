@@ -26,3 +26,20 @@ test("常驻资源目录清单不视为待下载内容", () => {
   expect(prepareBuild(normalizeBuild({ version: "1" }), root, "1")).toMatchObject({ kind: "full", pending_bytes: 0 });
 });
 test("无热更新保持构建", () => expect(prepareBuild(normalizeBuild({ version: "1" }), "/tmp/missing", "1").kind).toBe("full"));
+test("忽略启动器托管的反作弊 DLL", () => {
+  const build = prepareBuild(normalizeBuild({
+    version: "2",
+    assets: [
+      { name: "mhypbase.dll", size: 1, md5: "a", chunks: [] },
+      { name: "YuanShen.exe", size: 2, md5: "b", chunks: [] },
+    ],
+    patch_assets: [
+      { name: "mhypbase.dll", size: 1, md5: "a", patch: { id: "p1", file_size: 1, start: 0, length: 1, original_name: "mhypbase.dll", url: "" } },
+      { name: "config.ini", size: 2, md5: "b", patch: { id: "p2", file_size: 2, start: 0, length: 2, original_name: "config.ini", url: "" } },
+    ],
+    deprecated_files: ["mhypbase.dll", "old.dat"],
+  }), "/tmp/missing", "1");
+  expect(build.assets.map((asset) => asset.name)).toEqual(["YuanShen.exe"]);
+  expect(build.patch_assets.map((asset) => asset.name)).toEqual(["config.ini"]);
+  expect(build.deprecated_files).toEqual(["old.dat"]);
+});
