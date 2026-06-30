@@ -41,6 +41,10 @@ extension LauncherStore {
                 message = "所选目录中未检测到游戏客户端"
                 return
             }
+            guard kind != .predownload || state.canStartPredownload else {
+                message = "请先完成常规更新或资源修复后再预下载"
+                return
+            }
             let spaceCheck: SpaceCheckResult = try await client.get(
                 "/v1/game/space-check",
                 query: [

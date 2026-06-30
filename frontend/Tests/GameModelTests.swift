@@ -88,6 +88,28 @@ struct GameModelTests {
         let state = try JSONDecoder.api.decode(GameState.self, from: json)
         #expect(state.predownloadVersion == "5.6.0")
         #expect(state.predownloadFinished == false)
+        #expect(state.hasPendingPredownload)
+        #expect(!state.canStartPredownload)
+    }
+
+    @Test("预下载仅在常规更新不可用时允许启动")
+    func predownloadRequiresReadyState() {
+        let ready = gameState(status: .ready)
+        #expect(ready.canStartPredownload)
+        #expect(!gameState(status: .updateAvailable, updateKind: "package_repair").canStartPredownload)
+        #expect(!gameState(status: .notInstalled).canStartPredownload)
     }
 }
 
+private func gameState(status: GameStatus, updateKind: String = "full") -> GameState {
+    GameState(
+        installPath: "/games/gi",
+        installedVersion: "6.6.0",
+        availableVersion: "6.6.0",
+        status: status,
+        updateKind: updateKind,
+        downloadBytes: 0,
+        predownloadVersion: "6.7.0",
+        predownloadFinished: false
+    )
+}

@@ -6,8 +6,8 @@ struct GameResourceActionButtons: View {
     var body: some View {
         HStack {
             action(.install, title: "安装", enabled: store.gameState?.status == .notInstalled)
-            if store.gameState?.predownloadVersion != nil && store.gameState?.predownloadFinished != true && store.gameState?.status != .notInstalled {
-                action(.predownload, title: "预下载", enabled: true)
+            if store.gameState?.hasPendingPredownload == true && store.gameState?.status != .notInstalled {
+                action(.predownload, title: "预下载", enabled: store.gameState?.canStartPredownload == true)
             }
             action(.update, title: "更新", enabled: store.gameState?.status == .updateAvailable)
             Spacer()

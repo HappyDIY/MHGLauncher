@@ -32,28 +32,10 @@ struct FeatureSurfaceTests {
 
     @Test("预下载横幅仅在未完成时显示")
     func predownloadBannerVisibility() {
-        let state = GameState(
-            installPath: "/games/gi",
-            installedVersion: "6.6.0",
-            availableVersion: "6.6.0",
-            status: .ready,
-            updateKind: "full",
-            downloadBytes: 0,
-            predownloadVersion: "6.7.0",
-            predownloadFinished: false
-        )
-        #expect(HomeView.shouldShowPredownloadBanner(state))
+        #expect(HomeView.shouldShowPredownloadBanner(predownloadState()))
+        #expect(HomeView.shouldShowPredownloadBanner(predownloadState(status: .updateAvailable, finished: false)))
         #expect(!HomeView.shouldShowPredownloadBanner(nil))
-        #expect(!HomeView.shouldShowPredownloadBanner(GameState(
-            installPath: "/games/gi",
-            installedVersion: "6.6.0",
-            availableVersion: "6.6.0",
-            status: .ready,
-            updateKind: "full",
-            downloadBytes: 0,
-            predownloadVersion: "6.7.0",
-            predownloadFinished: true
-        )))
+        #expect(!HomeView.shouldShowPredownloadBanner(predownloadState(finished: true)))
     }
 
     @Test("旧版 UIGF 使用官方升级工具")
@@ -195,4 +177,12 @@ struct FeatureSurfaceTests {
         #expect(socketPath == "/tmp/mhg-test.sock")
         try writer.close()
     }
+}
+
+private func predownloadState(status: GameStatus = .ready, finished: Bool) -> GameState {
+    GameState(installPath: "/games/gi", installedVersion: "6.6.0", availableVersion: "6.7.0", status: status, updateKind: "package_repair", downloadBytes: 1024, predownloadVersion: "6.7.0", predownloadFinished: finished)
+}
+
+private func predownloadState() -> GameState {
+    predownloadState(finished: false)
 }

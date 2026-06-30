@@ -47,7 +47,7 @@ struct HomeView: View {
     }
 
     nonisolated static func shouldShowPredownloadBanner(_ state: GameState?) -> Bool {
-        state?.predownloadVersion != nil && state?.predownloadFinished != true
+        state?.hasPendingPredownload == true && state?.status != .notInstalled
     }
 
     private var debugBanner: some View {
@@ -85,7 +85,7 @@ struct HomeView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(store.pendingGameJobKind != nil || store.gameState?.status == .notInstalled)
+            .disabled(store.pendingGameJobKind != nil || store.gameState?.canStartPredownload != true)
         }
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -17,6 +17,14 @@ struct GameState: Codable, Sendable {
     let downloadBytes: Int64?
     let predownloadVersion: String?
     let predownloadFinished: Bool?
+
+    var hasPendingPredownload: Bool {
+        predownloadVersion != nil && predownloadFinished != true
+    }
+
+    var canStartPredownload: Bool {
+        hasPendingPredownload && status == .ready
+    }
 }
 
 enum JobKind: String, Codable {
