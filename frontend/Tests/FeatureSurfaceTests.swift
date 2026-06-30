@@ -22,6 +22,32 @@ struct FeatureSurfaceTests {
         #expect(!HomeView.isDebugMode(environment: ["MHG_DEBUG_MODE": "0"]))
     }
 
+    @Test("预下载横幅仅在未完成时显示")
+    func predownloadBannerVisibility() {
+        let state = GameState(
+            installPath: "/games/gi",
+            installedVersion: "6.6.0",
+            availableVersion: "6.6.0",
+            status: .ready,
+            updateKind: "full",
+            downloadBytes: 0,
+            predownloadVersion: "6.7.0",
+            predownloadFinished: false
+        )
+        #expect(HomeView.shouldShowPredownloadBanner(state))
+        #expect(!HomeView.shouldShowPredownloadBanner(nil))
+        #expect(!HomeView.shouldShowPredownloadBanner(GameState(
+            installPath: "/games/gi",
+            installedVersion: "6.6.0",
+            availableVersion: "6.6.0",
+            status: .ready,
+            updateKind: "full",
+            downloadBytes: 0,
+            predownloadVersion: "6.7.0",
+            predownloadFinished: true
+        )))
+    }
+
     @Test("旧版 UIGF 使用官方升级工具")
     @MainActor
     func uigfUpgrader() {
