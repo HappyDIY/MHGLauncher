@@ -9,26 +9,30 @@ struct HomeView: View {
                 if isDebugMode {
                     debugBanner.motionEntrance(.emphasis)
                 }
+                if Self.shouldShowPredownloadBanner(store.gameState) {
+                    predownloadBanner
+                        .motionEntrance(order: 1)
+                }
                 PageHeader(
                     title: "欢迎回来",
                     subtitle: welcomeSubtitle
                 )
-                .motionEntrance(order: 1)
+                .motionEntrance(order: 2)
                 HStack(alignment: .top, spacing: 16) {
                     gameCard
                         .motionScrollAppearance()
-                        .motionEntrance(order: 2)
+                        .motionEntrance(order: 3)
                     noteCard
                         .motionScrollAppearance()
-                        .motionEntrance(order: 3)
+                        .motionEntrance(order: 4)
                 }
                 HStack(alignment: .top, spacing: 16) {
                     wishCard
                         .motionScrollAppearance()
-                        .motionEntrance(order: 4)
+                        .motionEntrance(order: 5)
                     accountCard
                         .motionScrollAppearance()
-                        .motionEntrance(order: 5)
+                        .motionEntrance(order: 6)
                 }
             }
         }
@@ -42,6 +46,10 @@ struct HomeView: View {
         environment["MHG_DEBUG_MODE"] == "1"
     }
 
+    nonisolated static func shouldShowPredownloadBanner(_ state: GameState?) -> Bool {
+        state?.predownloadVersion != nil && state?.predownloadFinished != true
+    }
+
     private var debugBanner: some View {
         Label("调试模式", systemImage: "hammer.fill")
             .font(.title2.bold())
@@ -51,6 +59,40 @@ struct HomeView: View {
             .padding(.vertical, 14)
             .background(Color.orange.gradient, in: RoundedRectangle(cornerRadius: 16))
             .accessibilityIdentifier("debug-mode-banner")
+    }
+
+    private var predownloadBanner: some View {
+        HStack(spacing: 16) {
+            Image(systemName: "arrow.down.circle.fill")
+                .font(.system(size: 34, weight: .semibold))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("原神 \(store.gameState?.predownloadVersion ?? "") 预下载已开放")
+                    .font(.title3.bold())
+                Text("提前下载新版本资源，正式开服后可更快完成更新")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.82))
+            }
+            Spacer(minLength: 12)
+            Button {
+                Task { await store.startGameJob(.predownload) }
+            } label: {
+                if store.pendingGameJobKind == .predownload {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Label("预下载", systemImage: "arrow.down")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(store.pendingGameJobKind != nil || store.gameState?.status == .notInstalled)
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 18)
+        .background(Color.accentColor.gradient, in: RoundedRectangle(cornerRadius: 16))
+        .accessibilityIdentifier("predownload-banner")
     }
 
     private var welcomeSubtitle: String {
