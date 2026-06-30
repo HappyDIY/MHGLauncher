@@ -10,13 +10,13 @@ if [[ -z "$backend_dir" ]]; then
   /bin/bash "$root/scripts/build-backend-debug.sh"
   backend_dir="$root/build/backend-debug/dist/MHGLauncherBackend"
 fi
-/bin/bash "$root/scripts/build-frontend.sh"
+/bin/bash "$root/scripts/build-frontend.sh" debug
 
 rm -rf "$app"
 mkdir -p "$contents/MacOS" "$contents/Resources/Backend"
 
 cp "$root/packaging/Info.plist" "$contents/Info.plist"
-cp "$root/frontend/.build/arm64-apple-macosx/release/MHGLauncher" \
+cp "$root/frontend/.build/arm64-apple-macosx/debug/MHGLauncher" \
   "$contents/MacOS/MHGLauncher"
 cp -R "$backend_dir/app" "$contents/Resources/Backend/app"
 
