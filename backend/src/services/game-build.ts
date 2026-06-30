@@ -4,10 +4,11 @@ import type { GameBuild } from "../providers/provider";
 import { selectInvalidAssets } from "./game-integrity";
 
 export function prepareBuild(build: GameBuild, path: string, installed: string): GameBuild {
-  if (!path || installed !== build.version) return build;
-  if (!build.assets.length) return build;
-  const assets = selectInvalidAssets(path, build.assets);
-  return { ...build, assets, kind: "package_repair" };
+  const protectedBuild = withoutProtectedAssets(build);
+  if (!path || installed !== protectedBuild.version) return protectedBuild;
+  if (!protectedBuild.assets.length) return protectedBuild;
+  const assets = selectInvalidAssets(path, protectedBuild.assets);
+  return { ...protectedBuild, assets, kind: "package_repair" };
 }
 
 export function removeRetired(staging: string, build: GameBuild): void {
@@ -17,6 +18,21 @@ export function removeRetired(staging: string, build: GameBuild): void {
 }
 
 export function removeSafe(root: string, name: string): void {
+  if (isProtectedAsset(name)) return;
   const target = resolve(root, name.replaceAll("\\", "/")), child = relative(resolve(root), target);
   if (!isAbsolute(child) && !child.startsWith("..")) rmSync(target, { force: true });
+}
+
+function withoutProtectedAssets(build: GameBuild): GameBuild {
+  return {
+    ...build,
+    assets: build.assets.filter((asset) => !isProtectedAsset(asset.name)),
+    patch_assets: build.patch_assets.filter((asset) => !isProtectedAsset(asset.name)),
+    deprecated_files: build.deprecated_files.filter((name) => !isProtectedAsset(name)),
+  };
+}
+
+function isProtectedAsset(name: string): boolean {
+  // mhypbase.dll 由启动器运行时提供，不能被官方资源更新替换。
+  return name.replaceAll("\\", "/").split("/").at(-1)?.toLowerCase() === "mhypbase.dll";
 }
