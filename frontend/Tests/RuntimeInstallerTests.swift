@@ -58,8 +58,11 @@ struct RuntimeInstallerTests {
         let installed = try await installer.ensureCore()
         #expect(installer.installedCoreRuntime() == installed)
         try FileManager.default.removeItem(atPath: fixture.environment["MHG_RUNTIME_MANIFEST_URL"]!)
+        try Data("server-updated".utf8).write(to: URL(fileURLWithPath: fixture.environment["MHG_BACKEND_APP_DIR"]!).appending(path: "build/server.js"))
         let reused = try await installer.ensureCore()
+        let active = try Data(contentsOf: reused.backendAppURL.appending(path: "build/server.js"))
         #expect(installed == reused)
+        #expect(String(decoding: active, as: UTF8.self) == "server-updated")
     }
 
     @Test("下载产物校验失败时中止")
@@ -153,14 +156,7 @@ private struct CoreFixture {
     }
 }
 
-private func makeComponent(
-    id: String,
-    file: String,
-    root: URL,
-    assets: URL,
-    executable: String? = nil,
-    marker: String? = nil
-) throws -> RuntimeComponent {
+private func makeComponent(id: String, file: String, root: URL, assets: URL, executable: String? = nil, marker: String? = nil) throws -> RuntimeComponent {
     let source = root.appending(path: "\(id)-source")
     let relative = executable ?? marker ?? ".keep"
     let target = source.appending(path: relative)

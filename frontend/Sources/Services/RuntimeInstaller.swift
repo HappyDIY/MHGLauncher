@@ -18,7 +18,10 @@ final class RuntimeInstaller: @unchecked Sendable {
     }
 
     func ensureCore(progress: RuntimeProgressHandler? = nil) async throws -> InstalledRuntime {
-        if let installed = installedCoreRuntime() { return installed }
+        if let installed = installedCoreRuntime() {
+            try copyBackendApp(to: installed.backendAppURL)
+            return installed
+        }
         let manifest = try await loadManifest()
         let runtime = paths(tag: manifest.tag)
         let stage = stageURL(tag: manifest.tag, suffix: "core")
