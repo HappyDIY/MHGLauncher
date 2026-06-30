@@ -7,7 +7,7 @@ import { expect, test, vi } from "vitest";
 import xxhash from "xxhash-wasm";
 import type { GameAsset, SophonChunk } from "../src/providers/provider";
 import { normalizeBuild } from "../src/providers/provider";
-import { diffPredownloadBuild } from "../src/services/predownload-build";
+import { checkedPredownloadBuild, diffPredownloadBuild } from "../src/services/predownload-build";
 import { downloadChunksOnly } from "../src/services/predownload";
 import { DownloadControl } from "../src/services/download";
 
@@ -23,6 +23,12 @@ test("预下载只计算本地缺失的差异分块", () => {
   expect(diff.assets.map((value) => value.name)).toEqual(["data.bin", "new.bin"]);
   expect(diff.assets[0]?.chunks.map((value) => value.name)).toEqual(["next"]);
   expect(diff.assets[1]?.chunks.map((value) => value.name)).toEqual(["added"]);
+});
+
+test("预下载要求本机版本与常规通道一致", () => {
+  const local = normalizeBuild({ version: "6.7.0" });
+  const remote = normalizeBuild({ version: "6.8.0", is_predownload: true });
+  expect(() => checkedPredownloadBuild("6.6.0", local, remote)).toThrow("请先完成常规更新或修复");
 });
 
 test("预下载完成后保留分块缓存", async () => {
