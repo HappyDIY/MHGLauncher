@@ -52,6 +52,11 @@ integration, game-package operations, wish records, and real-time notes.
 - Write source-code comments in Simplified Chinese.
 - Prefer small feature modules and dependency injection over global state.
 - Use structured parsers and typed models for API, manifest, and UIGF data.
+- After changing API contracts, shared models, job payloads, or persisted data
+  shapes, verify frontend and backend consistency together. Pay particular
+  attention to Swift and TypeScript variable types, optionality, enum raw values,
+  JSON field names, and numeric/string/bool detail payloads so decode failures
+  cannot hide the real backend error.
 
 ## Motion and Transition Standards
 
@@ -107,6 +112,9 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 ## Testing Expectations
 
 - Every network provider needs deterministic fixture-backed tests.
+- Any change that crosses the Swift frontend and TypeScript backend boundary
+  must run the relevant type checks on both sides, or clearly document why one
+  side is unaffected.
 - Cover authentication state transitions, pagination, deduplication, UIGF
   compatibility, resumable downloads, hash failures, traversal protection,
   rollback, cancellation, and update selection.
