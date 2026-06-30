@@ -36,6 +36,11 @@ integration, game-package operations, wish records, and real-time notes.
 - Keep miHoYo endpoints behind provider interfaces so tests never require a
   live account or large downloads.
 - Keep game launching behind a typed session API and restore temporary game-file changes after process exit.
+- Treat `mhypbase.dll` as a launcher-managed compatibility component, not as a
+  normal game package asset. It must remain the pinned legacy miHoYo anti-cheat
+  DLL required for Wine startup, and official game update, repair, integrity,
+  patch, or retired-file cleanup logic must not replace, delete, or validate it
+  as part of the Sophon game resource set.
 - Bundle only auditable open-source Wine/DXMT components; never depend on closed CrossOver application code.
 - Do not add features outside the documented product scope.
 
@@ -124,5 +129,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 `scripts/build-app.sh` builds an arm64 Swift executable, bundles Node.js and the
 Next.js backend, and assembles an unsigned `.app`. Runtime users must not need
 Node.js or npm. The build also assembles the pinned open-source Wine/DXMT game
-runtime and requires a locally supplied, integrity-checked `mhypbase.dll`.
+runtime and requires a locally supplied, integrity-checked legacy
+`mhypbase.dll`. Do not update this DLL to the official latest game copy unless
+the Wine compatibility strategy and expected hashes are deliberately changed.
 Signing, notarization, and DMG creation remain out of scope.
