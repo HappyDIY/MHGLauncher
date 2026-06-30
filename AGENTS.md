@@ -87,6 +87,7 @@ integration, game-package operations, wish records, and real-time notes.
 ## Commands
 
 ```bash
+./scripts/check-api-boundary.sh
 ./scripts/test-all.sh
 ./scripts/build-app.sh
 ./scripts/check-source-lines.sh
@@ -115,6 +116,9 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 - Any change that crosses the Swift frontend and TypeScript backend boundary
   must run the relevant type checks on both sides, or clearly document why one
   side is unaffected.
+- Before handing off changes that touch API contracts, model types, game
+  update/predownload flows, or runtime delivery, run
+  `./scripts/check-api-boundary.sh` and fix any reported mismatch first.
 - Cover authentication state transitions, pagination, deduplication, UIGF
   compatibility, resumable downloads, hash failures, traversal protection,
   rollback, cancellation, and update selection.
