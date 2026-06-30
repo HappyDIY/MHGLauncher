@@ -3,6 +3,7 @@ import SwiftUI
 
 struct GameView: View {
     @Bindable var store: LauncherStore
+    @State private var speedLimitTask: Task<Void, Never>?
 
     var body: some View {
         ScrollView {
@@ -80,6 +81,7 @@ struct GameView: View {
                 await store.refreshGame()
             }
         }
+        .onDisappear { speedLimitTask?.cancel() }
     }
 
     private func chooseDirectory() {
@@ -117,7 +119,7 @@ struct GameView: View {
             HStack(spacing: 4) {
                 TextField(
                     "0",
-                    value: $store.speedLimitKB,
+                    value: speedLimitBinding,
                     format: .number.grouping(.never)
                 )
                 .frame(width: 60)
@@ -125,11 +127,30 @@ struct GameView: View {
                 .onSubmit {
                     let value = max(0, store.speedLimitKB)
                     store.speedLimitKB = value
-                    Task { await store.setSpeedLimit(value) }
+                    scheduleSpeedLimitUpdate(value)
                 }
                 Text("KB/s")
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    private var speedLimitBinding: Binding<Int> {
+        Binding {
+            store.speedLimitKB
+        } set: { value in
+            let normalized = max(0, value)
+            store.speedLimitKB = normalized
+            scheduleSpeedLimitUpdate(normalized)
+        }
+    }
+
+    private func scheduleSpeedLimitUpdate(_ value: Int) {
+        speedLimitTask?.cancel()
+        speedLimitTask = Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            await store.setSpeedLimit(value)
         }
     }
 }

@@ -5,8 +5,9 @@ struct WishResultsPanel: View {
     @State private var mode = WishResultMode.character
 
     var body: some View {
+        let items = records.resultItems(for: mode)
         VStack(alignment: .leading, spacing: 14) {
-            heading
+            heading(count: items.count)
             if items.isEmpty {
                 emptyState
             } else {
@@ -28,12 +29,12 @@ struct WishResultsPanel: View {
         .motionAnimation(.selection, value: mode)
     }
 
-    private var heading: some View {
+    private func heading(count: Int) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("抽卡成果")
                     .font(.headline)
-                Text("\(items.count) 种\(mode.title)")
+                Text("\(count) 种\(mode.title)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -57,10 +58,6 @@ struct WishResultsPanel: View {
             description: Text("同步或导入包含四星、五星\(mode.title)的祈愿记录后将在此展示。")
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var items: [WishResultItem] {
-        records.resultItems(for: mode)
     }
 
     private var columns: [GridItem] {
