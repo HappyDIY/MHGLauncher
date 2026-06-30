@@ -15,8 +15,8 @@ import { writeIntegrityIndex } from "./game-integrity";
 import { diskSpaceInfo } from "./disk-space";
 import { maybeRateLimiter } from "./rate-limiter";
 import { makeProgress } from "./job-progress";
-import { downloadChunksOnly, downloadPatchesOnly } from "./predownload";
-import { readPredownloadStatus, writePredownloadStatus, clearPredownloadStatus } from "./predownload-status";
+import { downloadChunksOnly, downloadPatchesOnly } from "./predownload"; import { readPredownloadStatus, writePredownloadStatus, clearPredownloadStatus } from "./predownload-status";
+import { diffPredownloadBuild } from "./predownload-build";
 
 export class GameService {
   private readonly jobs = new Map<string, GameJob>();
@@ -30,9 +30,7 @@ export class GameService {
   setSpeedLimit(kb: number): void { this.mutableSpeedLimitKB = Math.max(0, kb); }
   getSpeedLimit(): number { return this.mutableSpeedLimitKB; }
 
-  busy(): boolean {
-    return [...this.jobs.values()].some(({ status }) => ["queued", "running", "paused"].includes(status));
-  }
+  busy(): boolean { return [...this.jobs.values()].some(({ status }) => ["queued", "running", "paused"].includes(status)); }
 
   async state(requested?: string): Promise<GameState> {
     const stored = this.store.one("SELECT install_path FROM game_state WHERE id=1");
@@ -51,8 +49,9 @@ export class GameService {
     if (kind !== "predownload") return diskSpaceInfo(path, installBytes);
     const detected = detectGame(path);
     if (!detected) throw new AppError("game_not_installed", "预下载需要已安装的游戏客户端");
-    const build = await this.provider.getPredownloadBuild(audioLanguages(detected.path));
-    if (!build) throw new AppError("predownload_unavailable", "当前没有可用的预下载版本");
+    const remote = await this.provider.getPredownloadBuild(audioLanguages(detected.path));
+    if (!remote) throw new AppError("predownload_unavailable", "当前没有可用的预下载版本");
+    const build = diffPredownloadBuild(await this.provider.getBuild(detected.version, audioLanguages(detected.path)), remote);
     return diskSpaceInfo(detected.path, size(build));
   }
 
@@ -72,8 +71,10 @@ export class GameService {
     if (kind === "update" && !detected) throw new AppError("game_not_installed", "所选目录中未检测到可更新的原神客户端");
     if (kind === "predownload" && !detected) throw new AppError("game_not_installed", "预下载需要已安装的游戏客户端");
     const root = detected?.path ?? resolve(path);
+    const remote = kind === "predownload" ? await this.provider.getPredownloadBuild(audioLanguages(root)) : null;
+    if (kind === "predownload" && !remote) throw new AppError("predownload_unavailable", "当前没有可用的预下载版本");
     const build = kind === "predownload"
-      ? (await this.provider.getPredownloadBuild(audioLanguages(root)) ?? (() => { throw new AppError("predownload_unavailable", "当前没有可用的预下载版本"); })())
+      ? diffPredownloadBuild(await this.provider.getBuild(detected?.version ?? "", audioLanguages(root)), remote as GameBuild)
       : prepareBuild(await this.provider.getBuild(detected?.version ?? "", audioLanguages(root)), detected?.path ?? "", detected?.version ?? "");
     const spaceInfo = diskSpaceInfo(root, size(build));
     if (!spaceInfo.sufficient) throw new AppError("disk_space_insufficient", `磁盘空间不足：需要 ${spaceInfo.required} 字节，可用 ${spaceInfo.available} 字节`, 422, { available: spaceInfo.available, required: spaceInfo.required, sufficient: spaceInfo.sufficient });

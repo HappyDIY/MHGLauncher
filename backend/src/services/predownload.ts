@@ -12,11 +12,10 @@ export async function downloadChunksOnly(
   progress: (bytes: number) => void, chunkProgress: (name: string, done: number, total: number) => void,
   workers = 4, rateLimiter?: TokenBucketRateLimiter | null,
 ): Promise<void> {
-  mkdirSync(cache, { recursive: true }); const references = chunkReferences(assets);
+  mkdirSync(cache, { recursive: true });
   for (const asset of assets) {
     await control.checkpoint();
     await concurrentMap(asset.chunks, workers, (chunk) => getChunkOnly(chunk, cache, control, progress, chunkProgress, rateLimiter));
-    releaseChunks(asset.chunks, cache, references);
   }
 }
 
@@ -50,20 +49,6 @@ async function concurrentMap<T, R>(items: T[], limit: number, task: (item: T) =>
   }
   await Promise.all(Array.from({ length: Math.min(Math.max(limit, 1), items.length) }, worker));
   return results;
-}
-
-function chunkReferences(assets: GameAsset[]): Map<string, number> {
-  const result = new Map<string, number>();
-  for (const chunk of assets.flatMap(({ chunks }) => chunks)) result.set(chunk.name, (result.get(chunk.name) ?? 0) + 1);
-  return result;
-}
-
-function releaseChunks(chunks: SophonChunk[], cache: string, references: Map<string, number>): void {
-  for (const chunk of chunks) {
-    const remaining = (references.get(chunk.name) ?? 1) - 1;
-    if (remaining > 0) references.set(chunk.name, remaining);
-    else { references.delete(chunk.name); rmSync(join(cache, chunk.name), { force: true }); }
-  }
 }
 
 async function xxh(path: string, name: string): Promise<boolean> { return (await xxhash()).h64Raw(readFileSync(path)).toString(16).padStart(16, "0") === name.split("_", 1)[0]?.toLowerCase(); }
