@@ -85,6 +85,7 @@ struct HomeView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
+            .motionHover(.prominent)
             .disabled(store.pendingGameJobKind != nil || store.gameState?.status == .notInstalled)
         }
         .foregroundStyle(.white)
