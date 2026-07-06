@@ -1,7 +1,12 @@
 import LocalAuthentication
 
 @MainActor
-struct DeviceOwnerAuthenticator {
+protocol DeviceOwnerAuthenticating {
+    func authenticate(reason: String) async throws
+}
+
+@MainActor
+struct DeviceOwnerAuthenticator: DeviceOwnerAuthenticating {
     func authenticate(reason: String) async throws {
         let context = LAContext()
         context.localizedCancelTitle = "取消"

@@ -7,8 +7,11 @@ final class LauncherStore {
     let backend = BackendProcess()
     let runtimeInstaller = RuntimeInstaller()
     let keychain = KeychainStore()
-    let deviceOwnerAuthenticator = DeviceOwnerAuthenticator()
+    let deviceOwnerAuthenticator: any DeviceOwnerAuthenticating
 
+    init(deviceOwnerAuthenticator: any DeviceOwnerAuthenticating = DeviceOwnerAuthenticator()) {
+        self.deviceOwnerAuthenticator = deviceOwnerAuthenticator
+    }
     var runtimeProgress: RuntimeProgress?
     var runtimeErrorMessage: String?
     var isBootstrapping = false
@@ -16,7 +19,6 @@ final class LauncherStore {
     var isInstallingGameRuntime = false
     var gameRuntimeReady = false
     private var installedRuntime: InstalledRuntime?
-
     var account: Account?
     var accounts: [Account] = []
     var roles: [GameRole] = []
@@ -63,13 +65,11 @@ final class LauncherStore {
     var triggerWishClear = false
     var showsLoginBeforeLaunch = false
     var speedLimitKB = 0
-
     let loginDeferralKey = "loginLaunchDeferrals"
     var qrLoginAttempt = 0
     var selectedRole: GameRole? {
         roles.first(where: \.selected) ?? roles.first
     }
-
     var credential: String? {
         guard let account else { return nil }
         return try? keychain.read(account: keychainAccount(for: account.aid))
