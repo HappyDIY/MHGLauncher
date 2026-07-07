@@ -110,10 +110,18 @@ struct AppCommands: Commands {
 struct MHGLauncherApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var store: LauncherStore
+    private let instanceGuard: SingleInstanceGuard?
 
     init() {
+        let instanceGuard = SingleInstanceGuard.acquire()
+        self.instanceGuard = instanceGuard
         let store = LauncherStore()
         _store = State(initialValue: store)
+        guard instanceGuard != nil else {
+            SingleInstanceGuard.activateExistingApplication()
+            Task { @MainActor in NSApp.terminate(nil) }
+            return
+        }
         if ProcessInfo.processInfo.environment["MHG_SMOKE_MODE"] == "1" {
             Task { @MainActor in await store.bootstrap() }
         }
@@ -121,14 +129,19 @@ struct MHGLauncherApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView(store: store)
-                .frame(width: 1150, height: 750)
-                .task {
-                    await store.bootstrap()
-                    await store.runNoteRefreshLoop()
-                }
-                .onDisappear { store.backend.stop() }
-                .focusedSceneValue(\.launcherStore, store)
+            if instanceGuard == nil {
+                EmptyView()
+            } else {
+                RootView(store: store)
+                    .frame(width: 1150, height: 750)
+                    .task {
+                        KeychainAccessPrompt.presentIfNeeded()
+                        await store.bootstrap()
+                        await store.runNoteRefreshLoop()
+                    }
+                    .onDisappear { store.backend.stop() }
+                    .focusedSceneValue(\.launcherStore, store)
+            }
         }
         .windowStyle(.automatic)
         .windowResizability(.contentSize)
