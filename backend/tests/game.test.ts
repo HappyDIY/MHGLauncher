@@ -1,10 +1,14 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, expect, test } from "vitest";
 import { fixture, request } from "./helpers";
 import { prepareBuild } from "../src/services/game-build";
 import { normalizeBuild } from "../src/providers/provider";
+import { Store } from "../src/core/database";
+import { GameService } from "../src/services/games";
+import { FixtureProvider } from "../src/providers/fixture";
 
 beforeEach(() => fixture());
 test("检测官方游戏目录版本", async () => {
@@ -12,6 +16,12 @@ test("检测官方游戏目录版本", async () => {
   writeFileSync(join(game, "YuanShen.exe"), ""); writeFileSync(join(game, "config.ini"), "[General]\ngame_version=5.7.0\n");
   const response = await request("GET", `/v1/game/status/path?install_path=${encodeURIComponent(game)}`), value = await response.json();
   expect(value.installed_version).toBe("5.7.0"); expect(value.status).toBe("update_available");
+});
+test("官方版本覆盖旧启动器版本标记", async () => {
+  const game = mkdtempSync(join(tmpdir(), "game-"));
+  writeFileSync(join(game, "YuanShen.exe"), ""); writeFileSync(join(game, "config.ini"), "game_version=5.8.0\n"); writeFileSync(join(game, ".mhg-version"), "5.7.0");
+  const value = await (await request("GET", `/v1/game/status/path?install_path=${encodeURIComponent(game)}`)).json();
+  expect(value.installed_version).toBe("5.8.0"); expect(value.status).toBe("ready");
 });
 test("仅有版本标记不视为已安装", async () => {
   const game = mkdtempSync(join(tmpdir(), "empty-game-"));
@@ -55,4 +65,21 @@ test("忽略启动器托管的反作弊 DLL", () => {
   expect(build.assets.map((asset) => asset.name)).toEqual(["YuanShen.exe"]);
   expect(build.patch_assets.map((asset) => asset.name)).toEqual(["config.ini"]);
   expect(build.deprecated_files).toEqual(["old.dat"]);
+});
+
+test("Sophon 更新不复制完整游戏目录且取消终态任务幂等", async () => {
+  const root = mkdtempSync(join(tmpdir(), "in-place-update-")), data = join(root, "data"), fixtures = join(root, "fixtures"), game = join(root, "Genshin Impact Game");
+  mkdirSync(fixtures, { recursive: true }); mkdirSync(game);
+  const exe = "same-binary", md5 = createHash("md5").update(exe).digest("hex");
+  writeFileSync(join(game, "YuanShen.exe"), exe); writeFileSync(join(game, "config.ini"), "game_version=5.7.0\n");
+  writeFileSync(join(fixtures, "build.json"), JSON.stringify({ version: "5.8.0", assets: [{ name: "YuanShen.exe", size: exe.length, md5, chunks: [] }] }));
+  const store = new Store(join(data, "test.db")), service = new GameService(store, new FixtureProvider(fixtures), data);
+  try {
+    let job = await service.start("update", game);
+    for (let i = 0; i < 20 && !["completed", "failed", "cancelled"].includes(job.status); i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10)); job = service.get(job.id);
+    }
+    expect(job.status).toBe("completed"); expect(existsSync(`${game}.staging`)).toBe(false);
+    expect(service.control(job.id, "cancel").status).toBe("completed");
+  } finally { store.close(); rmSync(root, { recursive: true, force: true }); }
 });

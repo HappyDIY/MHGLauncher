@@ -73,8 +73,9 @@ export class GameService {
       : prepareBuild(await this.provider.getBuild(detected?.version ?? "", audioLanguages(root)), detected?.path ?? "", detected?.version ?? "");
     const spaceInfo = diskSpaceInfo(root, size(build));
     if (!spaceInfo.sufficient) throw new AppError("disk_space_insufficient", `磁盘空间不足：需要 ${spaceInfo.required} 字节，可用 ${spaceInfo.available} 字节`, 422, { available: spaceInfo.available, required: spaceInfo.required, sufficient: spaceInfo.sufficient });
+    if (kind === "update" && detected?.version === build.version && size(build) === 0) throw new AppError("game_already_current", "当前游戏版本已是最新", 409);
     const job: GameJob = {
-      id: randomUUID(), kind, status: "queued", completed_bytes: 0, total_bytes: size(build), message: "",
+      id: randomUUID(), kind, status: "queued", completed_bytes: 0, total_bytes: size(build), message: kind === "predownload" ? "预下载任务已排队" : kind === "verify" ? "校验任务已排队" : kind === "install" ? "安装任务已排队" : "更新任务已排队",
       download_speed: 0, chunks_completed: 0, chunks_total: build.assets.reduce((n, value) => n + value.chunks.length, 0),
       active_chunks: [], last_update: "", revision: 0,
     };
@@ -94,18 +95,20 @@ export class GameService {
     if (action === "pause" && job.status === "running") { control?.pause(); job.status = "paused"; this.touch(job); }
     else if (action === "resume" && job.status === "paused") { control?.resume(); job.status = "running"; this.touch(job); }
     else if (action === "cancel" && ["queued", "running", "paused"].includes(job.status)) { control?.cancel(); job.status = "cancelled"; this.touch(job); }
+    else if (action === "cancel" && ["completed", "cancelled", "failed"].includes(job.status)) return job;
     else throw new AppError("game_job_action_invalid", "任务操作与当前状态不匹配", 409);
     return job;
   }
 
   private async run(job: GameJob, control: DownloadControl, path: string, build: GameBuild): Promise<void> {
-    job.status = "running"; this.touch(job);
+    job.status = "running"; job.message = job.kind === "predownload" ? "正在下载预下载资源" : job.kind === "verify" ? "正在校验游戏资源" : job.kind === "install" ? "正在安装游戏资源" : "正在更新游戏资源"; this.touch(job);
     if (job.kind === "predownload") return this.runPredownload(job, control, path, build);
-    const inPlace = job.kind !== "install" && build.kind === "package_repair";
+    const inPlace = job.kind !== "install" && (build.kind === "package_repair" || build.assets.length > 0 || build.patch_assets.length > 0);
     try {
       const cache = join(this.dataDir, "downloads", build.version), staging = inPlace ? path : `${path}.staging`;
       const marker = join(staging, ".mhg-staging-version");
       const resumable = !inPlace && existsSync(marker) && readFileSync(marker, "utf8").trim() === build.version;
+      await control.checkpoint();
       if (!inPlace && !resumable) { stageExisting(job.kind === "update" ? path : "", staging); writeFileSync(marker, build.version); }
       mkdirSync(cache, { recursive: true });
       if (job.kind === "update" && build.kind !== "package_repair") removeRetired(staging, build);
@@ -176,12 +179,11 @@ function size(build: GameBuild): number {
 export function detectGame(input: string): { path: string; version: string } | null {
   for (const path of [resolve(input), join(resolve(input), "Genshin Impact Game")]) {
     if (!existsSync(join(path, "YuanShen.exe"))) continue;
+    const config = join(path, "config.ini");
+    const official = existsSync(config) ? readFileSync(config, "utf8").match(/^game_version\s*=\s*(.+)$/m)?.[1]?.trim() : "";
+    if (official) return { path, version: official };
     const marker = join(path, ".mhg-version");
     if (existsSync(marker)) { const version = readFileSync(marker, "utf8").trim(); if (version) return { path, version }; }
-    const config = join(path, "config.ini");
-    if (!existsSync(config)) continue;
-    const version = readFileSync(config, "utf8").match(/^game_version\s*=\s*(.+)$/m)?.[1]?.trim();
-    if (version) return { path, version };
   }
   return null;
 }
