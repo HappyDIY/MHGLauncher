@@ -36,6 +36,20 @@ struct RootView: View {
                 }
             }
         }
+        .overlay(alignment: .top) {
+            if let status = store.statusMessage {
+                Label(status, systemImage: "checkmark.circle.fill")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.top, 18)
+                    .motionTransition(.content)
+                    .accessibilityIdentifier("launcher-status-message")
+            }
+        }
+        .motionAnimation(.content, value: store.statusMessage)
         .alert(
             "提示",
             isPresented: Binding(

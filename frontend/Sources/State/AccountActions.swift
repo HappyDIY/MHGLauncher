@@ -194,6 +194,7 @@ extension LauncherStore {
         }
         accounts = try await client.get("/v1/accounts")
         loginFormPresented = false
+        showStatus("账号登录成功")
         await loadCompanionData()
     }
 }

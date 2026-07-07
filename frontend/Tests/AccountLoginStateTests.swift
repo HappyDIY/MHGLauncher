@@ -48,6 +48,28 @@ struct AccountLoginStateTests {
         #expect(request?.validate == "validate-token")
     }
 
+    @Test("登录成功显示短暂状态")
+    func loginSuccessShowsStatus() async throws {
+        let store = LauncherStore()
+        let aid = "test-\(UUID().uuidString)"
+        store.loginCookie = "stoken=test-secret"
+        defer { try? store.keychain.delete(account: store.keychainAccount(for: aid)) }
+        store.backend.useClient(APIClient(token: "token") { request in
+            if request.path == "/v1/auth/cookie-login" {
+                return json(200, loginResponse(aid: aid))
+            }
+            if request.path == "/v1/accounts" {
+                return json(200, "[\(accountJSON(aid: aid))]")
+            }
+            return json(200, "[]")
+        })
+
+        await store.loginByCookie()
+        #expect(store.statusMessage == "账号登录成功")
+        #expect(store.loginFormPresented == false)
+        #expect(try store.keychain.read(account: store.keychainAccount(for: aid)) == "stoken=test-secret")
+    }
+
     @Test("二维码成功后旧过期响应不会覆盖账号状态")
     func staleExpiredDoesNotClearAccount() {
         let store = LauncherStore()
@@ -104,4 +126,16 @@ private func qr(status: String) -> QRSession {
 
 private func json(_ status: Int, _ body: String) -> APIResponse {
     APIResponse(status: status, body: Data(body.utf8))
+}
+
+private func loginResponse(aid: String) -> String {
+    """
+    {"account":\(accountJSON(aid: aid)),"identity":null,"roles":[]}
+    """
+}
+
+private func accountJSON(aid: String) -> String {
+    """
+    {"aid":"\(aid)","mid":"mid","nickname":"旅行者","credential_ref":"keychain:account:\(aid)","selected":true,"updated_at":"2026-06-25T08:00:00Z"}
+    """
 }

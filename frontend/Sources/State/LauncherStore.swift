@@ -56,6 +56,7 @@ final class LauncherStore {
     var isBusy = false
     var companionLoaded = false
     var message: String?
+    var statusMessage: String?; var statusMessageRevision = 0
     var wishOperation: WishOperationState?
     var triggerWishImport = false
     var triggerWishExport = false

@@ -135,7 +135,9 @@ struct MHGLauncherApp: App {
                 RootView(store: store)
                     .frame(width: 1150, height: 750)
                     .task {
-                        KeychainAccessPrompt.presentIfNeeded()
+                        if let status = KeychainAccessPrompt.presentIfNeeded() {
+                            store.showStatus(status)
+                        }
                         await store.bootstrap()
                         await store.runNoteRefreshLoop()
                     }
