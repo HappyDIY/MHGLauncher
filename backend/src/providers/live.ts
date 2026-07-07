@@ -4,6 +4,7 @@ import type { Settings } from "../core/config";
 import { AppError } from "../core/errors";
 import type { AccountIdentity, DailyNote, GameRole, MobileCaptchaSession, QRSession, WishRecord } from "../core/models";
 import { Device } from "./device";
+import { completeCredential, gameRecordCredential } from "./credential";
 import type { GameBuild, Provider } from "./provider";
 import { Sophon } from "./sophon";
 import { cookies, sign } from "./signing";
@@ -116,9 +117,9 @@ export class LiveProvider implements Provider {
   }
 
   async getDailyNote(credential: string, role: GameRole, challenge = ""): Promise<DailyNote> {
-    await this.device.fingerprint(); const query = new URLSearchParams({ role_id: role.uid, server: role.region }).toString();
-    await this.api(`https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/index?${query}`, credential, sign("x4", "", query), { headers: this.gameRecordHeaders() });
-    const headers: Record<string, string> = { ...this.headers(credential, sign("x4", "", query)), ...this.gameRecordHeaders(), "x-rpc-tool_verison": "v5.0.1-ys" }; if (challenge) headers["x-rpc-challenge"] = challenge;
+    await this.device.fingerprint(); const query = new URLSearchParams({ role_id: role.uid, server: role.region }).toString(), webCredential = await gameRecordCredential(credential, this.device.deviceId);
+    await this.api(`https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/index?${query}`, webCredential, sign("x4", "", query), { headers: this.gameRecordHeaders() });
+    const headers: Record<string, string> = { ...this.headers(webCredential, sign("x4", "", query)), ...this.gameRecordHeaders(), "x-rpc-tool_verison": "v5.0.1-ys" }; if (challenge) headers["x-rpc-challenge"] = challenge;
     const url = `https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/dailyNote?${query}`;
     const response = await fetch(url, { headers, signal: AbortSignal.timeout(30_000) }), payload = await response.json() as JSONValue;
     const retcode = Number(payload.retcode ?? 0), message = String(payload.message ?? "");
@@ -139,8 +140,8 @@ export class LiveProvider implements Provider {
   }
 
   async verifyNoteChallenge(credential: string, challenge: string, validate: string): Promise<string> {
-    const body = JSON.stringify({ geetest_challenge: challenge, geetest_validate: validate, geetest_seccode: `${validate}|jordan` });
-    const data = await this.api("https://api-takumi-record.mihoyo.com/game_record/app/card/wapi/verifyVerification", credential, sign("x4", body), { method: "POST", body, headers: this.noteVerificationHeaders() });
+    const body = JSON.stringify({ geetest_challenge: challenge, geetest_validate: validate, geetest_seccode: `${validate}|jordan` }), cookie = await gameRecordCredential(credential, this.device.deviceId);
+    const data = await this.api("https://api-takumi-record.mihoyo.com/game_record/app/card/wapi/verifyVerification", cookie, sign("x4", body), { method: "POST", body, headers: this.noteVerificationHeaders() });
     return String(data.challenge);
   }
 
@@ -168,14 +169,13 @@ export class LiveProvider implements Provider {
   }
   private async enrichCredential(value: string, cookieImport = false): Promise<string> {
     try {
-      const data = await this.request("https://passport-api.mihoyo.com/account/auth/api/getCookieAccountInfoBySToken", { headers: this.passportHeaders(value, sign("prod")) });
-      const map = cookies(value); map.set("cookie_token", String(data.cookie_token)); map.set("account_id", String(data.uid)); return this.serialize(map);
+      return await completeCredential(value, this.device.deviceId);
     } catch (error) {
       if (cookieImport && error instanceof AppError && error.code === "mihoyo_error") throw new AppError("credential_expired", "米游社返回登录状态失效，请重新获取 Cookie 后重试", 401, error.details);
       throw error;
     }
   }
-  private async createVerification(value: string): Promise<Record<string, string>> { const query = "is_high=true", data = await this.api(`https://api-takumi-record.mihoyo.com/game_record/app/card/wapi/createVerification?${query}`, value, sign("x4", "", query), { headers: this.noteVerificationHeaders() }); return { gt: String(data.gt), challenge: String(data.challenge) }; }
+  private async createVerification(value: string): Promise<Record<string, string>> { const query = "is_high=true", cookie = await gameRecordCredential(value, this.device.deviceId), data = await this.api(`https://api-takumi-record.mihoyo.com/game_record/app/card/wapi/createVerification?${query}`, cookie, sign("x4", "", query), { headers: this.noteVerificationHeaders() }); return { gt: String(data.gt), challenge: String(data.challenge) }; }
   private async authkey(value: string, role: GameRole): Promise<string> { const body = JSON.stringify({ auth_appid: "webview_gacha", game_biz: "hk4e_cn", game_uid: Number(role.uid), region: role.region }); return String((await this.api("https://api-takumi.mihoyo.com/binding/api/genAuthKey", value, sign("lk2", "", "", 1), { method: "POST", body })).authkey); }
   private wish(uid: string, v: JSONValue): WishRecord { const type = String(v.gacha_type); return { id: String(v.id), uid, gacha_type: type, uigf_gacha_type: type === "400" ? "301" : type, item_id: String(v.item_id), name: String(v.name), item_type: String(v.item_type), rank: Number(v.rank_type), time: String(v.time).replace(" ", "T") }; }
   private gameRecordHeaders(): Record<string, string> { return { Referer: "https://webstatic.mihoyo.com" }; }
