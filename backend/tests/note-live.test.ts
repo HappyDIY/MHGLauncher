@@ -17,9 +17,10 @@ afterEach(() => { vi.restoreAllMocks(); for (const root of roots.splice(0)) rmSy
 
 describe("实时便笺 live 请求画像", () => {
   test("先访问战绩首页并使用 CookieToken/LToken", async () => {
-    const urls: string[] = []; let noteHeaders: Headers | undefined, fpBody: Record<string, unknown> | undefined;
+    const urls: string[] = []; let indexHeaders: Headers | undefined, noteHeaders: Headers | undefined, fpBody: Record<string, unknown> | undefined;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       urls.push(String(input));
+      if (String(input).includes("/api/index")) indexHeaders = new Headers(init?.headers);
       if (String(input).includes("dailyNote")) {
         noteHeaders = new Headers(init?.headers);
         return Response.json({ retcode: 0, data: { current_resin: 120, max_resin: 200, finished_task_num: 3, total_task_num: 4, expeditions: [{ status: "Finished" }], max_expedition_num: 5, transformer: { recovery_time: { reached: true } } } });
@@ -34,7 +35,10 @@ describe("实时便笺 live 请求画像", () => {
     expect(noteHeaders?.get("cookie")).toBe("account_id=10001;cookie_token=cookie-token;ltoken=ltoken-value;ltuid=10001");
     expect(noteHeaders?.get("cookie")).not.toContain("stoken");
     expect(noteHeaders?.get("referer")).toBe("https://webstatic.mihoyo.com");
+    expect(indexHeaders?.get("accept")).toBe("application/json");
+    expect(indexHeaders?.get("content-type")).toBeNull();
     expect(noteHeaders?.get("x-rpc-tool_verison")).toBe("v5.0.1-ys");
+    expect(noteHeaders?.get("content-type")).toBeNull();
     expect(JSON.parse(String(fpBody?.ext_fields)).hostname).toBe("dg02-pool03-kvm87");
   });
 
@@ -103,13 +107,16 @@ describe("实时便笺 live 请求画像", () => {
   });
 
   test("验证请求默认携带便笺路径，也可切换到首页路径", async () => {
-    const paths: string[] = [];
+    const paths: string[] = [], tools: (string | null)[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
-      paths.push(new Headers(init?.headers).get("x-rpc-challenge_path") ?? "");
+      const headers = new Headers(init?.headers);
+      paths.push(headers.get("x-rpc-challenge_path") ?? "");
+      tools.push(headers.get("x-rpc-tool_verison"));
       return Response.json({ retcode: 0, data: { challenge: "xrpc-challenge" } });
     });
     await expect(liveProvider().verifyNoteChallenge(cookie, "challenge", "validate")).resolves.toBe("xrpc-challenge");
     await expect(liveProvider().verifyNoteChallenge(cookie, "challenge", "validate", "/game_record/app/genshin/api/index")).resolves.toBe("xrpc-challenge");
     expect(paths).toEqual(["/game_record/app/genshin/api/dailyNote", "/game_record/app/genshin/api/index"]);
+    expect(tools).toEqual([null, null]);
   });
 });

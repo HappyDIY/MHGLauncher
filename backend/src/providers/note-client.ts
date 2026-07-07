@@ -11,7 +11,7 @@ const indexPath = "/game_record/app/genshin/api/index";
 export async function getLiveDailyNote(credential: string, role: GameRole, device: Device, challenge = "", path = ""): Promise<DailyNote> {
   await device.fingerprint(); const query = new URLSearchParams({ role_id: role.uid, server: role.region }).toString(), cookie = await gameRecordCredential(credential, device.deviceId);
   await requestIndex(cookie, query, device, path === indexPath ? challenge : "");
-  const payload = await requestRaw(`https://api-takumi-record.mihoyo.com${notePath}?${query}`, noteHeaders(cookie, query, device, path === notePath ? challenge : ""));
+  const payload = await requestRaw(`https://api-takumi-record.mihoyo.com${notePath}?${query}`, noteHeaders(cookie, query, device, path === notePath ? challenge : "", notePath, "", true));
   const retcode = Number(payload.retcode ?? 0), message = String(payload.message ?? "");
   if (retcode === 1034) {
     if (path === notePath && challenge) throw new AppError("note_verification_failed", "实时便笺验证未通过或已失效，请重新刷新后再验证", 429, { retcode: "1034" });
@@ -61,9 +61,10 @@ async function requestRaw(url: string, headers: Record<string, string>, init: Re
   return await response.json() as JSONValue;
 }
 
-function noteHeaders(cookie: string, query: string, device: Device, challenge = "", path = notePath, body = ""): Record<string, string> {
-  const headers: Record<string, string> = { Cookie: cookie, DS: sign("x4", body, query), "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) miHoYoBBS/2.95.1", "x-rpc-app_version": "2.95.1", "x-rpc-client_type": "5", "x-rpc-device_id": device.deviceId, "x-rpc-device_fp": device.deviceFP, Referer: "https://webstatic.mihoyo.com", "Content-Type": "application/json", "x-rpc-challenge_game": "2", "x-rpc-challenge_path": path };
-  if (path === notePath) headers["x-rpc-tool_verison"] = "v5.0.1-ys";
+function noteHeaders(cookie: string, query: string, device: Device, challenge = "", path = notePath, body = "", toolVersion = false): Record<string, string> {
+  const headers: Record<string, string> = { Cookie: cookie, DS: sign("x4", body, query), "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) miHoYoBBS/2.95.1", Accept: "application/json", "x-rpc-app_version": "2.95.1", "x-rpc-client_type": "5", "x-rpc-device_id": device.deviceId, "x-rpc-device_fp": device.deviceFP, Referer: "https://webstatic.mihoyo.com", "x-rpc-challenge_game": "2", "x-rpc-challenge_path": path };
+  if (body) headers["Content-Type"] = "application/json";
+  if (toolVersion) headers["x-rpc-tool_verison"] = "v5.0.1-ys";
   if (challenge) headers["x-rpc-challenge"] = challenge;
   return headers;
 }
