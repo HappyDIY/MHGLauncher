@@ -78,7 +78,25 @@ describe("Provider 契约", () => {
     expect(urls[1]).toContain("getCookieAccountInfoBySToken");
     expect(identity.credential).toContain("stoken=new-stoken");
   });
-  test("实时便笺 5003 始终返回账号风险提示", async () => {
+  test("实时便笺先访问战绩首页以降低风险误判", async () => {
+    const urls: string[] = [];
+    let noteHeaders: Headers | undefined;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      urls.push(String(input));
+      if (String(input).includes("dailyNote")) {
+        noteHeaders = new Headers(init?.headers);
+        return Response.json({ retcode: 0, data: { current_resin: 120, max_resin: 200, finished_task_num: 3, total_task_num: 4, expeditions: [{ status: "Finished" }], max_expedition_num: 5, transformer: { recovery_time: { reached: true } } } });
+      }
+      return Response.json({ retcode: 0, data: { device_fp: "fp" } });
+    });
+    const note = await liveProvider().getDailyNote("stuid=10001; stoken=token", { uid: "100000001", region: "cn_gf01", nickname: "旅行者", level: 60, selected: true });
+    expect(urls[1]).toContain("/game_record/app/genshin/api/index?");
+    expect(urls[2]).toContain("/game_record/app/genshin/api/dailyNote?");
+    expect(note.current_resin).toBe(120);
+    expect(noteHeaders?.get("referer")).toBe("https://webstatic.mihoyo.com");
+    expect(noteHeaders?.get("x-rpc-tool_verison")).toBe("v5.0.1-ys");
+  });
+  test("实时便笺首页预热后仍 5003 才返回账号风险提示", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       if (String(input).includes("dailyNote")) return Response.json({ retcode: 5003, message: "", data: null });
       return Response.json({ retcode: 0, data: { device_fp: "fp" } });

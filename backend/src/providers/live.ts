@@ -117,7 +117,8 @@ export class LiveProvider implements Provider {
 
   async getDailyNote(credential: string, role: GameRole, challenge = ""): Promise<DailyNote> {
     await this.device.fingerprint(); const query = new URLSearchParams({ role_id: role.uid, server: role.region }).toString();
-    const headers = this.headers(credential, sign("x4", "", query)); if (challenge) headers["x-rpc-challenge"] = challenge;
+    await this.api(`https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/index?${query}`, credential, sign("x4", "", query), { headers: this.gameRecordHeaders() });
+    const headers: Record<string, string> = { ...this.headers(credential, sign("x4", "", query)), ...this.gameRecordHeaders(), "x-rpc-tool_verison": "v5.0.1-ys" }; if (challenge) headers["x-rpc-challenge"] = challenge;
     const url = `https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/dailyNote?${query}`;
     const response = await fetch(url, { headers, signal: AbortSignal.timeout(30_000) }), payload = await response.json() as JSONValue;
     const retcode = Number(payload.retcode ?? 0), message = String(payload.message ?? "");
@@ -177,6 +178,7 @@ export class LiveProvider implements Provider {
   private async createVerification(value: string): Promise<Record<string, string>> { const query = "is_high=true", data = await this.api(`https://api-takumi-record.mihoyo.com/game_record/app/card/wapi/createVerification?${query}`, value, sign("x4", "", query), { headers: this.noteVerificationHeaders() }); return { gt: String(data.gt), challenge: String(data.challenge) }; }
   private async authkey(value: string, role: GameRole): Promise<string> { const body = JSON.stringify({ auth_appid: "webview_gacha", game_biz: "hk4e_cn", game_uid: Number(role.uid), region: role.region }); return String((await this.api("https://api-takumi.mihoyo.com/binding/api/genAuthKey", value, sign("lk2", "", "", 1), { method: "POST", body })).authkey); }
   private wish(uid: string, v: JSONValue): WishRecord { const type = String(v.gacha_type); return { id: String(v.id), uid, gacha_type: type, uigf_gacha_type: type === "400" ? "301" : type, item_id: String(v.item_id), name: String(v.name), item_type: String(v.item_type), rank: Number(v.rank_type), time: String(v.time).replace(" ", "T") }; }
+  private gameRecordHeaders(): Record<string, string> { return { Referer: "https://webstatic.mihoyo.com" }; }
   private headers(cookie: string, ds: string): Record<string, string> { return { Cookie: cookie, DS: ds, "User-Agent": agent, "x-rpc-app_version": "2.95.1", "x-rpc-client_type": "5", "x-rpc-device_id": this.device.deviceId, "x-rpc-device_fp": this.device.deviceFP, "Content-Type": "application/json" }; }
   private noteVerificationHeaders(): Record<string, string> { return { "x-rpc-challenge_game": "2", "x-rpc-challenge_path": "/game_record/app/genshin/api/dailyNote" }; }
   private passportHeaders(cookie: string, ds: string): Record<string, string> {
