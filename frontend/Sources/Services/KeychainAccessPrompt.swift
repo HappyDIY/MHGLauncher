@@ -1,8 +1,7 @@
-import AppKit
 import Foundation
 
 enum KeychainAccessPrompt {
-    static let defaultsKey = "keychainAccessPromptAcceptedV2"
+    static let defaultsKey = "keychainAccessPromptAcceptedV3"
 
     static func shouldPresent(
         defaults: UserDefaults = .standard,
@@ -15,23 +14,16 @@ enum KeychainAccessPrompt {
         return !defaults.bool(forKey: defaultsKey)
     }
 
-    @MainActor
-    static func presentIfNeeded(
+    static func authorizeAfterGuide(
         defaults: UserDefaults = .standard,
         keychain: KeychainStore = KeychainStore()
-    ) -> String? {
-        guard shouldPresent(defaults: defaults) else { return nil }
-        let alert = NSAlert()
-        alert.messageText = "需要授权访问钥匙串"
-        alert.informativeText = "启动器会把米游社登录凭据保存在 macOS 钥匙串中。系统弹窗出现时，请允许访问以便登录、启动游戏和同步记录正常工作。"
-        alert.addButton(withTitle: "继续")
-        alert.runModal()
+    ) -> Result<Void, Error> {
         do {
             try keychain.prepareAccess()
             defaults.set(true, forKey: defaultsKey)
-            return "钥匙串授权已确认"
+            return .success(())
         } catch {
-            return LauncherStore.presentableMessage(error.localizedDescription)
+            return .failure(error)
         }
     }
 }

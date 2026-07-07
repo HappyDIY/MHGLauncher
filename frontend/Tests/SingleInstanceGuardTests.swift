@@ -42,4 +42,24 @@ struct SingleInstanceGuardTests {
         ))
     }
 
+    @Test("钥匙串引导授权成功后记录状态")
+    func keychainGuideAuthorizationRecordsState() throws {
+        let suiteName = "mhg-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        let keychain = KeychainStore()
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+            try? keychain.delete(account: "system:keychain-access-probe")
+        }
+
+        switch KeychainAccessPrompt.authorizeAfterGuide(
+            defaults: defaults,
+            keychain: keychain
+        ) {
+        case .success:
+            #expect(!KeychainAccessPrompt.shouldPresent(defaults: defaults, environment: [:]))
+        case .failure(let error):
+            throw error
+        }
+    }
 }
