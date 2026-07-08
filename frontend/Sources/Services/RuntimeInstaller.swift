@@ -142,20 +142,6 @@ final class RuntimeInstaller: @unchecked Sendable {
         return manifest
     }
 
-    private func copyBackendApp(to destination: URL) throws {
-        let source: URL
-        if let override = environment["MHG_BACKEND_APP_DIR"] {
-            source = URL(fileURLWithPath: override)
-        } else if let bundled = bundle.url(forResource: "app", withExtension: nil, subdirectory: "Backend") {
-            source = bundled
-        } else {
-            throw RuntimeInstallError.missingBundledBackend
-        }
-        try fileManager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? fileManager.removeItem(at: destination)
-        try fileManager.copyItem(at: source, to: destination)
-    }
-
     private func coreReady(_ runtime: InstalledRuntime) -> Bool {
         fileManager.isExecutableFile(atPath: runtime.nodeURL.path)
             && fileManager.isExecutableFile(atPath: runtime.hpatchzURL.path)
