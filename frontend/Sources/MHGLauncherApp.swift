@@ -110,30 +110,64 @@ struct AppCommands: Commands {
 struct MHGLauncherApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var store: LauncherStore
+    @State private var showsKeychainGuide: Bool
+    @State private var didStart = false
+    private let instanceGuard: SingleInstanceGuard?
 
     init() {
+        let instanceGuard = SingleInstanceGuard.acquire()
+        self.instanceGuard = instanceGuard
+        _showsKeychainGuide = State(
+            initialValue: instanceGuard != nil && KeychainAccessPrompt.shouldPresent()
+        )
         let store = LauncherStore()
         _store = State(initialValue: store)
-        if ProcessInfo.processInfo.environment["MHG_SMOKE_MODE"] == "1" {
-            Task { @MainActor in await store.bootstrap() }
+        guard instanceGuard != nil else {
+            SingleInstanceGuard.activateExistingApplication()
+            Task { @MainActor in NSApp.terminate(nil) }
+            return
         }
     }
 
     var body: some Scene {
         WindowGroup {
-            RootView(store: store)
-                .frame(width: 1150, height: 750)
-                .task {
-                    await store.bootstrap()
-                    await store.runNoteRefreshLoop()
+            if instanceGuard == nil {
+                EmptyView()
+            } else if showsKeychainGuide {
+                KeychainAccessGuideView {
+                    switch KeychainAccessPrompt.authorizeAfterGuide() {
+                    case .success:
+                        showsKeychainGuide = false
+                        Task { await startLauncherIfNeeded() }
+                    case .failure(let error):
+                        store.message = LauncherStore.presentableMessage(
+                            error.localizedDescription
+                        )
+                    }
                 }
-                .onDisappear { store.backend.stop() }
-                .focusedSceneValue(\.launcherStore, store)
+            } else {
+                RootView(store: store)
+                    .frame(width: 1150, height: 750)
+                    .task {
+                        await startLauncherIfNeeded()
+                    }
+                    .onDisappear { store.backend.stop() }
+                    .focusedSceneValue(\.launcherStore, store)
+            }
         }
         .windowStyle(.automatic)
         .windowResizability(.contentSize)
         .commands {
             AppCommands()
         }
+    }
+
+    @MainActor
+    private func startLauncherIfNeeded() async {
+        guard !didStart else { return }
+        didStart = true
+        store.showStatus("账号登录成功")
+        await store.bootstrap()
+        await store.runNoteRefreshLoop()
     }
 }

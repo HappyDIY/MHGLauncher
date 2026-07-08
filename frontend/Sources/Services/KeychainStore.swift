@@ -3,6 +3,12 @@ import Security
 
 struct KeychainStore: Sendable {
     let service = "com.mhglauncher.credentials"
+    private let accessProbeAccount = "system:keychain-access-probe"
+
+    func prepareAccess() throws {
+        try save("ready", account: accessProbeAccount)
+        _ = try read(account: accessProbeAccount)
+    }
 
     func save(_ value: String, account: String) throws {
         let data = Data(value.utf8)
