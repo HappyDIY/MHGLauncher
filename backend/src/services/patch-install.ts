@@ -1,13 +1,12 @@
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, renameSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import xxhash from "xxhash-wasm";
 import { AppError } from "../core/errors";
 import type { GamePatchAsset, SophonPatch } from "../providers/provider";
 import { DownloadControl } from "./download";
 import { streamDownload } from "./download-transfer";
 import { ensureParent, safeTarget } from "./installer";
+import { copyRangeSync, hashFileSync, xxhash64File } from "./file-hash";
 
 export async function installPatches(
   assets: GamePatchAsset[], staging: string, cache: string, control: DownloadControl,
@@ -29,8 +28,8 @@ async function getPatch(patch: SophonPatch, cache: string, control: DownloadCont
 
 function apply(asset: GamePatchAsset, source: string, staging: string): void {
   const target = safeTarget(staging, asset.name); ensureParent(target);
-  const bytes = readFileSync(source).subarray(asset.patch.start, asset.patch.start + asset.patch.length), segment = `${source}.${asset.patch.start}.segment`;
-  writeFileSync(segment, bytes);
+  const segment = `${source}.${asset.patch.start}.segment`;
+  copyRangeSync(source, segment, asset.patch.start, asset.patch.length);
   try {
     if (asset.patch.original_name) {
       if (!existsSync(target)) throw new AppError("sophon_patch_source_missing", `${asset.name} 缺少原始文件`);
@@ -39,11 +38,11 @@ function apply(asset: GamePatchAsset, source: string, staging: string): void {
       if (result.status !== 0 || !existsSync(output) || statSync(output).size !== asset.size) { rmSync(output, { force: true }); throw new AppError("sophon_patch_apply_failed", `${asset.name} 增量补丁应用失败`); }
       renameSync(output, target);
     } else renameSync(segment, target);
-    if (createHash("md5").update(readFileSync(target)).digest("hex") !== asset.md5.toLowerCase()) { rmSync(target); throw new AppError("sophon_patch_result_invalid", `${asset.name} 增量更新校验失败`); }
+    if (hashFileSync(target, "md5") !== asset.md5.toLowerCase()) { rmSync(target); throw new AppError("sophon_patch_result_invalid", `${asset.name} 增量更新校验失败`); }
   } finally { rmSync(segment, { force: true }); }
 }
 
 async function valid(path: string, patch: SophonPatch): Promise<boolean> {
   if (!existsSync(path) || statSync(path).size !== patch.file_size) return false;
-  return (await xxhash()).h64Raw(readFileSync(path)).toString(16).padStart(16, "0") === patch.id.split("_", 1)[0]?.toLowerCase();
+  return await xxhash64File(path) === patch.id.split("_", 1)[0]?.toLowerCase();
 }

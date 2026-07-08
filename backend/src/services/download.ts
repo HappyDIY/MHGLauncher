@@ -1,8 +1,8 @@
-import { createHash } from "node:crypto";
-import { existsSync, readFileSync, renameSync, rmSync } from "node:fs";
+import { existsSync, renameSync, rmSync } from "node:fs";
 import { AppError } from "../core/errors";
 import type { PackageSegment } from "../providers/provider";
 import { streamDownload } from "./download-transfer";
+import { hashFileSync } from "./file-hash";
 
 export class DownloadControl {
   private paused = false; private cancelled = false; private waiters: (() => void)[] = [];
@@ -28,5 +28,5 @@ export async function download(
 }
 
 export function hash(path: string, algorithm: "md5" | "sha256"): string {
-  return createHash(algorithm).update(readFileSync(path)).digest("hex");
+  return hashFileSync(path, algorithm);
 }

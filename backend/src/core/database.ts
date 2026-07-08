@@ -22,12 +22,16 @@ CREATE TABLE IF NOT EXISTS gacha_events(id TEXT PRIMARY KEY,version TEXT NOT NUL
 CREATE TABLE IF NOT EXISTS notification_settings(id INTEGER PRIMARY KEY CHECK(id=1),daily_commission_enabled INTEGER NOT NULL,daily_commission_time TEXT NOT NULL,resin_full_enabled INTEGER NOT NULL,abyss_refresh_enabled INTEGER NOT NULL,theatre_refresh_enabled INTEGER NOT NULL,hard_refresh_enabled INTEGER NOT NULL,gacha_refresh_enabled INTEGER NOT NULL,version_update_enabled INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS notification_state(key TEXT PRIMARY KEY,last_triggered_at TEXT NOT NULL,state TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS cloud_sessions(uid TEXT PRIMARY KEY,token_ref TEXT NOT NULL,reverified_at TEXT NOT NULL,updated_at TEXT NOT NULL);
-INSERT OR IGNORE INTO notification_settings(id,daily_commission_enabled,daily_commission_time,resin_full_enabled,abyss_refresh_enabled,theatre_refresh_enabled,hard_refresh_enabled,gacha_refresh_enabled,version_update_enabled) VALUES(1,0,'20:00',0,1,1,1,1,1);`]];
+INSERT OR IGNORE INTO notification_settings(id,daily_commission_enabled,daily_commission_time,resin_full_enabled,abyss_refresh_enabled,theatre_refresh_enabled,hard_refresh_enabled,gacha_refresh_enabled,version_update_enabled) VALUES(1,0,'20:00',0,1,1,1,1,1);`], [3, `
+CREATE INDEX IF NOT EXISTS wishes_uid_time_id ON wishes(uid,time DESC,id DESC);
+CREATE INDEX IF NOT EXISTS wishes_uid_type_time_id ON wishes(uid,gacha_type,time DESC,id DESC);
+CREATE INDEX IF NOT EXISTS wishes_uid_uigf_time_id ON wishes(uid,uigf_gacha_type,time DESC,id DESC);`]];
 
 export type Row = Record<string, unknown>;
 
 export class Store {
   readonly db: Database.Database;
+  private readonly statements = new Map<string, Database.Statement>();
 
 	  constructor(path: string) {
 	    mkdirSync(dirname(path), { recursive: true });
@@ -42,14 +46,22 @@ export class Store {
   }
 
   one(sql: string, ...values: unknown[]): Row | undefined {
-    return this.db.prepare(sql).get(...values) as Row | undefined;
+    return this.prepare(sql).get(...values) as Row | undefined;
   }
 
   all(sql: string, ...values: unknown[]): Row[] {
-    return this.db.prepare(sql).all(...values) as Row[];
+    return this.prepare(sql).all(...values) as Row[];
   }
 
-  close(): void { this.db.close(); }
+  close(): void { this.statements.clear(); this.db.close(); }
+
+  prepare(sql: string): Database.Statement {
+    const cached = this.statements.get(sql);
+    if (cached) return cached;
+    const statement = this.db.prepare(sql);
+    this.statements.set(sql, statement);
+    return statement;
+  }
 
   private migrateAccounts(): void {
     const accountColumns = this.db.prepare("PRAGMA table_info(account)").all() as { name: string }[];

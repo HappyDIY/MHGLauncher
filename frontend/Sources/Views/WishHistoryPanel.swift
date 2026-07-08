@@ -9,9 +9,10 @@ struct WishHistoryPanel: View {
     @State private var dateTo: Date? = nil
 
     var body: some View {
+        let entries = filteredRecords
         VStack(alignment: .leading, spacing: 12) {
-            controls
-            Table(filteredRecords) {
+            controls(count: entries.count)
+            Table(entries) {
                 TableColumn("计数") { entry in
                     Text("\(entry.pity)")
                         .font(.subheadline.monospacedDigit())
@@ -41,17 +42,17 @@ struct WishHistoryPanel: View {
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
     }
 
-    private var controls: some View {
+    private func controls(count: Int) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("祈愿历史")
                         .font(.headline)
-                    Text("\(filteredRecords.count) 条记录")
+                    Text("\(count) 条记录")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .contentTransition(.numericText())
-                        .motionAnimation(.content, value: filteredRecords.count)
+                        .motionAnimation(.content, value: count)
                 }
                 Spacer()
                 Picker("星级", selection: $rankFilter) {
@@ -88,7 +89,6 @@ struct WishHistoryPanel: View {
             .datePickerStyle(.compact)
             .frame(width: 120)
             .motionHover(.subtle)
-
             Text("至")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -133,11 +133,11 @@ struct WishHistoryPanel: View {
     }
 
     private var filteredRecords: [PityEntry] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         let matches = records.filter { item in
             let matchesPool = selectedGachaType == nil
                 || item.normalizedGachaType == selectedGachaType
             let matchesRank = rankFilter.rank.map { item.rank == $0 } ?? true
-            let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
             let matchesSearch = query.isEmpty
                 || item.name.localizedCaseInsensitiveContains(query)
             var matchesDate = true

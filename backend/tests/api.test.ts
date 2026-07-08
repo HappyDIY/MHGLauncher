@@ -70,6 +70,30 @@ describe("本地 API 契约", () => {
     expect(state).toHaveProperty("predownload_finished");
   });
 
+  test("陪伴数据快照与旧端点一致", async () => {
+    const payload = { info: { version: "v4.2" }, hk4e: [{ uid: "100000001", list: [
+      { id: "10", uigf_gacha_type: "301", gacha_type: "301", item_id: "100", time: "2026-01-02 03:04:05", name: "角色", item_type: "角色", rank_type: "5" },
+    ] }] };
+    const task = await (await request("POST", "/v1/wishes/tasks/import", payload)).json();
+    await waitForTask(task.id);
+    const snapshot = await (await request("GET", "/v1/companion/snapshot?uid=100000001")).json();
+    const wishes = await (await request("GET", "/v1/wishes?uid=100000001")).json();
+    const statistics = await (await request("GET", "/v1/wishes/statistics?uid=100000001")).json();
+    const details = await (await request("GET", "/v1/wishes/banner-statistics?uid=100000001")).json();
+    expect(snapshot.wishes).toEqual(wishes);
+    expect(snapshot.statistics).toEqual(statistics);
+    expect(snapshot.banner_statistics).toEqual(details);
+  });
+
+  test("任务状态端点支持 revision 长轮询参数", async () => {
+    const task = await (await request("POST", "/v1/wishes/tasks/import", { info: { version: "v4.2" }, hk4e: [{ uid: "100000001", list: [
+      { id: "11", uigf_gacha_type: "301", gacha_type: "301", item_id: "100", time: "2026-01-02 03:04:05", name: "角色", item_type: "角色", rank_type: "5" },
+    ] }] })).json();
+    const snapshot = await (await request("GET", `/v1/wishes/tasks/${task.id}?after_revision=999&wait_ms=5`)).json();
+    expect(snapshot).toHaveProperty("revision");
+    expect(snapshot.id).toBe(task.id);
+  });
+
 	  test("空间检查返回必要字段", async () => {
 	    const response = await request("GET", "/v1/game/space-check?install_path=/tmp");
 	    const info = await response.json();
@@ -108,3 +132,12 @@ describe("本地 API 契约", () => {
 	    expect(settings.daily_commission_enabled).toBe(true);
 	  });
 	});
+
+async function waitForTask(id: string): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const task = await (await request("GET", `/v1/wishes/tasks/${id}`)).json();
+    if (task.status === "completed") return;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error("等待祈愿任务完成超时");
+}

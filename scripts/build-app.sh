@@ -4,16 +4,31 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 app="$root/dist/MHGLauncher.app"
 contents="$app/Contents"
-mode="${1:-development}"
+mode="${1:-release}"
 
-"$root/scripts/build-backend.sh" "$mode"
-"$root/scripts/build-frontend.sh"
+case "$mode" in
+  --debug|debug|development)
+    backend_mode="debug"
+    frontend_configuration="debug"
+    ;;
+  --release|release|production)
+    backend_mode="release"
+    frontend_configuration="release"
+    ;;
+  *)
+    printf '未知 App 构建配置：%s\n' "$mode" >&2
+    exit 2
+    ;;
+esac
+
+"$root/scripts/build-backend.sh" "$backend_mode"
+"$root/scripts/build-frontend.sh" "$frontend_configuration"
 
 rm -rf "$app"
 mkdir -p "$contents/MacOS" "$contents/Resources/Backend"
 
 cp "$root/packaging/Info.plist" "$contents/Info.plist"
-cp "$root/frontend/.build/arm64-apple-macosx/release/MHGLauncher" \
+cp "$root/frontend/.build/arm64-apple-macosx/$frontend_configuration/MHGLauncher" \
   "$contents/MacOS/MHGLauncher"
 cp -R "$root/build/backend/dist/MHGLauncherBackend/app" \
   "$contents/Resources/Backend/app"

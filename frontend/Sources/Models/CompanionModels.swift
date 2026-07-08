@@ -77,6 +77,13 @@ struct DailyNote: Codable, Sendable {
     let refreshedAt: Date
 }
 
+struct CompanionSnapshot: Codable, Sendable {
+    let wishes: [WishRecord]
+    let statistics: [WishStatistics]
+    let bannerStatistics: [WishBannerDetail]
+    let note: DailyNote?
+}
+
 struct CredentialRequest: Codable {
     let credential: String
 }

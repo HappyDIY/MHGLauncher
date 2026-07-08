@@ -72,7 +72,8 @@ frontend_hash="$(source_signature \
   frontend packaging/Info.plist scripts/build-frontend.sh \
   scripts/build-debug-app.sh)"
 backend_hash="$(source_signature \
-  backend scripts/build-backend-debug.sh scripts/fetch-hpatchz.sh)"
+  backend scripts/build-backend.sh scripts/build-backend-debug.sh \
+  scripts/fetch-hpatchz.sh)"
 source_hash="$(printf '%s%s' "$frontend_hash" "$backend_hash" |
   shasum -a 256 | awk '{print $1}')"
 backend_cache="$root/build/backend-debug-cache/$backend_hash/MHGLauncherBackend"

@@ -1,10 +1,10 @@
-import { createHash } from "node:crypto";
 import {
-  chmodSync, closeSync, copyFileSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync,
+  chmodSync, closeSync, copyFileSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync,
   renameSync, rmSync, writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { AppError } from "../core/errors";
+import { hashFileSync } from "./file-hash";
 
 export interface DllIntegrity { md5: string; sha256: string; size: number }
 export const MHYPBASE_INTEGRITY: DllIntegrity = {
@@ -62,8 +62,7 @@ function verifySource(path: string, integrity = MHYPBASE_INTEGRITY): void {
   const signature = `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
   if (stat.size !== BigInt(integrity.size)) throw new AppError("mhypbase_source_invalid", "内置 mhypbase.dll 完整性校验失败", 500);
   if (verifiedSources.get(path) === signature) return;
-  const content = readFileSync(path), md5 = createHash("md5").update(content).digest("hex");
-  const sha256 = createHash("sha256").update(content).digest("hex");
+  const md5 = hashFileSync(path, "md5"), sha256 = hashFileSync(path, "sha256");
   if (md5 !== integrity.md5 || sha256 !== integrity.sha256) {
     throw new AppError("mhypbase_source_invalid", "内置 mhypbase.dll 完整性校验失败", 500);
   }
@@ -71,7 +70,7 @@ function verifySource(path: string, integrity = MHYPBASE_INTEGRITY): void {
 }
 
 function digest(path: string, algorithm: "md5" | "sha256"): string {
-  return createHash(algorithm).update(readFileSync(path)).digest("hex");
+  return hashFileSync(path, algorithm);
 }
 
 function copyAtomic(source: string, target: string, mode: number): void {

@@ -81,6 +81,7 @@ struct GameJob: Codable, Sendable, Identifiable {
     let chunksTotal: Int64
     let activeChunks: [ChunkProgress]
     let lastUpdate: String?
+    let revision: Int?
 
     var progress: Double {
         guard totalBytes > 0 else { return 0 }
@@ -128,6 +129,7 @@ struct GameLaunch: Codable, Sendable, Identifiable {
     let logs: [GameLaunchLog]
     let startedAt: String
     let updatedAt: String
+    let revision: Int?
 }
 
 struct GameLaunchLog: Codable, Sendable, Identifiable {

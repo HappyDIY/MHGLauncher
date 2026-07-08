@@ -2,8 +2,10 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import xxhash from "xxhash-wasm";
 import { afterEach, expect, test, vi } from "vitest";
 import { DownloadControl, download } from "../src/services/download";
+import { copyRangeSync, hashFile, hashFileSync, xxhash64File } from "../src/services/file-hash";
 
 const roots: string[] = [];
 const root = (): string => { const value = mkdtempSync(join(tmpdir(), "download-")); roots.push(value); return value; };
@@ -42,3 +44,18 @@ test("连接中断后从已落盘位置自动续传", async () => {
 
 test("取消控制会中断检查点", async () => { const control = new DownloadControl(); control.cancel(); await expect(control.checkpoint()).rejects.toThrow("任务已取消"); });
 test("暂停后可恢复", async () => { const control = new DownloadControl(); control.pause(); const waiting = control.checkpoint(); control.resume(); await expect(waiting).resolves.toBeUndefined(); });
+
+test("文件哈希使用流式结果", async () => {
+  const path = join(root(), "hash.bin"), content = Buffer.from("streamed-hash-content");
+  writeFileSync(path, content);
+  expect(await hashFile(path, "md5")).toBe(createHash("md5").update(content).digest("hex"));
+  expect(hashFileSync(path, "sha256")).toBe(createHash("sha256").update(content).digest("hex"));
+});
+
+test("xxhash 与范围复制不读取整块补丁", async () => {
+  const dir = root(), source = join(dir, "patch.bin"), target = join(dir, "segment.bin");
+  const content = Buffer.from("0123456789abcdef"); writeFileSync(source, content);
+  copyRangeSync(source, target, 4, 6);
+  expect(readFileSync(target).toString()).toBe("456789");
+  expect(await xxhash64File(source)).toBe((await xxhash()).h64Raw(content).toString(16).padStart(16, "0"));
+});

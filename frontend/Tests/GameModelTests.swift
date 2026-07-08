@@ -17,7 +17,8 @@ struct GameModelTests {
             chunksCompleted: 0,
             chunksTotal: 0,
             activeChunks: [],
-            lastUpdate: nil
+            lastUpdate: nil,
+            revision: nil
         )
         #expect(job.progress == 0.25)
     }
@@ -35,7 +36,8 @@ struct GameModelTests {
             chunksCompleted: 0,
             chunksTotal: 0,
             activeChunks: [],
-            lastUpdate: nil
+            lastUpdate: nil,
+            revision: nil
         )
         #expect(job.progress == 0)
     }

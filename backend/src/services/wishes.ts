@@ -1,5 +1,5 @@
 import type { Store } from "../core/database";
-import type { GameRole, WishRecord, WishStatistics } from "../core/models";
+import type { CompanionSnapshot, GameRole, WishRecord, WishStatistics } from "../core/models";
 import type { Provider } from "../providers/provider";
 import type { ImageCache } from "./images";
 import { enrich } from "./metadata";
@@ -22,7 +22,7 @@ export class WishService {
     log?.(`已读取 ${Object.keys(newest).length} 个卡池的本地增量检查点`);
     let inserted = 0, pages = 0;
     for await (const records of this.provider.wishes(credential, role, newest)) {
-      const before = this.count(role.uid); this.save(records); const added = this.count(role.uid) - before;
+      const added = this.newRecordCount(records); this.save(records);
       inserted += added; pages += 1; log?.(`第 ${pages} 页读取 ${records.length} 条记录，新增 ${added} 条`);
     }
     log?.(`米游社分页读取完成，共处理 ${pages} 页`);
@@ -30,6 +30,7 @@ export class WishService {
   }
 
   save(records: WishRecord[]): void {
+    if (!records.length) return;
     const insert = this.store.db.prepare(`INSERT INTO wishes(id,uid,gacha_type,uigf_gacha_type,item_id,name,item_type,rank,time)
       VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
       uigf_gacha_type=COALESCE(NULLIF(excluded.uigf_gacha_type,''),wishes.uigf_gacha_type),
@@ -51,9 +52,29 @@ export class WishService {
   }
 
   statistics(uid: string): WishStatistics[] {
-    const groups = Map.groupBy(this.list(uid), (value) => value.uigf_gacha_type);
+    const rows = this.store.all(`SELECT uid,COALESCE(NULLIF(uigf_gacha_type,''),gacha_type) uigf_gacha_type,rank
+      FROM wishes WHERE uid=? ORDER BY time DESC,id DESC`, uid);
+    return this.statisticsFrom(rows.map((row) => ({
+      id: "", uid: String(row.uid), gacha_type: String(row.uigf_gacha_type),
+      uigf_gacha_type: String(row.uigf_gacha_type), item_id: "", name: "", item_type: "",
+      rank: Number(row.rank), time: "",
+    })));
+  }
+
+  snapshot(uid: string, note: unknown): CompanionSnapshot {
+    const wishes = this.list(uid), ascending = [...wishes].reverse();
+    return {
+      wishes, statistics: this.statisticsFrom(wishes),
+      banner_statistics: [...Map.groupBy(ascending, (value) => value.uigf_gacha_type).entries()]
+        .sort().map(([type, values]) => banner(uid, type, values, this.images)),
+      note: note as CompanionSnapshot["note"],
+    };
+  }
+
+  private statisticsFrom(records: WishRecord[]): WishStatistics[] {
+    const groups = Map.groupBy(records, (value) => value.uigf_gacha_type);
     return [...groups.entries()].sort().map(([type, records]) => ({
-      uid, gacha_type: type, total: records.length,
+      uid: records[0]?.uid ?? "", gacha_type: type, total: records.length,
       five_star_count: records.filter(({ rank }) => rank === 5).length,
       pulls_since_five_star: records.findIndex(({ rank }) => rank === 5) < 0 ? records.length : records.findIndex(({ rank }) => rank === 5),
     }));
@@ -65,5 +86,11 @@ export class WishService {
       .map(([type, values]) => banner(uid, type, values, this.images));
   }
 
-  private count(uid: string): number { return Number(this.store.one("SELECT COUNT(*) count FROM wishes WHERE uid=?", uid)?.count ?? 0); }
+  private newRecordCount(records: WishRecord[]): number {
+    const ids = [...new Set(records.map(({ id }) => id))];
+    if (!ids.length) return 0;
+    const placeholders = ids.map(() => "?").join(",");
+    const existing = new Set(this.store.all(`SELECT id FROM wishes WHERE id IN (${placeholders})`, ...ids).map(({ id }) => String(id)));
+    return ids.filter((id) => !existing.has(id)).length;
+  }
 }

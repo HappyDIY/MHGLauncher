@@ -64,6 +64,15 @@ describe("游戏启动会话", () => {
     expect(readFileSync(join(fixture.game, "mhypbase.dll"), "utf8")).toBe("original-dll");
   });
 
+  test("启动会话长轮询会在状态更新后返回", async () => {
+    const fixture = makeFixture();
+    const service = new GameLaunchService(fixture.data, fixture.runtime, new FixtureRunner(), fixture.integrity);
+    const launch = service.start({ install_path: fixture.game, performance_profile: "optimized", metal_hud: false, network_debug: false, wine_log: false, frame_pacing: 0 });
+    const revision = launch.revision ?? 0;
+    const updated = await service.wait(launch.id, revision, 1_000);
+    expect(updated.revision).toBeGreaterThan(revision);
+  });
+
   test("下次服务启动恢复中断的 DLL 事务", () => {
     const fixture = makeFixture();
     const session = join(fixture.data, "launches", "interrupted");

@@ -5,6 +5,7 @@ import { AppError, errorResponse } from "../core/errors";
 import type { JobKind } from "../core/models";
 import { exportUIGF } from "../services/uigf";
 import { launchAccount } from "../services/game-account-registry";
+import { longPollOptions } from "../services/revision-notifier";
 import { valueRoute } from "./value-routes";
 
 const credential = z.object({ credential: z.string().min(1) });
@@ -77,7 +78,7 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   if (method === "GET" && path === "/settings/speed-limit") return json({ speed_limit_kb: app.games.getSpeedLimit() });
   if (method === "POST" && path === "/settings/speed-limit") { const value = speedLimit.parse(body); app.games.setSpeedLimit(value.speed_limit_kb); return json({ speed_limit_kb: value.speed_limit_kb }); }
   const gameJob = match(path, /^\/game\/jobs\/([^/]+)$/);
-  if (method === "GET" && gameJob) return json(app.games.get(gameJob));
+  if (method === "GET" && gameJob) { const wait = longPollOptions(query); return json(await app.games.wait(gameJob, wait.after, wait.waitMs)); }
   const gameControl = match(path, /^\/game\/jobs\/([^/]+)\/control$/);
   if (method === "POST" && gameControl) return json(app.games.control(gameControl, controlJob.parse(body).action));
   if (method === "POST" && path === "/game/launch") {
@@ -88,11 +89,14 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   const launchStop = match(path, /^\/game\/launches\/([^/]+)\/stop$/);
   if (method === "POST" && launchStop) return json(app.launches.stop(launchStop), 202);
   const launch = match(path, /^\/game\/launches\/([^/]+)$/);
-  if (method === "GET" && launch) return json(app.launches.get(launch));
+  if (method === "GET" && launch) { const wait = longPollOptions(query); return json(await app.launches.wait(launch, wait.after, wait.waitMs)); }
   if (method === "POST" && path === "/wishes/tasks/sync") return json(app.wishTasks.startSync(credential.parse(body).credential), 202);
   if (method === "POST" && path === "/wishes/tasks/import") return json(app.wishTasks.startImport(body), 202);
   const task = match(path, /^\/wishes\/tasks\/([^/]+)$/);
-  if (method === "GET" && task) return json(app.wishTasks.get(task));
+  if (method === "GET" && task) { const wait = longPollOptions(query); return json(await app.wishTasks.wait(task, wait.after, wait.waitMs)); }
+  if (method === "GET" && path === "/companion/snapshot") {
+    const uid = required(query, "uid"); return json(app.wishes.snapshot(uid, app.notes.get(uid)));
+  }
   if (method === "GET" && path === "/wishes") return json(app.wishes.list(required(query, "uid"), query.get("gacha_type") ?? undefined));
   if (method === "GET" && path === "/wishes/statistics") return json(app.wishes.statistics(required(query, "uid")));
   if (method === "GET" && path === "/wishes/banner-statistics") return json(app.wishes.bannerStatistics(required(query, "uid")));
@@ -120,5 +124,5 @@ function authorize(request: Request): void {
   if (left.length !== right.length || !timingSafeEqual(left, right)) throw new AppError("unauthorized", "本地服务鉴权失败", 401);
 }
 function json(value: unknown, status = 200): Response { return Response.json(value, { status }); }
-function match(path: string, expression: RegExp): string | null { return expression.exec(path)?.[1] ? decodeURIComponent(expression.exec(path)?.[1] ?? "") : null; }
+function match(path: string, expression: RegExp): string | null { const value = expression.exec(path)?.[1]; return value ? decodeURIComponent(value) : null; }
 function required(query: URLSearchParams, name: string): string { const value = query.get(name); if (!value) throw new AppError("validation_error", `${name} 不能为空`, 422); return value; }

@@ -135,11 +135,13 @@ struct HomeView: View {
 
     private var wishCard: some View {
         GlassCard("祈愿记录", icon: "sparkles") {
-            let total = store.wishStatistics.reduce(0) { $0 + $1.total }
-            let fiveStars = store.wishStatistics.reduce(0) { $0 + $1.fiveStarCount }
+            let summary = store.wishStatistics.reduce(into: (total: 0, fiveStars: 0)) {
+                $0.total += $1.total
+                $0.fiveStars += $1.fiveStarCount
+            }
             HStack(spacing: 28) {
-                MetricView(value: "\(total)", label: "总抽数")
-                MetricView(value: "\(fiveStars)", label: "五星")
+                MetricView(value: "\(summary.total)", label: "总抽数")
+                MetricView(value: "\(summary.fiveStars)", label: "五星")
             }
         }
     }

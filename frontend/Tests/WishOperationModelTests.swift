@@ -25,7 +25,8 @@ struct WishOperationModelTests {
             ],
             result: nil,
             error: "",
-            errorCode: nil
+            errorCode: nil,
+            revision: 1
         )
         operation.apply(task)
         operation.apply(task)
