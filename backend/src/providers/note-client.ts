@@ -13,12 +13,11 @@ export async function getLiveDailyNote(credential: string, role: GameRole, devic
   await requestIndex(cookie, query, device, path === indexPath ? challenge : "");
   const payload = await requestRaw(`https://api-takumi-record.mihoyo.com${notePath}?${query}`, noteHeaders(cookie, query, device, path === notePath ? challenge : "", "", "", true));
   const retcode = Number(payload.retcode ?? 0), message = String(payload.message ?? "");
-  if (retcode === 1034) {
-    if (path === notePath && challenge) throw new AppError("note_verification_failed", "实时便笺验证未通过或已失效，请重新刷新后再验证", 429, { retcode: "1034" });
+  if (retcode === 1034 || retcode === 5003) {
+    if (path === notePath && challenge) throw new AppError("note_verification_failed", "实时便笺验证未通过或已失效，请重新刷新后再验证", 429, { retcode: String(retcode) });
     throw new AppError("verification_required", "请完成人机验证后重试", 428, await createVerification(credential, device, notePath));
   }
   if (retcode === 10306) throw new AppError("verification_required", "验证已失效，请重新完成人机验证", 428, await createVerification(credential, device, notePath));
-  if (retcode === 5003) throw new AppError("note_risk_limited", "当前账号存在风险，实时便笺暂无数据，请稍后重试或在米游社完成验证", 429, { retcode: "5003" });
   if ([10102, 10103, 10104].includes(retcode)) throw new AppError("note_unavailable", message || "实时便笺当前不可用，请检查米游社数据公开或账号状态", 403, { retcode: String(retcode) });
   if (message.toLowerCase().includes("visit too frequently")) throw new AppError("note_sync_limited", "访问过于频繁，请稍后再刷新实时便笺", 429, { retcode: String(retcode || "unknown") });
   if (retcode !== 0) throw new AppError("mihoyo_error", message || `米游社请求失败（错误码 ${payload.retcode ?? "未知"}）`, 502, { retcode: String(payload.retcode ?? "unknown") });
@@ -35,8 +34,8 @@ export async function verifyNoteChallenge(credential: string, device: Device, ch
 async function requestIndex(cookie: string, query: string, device: Device, challenge: string): Promise<void> {
   const payload = await requestRaw(`https://api-takumi-record.mihoyo.com${indexPath}?${query}`, noteHeaders(cookie, query, device, challenge));
   const retcode = Number(payload.retcode ?? 0);
-  if (retcode === 1034) {
-    if (challenge) throw new AppError("note_verification_failed", "战绩首页验证未通过或已失效，请重新刷新后再验证", 429, { retcode: "1034" });
+  if (retcode === 1034 || retcode === 5003) {
+    if (challenge) throw new AppError("note_verification_failed", "战绩首页验证未通过或已失效，请重新刷新后再验证", 429, { retcode: String(retcode) });
     throw new AppError("verification_required", "请完成人机验证后重试", 428, await createVerification(cookie, device, indexPath, false));
   }
   if (retcode === 10306) throw new AppError("verification_required", "验证已失效，请重新完成人机验证", 428, await createVerification(cookie, device, indexPath, false));

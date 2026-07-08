@@ -46,13 +46,16 @@ describe("实时便笺 live 请求画像", () => {
     expect(JSON.parse(String(fpBody?.ext_fields)).hostname).toBe("dg02-pool03-kvm87");
   });
 
-  test("首页预热后仍 5003 才返回账号风险提示", async () => {
+  test("战绩首页 5003 也返回首页验证挑战", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
-      if (String(input).includes("dailyNote")) return Response.json({ retcode: 5003, message: "", data: null });
+      if (String(input).includes("/api/index")) return Response.json({ retcode: 5003, message: "", data: null });
+      if (String(input).includes("createVerification")) return Response.json({ retcode: 0, data: { gt: "index-gt", challenge: "index-challenge" } });
       return Response.json({ retcode: 0, data: { device_fp: "fp" } });
     });
-    await expect(liveProvider().getDailyNote(cookie, role))
-      .rejects.toMatchObject({ code: "note_risk_limited", status: 429, details: { retcode: "5003" } });
+    await expect(liveProvider().getDailyNote(cookie, role)).rejects.toMatchObject({
+      code: "verification_required", status: 428,
+      details: { gt: "index-gt", challenge: "index-challenge", xrpc_challenge_path: "/game_record/app/genshin/api/index" },
+    });
   });
 
   test("战绩首页 1034 返回首页验证挑战", async () => {
@@ -84,6 +87,16 @@ describe("实时便笺 live 请求画像", () => {
   test("dailyNote 1034 首次返回验证挑战", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       if (String(input).includes("dailyNote")) return Response.json({ retcode: 1034, message: "", data: null });
+      if (String(input).includes("createVerification")) return Response.json({ retcode: 0, data: { gt: "gt", challenge: "challenge" } });
+      return Response.json({ retcode: 0, data: { device_fp: "fp" } });
+    });
+    await expect(liveProvider().getDailyNote(cookie, role))
+      .rejects.toMatchObject({ code: "verification_required", status: 428, details: { gt: "gt", challenge: "challenge", xrpc_challenge_path: "/game_record/app/genshin/api/dailyNote" } });
+  });
+
+  test("dailyNote 5003 首次返回验证挑战", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("dailyNote")) return Response.json({ retcode: 5003, message: "", data: null });
       if (String(input).includes("createVerification")) return Response.json({ retcode: 0, data: { gt: "gt", challenge: "challenge" } });
       return Response.json({ retcode: 0, data: { device_fp: "fp" } });
     });
