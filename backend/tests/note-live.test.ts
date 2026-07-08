@@ -37,8 +37,12 @@ describe("实时便笺 live 请求画像", () => {
     expect(noteHeaders?.get("referer")).toBe("https://webstatic.mihoyo.com");
     expect(indexHeaders?.get("accept")).toBe("application/json");
     expect(indexHeaders?.get("content-type")).toBeNull();
+    expect(indexHeaders?.get("x-rpc-challenge_game")).toBeNull();
+    expect(indexHeaders?.get("x-rpc-challenge_path")).toBeNull();
     expect(noteHeaders?.get("x-rpc-tool_verison")).toBe("v5.0.1-ys");
     expect(noteHeaders?.get("content-type")).toBeNull();
+    expect(noteHeaders?.get("x-rpc-challenge_game")).toBeNull();
+    expect(noteHeaders?.get("x-rpc-challenge_path")).toBeNull();
     expect(JSON.parse(String(fpBody?.ext_fields)).hostname).toBe("dg02-pool03-kvm87");
   });
 
@@ -107,15 +111,17 @@ describe("实时便笺 live 请求画像", () => {
   });
 
   test("验证请求默认携带便笺路径，也可切换到首页路径", async () => {
-    const paths: string[] = [], tools: (string | null)[] = [];
+    const games: (string | null)[] = [], paths: string[] = [], tools: (string | null)[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
       const headers = new Headers(init?.headers);
+      games.push(headers.get("x-rpc-challenge_game"));
       paths.push(headers.get("x-rpc-challenge_path") ?? "");
       tools.push(headers.get("x-rpc-tool_verison"));
       return Response.json({ retcode: 0, data: { challenge: "xrpc-challenge" } });
     });
     await expect(liveProvider().verifyNoteChallenge(cookie, "challenge", "validate")).resolves.toBe("xrpc-challenge");
     await expect(liveProvider().verifyNoteChallenge(cookie, "challenge", "validate", "/game_record/app/genshin/api/index")).resolves.toBe("xrpc-challenge");
+    expect(games).toEqual(["2", "2"]);
     expect(paths).toEqual(["/game_record/app/genshin/api/dailyNote", "/game_record/app/genshin/api/index"]);
     expect(tools).toEqual([null, null]);
   });
