@@ -16,8 +16,8 @@ const mobileLogin = z.object({ mobile: z.string().regex(/^1\d{10}$/), captcha: z
 const mobileVerification = z.object({ mobile: z.string().regex(/^1\d{10}$/), session_id: z.string().min(1), challenge: z.string().min(1), validate: z.string().min(1) });
 const cookieLogin = z.object({ credential: z.string().min(1) });
 const complete = z.object({ identity: z.object({ aid: z.string(), mid: z.string(), nickname: z.string(), credential: z.string() }), credential_ref: z.string() });
-const refresh = z.object({ credential: z.string(), xrpc_challenge: z.string().default("") });
-const verification = z.object({ credential: z.string(), challenge: z.string(), validate: z.string() });
+const refresh = z.object({ credential: z.string(), xrpc_challenge: z.string().default(""), xrpc_challenge_path: z.string().default("") });
+const verification = z.object({ credential: z.string(), challenge: z.string(), validate: z.string(), xrpc_challenge_path: z.string().default("") });
 const startJob = z.object({ kind: z.enum(["install", "update", "verify", "predownload"]), install_path: z.string().min(1) });
 const controlJob = z.object({ action: z.enum(["pause", "resume", "cancel"]) });
 const speedLimit = z.object({ speed_limit_kb: z.number().int().min(0) });
@@ -106,9 +106,9 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   if (method === "POST" && path === "/notes/refresh") {
     const value = refresh.parse(body), role = app.accounts.selectedRole();
     if (!role) throw new AppError("role_missing", "尚未选择原神角色", 409);
-    return json(await app.notes.refresh(value.credential, role, value.xrpc_challenge));
+    return json(await app.notes.refresh(value.credential, role, value.xrpc_challenge, value.xrpc_challenge_path));
   }
-  if (method === "POST" && path === "/notes/verification") { const value = verification.parse(body); return json({ xrpc_challenge: await app.notes.verify(value.credential, value.challenge, value.validate) }); }
+  if (method === "POST" && path === "/notes/verification") { const value = verification.parse(body); return json({ xrpc_challenge: await app.notes.verify(value.credential, value.challenge, value.validate, value.xrpc_challenge_path) }); }
 	  const image = match(path, /^\/images\/gacha\/([^/]+)$/);
 	  if (method === "GET" && image) { const data = await app.images.get(image); if (!data) throw new AppError("image_missing", "图片未缓存", 404); return new Response(new Uint8Array(data), { headers: { "Content-Type": "image/png" } }); }
 	  const value = await valueRoute(app, method, path, query, body);

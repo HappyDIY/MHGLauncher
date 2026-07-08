@@ -61,11 +61,11 @@ export class FixtureProvider implements Provider {
     }));
   }
 
-  async getDailyNote(_credential: string, role: GameRole, _challenge = ""): Promise<DailyNote> {
+  async getDailyNote(_credential: string, role: GameRole, _challenge = "", _challengePath = ""): Promise<DailyNote> {
     return { uid: role.uid, ...this.json<Omit<DailyNote, "uid">>("note.json") };
   }
 
-  async verifyNoteChallenge(_credential: string, _challenge: string, _validate: string): Promise<string> {
+  async verifyNoteChallenge(_credential: string, _challenge: string, _validate: string, _challengePath = ""): Promise<string> {
     return "fixture-xrpc-challenge";
   }
 

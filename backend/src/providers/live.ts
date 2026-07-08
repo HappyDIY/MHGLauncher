@@ -4,6 +4,8 @@ import type { Settings } from "../core/config";
 import { AppError } from "../core/errors";
 import type { AccountIdentity, DailyNote, GameRole, MobileCaptchaSession, QRSession, WishRecord } from "../core/models";
 import { Device } from "./device";
+import { completeCredential } from "./credential";
+import { getLiveDailyNote, verifyNoteChallenge as verifyLiveNoteChallenge } from "./note-client";
 import type { GameBuild, Provider } from "./provider";
 import { Sophon } from "./sophon";
 import { cookies, sign } from "./signing";
@@ -115,32 +117,12 @@ export class LiveProvider implements Provider {
     }
   }
 
-  async getDailyNote(credential: string, role: GameRole, challenge = ""): Promise<DailyNote> {
-    await this.device.fingerprint(); const query = new URLSearchParams({ role_id: role.uid, server: role.region }).toString();
-    const headers = this.headers(credential, sign("x4", "", query)); if (challenge) headers["x-rpc-challenge"] = challenge;
-    const url = `https://api-takumi-record.mihoyo.com/game_record/app/genshin/api/dailyNote?${query}`;
-    const response = await fetch(url, { headers, signal: AbortSignal.timeout(30_000) }), payload = await response.json() as JSONValue;
-    const retcode = Number(payload.retcode ?? 0), message = String(payload.message ?? "");
-    if (retcode === 1034) {
-      if (challenge) throw new AppError("note_verification_failed", "实时便笺验证未通过或已失效，请重新刷新后再验证", 429, { retcode: "1034" });
-      throw new AppError("verification_required", "请完成人机验证后重试", 428, await this.createVerification(credential));
-    }
-    if (retcode === 10306) throw new AppError("verification_required", "验证已失效，请重新完成人机验证", 428, await this.createVerification(credential));
-    if (retcode === 5003) throw new AppError("note_risk_limited", "当前账号存在风险，实时便笺暂无数据，请稍后重试或在米游社完成验证", 429, { retcode: "5003" });
-    if ([10102, 10103, 10104].includes(retcode)) throw new AppError("note_unavailable", message || "实时便笺当前不可用，请检查米游社数据公开或账号状态", 403, { retcode: String(retcode) });
-    if (message.toLowerCase().includes("visit too frequently")) throw new AppError("note_sync_limited", "访问过于频繁，请稍后再刷新实时便笺", 429, { retcode: String(retcode || "unknown") });
-    if (!response.ok || retcode !== 0) throw new AppError("mihoyo_error", message || `米游社请求失败（错误码 ${payload.retcode ?? "未知"}）`, 502, { retcode: String(payload.retcode ?? "unknown") });
-    const data = payload.data as JSONValue ?? {};
-    const expeditions = data.expeditions as JSONValue[] ?? [], recovery = (data.transformer as JSONValue | undefined)?.recovery_time as JSONValue | undefined;
-    return { uid: role.uid, current_resin: Number(data.current_resin ?? 0), max_resin: Number(data.max_resin ?? 200), finished_tasks: Number(data.finished_task_num ?? 0), total_tasks: Number(data.total_task_num ?? 4),
-      expeditions_finished: expeditions.filter((v) => v.status === "Finished").length, expeditions_total: Number(data.max_expedition_num ?? expeditions.length), current_home_coin: Number(data.current_home_coin ?? 0),
-      max_home_coin: Number(data.max_home_coin ?? 0), weekly_boss_remaining: Number(data.remain_resin_discount_num ?? 0), transformer_ready: Boolean(recovery?.reached), refreshed_at: new Date().toISOString() };
+  getDailyNote(credential: string, role: GameRole, challenge = "", challengePath = ""): Promise<DailyNote> {
+    return getLiveDailyNote(credential, role, this.device, challenge, challengePath);
   }
 
-  async verifyNoteChallenge(credential: string, challenge: string, validate: string): Promise<string> {
-    const body = JSON.stringify({ geetest_challenge: challenge, geetest_validate: validate, geetest_seccode: `${validate}|jordan` });
-    const data = await this.api("https://api-takumi-record.mihoyo.com/game_record/app/card/wapi/verifyVerification", credential, sign("x4", body), { method: "POST", body, headers: this.noteVerificationHeaders() });
-    return String(data.challenge);
+  verifyNoteChallenge(credential: string, challenge: string, validate: string, challengePath = ""): Promise<string> {
+    return verifyLiveNoteChallenge(credential, this.device, challenge, validate, challengePath);
   }
 
   async createAuthTicket(credential: string): Promise<string> {
@@ -167,18 +149,15 @@ export class LiveProvider implements Provider {
   }
   private async enrichCredential(value: string, cookieImport = false): Promise<string> {
     try {
-      const data = await this.request("https://passport-api.mihoyo.com/account/auth/api/getCookieAccountInfoBySToken", { headers: this.passportHeaders(value, sign("prod")) });
-      const map = cookies(value); map.set("cookie_token", String(data.cookie_token)); map.set("account_id", String(data.uid)); return this.serialize(map);
+      return await completeCredential(value, this.device.deviceId);
     } catch (error) {
       if (cookieImport && error instanceof AppError && error.code === "mihoyo_error") throw new AppError("credential_expired", "米游社返回登录状态失效，请重新获取 Cookie 后重试", 401, error.details);
       throw error;
     }
   }
-  private async createVerification(value: string): Promise<Record<string, string>> { const query = "is_high=true", data = await this.api(`https://api-takumi-record.mihoyo.com/game_record/app/card/wapi/createVerification?${query}`, value, sign("x4", "", query), { headers: this.noteVerificationHeaders() }); return { gt: String(data.gt), challenge: String(data.challenge) }; }
   private async authkey(value: string, role: GameRole): Promise<string> { const body = JSON.stringify({ auth_appid: "webview_gacha", game_biz: "hk4e_cn", game_uid: Number(role.uid), region: role.region }); return String((await this.api("https://api-takumi.mihoyo.com/binding/api/genAuthKey", value, sign("lk2", "", "", 1), { method: "POST", body })).authkey); }
   private wish(uid: string, v: JSONValue): WishRecord { const type = String(v.gacha_type); return { id: String(v.id), uid, gacha_type: type, uigf_gacha_type: type === "400" ? "301" : type, item_id: String(v.item_id), name: String(v.name), item_type: String(v.item_type), rank: Number(v.rank_type), time: String(v.time).replace(" ", "T") }; }
   private headers(cookie: string, ds: string): Record<string, string> { return { Cookie: cookie, DS: ds, "User-Agent": agent, "x-rpc-app_version": "2.95.1", "x-rpc-client_type": "5", "x-rpc-device_id": this.device.deviceId, "x-rpc-device_fp": this.device.deviceFP, "Content-Type": "application/json" }; }
-  private noteVerificationHeaders(): Record<string, string> { return { "x-rpc-challenge_game": "2", "x-rpc-challenge_path": "/game_record/app/genshin/api/dailyNote" }; }
   private passportHeaders(cookie: string, ds: string): Record<string, string> {
     return {
       Cookie: cookie, DS: ds, "User-Agent": agent, "x-rpc-aigis": "", "x-rpc-app_id": "bll8iq97cem8",

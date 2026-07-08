@@ -91,12 +91,14 @@ struct CredentialRequest: Codable {
 struct NoteRefreshRequest: Codable {
     let credential: String
     let xrpcChallenge: String
+    let xrpcChallengePath: String
 }
 
 struct NoteVerificationRequest: Codable {
     let credential: String
     let challenge: String
     let validate: String
+    let xrpcChallengePath: String
 }
 
 struct NoteVerificationResponse: Codable {
@@ -107,6 +109,13 @@ struct GeetestChallenge: Identifiable {
     var id: String { challenge }
     let gt: String
     let challenge: String
+    let xrpcChallengePath: String?
+
+    init(gt: String, challenge: String, xrpcChallengePath: String? = nil) {
+        self.gt = gt
+        self.challenge = challenge
+        self.xrpcChallengePath = xrpcChallengePath
+    }
 }
 
 struct CountResponse: Codable {

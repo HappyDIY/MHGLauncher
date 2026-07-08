@@ -5,16 +5,16 @@ import type { Provider } from "../providers/provider";
 export class NoteService {
   constructor(private readonly store: Store, private readonly provider: Provider) {}
 
-  async refresh(credential: string, role: GameRole, challenge = ""): Promise<DailyNote> {
-    const note = await this.provider.getDailyNote(credential, role, challenge);
+  async refresh(credential: string, role: GameRole, challenge = "", challengePath = ""): Promise<DailyNote> {
+    const note = await this.provider.getDailyNote(credential, role, challenge, challengePath);
     this.store.db.prepare(`INSERT INTO notes(uid,payload,refreshed_at) VALUES(?,?,?)
       ON CONFLICT(uid) DO UPDATE SET payload=excluded.payload,refreshed_at=excluded.refreshed_at`)
       .run(role.uid, JSON.stringify(note), note.refreshed_at);
     return note;
   }
 
-  verify(credential: string, challenge: string, validate: string): Promise<string> {
-    return this.provider.verifyNoteChallenge(credential, challenge, validate);
+  verify(credential: string, challenge: string, validate: string, challengePath = ""): Promise<string> {
+    return this.provider.verifyNoteChallenge(credential, challenge, validate, challengePath);
   }
 
   get(uid: string): DailyNote | null {

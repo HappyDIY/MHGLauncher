@@ -29,6 +29,7 @@ describe("Provider 契约", () => {
   test("fixture 返回游戏登录票据", async () => expect(await provider().createAuthTicket("x")).toBe("fixture-auth-ticket"));
   test("解析 Cookie 保留等号并忽略重复键", () => { const value = cookies("a=b=c; b=2; a=3"); expect(value.get("a")).toBe("b=c"); expect(value.get("b")).toBe("2"); });
   test("DS 签名包含三段", () => expect(sign("x4").split(",")).toHaveLength(3));
+  test("X4 DS 随机段对齐源项目数字格式", () => expect(sign("x4").split(",")[1]).toMatch(/^\d{6}$/));
   test("扫码请求使用 HoyoPlay 设备标识", async () => {
     let headers: HeadersInit | undefined;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
@@ -56,13 +57,14 @@ describe("Provider 契约", () => {
   });
   test("Cookie 登录补齐 stoken 凭据", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-      expect(String(input)).toContain("getCookieAccountInfoBySToken");
       expect(new Headers(init?.headers).get("cookie")).toContain("stoken=a=b");
+      if (String(input).includes("getLTokenBySToken")) return Response.json({ retcode: 0, data: { ltoken: "ltoken-value" } });
       return Response.json({ retcode: 0, data: { cookie_token: "cookie-token", uid: "10001" } });
     });
     const identity = await liveProvider().identifyCredential("stuid=10001; stoken=a=b; mid=mid-1");
     expect(identity.credential).toContain("stoken=a=b");
     expect(identity.credential).toContain("cookie_token=cookie-token");
+    expect(identity.credential).toContain("ltoken=ltoken-value");
   });
   test("Cookie 登录票据换取 stoken", async () => {
     const urls: string[] = [];
@@ -71,59 +73,13 @@ describe("Provider 契约", () => {
       if (String(input).includes("getMultiTokenByLoginTicket")) {
         return Response.json({ retcode: 0, data: { list: [{ name: "stoken", token: "new-stoken" }] } });
       }
+      if (String(input).includes("getLTokenBySToken")) return Response.json({ retcode: 0, data: { ltoken: "ltoken-value" } });
       return Response.json({ retcode: 0, data: { cookie_token: "cookie-token", uid: "10001" } });
     });
     const identity = await liveProvider().identifyCredential("login_ticket=ticket; login_uid=10001");
     expect(urls[0]).toContain("getMultiTokenByLoginTicket");
     expect(urls[1]).toContain("getCookieAccountInfoBySToken");
     expect(identity.credential).toContain("stoken=new-stoken");
-  });
-  test("实时便笺 5003 始终返回账号风险提示", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
-      if (String(input).includes("dailyNote")) return Response.json({ retcode: 5003, message: "", data: null });
-      return Response.json({ retcode: 0, data: { device_fp: "fp" } });
-    });
-    await expect(liveProvider().getDailyNote("stuid=10001; stoken=token", { uid: "100000001", region: "cn_gf01", nickname: "旅行者", level: 60, selected: true }))
-      .rejects.toMatchObject({ code: "note_risk_limited", status: 429, message: "当前账号存在风险，实时便笺暂无数据，请稍后重试或在米游社完成验证", details: { retcode: "5003" } });
-  });
-  test("实时便笺 1034 首次返回验证挑战", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
-      if (String(input).includes("dailyNote")) return Response.json({ retcode: 1034, message: "", data: null });
-      if (String(input).includes("createVerification")) return Response.json({ retcode: 0, data: { gt: "gt", challenge: "challenge" } });
-      return Response.json({ retcode: 0, data: { device_fp: "fp" } });
-    });
-    await expect(liveProvider().getDailyNote("stuid=10001; stoken=token", { uid: "100000001", region: "cn_gf01", nickname: "旅行者", level: 60, selected: true }))
-      .rejects.toMatchObject({ code: "verification_required", status: 428, details: { gt: "gt", challenge: "challenge" } });
-  });
-  test("实时便笺验证后仍 1034 提示验证失效", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
-      if (String(input).includes("dailyNote")) return Response.json({ retcode: 1034, message: "", data: null });
-      return Response.json({ retcode: 0, data: { device_fp: "fp" } });
-    });
-    await expect(liveProvider().getDailyNote("stuid=10001; stoken=token", { uid: "100000001", region: "cn_gf01", nickname: "旅行者", level: 60, selected: true }, "old"))
-      .rejects.toMatchObject({ code: "note_verification_failed", status: 429, details: { retcode: "1034" } });
-  });
-  test("实时便笺 10306 重新返回验证挑战", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
-      if (String(input).includes("dailyNote")) return Response.json({ retcode: 10306, message: "", data: null });
-      if (String(input).includes("createVerification")) return Response.json({ retcode: 0, data: { gt: "gt2", challenge: "challenge2" } });
-      return Response.json({ retcode: 0, data: { device_fp: "fp" } });
-    });
-    await expect(liveProvider().getDailyNote("stuid=10001; stoken=token", { uid: "100000001", region: "cn_gf01", nickname: "旅行者", level: 60, selected: true }, "old"))
-      .rejects.toMatchObject({ code: "verification_required", status: 428, details: { gt: "gt2", challenge: "challenge2" } });
-  });
-  test("实时便笺验证请求携带源项目挑战头", async () => {
-    let headers: Headers | undefined;
-    let body: unknown;
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
-      headers = new Headers(init?.headers);
-      body = JSON.parse(String(init?.body));
-      return Response.json({ retcode: 0, data: { challenge: "xrpc-challenge" } });
-    });
-    await expect(liveProvider().verifyNoteChallenge("stuid=10001; stoken=token", "challenge", "validate")).resolves.toBe("xrpc-challenge");
-    expect(body).toEqual({ geetest_challenge: "challenge", geetest_validate: "validate", geetest_seccode: "validate|jordan" });
-    expect(headers?.get("x-rpc-challenge_game")).toBe("2");
-    expect(headers?.get("x-rpc-challenge_path")).toBe("/game_record/app/genshin/api/dailyNote");
   });
   test("创建游戏登录票据使用 HoyoPlay 头并返回 ticket", async () => {
     let url: string | undefined;

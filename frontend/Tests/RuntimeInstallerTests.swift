@@ -63,6 +63,8 @@ struct RuntimeInstallerTests {
         let active = try Data(contentsOf: reused.backendAppURL.appending(path: "build/server.js"))
         #expect(installed == reused)
         #expect(String(decoding: active, as: UTF8.self) == "server-updated")
+        #expect(FileManager.default.fileExists(atPath: reused.backendAppURL.appending(path: "node_modules/.keep").path))
+        #expect(installer.installedCoreRuntime() == reused)
     }
 
     @Test("下载产物校验失败时中止")

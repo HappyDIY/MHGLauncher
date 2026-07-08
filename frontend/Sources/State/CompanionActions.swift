@@ -41,7 +41,8 @@ extension LauncherStore {
             let client = try requireClient()
             let body = NoteRefreshRequest(
                 credential: try requireCredential(),
-                xrpcChallenge: ""
+                xrpcChallenge: "",
+                xrpcChallengePath: ""
             )
             dailyNote = try await client.post("/v1/notes/refresh", body: body)
         } catch let error as APIErrorPayload {
@@ -50,7 +51,8 @@ extension LauncherStore {
                let challenge = error.details?["challenge"] {
                 noteVerification = GeetestChallenge(
                     gt: gt,
-                    challenge: challenge
+                    challenge: challenge,
+                    xrpcChallengePath: error.details?["xrpc_challenge_path"]
                 )
             } else {
                 message = Self.presentableMessage(error.message)
@@ -64,6 +66,7 @@ extension LauncherStore {
         challenge: String,
         validate: String
     ) async {
+        let verificationContext = noteVerification
         noteVerification = nil
         isBusy = true
         defer { isBusy = false }
@@ -75,21 +78,27 @@ extension LauncherStore {
                 body: NoteVerificationRequest(
                     credential: credential,
                     challenge: challenge,
-                    validate: validate
+                    validate: validate,
+                    xrpcChallengePath: verificationContext?.xrpcChallengePath ?? ""
                 )
             )
             dailyNote = try await client.post(
                 "/v1/notes/refresh",
                 body: NoteRefreshRequest(
                     credential: credential,
-                    xrpcChallenge: verification.xrpcChallenge
+                    xrpcChallenge: verification.xrpcChallenge,
+                    xrpcChallengePath: verificationContext?.xrpcChallengePath ?? ""
                 )
             )
         } catch let error as APIErrorPayload {
             if error.code == "verification_required",
                let gt = error.details?["gt"],
                let challenge = error.details?["challenge"] {
-                noteVerification = GeetestChallenge(gt: gt, challenge: challenge)
+                noteVerification = GeetestChallenge(
+                    gt: gt,
+                    challenge: challenge,
+                    xrpcChallengePath: error.details?["xrpc_challenge_path"]
+                )
             } else {
                 noteVerification = nil
                 message = Self.presentableMessage(error.message)

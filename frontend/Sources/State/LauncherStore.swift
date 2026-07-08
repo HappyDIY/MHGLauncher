@@ -78,14 +78,12 @@ final class LauncherStore {
         isBootstrapping = true
         defer { isBootstrapping = false }
         do {
-            let runtime: InstalledRuntime
-            if let installed = runtimeInstaller.installedCoreRuntime() {
-                runtime = installed
-            } else {
+            let hasInstalledCore = runtimeInstaller.installedCoreRuntime() != nil
+            if !hasInstalledCore {
                 isInstallingCoreRuntime = true
-                runtime = try await runtimeInstaller.ensureCore { progress in
-                    self.runtimeProgress = progress
-                }
+            }
+            let runtime = try await runtimeInstaller.ensureCore { progress in
+                self.runtimeProgress = progress
             }
             installedRuntime = runtime
             gameRuntimeReady = runtimeInstaller.isGameInstalled()
