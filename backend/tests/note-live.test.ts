@@ -138,4 +138,19 @@ describe("实时便笺 live 请求画像", () => {
     expect(paths).toEqual(["/game_record/app/genshin/api/dailyNote", "/game_record/app/genshin/api/index"]);
     expect(tools).toEqual([null, null]);
   });
+
+  test("验证接口 10306 重新创建同一路径挑战", async () => {
+    const paths: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).includes("verifyVerification")) return Response.json({ retcode: 10306, message: "", data: null });
+      if (String(input).includes("createVerification")) {
+        paths.push(new Headers(init?.headers).get("x-rpc-challenge_path") ?? "");
+        return Response.json({ retcode: 0, data: { gt: "retry-gt", challenge: "retry-challenge" } });
+      }
+      return Response.json({ retcode: 0, data: { device_fp: "fp" } });
+    });
+    await expect(liveProvider().verifyNoteChallenge(cookie, "old", "validate", "/game_record/app/genshin/api/index"))
+      .rejects.toMatchObject({ code: "verification_required", status: 428, details: { gt: "retry-gt", challenge: "retry-challenge", xrpc_challenge_path: "/game_record/app/genshin/api/index" } });
+    expect(paths).toEqual(["/game_record/app/genshin/api/index"]);
+  });
 });

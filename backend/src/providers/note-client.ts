@@ -27,7 +27,11 @@ export async function getLiveDailyNote(credential: string, role: GameRole, devic
 export async function verifyNoteChallenge(credential: string, device: Device, challenge: string, validate: string, path = notePath): Promise<string> {
   path ||= notePath;
   const body = JSON.stringify({ geetest_challenge: challenge, geetest_validate: validate, geetest_seccode: `${validate}|jordan` }), cookie = await gameRecordCredential(credential, device.deviceId);
-  const data = await request(`https://api-takumi-record.mihoyo.com/game_record/app/card/wapi/verifyVerification`, noteHeaders(cookie, "", device, "", path, body), { method: "POST", body });
+  const payload = await requestRaw(`https://api-takumi-record.mihoyo.com/game_record/app/card/wapi/verifyVerification`, noteHeaders(cookie, "", device, "", path, body), { method: "POST", body });
+  const retcode = Number(payload.retcode ?? 0);
+  if (retcode === 10306 || retcode === 1034 || retcode === 5003) throw new AppError("verification_required", "验证已失效，请重新完成人机验证", 428, await createVerification(credential, device, path));
+  if (retcode !== 0) throw new AppError("mihoyo_error", String(payload.message || `米游社请求失败（错误码 ${payload.retcode ?? "未知"}）`), 502, { retcode: String(payload.retcode ?? "unknown") });
+  const data = payload.data as JSONValue ?? {};
   return String(data.challenge);
 }
 
