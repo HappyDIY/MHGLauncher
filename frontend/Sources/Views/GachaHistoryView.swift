@@ -2,52 +2,113 @@ import SwiftUI
 
 struct GachaHistoryView: View {
     @Bindable var store: LauncherStore
+    @State private var selectedID: String?
+
+    private var history: [HistoryWishEvent] {
+        HistoryWishEvent.make(events: store.value.gachaEvents, records: store.wishes)
+    }
+
+    private var selection: HistoryWishEvent? {
+        history.first { $0.id == selectedID } ?? history.first
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                PageHeader(title: "历史卡池", subtitle: "按版本和卡池类型查看活动祈愿，并关联本地抽卡统计。")
-                HStack {
-                    Button {
-                        Task { await store.refreshGachaEvents() }
-                    } label: {
-                        Label("刷新", systemImage: "arrow.clockwise")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    Spacer()
-                    Text("\(store.value.gachaEvents.count) 个卡池")
-                        .foregroundStyle(.secondary)
-                }
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 14)], spacing: 14) {
-                    ForEach(store.value.gachaEvents) { event in
-                        GlassCard(event.name, icon: icon(for: event.gachaType)) {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("版本 \(event.version.nonempty ?? "未知")")
-                                    .font(.subheadline.weight(.semibold))
-                                Text(event.startedAt.formatted(date: .abbreviated, time: .shortened))
-                                Text(event.endedAt.formatted(date: .abbreviated, time: .shortened))
-                                    .foregroundStyle(.secondary)
-                                Text(upText(event.orangeUp))
-                                    .lineLimit(2)
-                                Text(upText(event.purpleUp))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                            }
+        VStack(alignment: .leading, spacing: 16) {
+            header.motionEntrance(order: 0)
+            if history.isEmpty {
+                emptyState.motionTransition(.content)
+            } else {
+                GeometryReader { geometry in
+                    if geometry.size.width >= 900 {
+                        HStack(spacing: 0) {
+                            listPane.frame(width: min(439, geometry.size.width * 0.42))
+                            Divider()
+                            detailPane.frame(maxWidth: .infinity)
+                        }
+                    } else {
+                        VStack(spacing: 12) {
+                            listPane.frame(height: min(280, geometry.size.height * 0.42))
+                            detailPane
                         }
                     }
                 }
+                .glassEffect(.regular, in: .rect(cornerRadius: 18))
+                .motionEntrance(order: 1)
             }
-            .motionEntrance(.content)
         }
-        .task { await store.loadValueData() }
+        .task {
+            await store.loadValueData()
+            if store.wishes.isEmpty { await store.loadCompanionData() }
+        }
+        .onChange(of: history.map(\.id)) {
+            if !(selectedID.map { id in history.contains { $0.id == id } } ?? false) {
+                selectedID = history.first?.id
+            }
+        }
     }
 
-    private func icon(for type: String) -> String {
-        type == "302" ? "shield.lefthalf.filled" : "sparkles"
+    private var header: some View {
+        HStack(alignment: .center, spacing: 12) {
+            PageHeader(title: "历史祈愿", subtitle: subtitle)
+            Button("刷新卡池", systemImage: "arrow.clockwise") {
+                Task { await store.refreshGachaEvents() }
+            }
+            .buttonStyle(.glassProminent)
+            .motionHover(.prominent)
+            Button("同步记录", systemImage: "arrow.trianglehead.2.clockwise.rotate.90") {
+                Task { await store.syncWishes() }
+            }
+            .buttonStyle(.glass)
+            .motionHover()
+            .disabled(store.wishOperation != nil)
+        }
     }
 
-    private func upText(_ values: [String]) -> String {
-        values.isEmpty ? "UP 信息待同步" : values.joined(separator: "、")
+    private var subtitle: String {
+        guard let role = store.selectedRole else { return "请先登录账号并同步祈愿记录" }
+        let count = history.reduce(0) { $0 + $1.total }
+        return "\(role.nickname) · UID \(role.uid) · 已匹配 \(history.count) 个卡池、\(count) 抽"
+    }
+
+    private var emptyState: some View {
+        ContentUnavailableView {
+            Label("还没有可展示的历史祈愿", systemImage: "sparkles.rectangle.stack")
+        } description: {
+            Text("刷新历史卡池并同步祈愿记录后，这里会按活动卡池还原 UP、横幅和抽取结果。")
+        } actions: {
+            Button("刷新卡池") { Task { await store.refreshGachaEvents() } }
+                .buttonStyle(.glassProminent)
+                .motionHover(.prominent)
+            Button("同步记录") { Task { await store.syncWishes() } }
+                .buttonStyle(.glass)
+                .motionHover()
+                .disabled(store.wishOperation != nil)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .glassEffect(.regular, in: .rect(cornerRadius: 22))
+    }
+
+    private var listPane: some View {
+        ScrollView {
+            LazyVStack(spacing: 8) {
+                ForEach(history) { wish in
+                    HistoryWishRow(
+                        wish: wish,
+                        selected: selection?.id == wish.id
+                    ) {
+                        selectedID = wish.id
+                    }
+                }
+            }
+            .padding(12)
+        }
+        .background(.thinMaterial.opacity(0.28))
+    }
+
+    @ViewBuilder
+    private var detailPane: some View {
+        if let selection {
+            HistoryWishDetail(wish: selection)
+        }
     }
 }

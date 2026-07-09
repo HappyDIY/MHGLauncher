@@ -80,6 +80,36 @@ struct WishPresentationTests {
         #expect(detail.primogemsPerLimitedFiveStar == 0)
     }
 
+    @Test("历史祈愿按卡池时间聚合并保留未抽到 UP")
+    func buildsHistoryWishEvents() throws {
+        let event = GachaEvent(
+            id: "e1",
+            version: "5.7",
+            gachaType: "301",
+            name: "角色活动祈愿",
+            startedAt: date("2026-06-18T10:00:00Z"),
+            endedAt: date("2026-07-08T10:00:00Z"),
+            orangeUp: ["丝柯克", "玛薇卡"],
+            purpleUp: ["班尼特"],
+            bannerUrl: nil,
+            updatedAt: date("2026-06-18T10:00:00Z")
+        )
+        let records = [
+            record(id: "1", itemId: "1001", name: "丝柯克", type: "角色", rank: 5),
+            record(id: "2", itemId: "1002", name: "班尼特", type: "角色", rank: 4),
+            record(id: "3", itemId: "11301", name: "冷刃", type: "武器", rank: 3)
+        ]
+
+        let history = HistoryWishEvent.make(events: [event], records: records)
+        let item = try #require(history.first)
+
+        #expect(item.total == 3)
+        #expect(item.orangeUp.map(\.count) == [1, 0])
+        #expect(item.summary.map(\.name) == ["丝柯克"])
+        #expect(item.purple.map(\.name) == ["班尼特"])
+        #expect(item.blue.map(\.name) == ["冷刃"])
+    }
+
     private func record(
         id: String,
         itemId: String,
@@ -95,8 +125,12 @@ struct WishPresentationTests {
             name: name,
             itemType: type,
             rank: rank,
-            time: .now,
+            time: date("2026-06-20T12:00:00Z"),
             iconUrl: nil
         )
+    }
+
+    private func date(_ value: String) -> Date {
+        ISO8601DateFormatter().date(from: value) ?? Date(timeIntervalSince1970: 0)
     }
 }
