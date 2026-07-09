@@ -47,6 +47,8 @@ export async function valueRoute(app: Container, method: string, path: string, q
   if (method === "POST" && archiveSelect) return json(app.achievements.selectArchive(archiveSelect));
   const archiveDelete = match(path, /^\/achievements\/archives\/([^/]+)$/);
   if (method === "DELETE" && archiveDelete) return json({ deleted: app.achievements.removeArchive(archiveDelete) });
+  if (method === "GET" && path === "/achievements/goals") return json(app.achievements.goals());
+  if (method === "GET" && path === "/achievements/view") return json(app.achievements.view(query.get("archive_id") ?? undefined));
   if (method === "GET" && path === "/achievements") return json(app.achievements.list(query.get("archive_id") ?? undefined));
   if (method === "POST" && path === "/achievements") { const value = achievementSave.parse(body); return json(app.achievements.save(value.archive_id, value.items)); }
   if (method === "POST" && path === "/achievements/import") return json(app.achievements.importUIAF(required(query, "archive_id"), body as never));

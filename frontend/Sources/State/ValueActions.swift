@@ -8,12 +8,12 @@ extension LauncherStore {
             async let events: [GachaEvent] = client.get("/v1/gacha-events")
             async let characters: [GameCharacter] = client.get("/v1/characters", query: [URLQueryItem(name: "uid", value: uid)])
             async let settings: NotificationSettings = client.get("/v1/notifications/settings")
-            async let archives: [AchievementArchive] = client.get("/v1/achievements/archives")
+            async let goals: [AchievementGoal] = client.get("/v1/achievements/goals")
             value.gachaEvents = try await events
             value.characters = try await characters
             value.notificationSettings = try await settings
-            value.achievementArchives = try await archives
-            try await loadAchievements(client: client)
+            value.achievementGoals = try await goals
+            try await loadAchievementData(client: client)
         }
     }
 
@@ -60,31 +60,6 @@ extension LauncherStore {
             let body = CloudCycleUploadRequest(uid: record.uid, token: token, scheduleId: record.scheduleId)
             _ = try await requireClient().post("/v1/cycles/\(record.kind.rawValue)/upload", body: body) as CountResponse
             await loadCycle(record.kind)
-        }
-    }
-
-    func createAchievementArchive() async {
-        await perform {
-            let name = "成就档案 \(value.achievementArchives.count + 1)"
-            _ = try await requireClient().post("/v1/achievements/archives", body: AchievementArchiveRequest(name: name)) as AchievementArchive
-            try await loadAchievements(client: requireClient())
-        }
-    }
-
-    func saveAchievementDraft() async {
-        guard let archiveId = value.achievementArchives.first(where: \.selected)?.id,
-              let id = Int(value.achievementDraftId) else { return }
-        await perform {
-            let item = AchievementItemInput(
-                achievementId: id,
-                current: value.achievementDraftCurrent,
-                status: value.achievementDraftStatus,
-                timestamp: Int(Date().timeIntervalSince1970)
-            )
-            value.achievements = try await requireClient().post(
-                "/v1/achievements",
-                body: AchievementSaveRequest(archiveId: archiveId, items: [item])
-            )
         }
     }
 
@@ -148,8 +123,4 @@ extension LauncherStore {
         return token
     }
 
-    private func loadAchievements(client: APIClient) async throws {
-        value.achievementArchives = try await client.get("/v1/achievements/archives")
-        value.achievements = try await client.get("/v1/achievements")
-    }
 }

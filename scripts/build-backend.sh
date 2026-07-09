@@ -25,5 +25,5 @@ npm run build
 
 cp -R .next app build next.config.ts package.json package-lock.json "$dist/app/"
 mkdir -p "$dist/app/src/mhglauncher/data"
-cp src/mhglauncher/data/gacha_items.json "$dist/app/src/mhglauncher/data/"
+cp src/mhglauncher/data/*.json src/mhglauncher/data/*.LICENSE "$dist/app/src/mhglauncher/data/"
 printf '%s\n' "$build_mode" >"$dist/app/.build-mode"
