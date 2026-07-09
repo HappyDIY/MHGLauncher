@@ -10,6 +10,7 @@ struct FeatureSurfaceTests {
             "主页",
             "游戏",
             "祈愿记录",
+            "我的角色",
             "实时便笺",
             "账号"
         ])

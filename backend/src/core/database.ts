@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS game_state(id INTEGER PRIMARY KEY CHECK(id=1),install
 CREATE TABLE IF NOT EXISTS wishes(id TEXT PRIMARY KEY,uid TEXT NOT NULL,gacha_type TEXT NOT NULL,uigf_gacha_type TEXT NOT NULL DEFAULT '',item_id TEXT NOT NULL,name TEXT NOT NULL,item_type TEXT NOT NULL,rank INTEGER NOT NULL,time TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS wishes_uid_type ON wishes(uid,gacha_type,time DESC);
 CREATE TABLE IF NOT EXISTS notes(uid TEXT PRIMARY KEY,payload TEXT NOT NULL,refreshed_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS characters(uid TEXT NOT NULL,avatar_id TEXT NOT NULL,name TEXT NOT NULL,element TEXT NOT NULL,level INTEGER NOT NULL,rarity INTEGER NOT NULL,constellation INTEGER NOT NULL,fetter INTEGER NOT NULL,weapon_name TEXT NOT NULL,weapon_level INTEGER NOT NULL,icon_url TEXT,payload TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(uid,avatar_id));
 INSERT OR IGNORE INTO schema_migrations(version) VALUES(1);`;
 
 export type Row = Record<string, unknown>;

@@ -1,26 +1,6 @@
 import AppKit
 import SwiftUI
 
-enum Destination: String, CaseIterable, Identifiable {
-    case home = "主页"
-    case game = "游戏"
-    case wishes = "祈愿记录"
-    case notes = "实时便笺"
-    case account = "账号"
-
-    var id: String { rawValue }
-
-    var icon: String {
-        switch self {
-        case .home: "house"
-        case .game: "gamecontroller"
-        case .wishes: "sparkles"
-        case .notes: "note.text"
-        case .account: "person.crop.circle"
-        }
-    }
-}
-
 struct RootView: View {
     @Bindable var store: LauncherStore
     @State private var confirmsClear = false
@@ -134,6 +114,7 @@ struct RootView: View {
         case .home: HomeView(store: store)
         case .game: GameView(store: store)
         case .wishes: WishesView(store: store)
+        case .characters: CharactersView(store: store)
         case .notes: NotesView(store: store)
         case .account: AccountView(store: store)
         }
@@ -158,6 +139,7 @@ struct RootView: View {
         case .home: .blue
         case .game: .indigo
         case .wishes: .cyan
+        case .characters: .mint
         case .notes: .green
         case .account: .orange
         }

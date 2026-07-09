@@ -23,6 +23,11 @@ export interface DailyNote {
   expeditions_finished: number; expeditions_total: number; current_home_coin: number; max_home_coin: number;
   weekly_boss_remaining: number; transformer_ready: boolean; refreshed_at: string;
 }
+export interface GameCharacter {
+  uid: string; avatar_id: string; name: string; element: string; level: number; rarity: number;
+  constellation: number; fetter: number; weapon_name: string; weapon_level: number;
+  icon_url?: string | null; payload: unknown; updated_at: string;
+}
 type GameStatus = "not_installed" | "ready" | "update_available" | "busy" | "damaged";
 export interface GameState {
   install_path: string; installed_version: string; available_version: string; status: GameStatus;

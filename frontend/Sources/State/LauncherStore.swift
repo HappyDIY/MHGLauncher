@@ -42,9 +42,9 @@ final class LauncherStore {
     var wineLogEnabled = UserDefaults.standard.bool(forKey: "wineLogEnabled") {
         didSet { UserDefaults.standard.set(wineLogEnabled, forKey: "wineLogEnabled") }
     }
-    var wishes: [WishRecord] = []
-    var wishStatistics: [WishStatistics] = []
+    var wishes: [WishRecord] = []; var wishStatistics: [WishStatistics] = []
     var bannerDetails: [WishBannerDetail] = []
+    var characters: [GameCharacter] = []; var selectedCharacterId: String?; var characterSearchText = ""
     var dailyNote: DailyNote?
     var qrSession: QRSession?
     var mobileCaptchaSession: MobileCaptchaSession?

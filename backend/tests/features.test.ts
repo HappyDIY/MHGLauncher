@@ -36,6 +36,15 @@ test("实时便笺刷新与缓存", async () => {
   expect((await (await request("GET", "/v1/notes?uid=100000001")).json()).finished_tasks).toBe(3);
 });
 
+test("我的角色刷新、缓存与详情", async () => {
+  const credential = await login();
+  const refreshed = await (await request("POST", "/v1/characters/refresh", { credential })).json();
+  expect(refreshed[0].name).toBe("芙宁娜");
+  expect(await (await request("GET", "/v1/characters?uid=100000001")).json()).toHaveLength(3);
+  const detail = await (await request("POST", `/v1/characters/${refreshed[0].avatar_id}/refresh`, { credential })).json();
+  expect(detail.payload.weapon.name).toBe("静水流涌之辉");
+});
+
 test("没有角色时返回领域错误", async () => {
   const response = await request("POST", "/v1/notes/refresh", { credential: "x" });
   expect(response.status).toBe(409); expect(await response.json()).toMatchObject({ code: "role_missing" });
