@@ -40,7 +40,7 @@ extension LauncherStore {
             if error.code == "verification_required", let value = mobileVerification(from: error) {
                 mobileCaptchaVerification = value
             } else {
-                message = Self.presentableMessage(error.message)
+                message = Self.presentableMessage(error)
             }
         } catch {
             message = Self.presentableMessage(error.localizedDescription)
@@ -65,7 +65,7 @@ extension LauncherStore {
             mobileCaptchaVerification = nil
             message = "验证码已发送"
         } catch let error as APIErrorPayload {
-            message = Self.presentableMessage(error.message)
+            message = Self.presentableMessage(error)
         } catch {
             message = Self.presentableMessage(error.localizedDescription)
         }

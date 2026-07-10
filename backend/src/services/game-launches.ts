@@ -92,7 +92,7 @@ export class GameLaunchService {
       this.update(launch, status, warning || message, 1);
     } catch (error) {
       const warning = restoreDll(journal);
-      const message = error instanceof Error ? error.message : "游戏启动失败";
+      const message = error instanceof AppError ? error.message : "游戏启动失败，请稍后重试";
       this.update(launch, "failed", warning ? `${message}；${warning}` : message);
     } finally {
       this.controllers.delete(launch.id);

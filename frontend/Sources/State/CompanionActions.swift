@@ -55,7 +55,7 @@ extension LauncherStore {
                     xrpcChallengePath: error.details?["xrpc_challenge_path"]
                 )
             } else {
-                message = Self.presentableMessage(error.message)
+                message = Self.presentableMessage(error)
             }
         } catch {
             message = Self.presentableMessage(error.localizedDescription)
@@ -101,7 +101,7 @@ extension LauncherStore {
                 )
             } else {
                 noteVerification = nil
-                message = Self.presentableMessage(error.message)
+                message = Self.presentableMessage(error)
             }
         } catch {
             noteVerification = nil

@@ -16,8 +16,7 @@ export function errorResponse(error: unknown): Response {
       { status: error.status },
     );
   }
-  const message = error instanceof Error ? error.message : "未知错误";
-  return Response.json({ code: "internal_error", message, details: {} }, { status: 500 });
+  return Response.json({ code: "internal_error", message: "本地服务发生异常，请稍后重试", details: {} }, { status: 500 });
 }
 
 function isSerializedAppError(error: unknown): error is AppError {

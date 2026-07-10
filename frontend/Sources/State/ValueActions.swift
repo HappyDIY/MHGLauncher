@@ -6,11 +6,14 @@ extension LauncherStore {
         await perform {
             let client = try requireClient()
             async let events: [GachaEvent] = client.get("/v1/gacha-events")
-            async let characters: [GameCharacter] = client.get("/v1/characters", query: [URLQueryItem(name: "uid", value: uid)])
+            async let loadedCharacters: [GameCharacter] = client.get("/v1/characters", query: [URLQueryItem(name: "uid", value: uid)])
             async let settings: NotificationSettings = client.get("/v1/notifications/settings")
             async let goals: [AchievementGoal] = client.get("/v1/achievements/goals")
             value.gachaEvents = try await events
-            value.characters = try await characters
+            characters = try await loadedCharacters
+            if selectedCharacterId == nil || !characters.contains(where: { $0.avatarId == selectedCharacterId }) {
+                selectedCharacterId = characters.first?.avatarId
+            }
             value.notificationSettings = try await settings
             value.achievementGoals = try await goals
             try await loadAchievementData(client: client)

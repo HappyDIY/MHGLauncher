@@ -132,7 +132,7 @@ export class GameService {
       flush(); job.completed_bytes = job.total_bytes; job.download_speed = 0; job.status = "completed"; this.touch(job);
     } catch (error) {
       job.download_speed = 0; job.status = error instanceof DOMException && error.name === "AbortError" ? "cancelled" : "failed";
-      job.message = error instanceof Error ? error.message : "游戏任务失败"; this.touch(job);
+      job.message = error instanceof AppError ? error.message : "游戏任务失败，请稍后重试"; this.touch(job);
     } finally {
       if (!inPlace && (job.status === "cancelled" || job.status === "completed")) rmSync(`${path}.staging`, { recursive: true, force: true });
     }
@@ -152,7 +152,7 @@ export class GameService {
       flush(); job.completed_bytes = job.total_bytes; job.download_speed = 0; job.status = "completed"; this.touch(job);
     } catch (error) {
       job.download_speed = 0; job.status = error instanceof DOMException && error.name === "AbortError" ? "cancelled" : "failed";
-      job.message = error instanceof Error ? error.message : "预下载失败"; this.touch(job);
+      job.message = error instanceof AppError ? error.message : "预下载失败，请稍后重试"; this.touch(job);
     }
   }
 

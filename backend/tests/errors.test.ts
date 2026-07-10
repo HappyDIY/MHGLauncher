@@ -10,4 +10,10 @@ describe("业务错误序列化", () => {
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({ code: "game_not_installed" });
   });
+
+  test("未知异常不暴露原始错误", async () => {
+    const response = errorResponse(new Error("SQLITE_ERROR: /private/data.db"));
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ code: "internal_error", message: "本地服务发生异常，请稍后重试", details: {} });
+  });
 });

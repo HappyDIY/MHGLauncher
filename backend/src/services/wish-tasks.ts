@@ -53,7 +53,7 @@ export class WishTasks {
   private async run(job: WishTask, operation: () => Promise<{ result: Record<string, number>; message: string }>): Promise<void> {
     try { job.status = "running"; this.touch(job); const value = await operation(); job.result = value.result; job.status = "completed"; this.append(job, value.message, 1, true); }
     catch (error) {
-      job.status = "failed"; job.error = error instanceof Error ? error.message : "祈愿任务执行失败";
+      job.status = "failed"; job.error = error instanceof AppError ? error.message : "祈愿任务执行失败，请稍后重试";
       job.error_code = error instanceof AppError ? error.code : "unknown_error";
       this.append(job, job.error, undefined, true);
     }

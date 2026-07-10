@@ -40,7 +40,7 @@ extension LauncherStore {
                 wishOperation = nil
             }
         } catch let error as APIErrorPayload {
-            failWishOperation(Self.presentableMessage(error.message))
+            failWishOperation(Self.presentableMessage(error))
         } catch {
             failWishOperation(Self.presentableMessage(error.localizedDescription))
         }

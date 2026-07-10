@@ -30,6 +30,10 @@ class BlockingRunner implements GameLaunchRunner {
   }
 }
 
+class FailingRunner implements GameLaunchRunner {
+  async run(): Promise<number> { throw new Error("spawn ENOENT: /private/runtime/wine64"); }
+}
+
 describe("游戏启动会话", () => {
   afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
@@ -71,6 +75,14 @@ describe("游戏启动会话", () => {
     const revision = launch.revision ?? 0;
     const updated = await service.wait(launch.id, revision, 1_000);
     expect(updated.revision).toBeGreaterThan(revision);
+  });
+
+  test("启动器异常不会写入面向用户的会话消息", async () => {
+    const fixture = makeFixture();
+    const service = new GameLaunchService(fixture.data, fixture.runtime, new FailingRunner(), fixture.integrity);
+    const launch = service.start({ install_path: fixture.game, performance_profile: "optimized", metal_hud: false, network_debug: false, wine_log: false, frame_pacing: 0 });
+    await waitFor(() => service.get(launch.id).status === "failed");
+    expect(service.get(launch.id).message).toBe("游戏启动失败，请稍后重试");
   });
 
   test("下次服务启动恢复中断的 DLL 事务", () => {

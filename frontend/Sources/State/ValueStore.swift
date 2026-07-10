@@ -4,7 +4,6 @@ import Observation
 @MainActor
 @Observable
 final class ValueStore {
-    var characters: [GameCharacter] = []
     var gachaEvents: [GachaEvent] = []
     var achievementArchives: [AchievementArchive] = []
     var achievementGoals: [AchievementGoal] = []

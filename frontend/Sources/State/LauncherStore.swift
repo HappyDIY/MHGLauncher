@@ -147,18 +147,10 @@ final class LauncherStore {
         } catch let urlError as URLError where urlError.code == .cancelled {
             return
         } catch let error as APIErrorPayload {
-            message = Self.presentableMessage(error.message)
+            message = Self.presentableMessage(error)
         } catch {
             message = Self.presentableMessage(error.localizedDescription)
         }
-    }
-
-    nonisolated static func presentableMessage(_ value: String) -> String {
-        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalized.isEmpty, !normalized.allSatisfy(\.isNumber) else {
-            return "操作失败，请稍后重试"
-        }
-        return normalized
     }
 
     func requireClient() throws -> APIClient {
