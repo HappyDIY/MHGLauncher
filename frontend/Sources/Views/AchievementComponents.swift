@@ -67,6 +67,7 @@ struct AchievementEntryRow: View {
             ))
                 .toggleStyle(.checkbox)
                 .labelsHidden()
+                .accessibilityLabel("完成成就")
             VStack(alignment: .leading, spacing: 5) {
                 titleLine
                 Text(entry.description)

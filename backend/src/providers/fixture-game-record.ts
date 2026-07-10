@@ -34,7 +34,7 @@ export class FixtureGameRecordSource implements GameRecordSource {
   }
 
   private character(uid: string, avatarId: string, name: string, element: string, level: number, rarity: number, constellation: number, weapon: string, updatedAt: string): GameCharacter {
-    return { uid, avatar_id: avatarId, name, element, level, rarity, constellation, fetter: 10, weapon_name: weapon, weapon_level: 90, icon_url: null, updated_at: updatedAt, payload: { avatar_id: avatarId } };
+    return { uid, avatar_id: avatarId, name, element, level, rarity, constellation, fetter: 10, weapon_name: weapon, weapon_level: 90, icon_url: null, updated_at: updatedAt, payload: { avatar_id: avatarId, weapon: { name: weapon, level: 90 } } };
   }
 
   private event(id: string, version: string, type: string, name: string, orange: string[], purple: string[], updatedAt: string): GachaEvent {

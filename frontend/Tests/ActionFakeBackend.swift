@@ -43,6 +43,13 @@ actor ActionFakeBackend {
         case ("POST", "/v1/notes/refresh"): return try json(InteractiveFixtures.dailyNote)
         case ("POST", "/v1/notes/verification"):
             return try json(NoteVerificationResponse(xrpcChallenge: "verified"))
+        case ("GET", "/v1/companion/snapshot"):
+            return try json(CompanionSnapshot(
+                wishes: InteractiveFixtures.wishRecords,
+                statistics: [InteractiveFixtures.wishStatistics],
+                bannerStatistics: [InteractiveFixtures.bannerDetail],
+                note: InteractiveFixtures.dailyNote
+            ))
         case ("POST", "/v1/wishes/tasks/sync"): return try json(wishTask())
         case ("POST", "/v1/wishes/tasks/import"): return try json(wishTask())
         case ("GET", "/v1/wishes/tasks/task-1"): return try json(wishTask())
