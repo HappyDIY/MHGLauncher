@@ -20,13 +20,13 @@ source_signature() {
     git log -1 --format=%H -- "$@"
     git ls-files --cached --others --exclude-standard -- "$@" |
       LC_ALL=C sort |
-      while IFS= read -r path; do
-        if is_markdown "$path"; then
+      while IFS= read -r file_path; do
+        if is_markdown "$file_path"; then
           continue
         fi
-        printf '%s\0' "$path"
-        if [[ -e "$path" || -L "$path" ]]; then
-          git hash-object --no-filters -- "$path"
+        printf '%s\0' "$file_path"
+        if [[ -e "$file_path" || -L "$file_path" ]]; then
+          git hash-object --no-filters -- "$file_path"
         else
           printf 'deleted\n'
         fi
