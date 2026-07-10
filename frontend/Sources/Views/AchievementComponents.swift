@@ -61,7 +61,7 @@ struct AchievementEntryRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            Toggle("", isOn: Binding(
+            Toggle("完成成就", isOn: Binding(
                 get: { checked },
                 set: { value in onToggle(value) }
             ))
