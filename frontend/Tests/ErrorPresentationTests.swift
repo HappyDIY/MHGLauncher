@@ -18,6 +18,11 @@ struct ErrorPresentationTests {
     func domainErrorIsRetained() {
         #expect(LauncherStore.presentableMessage("请先选择安装目录") == "请先选择安装目录")
     }
+
+    @Test("本地服务启动失败不展示系统错误")
+    func backendStartupErrorIsGeneric() {
+        #expect(BackendProcess.startupFailureMessage == "本地服务启动失败，请检查运行时安装后重试")
+    }
 }
 
 private func payload(_ code: String, _ message: String) throws -> APIErrorPayload {

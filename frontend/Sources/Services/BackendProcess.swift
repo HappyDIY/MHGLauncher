@@ -44,7 +44,7 @@ final class BackendProcess {
             process?.terminate()
             process = nil
             client = nil
-            errorMessage = "本地服务启动失败：\(error.localizedDescription)"
+            errorMessage = Self.startupFailureMessage
         }
     }
 
@@ -106,4 +106,6 @@ final class BackendProcess {
     nonisolated static func makeSocketPath() -> String {
         "/tmp/mhg-\(ProcessInfo.processInfo.processIdentifier)-\(UUID().uuidString.prefix(8)).sock"
     }
+
+    nonisolated static let startupFailureMessage = "本地服务启动失败，请检查运行时安装后重试"
 }
