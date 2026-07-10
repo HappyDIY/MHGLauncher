@@ -7,8 +7,12 @@ final class LauncherStore {
     let backend = BackendProcess()
     let runtimeInstaller = RuntimeInstaller()
     let keychain = KeychainStore()
-    let deviceOwnerAuthenticator = DeviceOwnerAuthenticator()
+    let deviceOwnerAuthenticator: any DeviceOwnerAuthenticating
     var value = ValueStore()
+
+    init(deviceOwnerAuthenticator: any DeviceOwnerAuthenticating = DeviceOwnerAuthenticator()) {
+        self.deviceOwnerAuthenticator = deviceOwnerAuthenticator
+    }
     var runtimeProgress: RuntimeProgress?
     var runtimeErrorMessage: String?
     var isBootstrapping = false
@@ -39,9 +43,9 @@ final class LauncherStore {
     var wineLogEnabled = UserDefaults.standard.bool(forKey: "wineLogEnabled") {
         didSet { UserDefaults.standard.set(wineLogEnabled, forKey: "wineLogEnabled") }
     }
-    var wishes: [WishRecord] = []
-    var wishStatistics: [WishStatistics] = []
+    var wishes: [WishRecord] = []; var wishStatistics: [WishStatistics] = []
     var bannerDetails: [WishBannerDetail] = []
+    var characters: [GameCharacter] = []; var selectedCharacterId: String?; var characterSearchText = ""
     var dailyNote: DailyNote?
     var qrSession: QRSession?
     var mobileCaptchaSession: MobileCaptchaSession?

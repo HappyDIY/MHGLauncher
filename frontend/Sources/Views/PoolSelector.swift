@@ -71,6 +71,7 @@ struct PoolSelector: View {
                 : .clear.interactive(),
             in: .capsule
         )
+        .accessibilityLabel(detail.poolLabel)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .motionAnimation(.selection, value: isSelected)
     }

@@ -124,6 +124,7 @@ struct GameView: View {
                 )
                 .frame(width: 60)
                 .multilineTextAlignment(.trailing)
+                .accessibilityLabel("下载速度限制")
                 .onSubmit {
                     let value = max(0, store.speedLimitKB)
                     store.speedLimitKB = value

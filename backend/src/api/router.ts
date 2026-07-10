@@ -103,6 +103,18 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   if (method === "DELETE" && path === "/wishes") return json({ deleted: app.wishes.clear() });
   if (method === "GET" && path === "/wishes/export") { const uid = required(query, "uid"); return json(exportUIGF(uid, app.wishes.list(uid))); }
   if (method === "GET" && path === "/notes") return json(app.notes.get(required(query, "uid")));
+  if (method === "GET" && path === "/characters") return json(app.characters.list(required(query, "uid")));
+  if (method === "POST" && path === "/characters/refresh") {
+    const value = credential.parse(body), role = app.accounts.selectedRole();
+    if (!role) throw new AppError("role_missing", "尚未选择原神角色", 409);
+    return json(await app.characters.refresh(value.credential, role));
+  }
+  const character = match(path, /^\/characters\/([^/]+)\/refresh$/);
+  if (method === "POST" && character) {
+    const value = credential.parse(body), role = app.accounts.selectedRole();
+    if (!role) throw new AppError("role_missing", "尚未选择原神角色", 409);
+    return json(await app.characters.refreshDetail(value.credential, role, character));
+  }
   if (method === "POST" && path === "/notes/refresh") {
     const value = refresh.parse(body), role = app.accounts.selectedRole();
     if (!role) throw new AppError("role_missing", "尚未选择原神角色", 409);

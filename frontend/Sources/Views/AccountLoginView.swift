@@ -89,6 +89,7 @@ struct AccountLoginView: View {
                 .font(.system(.body, design: .monospaced))
                 .frame(minHeight: 110)
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+                .accessibilityLabel("Cookie 内容")
             Button("导入 Cookie") {
                 Task { await store.loginByCookie() }
             }
