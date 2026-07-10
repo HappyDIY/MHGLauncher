@@ -1,9 +1,19 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { AppError } from "../core/errors";
 import type { Store } from "../core/database";
-import type { AchievementArchive, AchievementItem } from "../core/models";
+import type { AchievementArchive, AchievementGoal, AchievementItem, AchievementViewItem } from "../core/models";
 
 type UIAF = { info?: Record<string, unknown>; list?: { id: number; current?: number; status?: number; timestamp?: number }[] };
+type Reward = { Count?: number };
+type GoalMeta = { Id: number; Order: number; Name: string; FinishReward?: Reward; Icon: string };
+type AchievementMeta = {
+  Id: number; Goal: number; Order: number; Title: string; Description: string;
+  FinishReward?: Reward; Progress: number; Version: string; Icon?: string; IsDailyQuest?: boolean;
+};
+let achievementCache: AchievementMeta[] | undefined;
+let goalCache: GoalMeta[] | undefined;
 
 const archive = (row: Record<string, unknown>): AchievementArchive => ({
   id: String(row.id), name: String(row.name), selected: Boolean(row.selected),
@@ -14,6 +24,15 @@ const item = (row: Record<string, unknown>): AchievementItem => ({
   current: Number(row.current), status: Number(row.status), timestamp: Number(row.timestamp),
   updated_at: String(row.updated_at),
 });
+const icon = (name?: string): string => name ? `https://api.snaphutaorp.org/static/raw/AchievementIcon/${name}.png` : "";
+const achievementMeta = (): AchievementMeta[] => {
+  achievementCache ??= JSON.parse(readFileSync(join(process.cwd(), "src/mhglauncher/data/achievement.json"), "utf8")) as AchievementMeta[];
+  return achievementCache;
+};
+const goalMeta = (): GoalMeta[] => {
+  goalCache ??= JSON.parse(readFileSync(join(process.cwd(), "src/mhglauncher/data/achievement_goals.json"), "utf8")) as GoalMeta[];
+  return goalCache;
+};
 
 export class AchievementService {
   constructor(private readonly store: Store) {}
@@ -49,6 +68,27 @@ export class AchievementService {
 
   list(archiveId = this.selectedId()): AchievementItem[] {
     return archiveId ? this.store.all("SELECT * FROM achievements WHERE archive_id=? ORDER BY achievement_id", archiveId).map(item) : [];
+  }
+
+  goals(): AchievementGoal[] {
+    return goalMeta().map((value) => ({
+      id: value.Id, order: value.Order, name: value.Name,
+      reward_count: value.FinishReward?.Count ?? 0, icon_url: icon(value.Icon),
+    }));
+  }
+
+  view(archiveId = this.selectedId()): AchievementViewItem[] {
+    const existing = new Map(this.list(archiveId).map((value) => [value.achievement_id, value]));
+    return achievementMeta().map((meta) => {
+      const saved = existing.get(meta.Id);
+      return {
+        archive_id: archiveId ?? "", achievement_id: meta.Id, current: saved?.current ?? 0,
+        status: saved?.status ?? 0, timestamp: saved?.timestamp ?? 0, updated_at: saved?.updated_at ?? "",
+        goal: meta.Goal, order: meta.Order, title: meta.Title, description: meta.Description,
+        progress: meta.Progress, version: meta.Version, reward_count: meta.FinishReward?.Count ?? 0,
+        icon_url: icon(meta.Icon), is_daily_quest: Boolean(meta.IsDailyQuest),
+      };
+    });
   }
 
   save(archiveId: string, values: Omit<AchievementItem, "archive_id" | "updated_at">[]): AchievementItem[] {

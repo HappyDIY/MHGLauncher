@@ -75,6 +75,33 @@ struct AchievementItem: Codable, Sendable, Identifiable {
     let updatedAt: Date
 }
 
+struct AchievementGoal: Codable, Sendable, Identifiable, Equatable {
+    let id: Int
+    let order: Int
+    let name: String
+    let rewardCount: Int
+    let iconUrl: URL?
+}
+
+struct AchievementEntry: Codable, Sendable, Identifiable, Equatable {
+    var id: Int { achievementId }
+    let archiveId: String
+    let achievementId: Int
+    let current: Int
+    let status: Int
+    let timestamp: Int
+    let updatedAt: String
+    let goal: Int
+    let order: Int
+    let title: String
+    let description: String
+    let progress: Int
+    let version: String
+    let rewardCount: Int
+    let iconUrl: URL?
+    let isDailyQuest: Bool
+}
+
 struct NotificationSettings: Codable, Sendable {
     var dailyCommissionEnabled: Bool
     var dailyCommissionTime: String

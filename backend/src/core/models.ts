@@ -45,6 +45,13 @@ export interface AchievementItem {
   archive_id: string; achievement_id: number; current: number; status: number;
   timestamp: number; updated_at: string;
 }
+export interface AchievementGoal {
+  id: number; order: number; name: string; reward_count: number; icon_url: string;
+}
+export interface AchievementViewItem extends AchievementItem {
+  goal: number; order: number; title: string; description: string; progress: number;
+  version: string; reward_count: number; icon_url: string; is_daily_quest: boolean;
+}
 export interface GachaEvent {
   id: string; version: string; gacha_type: string; name: string;
   started_at: string; ended_at: string; orange_up: string[]; purple_up: string[];
