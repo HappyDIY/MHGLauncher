@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { CycleKind, CycleRecord, GameCharacter, GameRole, GachaEvent, WishRecord } from "../core/models";
-import { cycleTitle, type GachaUrlProof, type GameRecordSource } from "./game-record";
+import type { GameCharacter, GameRole, GachaEvent, WishRecord } from "../core/models";
+import type { GachaUrlProof, GameRecordSource } from "./game-record";
 
 export class FixtureGameRecordSource implements GameRecordSource {
   constructor(private readonly root: string) {}
@@ -17,16 +17,6 @@ export class FixtureGameRecordSource implements GameRecordSource {
   async characterDetail(credential: string, role: GameRole, avatarId: string): Promise<GameCharacter> {
     return (await this.characters(credential, role)).find((item) => item.avatar_id === avatarId)
       ?? this.character(role.uid, avatarId, "旅行者", "None", 90, 5, 0, "无锋剑", new Date().toISOString());
-  }
-
-  async cycles(_credential: string, role: GameRole, kind: CycleKind): Promise<CycleRecord[]> {
-    const now = new Date().toISOString();
-    return [1, 2].map((index) => ({
-      uid: role.uid, kind, schedule_id: `${kind}-${index}`, title: `${cycleTitle(kind)} ${index}`,
-      summary: kind === "abyss" ? "36 星 · 已通关" : "最高难度 · 已完成",
-      started_at: "2026-06-16T04:00:00+08:00", ended_at: "2026-07-01T03:59:59+08:00",
-      uploaded_at: null, updated_at: now, payload: { kind, index, uid: role.uid },
-    }));
   }
 
   async gachaEvents(_credential: string, _role: GameRole): Promise<GachaEvent[]> {

@@ -32,12 +32,6 @@ export interface GameCharacter {
   constellation: number; fetter: number; weapon_name: string; weapon_level: number;
   icon_url?: string | null; payload: unknown; updated_at: string;
 }
-export type CycleKind = "abyss" | "theatre" | "hard";
-export interface CycleRecord {
-  uid: string; kind: CycleKind; schedule_id: string; title: string; summary: string;
-  started_at: string | null; ended_at: string | null; uploaded_at: string | null;
-  payload: unknown; updated_at: string;
-}
 export interface AchievementArchive {
   id: string; name: string; selected: boolean; created_at: string; updated_at: string;
 }
@@ -59,7 +53,6 @@ export interface GachaEvent {
 }
 export interface NotificationSettings {
   daily_commission_enabled: boolean; daily_commission_time: string; resin_full_enabled: boolean;
-  abyss_refresh_enabled: boolean; theatre_refresh_enabled: boolean; hard_refresh_enabled: boolean;
   gacha_refresh_enabled: boolean; version_update_enabled: boolean;
 }
 export interface NotificationEvent {

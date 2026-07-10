@@ -17,11 +17,6 @@ struct NotificationsView: View {
                         .frame(width: 120)
                     Toggle("体力回满", isOn: bool(\.resinFullEnabled))
                 }
-                GlassCard("周期", icon: "calendar") {
-                    Toggle("深渊刷新", isOn: bool(\.abyssRefreshEnabled))
-                    Toggle("剧诗刷新", isOn: bool(\.theatreRefreshEnabled))
-                    Toggle("危战刷新", isOn: bool(\.hardRefreshEnabled))
-                }
                 GlassCard("更新", icon: "bell.badge") {
                     Toggle("卡池刷新", isOn: bool(\.gachaRefreshEnabled))
                     Toggle("版本更新", isOn: bool(\.versionUpdateEnabled))

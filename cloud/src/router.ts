@@ -7,7 +7,6 @@ import * as gacha from "./gacha";
 const gachaUrl = z.object({ gacha_url: z.string().url() });
 const uidBody = z.object({ uid: z.string().min(1) });
 const uploadBody = uidBody.extend({ items: z.array(z.any()) });
-const cycleBody = z.object({ record: z.any() });
 
 export async function dispatch(request: Request): Promise<Response> {
   try {
@@ -52,17 +51,6 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   }
   const remove = match(path, /^\/gacha\/([^/]+)$/);
   if (method === "DELETE" && remove) { await requireFresh(bearer(request), remove); return json(await gacha.remove(remove)); }
-  const uploadCycle = match(path, /^\/cycles\/([^/]+)\/upload$/);
-  if (method === "POST" && uploadCycle) {
-    const value = cycleBody.parse(body), uid = String(value.record.uid ?? "");
-    await requireFresh(bearer(request), uid);
-    return json(await gacha.uploadCycle(uid, uploadCycle, value.record));
-  }
-  const cycle = match(path, /^\/cycles\/([^/]+)$/);
-  if (method === "GET" && cycle) {
-    const uid = required(query, "uid"); await requireSession(bearer(request), uid);
-    return json(await gacha.cycles(uid, cycle));
-  }
   throw new HttpError(404, "not_found", "接口不存在");
 }
 

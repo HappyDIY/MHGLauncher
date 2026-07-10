@@ -110,8 +110,6 @@ describe("本地 API 契约", () => {
 	    expect(characters[0].name).toBe("芙宁娜");
 	    const events = await (await request("POST", "/v1/gacha-events/refresh", body)).json();
 	    expect(events[0].orange_up.length).toBeGreaterThan(0);
-	    const cycles = await (await request("POST", "/v1/cycles/abyss/refresh", body)).json();
-	    expect(cycles[0].kind).toBe("abyss");
 	  });
 
 	  test("成就档案支持保存与导出 UIAF", async () => {

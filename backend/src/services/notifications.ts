@@ -6,9 +6,6 @@ const settings = (row: Record<string, unknown>): NotificationSettings => ({
   daily_commission_enabled: bool(row.daily_commission_enabled),
   daily_commission_time: String(row.daily_commission_time),
   resin_full_enabled: bool(row.resin_full_enabled),
-  abyss_refresh_enabled: bool(row.abyss_refresh_enabled),
-  theatre_refresh_enabled: bool(row.theatre_refresh_enabled),
-  hard_refresh_enabled: bool(row.hard_refresh_enabled),
   gacha_refresh_enabled: bool(row.gacha_refresh_enabled),
   version_update_enabled: bool(row.version_update_enabled),
 });
@@ -23,9 +20,8 @@ export class NotificationService {
   update(value: Partial<NotificationSettings>): NotificationSettings {
     const next = { ...this.get(), ...value };
     this.store.db.prepare(`UPDATE notification_settings SET daily_commission_enabled=?,daily_commission_time=?,resin_full_enabled=?,
-      abyss_refresh_enabled=?,theatre_refresh_enabled=?,hard_refresh_enabled=?,gacha_refresh_enabled=?,version_update_enabled=? WHERE id=1`)
+      gacha_refresh_enabled=?,version_update_enabled=? WHERE id=1`)
       .run(Number(next.daily_commission_enabled), next.daily_commission_time, Number(next.resin_full_enabled),
-        Number(next.abyss_refresh_enabled), Number(next.theatre_refresh_enabled), Number(next.hard_refresh_enabled),
         Number(next.gacha_refresh_enabled), Number(next.version_update_enabled));
     return next;
   }
@@ -37,15 +33,6 @@ export class NotificationService {
     }
     if (note && config.resin_full_enabled && note.current_resin >= note.max_resin) {
       events.push(this.once(`resin:${note.uid}:${note.max_resin}`, "体力已回满", `UID ${note.uid} 当前体力 ${note.current_resin}/${note.max_resin}`, "notes"));
-    }
-    if (config.abyss_refresh_enabled && [1, 16].includes(this.cnDay(now))) {
-      events.push(this.once(`cycle:abyss:${this.day(now)}`, "深境螺旋已刷新", "新的深渊周期已经开始", "abyss"));
-    }
-    if (config.theatre_refresh_enabled && this.cnDay(now) === 1) {
-      events.push(this.once(`cycle:theatre:${this.day(now)}`, "幻想真境剧诗已刷新", "新的剧诗周期已经开始", "theatre"));
-    }
-    if (config.hard_refresh_enabled && this.cnDay(now) === 1) {
-      events.push(this.once(`cycle:hard:${this.day(now)}`, "幽境危战已刷新", "新的危战周期已经开始", "hard"));
     }
     if (config.gacha_refresh_enabled && this.hasEventStartingToday(now)) {
       events.push(this.once(`gacha:${this.day(now)}`, "卡池已刷新", "新的活动祈愿已经开放", "gachaHistory"));
@@ -76,5 +63,4 @@ export class NotificationService {
   }
 
   private day(date: Date): string { return date.toISOString().slice(0, 10); }
-  private cnDay(date: Date): number { return new Date(date.getTime() + 8 * 60 * 60 * 1000).getUTCDate(); }
 }

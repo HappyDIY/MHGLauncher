@@ -1,33 +1,5 @@
 import Foundation
 
-enum CycleKind: String, Codable, Sendable, CaseIterable, Identifiable {
-    case abyss
-    case theatre
-    case hard
-
-    var id: Self { self }
-    var title: String {
-        switch self {
-        case .abyss: "深渊"
-        case .theatre: "剧诗"
-        case .hard: "危战"
-        }
-    }
-}
-
-struct CycleRecord: Codable, Sendable, Identifiable {
-    var id: String { "\(kind.rawValue)-\(scheduleId)" }
-    let uid: String
-    let kind: CycleKind
-    let scheduleId: String
-    let title: String
-    let summary: String
-    let startedAt: Date?
-    let endedAt: Date?
-    let uploadedAt: Date?
-    let updatedAt: Date
-}
-
 struct GachaEvent: Codable, Sendable, Identifiable {
     let id: String
     let version: String
@@ -90,9 +62,6 @@ struct NotificationSettings: Codable, Sendable {
     var dailyCommissionEnabled: Bool
     var dailyCommissionTime: String
     var resinFullEnabled: Bool
-    var abyssRefreshEnabled: Bool
-    var theatreRefreshEnabled: Bool
-    var hardRefreshEnabled: Bool
     var gachaRefreshEnabled: Bool
     var versionUpdateEnabled: Bool
 }
@@ -128,12 +97,6 @@ struct GachaURLRequest: Codable {
 struct CloudUIDRequest: Codable {
     let uid: String
     let token: String
-}
-
-struct CloudCycleUploadRequest: Codable {
-    let uid: String
-    let token: String
-    let scheduleId: String
 }
 
 struct AchievementArchiveRequest: Codable {

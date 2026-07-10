@@ -26,34 +26,6 @@ extension LauncherStore {
         }
     }
 
-    func loadCycle(_ kind: CycleKind) async {
-        guard let uid = selectedRole?.uid else { return }
-        await perform {
-            value.cycles[kind] = try await requireClient().get(
-                "/v1/cycles/\(kind.rawValue)",
-                query: [URLQueryItem(name: "uid", value: uid)]
-            )
-        }
-    }
-
-    func refreshCycle(_ kind: CycleKind) async {
-        await perform {
-            value.cycles[kind] = try await requireClient().post(
-                "/v1/cycles/\(kind.rawValue)/refresh",
-                body: CredentialRequest(credential: try requireCredential())
-            )
-        }
-    }
-
-    func uploadCycle(_ record: CycleRecord) async {
-        await perform {
-            let token = try cloudToken(uid: record.uid)
-            let body = CloudCycleUploadRequest(uid: record.uid, token: token, scheduleId: record.scheduleId)
-            _ = try await requireClient().post("/v1/cycles/\(record.kind.rawValue)/upload", body: body) as CountResponse
-            await loadCycle(record.kind)
-        }
-    }
-
     func loginCloud() async {
         await perform {
             let result: CloudLoginResult = try await requireClient().post(

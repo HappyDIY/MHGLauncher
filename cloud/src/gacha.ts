@@ -1,5 +1,4 @@
 import { pool, transaction } from "./db";
-import { HttpError } from "./http";
 
 export type CloudWish = {
   id: string; uid: string; gacha_type: string; uigf_gacha_type: string; item_id: string;
@@ -38,17 +37,4 @@ export async function entries(uid: string): Promise<{ uid: string; total: number
 export async function remove(uid: string): Promise<{ deleted: number }> {
   const result = await pool().query("DELETE FROM gacha_records WHERE uid=$1", [uid]);
   return { deleted: result.rowCount ?? 0 };
-}
-
-export async function uploadCycle(uid: string, kind: string, record: { schedule_id?: string; payload?: unknown }): Promise<{ uploaded: number }> {
-  const scheduleId = record.schedule_id;
-  if (!scheduleId) throw new HttpError(422, "schedule_id_missing", "周期记录缺少 schedule_id");
-  await pool().query(`INSERT INTO cycle_records(uid,kind,schedule_id,payload) VALUES($1,$2,$3,$4)
-    ON CONFLICT(uid,kind,schedule_id) DO UPDATE SET payload=excluded.payload,uploaded_at=now()`, [uid, kind, scheduleId, record]);
-  return { uploaded: 1 };
-}
-
-export async function cycles(uid: string, kind: string): Promise<{ records: unknown[] }> {
-  const result = await pool().query("SELECT payload FROM cycle_records WHERE uid=$1 AND kind=$2 ORDER BY schedule_id DESC", [uid, kind]);
-  return { records: result.rows.map((row) => row.payload) };
 }

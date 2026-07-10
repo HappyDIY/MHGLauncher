@@ -16,7 +16,6 @@ import type { GameRecordSource } from "../providers/game-record";
 import { FixtureGameRecordSource } from "../providers/fixture-game-record";
 import { LiveGameRecordSource } from "../providers/live-game-record";
 import { CharacterService } from "../services/characters";
-import { CycleService } from "../services/cycles";
 import { AchievementService } from "../services/achievements";
 import { NotificationService } from "../services/notifications";
 import { GachaEventService } from "../services/gacha-events";
@@ -35,7 +34,6 @@ export class Container {
 	  readonly wishTasks: WishTasks;
 	  readonly records: GameRecordSource;
 	  readonly characters: CharacterService;
-	  readonly cycles: CycleService;
 	  readonly achievements: AchievementService;
 	  readonly notifications: NotificationService;
 	  readonly gachaEvents: GachaEventService;
@@ -57,11 +55,10 @@ export class Container {
 	    this.wishes = new WishService(this.store, this.provider, this.images);
 	    this.wishTasks = new WishTasks(this.accounts, this.wishes);
 	    this.characters = new CharacterService(this.store, this.records);
-	    this.cycles = new CycleService(this.store, this.records);
 	    this.achievements = new AchievementService(this.store);
 	    this.gachaEvents = new GachaEventService(this.store, this.records);
 	    this.notifications = new NotificationService(this.store);
-	    this.cloud = new CloudSyncService(config, this.store, this.records, this.wishes, this.cycles);
+	    this.cloud = new CloudSyncService(config, this.store, this.records, this.wishes);
 	  }
 
   close(): void { this.store.close(); }

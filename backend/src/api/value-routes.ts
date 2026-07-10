@@ -1,13 +1,11 @@
 import { z } from "zod";
 import type { Container } from "../core/container";
 import { AppError } from "../core/errors";
-import type { CycleKind } from "../core/models";
 import { exportUIGF } from "../services/uigf";
 
 const credential = z.object({ credential: z.string().min(1) });
 const gachaUrl = z.object({ gacha_url: z.string().url(), token: z.string().optional().default("") });
 const cloudUid = z.object({ uid: z.string().min(1), token: z.string().min(1) });
-const cloudCycle = cloudUid.extend({ kind: z.enum(["abyss", "theatre", "hard"]), schedule_id: z.string().min(1) });
 const archive = z.object({ name: z.string().min(1) });
 const achievementSave = z.object({
   archive_id: z.string().min(1),
@@ -15,8 +13,7 @@ const achievementSave = z.object({
 });
 const settings = z.object({
   daily_commission_enabled: z.boolean().optional(), daily_commission_time: z.string().optional(),
-  resin_full_enabled: z.boolean().optional(), abyss_refresh_enabled: z.boolean().optional(),
-  theatre_refresh_enabled: z.boolean().optional(), hard_refresh_enabled: z.boolean().optional(),
+  resin_full_enabled: z.boolean().optional(),
   gacha_refresh_enabled: z.boolean().optional(), version_update_enabled: z.boolean().optional(),
 });
 
@@ -26,19 +23,6 @@ export async function valueRoute(app: Container, method: string, path: string, q
   if (method === "POST" && path === "/characters/refresh") return json(await app.characters.refresh(credential.parse(body).credential, role()));
   const character = match(path, /^\/characters\/([^/]+)\/refresh$/);
   if (method === "POST" && character) return json(await app.characters.refreshDetail(credential.parse(body).credential, role(), character));
-  const cycle = match(path, /^\/cycles\/([^/]+)$/) as CycleKind | null;
-  if (method === "GET" && cycle) return json(app.cycles.list(required(query, "uid"), cycle));
-	  const cycleRefresh = match(path, /^\/cycles\/([^/]+)\/refresh$/) as CycleKind | null;
-	  if (method === "POST" && cycleRefresh) return json(await app.cycles.refresh(credential.parse(body).credential, role(), cycleRefresh));
-	  const cycleUpload = match(path, /^\/cycles\/([^/]+)\/upload$/) as CycleKind | null;
-	  if (method === "POST" && cycleUpload) {
-	    const value = cloudUid.extend({ schedule_id: z.string().min(1) }).parse(body);
-	    return json(await app.cloud.uploadCycle(value.uid, cycleUpload, value.schedule_id, value.token));
-	  }
-	  if (method === "POST" && path === "/cycles/upload") {
-    const value = cloudCycle.parse(body);
-    return json(await app.cloud.uploadCycle(value.uid, value.kind, value.schedule_id, value.token));
-  }
   if (method === "GET" && path === "/gacha-events") return json(app.gachaEvents.list());
   if (method === "POST" && path === "/gacha-events/refresh") return json(await app.gachaEvents.refresh(credential.parse(body).credential, role()));
   if (method === "GET" && path === "/achievements/archives") return json(app.achievements.archives());

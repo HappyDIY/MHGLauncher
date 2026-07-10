@@ -133,9 +133,6 @@ struct RootView: View {
         case .notes: NotesView(store: store)
         case .characters: CharactersView(store: store)
         case .achievements: AchievementsView(store: store)
-        case .abyss: CycleRecordsView(store: store, kind: .abyss)
-        case .theatre: CycleRecordsView(store: store, kind: .theatre)
-        case .hard: CycleRecordsView(store: store, kind: .hard)
         case .notifications: NotificationsView(store: store)
         case .account: AccountView(store: store)
         }

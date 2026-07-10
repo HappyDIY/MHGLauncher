@@ -2,9 +2,8 @@ import { randomBytes } from "node:crypto";
 import type { Settings } from "../core/config";
 import type { Store } from "../core/database";
 import { AppError } from "../core/errors";
-import type { CloudLoginResult, CycleKind } from "../core/models";
+import type { CloudLoginResult } from "../core/models";
 import type { GameRecordSource } from "../providers/game-record";
-import type { CycleService } from "./cycles";
 import type { WishService } from "./wishes";
 
 export class CloudSyncService {
@@ -13,7 +12,6 @@ export class CloudSyncService {
     private readonly store: Store,
     private readonly records: GameRecordSource,
     private readonly wishes: WishService,
-    private readonly cycles: CycleService,
   ) {}
 
   async login(gachaUrl: string): Promise<CloudLoginResult> {
@@ -60,14 +58,6 @@ export class CloudSyncService {
   async deleteWishes(uid: string, token: string): Promise<Record<string, number>> {
     if (!this.settings.cloudBaseUrl) return { deleted: 0 };
     return this.remote<Record<string, number>>(`/api/v1/gacha/${encodeURIComponent(uid)}`, token, undefined, "DELETE");
-  }
-
-  async uploadCycle(uid: string, kind: CycleKind, scheduleId: string, token: string): Promise<Record<string, number>> {
-    const record = this.cycles.list(uid, kind).find((value) => value.schedule_id === scheduleId);
-    if (!record) throw new AppError("cycle_record_missing", "周期记录不存在", 404);
-    if (this.settings.cloudBaseUrl) await this.remote(`/api/v1/cycles/${kind}/upload`, token, { record });
-    this.cycles.markUploaded(uid, kind, scheduleId);
-    return { uploaded: 1 };
   }
 
   private save(uid: string, tokenRef: string, reverifiedAt: string): void {

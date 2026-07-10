@@ -9,9 +9,6 @@ enum Destination: String, CaseIterable, Identifiable {
     case notes = "实时便笺"
     case characters = "我的角色"
     case achievements = "成就管理"
-    case abyss = "深渊"
-    case theatre = "剧诗"
-    case hard = "危战"
     case notifications = "消息提醒"
     case account = "账号"
 
@@ -26,9 +23,6 @@ enum Destination: String, CaseIterable, Identifiable {
         case .notes: "note.text"
         case .characters: "person.3"
         case .achievements: "trophy"
-        case .abyss: "moon.stars"
-        case .theatre: "theatermasks"
-        case .hard: "flame"
         case .notifications: "bell"
         case .account: "person.crop.circle"
         }
@@ -37,11 +31,11 @@ enum Destination: String, CaseIterable, Identifiable {
     var accent: Color {
         switch self {
         case .home, .gachaHistory: .blue
-        case .game, .abyss: .indigo
+        case .game: .indigo
         case .wishes, .cloudSync: .cyan
         case .notes, .notifications: .green
-        case .characters, .theatre: .mint
-        case .achievements, .hard: .pink
+        case .characters: .mint
+        case .achievements: .pink
         case .account: .orange
         }
     }

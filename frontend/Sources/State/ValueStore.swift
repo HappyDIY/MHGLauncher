@@ -14,9 +14,4 @@ final class ValueStore {
     var cloudSession: CloudSession?
     var cloudLoginURL = ""
     var cloudMessage = ""
-    var cycles: [CycleKind: [CycleRecord]] = [:]
-
-    func records(for kind: CycleKind) -> [CycleRecord] {
-        cycles[kind] ?? []
-    }
 }

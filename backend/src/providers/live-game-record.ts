@@ -1,9 +1,9 @@
 import { join } from "node:path";
 import type { Settings } from "../core/config";
 import { AppError } from "../core/errors";
-import type { CycleKind, CycleRecord, GameCharacter, GameRole, GachaEvent, WishRecord } from "../core/models";
+import type { GameCharacter, GameRole, GachaEvent, WishRecord } from "../core/models";
 import { Device } from "./device";
-import { cycleTitle, type GachaUrlProof, type GameRecordSource } from "./game-record";
+import type { GachaUrlProof, GameRecordSource } from "./game-record";
 import { sign } from "./signing";
 import { normalizeWishSyncError } from "./wish-sync";
 
@@ -30,14 +30,6 @@ export class LiveGameRecordSource implements GameRecordSource {
     return this.character(role.uid, item.base ?? item, new Date().toISOString(), item);
   }
 
-  async cycles(credential: string, role: GameRole, kind: CycleKind): Promise<CycleRecord[]> {
-    if (kind === "abyss") return (await Promise.all([1, 2].map((schedule) => this.abyss(credential, role, schedule)))).filter(Boolean) as CycleRecord[];
-    const path = kind === "theatre" ? "role_combat" : "hard_challenge";
-    const query = new URLSearchParams({ role_id: role.uid, server: role.region, need_detail: "true", active: "1" });
-    const data = await this.api(`${recordRoot}/${path}?${query}`, credential, sign("x4", "", query.toString()), { method: "GET" });
-    return (data.data as JSONValue[] ?? [data]).filter((item) => Object.keys(item).length).map((item, index) => this.cycle(role.uid, kind, item, index));
-  }
-
   async gachaEvents(credential: string, _role: GameRole): Promise<GachaEvent[]> {
     const data = await this.api(`${recordRoot}/act_calendar`, credential, sign("x4"), { method: "GET" });
     const now = new Date().toISOString();
@@ -61,24 +53,11 @@ export class LiveGameRecordSource implements GameRecordSource {
     return { uid: provenUid, records: records.map((item) => ({ ...item, uid: provenUid })) };
   }
 
-  private async abyss(credential: string, role: GameRole, schedule: number): Promise<CycleRecord | null> {
-    const query = new URLSearchParams({ role_id: role.uid, server: role.region, schedule_type: String(schedule) });
-    const data = await this.api(`${recordRoot}/spiralAbyss?${query}`, credential, sign("x4", "", query.toString()), { method: "GET" });
-    return Object.keys(data).length ? this.cycle(role.uid, "abyss", data, schedule) : null;
-  }
-
   private character(uid: string, value: JSONValue, updatedAt: string, payload: unknown = value): GameCharacter {
     const weapon = value.weapon as JSONValue | undefined;
     return { uid, avatar_id: String(value.id), name: String(value.name ?? ""), element: String(value.element ?? ""), level: Number(value.level ?? 0),
       rarity: Number(value.rarity ?? 0), constellation: Number(value.actived_constellation_num ?? 0), fetter: Number(value.fetter ?? 0),
       weapon_name: String(weapon?.name ?? ""), weapon_level: Number(weapon?.level ?? 0), icon_url: String(value.icon ?? "") || null, payload, updated_at: updatedAt };
-  }
-
-  private cycle(uid: string, kind: CycleKind, value: JSONValue, fallback: number): CycleRecord {
-    const schedule = value.schedule as JSONValue | undefined, stat = value.stat as JSONValue | undefined;
-    const scheduleId = String(value.schedule_id ?? schedule?.schedule_id ?? schedule?.id ?? `${kind}-${fallback}`);
-    const summary = kind === "abyss" ? `${Number(value.total_star ?? 0)} 星` : `${String(stat?.difficulty_id ?? value.difficulty ?? "") || "当前周期"}`;
-    return { uid, kind, schedule_id: scheduleId, title: `${cycleTitle(kind)} ${scheduleId}`, summary, started_at: this.time(schedule?.start_time), ended_at: this.time(schedule?.end_time), uploaded_at: null, payload: value, updated_at: new Date().toISOString() };
   }
 
   private names(values: JSONValue[] | undefined): string[] { return (values ?? []).map((item) => String(item.name ?? item.item_name ?? "")).filter(Boolean); }
