@@ -111,6 +111,10 @@ else
   printf '%s\n' "$source_hash" >"$signature_file"
 fi
 
+# 保留一个固定入口，避免用户从 Finder 打开的 dist App 落后于调试启动副本。
+rm -rf "$built_app"
+cp -cR "$cached_app" "$built_app"
+
 printf '正在启动：%s\n' "$cached_app"
 printf '关闭 MHGLauncher 后将保留此 App。\n'
 
