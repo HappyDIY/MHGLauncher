@@ -26,6 +26,7 @@ CREATE INDEX IF NOT EXISTS wishes_uid_time_id ON wishes(uid,time DESC,id DESC);
 CREATE INDEX IF NOT EXISTS wishes_uid_type_time_id ON wishes(uid,gacha_type,time DESC,id DESC);
 CREATE INDEX IF NOT EXISTS wishes_uid_uigf_time_id ON wishes(uid,uigf_gacha_type,time DESC,id DESC);`], [4, `
 DROP TABLE IF EXISTS cycle_records;
+DELETE FROM notification_state WHERE key LIKE 'cycle:abyss:%' OR key LIKE 'cycle:theatre:%' OR key LIKE 'cycle:hard:%';
 ALTER TABLE notification_settings RENAME TO notification_settings_legacy;
 CREATE TABLE notification_settings(id INTEGER PRIMARY KEY CHECK(id=1),daily_commission_enabled INTEGER NOT NULL,daily_commission_time TEXT NOT NULL,resin_full_enabled INTEGER NOT NULL,gacha_refresh_enabled INTEGER NOT NULL,version_update_enabled INTEGER NOT NULL);
 INSERT INTO notification_settings(id,daily_commission_enabled,daily_commission_time,resin_full_enabled,gacha_refresh_enabled,version_update_enabled)

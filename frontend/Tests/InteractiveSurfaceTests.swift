@@ -29,7 +29,7 @@ struct InteractiveSurfaceTests {
         #expect(controls.count >= 40)
         let unreadable = controls.filter { !$0.hasReadableName }
         if !unreadable.isEmpty {
-            Issue.record(unreadable.map(\.summary).joined(separator: "\n"))
+            Issue.record(Comment(rawValue: unreadable.map(\.summary).joined(separator: "\n")))
         }
     }
 
@@ -46,7 +46,7 @@ struct InteractiveSurfaceTests {
                 && !control.snippet.contains(".accessibilityLabel(")
         }
         if !weakEditors.isEmpty || !weakNumericFields.isEmpty {
-            Issue.record((weakEditors + weakNumericFields).map(\.summary).joined(separator: "\n"))
+            Issue.record(Comment(rawValue: (weakEditors + weakNumericFields).map(\.summary).joined(separator: "\n")))
         }
     }
 
@@ -54,7 +54,6 @@ struct InteractiveSurfaceTests {
     private func render(_ view: AnyView, name: String) {
         let host = NSHostingView(
             rootView: view
-                .environment(\.accessibilityReduceMotion, true)
                 .frame(width: 1100, height: 740)
         )
         host.frame = NSRect(x: 0, y: 0, width: 1100, height: 740)
@@ -133,7 +132,9 @@ private enum InteractiveSourceScanner {
         try sourceURLs().flatMap { url in
             let text = try String(contentsOf: url)
             let lines = text.components(separatedBy: .newlines)
-            return lines.enumerated().compactMap { offset, line in
+            return lines.enumerated().compactMap { (item: (offset: Int, element: String)) -> InteractiveControl? in
+                let offset = item.offset
+                let line = item.element
                 guard let kind = kinds.first(where: { contains($0, in: line) }) else {
                     return nil
                 }

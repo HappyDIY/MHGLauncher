@@ -1,9 +1,11 @@
 import { Pool, type PoolClient } from "pg";
 
 const schema = `
+CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS users(uid TEXT PRIMARY KEY,created_at TIMESTAMPTZ NOT NULL DEFAULT now(),updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
 CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY,uid TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,reverified_at TIMESTAMPTZ NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT now());
 CREATE TABLE IF NOT EXISTS gacha_records(uid TEXT NOT NULL REFERENCES users(uid) ON DELETE CASCADE,id TEXT NOT NULL,gacha_type TEXT NOT NULL,uigf_gacha_type TEXT NOT NULL,item_id TEXT NOT NULL,name TEXT NOT NULL,item_type TEXT NOT NULL,rank INTEGER NOT NULL,time TIMESTAMPTZ NOT NULL,payload JSONB NOT NULL,PRIMARY KEY(uid,id));
+INSERT INTO schema_migrations(version) VALUES(1) ON CONFLICT DO NOTHING;
 `;
 
 declare global { var mhgCloudPool: Pool | undefined; var mhgCloudReady: Promise<void> | undefined; }
@@ -13,7 +15,10 @@ export function pool(): Pool {
 }
 
 export async function ready(): Promise<void> {
-  globalThis.mhgCloudReady ??= pool().query(schema).then(() => undefined);
+  globalThis.mhgCloudReady ??= pool().query(schema).then(async () => {
+    await pool().query("DROP TABLE IF EXISTS cycle_records");
+    await pool().query("INSERT INTO schema_migrations(version) VALUES(2) ON CONFLICT DO NOTHING");
+  });
   return globalThis.mhgCloudReady;
 }
 
