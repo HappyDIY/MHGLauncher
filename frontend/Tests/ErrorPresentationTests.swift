@@ -19,6 +19,11 @@ struct ErrorPresentationTests {
         #expect(LauncherStore.presentableMessage("请先选择安装目录") == "请先选择安装目录")
     }
 
+    @Test("数据解码错误使用可行动提示")
+    func decodingErrorIsActionable() {
+        #expect(LauncherStore.presentableMessage("未能读取数据，因为它的格式不正确。") == "本地数据格式异常，请刷新后重试")
+    }
+
     @Test("本地服务启动失败不展示系统错误")
     func backendStartupErrorIsGeneric() {
         #expect(BackendProcess.startupFailureMessage == "本地服务启动失败，请检查运行时安装后重试")

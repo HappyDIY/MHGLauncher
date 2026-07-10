@@ -122,11 +122,12 @@ describe("本地 API 契约", () => {
 	    await request("POST", "/v1/achievements", { archive_id: archive.id, items: [{ achievement_id: 84501, current: 1, status: 2, timestamp: 1_756_000_000 }] });
 	    const items = await (await request("GET", `/v1/achievements?archive_id=${archive.id}`)).json();
 	    expect(items[0].achievement_id).toBe(84501);
-	    const view = await (await request("GET", `/v1/achievements/view?archive_id=${archive.id}`)).json();
-	    expect(view.find((value: { achievement_id: number }) => value.achievement_id === 84501).status).toBe(2);
-	    const goals = await (await request("GET", "/v1/achievements/goals")).json();
-	    expect(goals.length).toBeGreaterThan(0);
-	    const exported = await (await request("GET", `/v1/achievements/export?archive_id=${archive.id}`)).json();
+    const view = await (await request("GET", `/v1/achievements/view?archive_id=${archive.id}`)).json();
+    expect(view.find((value: { achievement_id: number }) => value.achievement_id === 84501).status).toBe(2);
+    const goals = await (await request("GET", "/v1/achievements/goals")).json();
+    expect(goals.length).toBeGreaterThan(0);
+    expect([...view, ...goals].every((value: { icon_url: string | null }) => value.icon_url === null || value.icon_url.startsWith("https://"))).toBe(true);
+    const exported = await (await request("GET", `/v1/achievements/export?archive_id=${archive.id}`)).json();
 	    expect(exported.list[0].id).toBe(84501);
 	  });
 

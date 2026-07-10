@@ -12,6 +12,9 @@ extension LauncherStore {
 
     nonisolated static func presentableMessage(_ value: String) -> String {
         let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalized == "未能读取数据，因为它的格式不正确。" {
+            return "本地数据格式异常，请刷新后重试"
+        }
         let containsChinese = normalized.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) }
         let unsafeTokens = ["\n", "/", "Error", "HTTP", "SQLITE", "ECONN"]
         guard !normalized.isEmpty, !normalized.allSatisfy(\.isNumber), normalized.count <= 120,

@@ -24,7 +24,7 @@ const item = (row: Record<string, unknown>): AchievementItem => ({
   current: Number(row.current), status: Number(row.status), timestamp: Number(row.timestamp),
   updated_at: String(row.updated_at),
 });
-const icon = (name?: string): string => name ? `https://api.snaphutaorp.org/static/raw/AchievementIcon/${name}.png` : "";
+const icon = (name?: string): string | null => name ? `https://api.snaphutaorp.org/static/raw/AchievementIcon/${name}.png` : null;
 const achievementMeta = (): AchievementMeta[] => {
   achievementCache ??= JSON.parse(readFileSync(join(process.cwd(), "src/mhglauncher/data/achievement.json"), "utf8")) as AchievementMeta[];
   return achievementCache;

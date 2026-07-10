@@ -40,11 +40,11 @@ export interface AchievementItem {
   timestamp: number; updated_at: string;
 }
 export interface AchievementGoal {
-  id: number; order: number; name: string; reward_count: number; icon_url: string;
+  id: number; order: number; name: string; reward_count: number; icon_url: string | null;
 }
 export interface AchievementViewItem extends AchievementItem {
   goal: number; order: number; title: string; description: string; progress: number;
-  version: string; reward_count: number; icon_url: string; is_daily_quest: boolean;
+  version: string; reward_count: number; icon_url: string | null; is_daily_quest: boolean;
 }
 export interface GachaEvent {
   id: string; version: string; gacha_type: string; name: string;
