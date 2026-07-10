@@ -5,6 +5,29 @@ root="$(cd "$(dirname "$0")" && pwd)"
 app="$root/dist/MHGLauncher.app"
 app_pid=""
 
+source_signature() {
+  (
+    cd "$root"
+    git log -1 --format=%H -- frontend backend packaging scripts release-app.command
+    git ls-files --cached --others --exclude-standard -- frontend backend packaging scripts release-app.command |
+      LC_ALL=C sort |
+      while IFS= read -r path; do
+        case "$path" in
+          *.[mM][dD]) continue ;;
+        esac
+        printf '%s\0' "$path"
+        if [[ -e "$path" || -L "$path" ]]; then
+          git hash-object --no-filters -- "$path"
+        else
+          printf 'deleted\n'
+        fi
+      done
+  ) | shasum -a 256 | awk '{print $1}'
+}
+
+source_hash="$(source_signature)"
+signature_file="$app/Contents/Resources/.release-source-signature"
+
 cleanup() {
   status=$?
   trap - EXIT INT TERM HUP
@@ -23,7 +46,12 @@ pkill -x MHGLauncherBackend 2>/dev/null || true
 sleep 1
 
 printf '正在构建发布版 MHGLauncher.app...\n'
-"$root/scripts/build-app.sh" --release
+if [[ ! -d "$app" ]] || [[ "$(cat "$signature_file" 2>/dev/null || true)" != "$source_hash" ]]; then
+  "$root/scripts/build-app.sh" --release
+  printf '%s\n' "$source_hash" >"$signature_file"
+else
+  printf '源码未变化，复用发布版构建：%s\n' "$app"
+fi
 
 printf '正在启动发布版：%s\n' "$app"
 "$app/Contents/MacOS/MHGLauncher" &
