@@ -17,15 +17,6 @@ extension LauncherStore {
         }
     }
 
-    func refreshCharacters() async {
-        await perform {
-            value.characters = try await requireClient().post(
-                "/v1/characters/refresh",
-                body: CredentialRequest(credential: try requireCredential())
-            )
-        }
-    }
-
     func refreshGachaEvents() async {
         await perform {
             value.gachaEvents = try await requireClient().post(

@@ -1,21 +1,5 @@
 import Foundation
 
-struct GameCharacter: Codable, Sendable, Identifiable {
-    var id: String { avatarId }
-    let uid: String
-    let avatarId: String
-    let name: String
-    let element: String
-    let level: Int
-    let rarity: Int
-    let constellation: Int
-    let fetter: Int
-    let weaponName: String
-    let weaponLevel: Int
-    let iconUrl: URL?
-    let updatedAt: Date
-}
-
 enum CycleKind: String, Codable, Sendable, CaseIterable, Identifiable {
     case abyss
     case theatre
