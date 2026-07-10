@@ -51,6 +51,11 @@ describe("本地 API 契约", () => {
   });
 
   test("未登录账号返回 null", async () => expect(await (await request("GET", "/v1/account")).json()).toBeNull());
+  test("参数校验保持前端错误契约", async () => {
+    const response = await request("POST", "/v1/auth/mobile-captcha", { mobile: "invalid" });
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ code: "validation_error", message: "请求参数无效" });
+  });
   test("未知任务返回 404", async () => expect((await request("GET", "/v1/wishes/tasks/missing")).status).toBe(404));
   test("删除账号返回 204", async () => expect((await request("DELETE", "/v1/account")).status).toBe(204));
   test("同步旧端点已删除", async () => expect((await request("POST", "/v1/wishes/sync", { credential: "x" })).status).toBe(404));

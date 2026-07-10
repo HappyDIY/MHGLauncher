@@ -45,6 +45,18 @@ test("连接中断后从已落盘位置自动续传", async () => {
 test("取消控制会中断检查点", async () => { const control = new DownloadControl(); control.cancel(); await expect(control.checkpoint()).rejects.toThrow("任务已取消"); });
 test("暂停后可恢复", async () => { const control = new DownloadControl(); control.pause(); const waiting = control.checkpoint(); control.resume(); await expect(waiting).resolves.toBeUndefined(); });
 
+test("取消会中断挂起的下载请求", async () => {
+  const control = new DownloadControl(); let signal: AbortSignal | undefined;
+  vi.stubGlobal("fetch", vi.fn((_url, init: RequestInit) => new Promise<Response>((_resolve, reject) => {
+    signal = init.signal ?? undefined;
+    signal?.addEventListener("abort", () => reject(signal?.reason));
+  })));
+  const pending = download({ url: "https://fixture/hang", md5: "", size: 1, filename: "hang" }, join(root(), "hang"), control, () => undefined);
+  await vi.waitFor(() => expect(signal).toBeDefined());
+  control.cancel();
+  await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+});
+
 test("文件哈希使用流式结果", async () => {
   const path = join(root(), "hash.bin"), content = Buffer.from("streamed-hash-content");
   writeFileSync(path, content);

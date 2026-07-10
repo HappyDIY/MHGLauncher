@@ -3,10 +3,11 @@ import { pool, transaction } from "./db";
 import { HttpError } from "./http";
 
 type GachaItem = { id: string; uid: string; gacha_type: string; uigf_gacha_type: string; item_id: string; name: string; item_type: string; rank: number; time: string };
+const gachaHosts = new Set(["public-operation-hk4e.mihoyo.com"]);
 
 export async function verifyGachaUrl(raw: string): Promise<{ uid: string; items: GachaItem[] }> {
   const url = new URL(raw);
-  if (!url.hostname.includes("mihoyo.com") || !url.searchParams.get("authkey")) throw new HttpError(422, "gacha_url_invalid", "抽卡 URL 无效");
+  if (!gachaHosts.has(url.hostname) || !url.searchParams.get("authkey")) throw new HttpError(422, "gacha_url_invalid", "抽卡 URL 无效");
   url.searchParams.set("size", "20");
   const uid = url.searchParams.get("uid") ?? url.searchParams.get("game_uid") ?? url.searchParams.get("role_id") ?? "";
   const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });

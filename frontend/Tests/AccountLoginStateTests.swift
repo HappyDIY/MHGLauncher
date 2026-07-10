@@ -52,11 +52,11 @@ struct AccountLoginStateTests {
     func loginSuccessShowsStatus() async throws {
         let store = LauncherStore()
         let aid = "test-\(UUID().uuidString)"
-        store.loginCookie = "stoken=test-secret"
+        store.loginCookie = "login_ticket=temporary-ticket"
         defer { try? store.keychain.delete(account: store.keychainAccount(for: aid)) }
         store.backend.useClient(APIClient(token: "token") { request in
             if request.path == "/v1/auth/cookie-login" {
-                return json(200, loginResponse(aid: aid))
+                return json(200, loginResponse(aid: aid, credential: "stoken=normalized-secret"))
             }
             if request.path == "/v1/accounts" {
                 return json(200, "[\(accountJSON(aid: aid))]")
@@ -67,7 +67,7 @@ struct AccountLoginStateTests {
         await store.loginByCookie()
         #expect(store.statusMessage == "账号登录成功")
         #expect(store.loginFormPresented == false)
-        #expect(try store.keychain.read(account: store.keychainAccount(for: aid)) == "stoken=test-secret")
+        #expect(try store.keychain.read(account: store.keychainAccount(for: aid)) == "stoken=normalized-secret")
     }
 
     @Test("二维码成功后旧过期响应不会覆盖账号状态")
@@ -128,9 +128,9 @@ private func json(_ status: Int, _ body: String) -> APIResponse {
     APIResponse(status: status, body: Data(body.utf8))
 }
 
-private func loginResponse(aid: String) -> String {
+private func loginResponse(aid: String, credential: String) -> String {
     """
-    {"account":\(accountJSON(aid: aid)),"identity":null,"roles":[]}
+    {"account":\(accountJSON(aid: aid)),"identity":{"aid":"\(aid)","mid":"mid","nickname":"旅行者","credential":"\(credential)"},"roles":[]}
     """
 }
 

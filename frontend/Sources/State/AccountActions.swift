@@ -100,7 +100,7 @@ extension LauncherStore {
                 "/v1/auth/cookie-login",
                 body: request
             )
-            try await acceptLogin(response, credential: loginCookie, client: client)
+            try await acceptLogin(response, credential: response.identity?.credential, client: client)
             loginCookie = ""
         }
     }

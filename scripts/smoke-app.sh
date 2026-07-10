@@ -20,6 +20,7 @@ trap cleanup EXIT
 manifest="$("$root/scripts/create-smoke-runtime-assets.sh" "$assets" v0.1.0)"
 
 MHG_DATA_DIR="$data" \
+MHG_INSTANCE_LOCK_PATH="$data/app.lock" \
 MHG_PROVIDER_MODE=fixture \
 MHG_FIXTURE_DIR="$root/backend/fixtures" \
 MHG_RUNTIME_MANIFEST_URL="$manifest" \

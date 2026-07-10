@@ -2,6 +2,8 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
+node_root="$("$root/scripts/fetch-node.sh")"
+export PATH="$node_root/bin:$PATH"
 build_root="$root/build/backend"
 dist="$build_root/dist/MHGLauncherBackend"
 mode="${1:-release}"

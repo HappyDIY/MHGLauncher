@@ -10,6 +10,7 @@ import { normalizeWishSyncError } from "./wish-sync";
 type JSONValue = Record<string, any>;
 const agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) miHoYoBBS/2.95.1";
 const recordRoot = "https://api-takumi-record.mihoyo.com/game_record/app/genshin/api";
+const gachaHosts = new Set(["public-operation-hk4e.mihoyo.com"]);
 
 export class LiveGameRecordSource implements GameRecordSource {
   private readonly device: Device;
@@ -30,8 +31,9 @@ export class LiveGameRecordSource implements GameRecordSource {
     return this.character(role.uid, item.base ?? item, new Date().toISOString(), item);
   }
 
-  async gachaEvents(credential: string, _role: GameRole): Promise<GachaEvent[]> {
-    const data = await this.api(`${recordRoot}/act_calendar`, credential, sign("x4"), { method: "GET" });
+  async gachaEvents(credential: string, role: GameRole): Promise<GachaEvent[]> {
+    const body = JSON.stringify({ role_id: role.uid, server: role.region });
+    const data = await this.api(`${recordRoot}/act_calendar`, credential, sign("x4", body), { method: "POST", body });
     const now = new Date().toISOString();
     return (data.card_pool_list as JSONValue[] ?? []).map((item, index) => ({
       id: String(item.id ?? `card-${index}`), version: String(item.version ?? ""), gacha_type: String(item.gacha_type ?? ""),
@@ -42,7 +44,7 @@ export class LiveGameRecordSource implements GameRecordSource {
 
   async verifyGachaUrl(url: string): Promise<GachaUrlProof> {
     const parsed = new URL(url);
-    if (!parsed.hostname.includes("mihoyo.com") || !parsed.searchParams.get("authkey")) throw new AppError("gacha_url_invalid", "抽卡 URL 无效", 422);
+    if (!gachaHosts.has(parsed.hostname) || !parsed.searchParams.get("authkey")) throw new AppError("gacha_url_invalid", "抽卡 URL 无效", 422);
     parsed.searchParams.set("size", "20");
     const uid = parsed.searchParams.get("uid") ?? parsed.searchParams.get("game_uid") ?? parsed.searchParams.get("role_id") ?? "";
     let data: JSONValue = {};
@@ -65,5 +67,12 @@ export class LiveGameRecordSource implements GameRecordSource {
   private wish(uid: string, v: JSONValue): WishRecord { const type = String(v.gacha_type); return { id: String(v.id), uid, gacha_type: type, uigf_gacha_type: type === "400" ? "301" : type, item_id: String(v.item_id), name: String(v.name), item_type: String(v.item_type), rank: Number(v.rank_type), time: String(v.time).replace(" ", "T") }; }
   private headers(cookie: string, ds: string): Record<string, string> { return { Cookie: cookie, DS: ds, "User-Agent": agent, "x-rpc-app_version": "2.95.1", "x-rpc-client_type": "5", "x-rpc-device_id": this.device.deviceId, "x-rpc-device_fp": this.device.deviceFP, "Content-Type": "application/json", Referer: "https://app.mihoyo.com" }; }
   private api(url: string, cookie: string, ds: string, init: RequestInit = {}): Promise<JSONValue> { return this.request(url, { ...init, headers: { ...this.headers(cookie, ds), ...init.headers } }); }
-  private async request(url: string, init?: RequestInit): Promise<JSONValue> { const response = await fetch(url, { ...init, signal: AbortSignal.timeout(30_000) }); const payload = await response.json() as JSONValue; if (!response.ok || Number(payload.retcode ?? 0) !== 0) throw new AppError("mihoyo_error", String(payload.message || "米游社请求失败"), 502, { retcode: String(payload.retcode ?? "unknown") }); return payload.data as JSONValue ?? {}; }
+  private async request(url: string, init?: RequestInit): Promise<JSONValue> {
+    const response = await fetch(url, { ...init, signal: AbortSignal.timeout(30_000) });
+    let payload: JSONValue;
+    try { payload = JSON.parse(await response.text()) as JSONValue; }
+    catch { throw new AppError("mihoyo_response_invalid", `米游社请求失败（HTTP ${response.status}）`, 502, { http_status: String(response.status) }); }
+    if (!response.ok || Number(payload.retcode ?? 0) !== 0) throw new AppError("mihoyo_error", String(payload.message || "米游社请求失败"), 502, { retcode: String(payload.retcode ?? "unknown") });
+    return payload.data as JSONValue ?? {};
+  }
 }

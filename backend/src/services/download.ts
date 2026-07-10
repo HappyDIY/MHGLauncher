@@ -5,10 +5,11 @@ import { streamDownload } from "./download-transfer";
 import { hashFileSync } from "./file-hash";
 
 export class DownloadControl {
-  private paused = false; private cancelled = false; private waiters: (() => void)[] = [];
+  private paused = false; private cancelled = false; private waiters: (() => void)[] = []; private readonly controller = new AbortController();
+  get signal(): AbortSignal { return this.controller.signal; }
   pause(): void { this.paused = true; }
   resume(): void { this.paused = false; this.release(); }
-  cancel(): void { this.cancelled = true; this.release(); }
+  cancel(): void { this.cancelled = true; this.controller.abort(); this.release(); }
   async checkpoint(): Promise<void> {
     if (this.paused) await new Promise<void>((resolve) => this.waiters.push(resolve));
     if (this.cancelled) throw new DOMException("任务已取消", "AbortError");

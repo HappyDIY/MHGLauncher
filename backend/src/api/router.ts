@@ -35,7 +35,7 @@ export async function dispatch(request: Request): Promise<Response> {
     const body = request.method === "POST" || request.method === "PUT" ? await request.json() : undefined;
     return await route(request.method, path, url.searchParams, body);
   } catch (error) {
-    if (error instanceof z.ZodError) return Response.json({ detail: error.issues }, { status: 422 });
+    if (error instanceof z.ZodError) return Response.json({ code: "validation_error", message: "请求参数无效", details: { issues: JSON.stringify(error.issues) } }, { status: 422 });
     return errorResponse(error);
   }
 }

@@ -19,7 +19,7 @@ export async function streamDownload(
   while (offset < expectedSize) {
     await control.checkpoint();
     try {
-      const response = await fetch(url, { headers: offset ? { Range: `bytes=${offset}-` } : {} });
+      const response = await fetch(url, { headers: offset ? { Range: `bytes=${offset}-` } : {}, signal: control.signal });
       if (offset && response.status !== 206) {
         progress(-offset); offset = 0; report(0); rmSync(partial, { force: true });
         continue;
