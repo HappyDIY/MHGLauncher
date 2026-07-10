@@ -80,20 +80,21 @@ backend_cache="$root/build/backend-debug-cache/$backend_hash/MHGLauncherBackend"
 run_dir="$root/build/debug-run/$source_hash"
 run_app="$run_dir/MHGLauncher.app"
 run_binary="$run_app/Contents/MacOS/MHGLauncher"
+force_rebuild="${MHG_DEBUG_FORCE_REBUILD:-1}"
 
 pkill -x MHGLauncher 2>/dev/null || true
 pkill -x MHGLauncherBackend 2>/dev/null || true
 sleep 1
 
-if [[ -d "$cached_app" ]] &&
+if [[ "$force_rebuild" != "1" ]] && [[ -d "$cached_app" ]] &&
   [[ "$(cat "$signature_file" 2>/dev/null || true)" == "$source_hash" ]]; then
   printf '源码未变化，复用缓存：%s\n' "$cached_app"
-elif reusable_app="$(find_cached_app)"; then
+elif [[ "$force_rebuild" != "1" ]] && reusable_app="$(find_cached_app)"; then
   printf '仅 Git 哈希或文档变化，复用已有构建：%s\n' "$reusable_app"
   rm -rf "$cached_app"
   cp -R "$reusable_app" "$cached_app"
 else
-  printf '检测到非 Markdown 文件变化，正在构建 MHGLauncher.app...\n'
+  printf '正在构建最新的 MHGLauncher.app（已禁用旧 App 缓存）...\n'
   if [[ ! -x "$backend_cache/MHGLauncherBackend" ]]; then
     printf '后端源码已变化，正在更新冻结后端...\n'
     /bin/bash "$root/scripts/build-backend-debug.sh"
