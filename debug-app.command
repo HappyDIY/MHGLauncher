@@ -80,7 +80,8 @@ backend_cache="$root/build/backend-debug-cache/$backend_hash/MHGLauncherBackend"
 run_dir="$root/build/debug-run/$source_hash"
 run_app="$run_dir/MHGLauncher.app"
 run_binary="$run_app/Contents/MacOS/MHGLauncher"
-force_rebuild="${MHG_DEBUG_FORCE_REBUILD:-1}"
+# 默认使用源码签名缓存；需要排查缓存问题时再显式强制重建。
+force_rebuild="${MHG_DEBUG_FORCE_REBUILD:-0}"
 
 pkill -x MHGLauncher 2>/dev/null || true
 pkill -x MHGLauncherBackend 2>/dev/null || true
@@ -94,7 +95,7 @@ elif [[ "$force_rebuild" != "1" ]] && reusable_app="$(find_cached_app)"; then
   rm -rf "$cached_app"
   cp -R "$reusable_app" "$cached_app"
 else
-  printf '正在构建最新的 MHGLauncher.app（已禁用旧 App 缓存）...\n'
+  printf '源码已变化，正在构建最新的 MHGLauncher.app...\n'
   if [[ ! -x "$backend_cache/MHGLauncherBackend" ]]; then
     printf '后端源码已变化，正在更新冻结后端...\n'
     /bin/bash "$root/scripts/build-backend-debug.sh"
