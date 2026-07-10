@@ -132,6 +132,12 @@ describe("本地 API 契约", () => {
 	    expect(upload.uploaded).toBeGreaterThanOrEqual(0);
 	    const settings = await (await request("PUT", "/v1/notifications/settings", { daily_commission_enabled: true, daily_commission_time: "00:00" })).json();
 	    expect(settings.daily_commission_enabled).toBe(true);
+	    expect(settings).not.toHaveProperty("abyss_refresh_enabled");
+	    expect(settings).not.toHaveProperty("theatre_refresh_enabled");
+	    expect(settings).not.toHaveProperty("hard_refresh_enabled");
+	    expect((await request("GET", "/v1/cycles/abyss?uid=100000001")).status).toBe(404);
+	    expect((await request("POST", "/v1/cycles/abyss/refresh", { credential: "fixture" })).status).toBe(404);
+	    expect((await request("POST", "/v1/cycles/abyss/upload", { uid: "100000001", token: "fixture", schedule_id: "old" })).status).toBe(404);
 	  });
 	});
 
