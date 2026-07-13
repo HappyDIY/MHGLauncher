@@ -24,7 +24,10 @@ struct GameLaunchControls: View {
                     Task { await store.launchGame() }
                 } label: {
                     if store.isLaunchingGame {
-                        ProgressView().controlSize(.small)
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            Text("正在启动游戏")
+                        }
                     } else {
                         Text("启动游戏")
                     }
@@ -46,6 +49,7 @@ struct GameLaunchControls: View {
                         .contentTransition(.symbolEffect(.replace))
                         .motionSymbolBounce(value: launch.status)
                         .motionTransition(.selection)
+                        .accessibilityLiveRegion(.polite)
                 }
             }
             if let message = store.gameLaunch?.message, !message.isEmpty {

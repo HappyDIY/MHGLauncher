@@ -30,8 +30,10 @@ struct WishResultItem: Identifiable, Equatable {
     let count: Int
 
     var constellation: Int {
-        max(count - 1, 0)
+        min(max(count - 1, 0), 6)
     }
+
+    var extraCopies: Int { max(count - 7, 0) }
 }
 
 extension Array where Element == WishRecord {

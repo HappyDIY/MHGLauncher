@@ -32,6 +32,8 @@ struct WishOperationOverlay: View {
         .onAppear { updateActivityAnimation() }
         .onChange(of: isRunning) { updateActivityAnimation() }
         .onChange(of: reduceMotion) { updateActivityAnimation() }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
     }
 
     private var header: some View {
@@ -79,6 +81,9 @@ struct WishOperationOverlay: View {
             }
             .frame(height: 10)
             .motionAnimation(.progress, value: progress)
+            .accessibilityElement()
+            .accessibilityLabel("处理进度")
+            .accessibilityValue("\(Int(progress * 100))%")
         } else if isRunning {
             ProgressView()
                 .progressViewStyle(.linear)
@@ -112,10 +117,9 @@ struct WishOperationOverlay: View {
             .frame(height: 174)
             .background(.black.opacity(0.22), in: .rect(cornerRadius: 14))
             .glassEffect(.clear, in: .rect(cornerRadius: 14))
+            .task { scrollToLatest(reader) }
             .onChange(of: operation.logs.count) {
-                if let id = operation.logs.last?.id {
-                    withAnimation { reader.scrollTo(id, anchor: .bottom) }
-                }
+                scrollToLatest(reader)
             }
         }
     }
@@ -174,6 +178,17 @@ struct WishOperationOverlay: View {
         }
         withAnimation(LauncherMotion.activityRotation) {
             rotation = 360
+        }
+    }
+
+    private func scrollToLatest(_ reader: ScrollViewProxy) {
+        guard let id = operation.logs.last?.id else { return }
+        if reduceMotion {
+            reader.scrollTo(id, anchor: .bottom)
+        } else {
+            withAnimation(LauncherMotion.animation(.content, reduceMotion: false)) {
+                reader.scrollTo(id, anchor: .bottom)
+            }
         }
     }
 }

@@ -17,10 +17,11 @@ struct GameJobCard: View {
     var body: some View {
         GlassCard("资源任务", icon: "arrow.down.circle") {
             VStack(alignment: .leading, spacing: 10) {
-                progressBar(smoothProgress)
+                progressBar(smoothProgress, label: "资源任务总进度")
                 HStack {
                     Text(job.status.title)
                         .contentTransition(.opacity)
+                        .accessibilityLiveRegion(.polite)
                     Spacer()
                     Text(smoothSizeLabel)
                         .foregroundStyle(.secondary)
@@ -69,7 +70,7 @@ struct GameJobCard: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-            progressBar(smoothChunkProgress(chunk), tint: .blue)
+            progressBar(smoothChunkProgress(chunk), tint: .blue, label: "\(chunk.name) 进度")
                     .motionAnimation(.content, value: chunk.bytesDone)
         }
     }
@@ -96,7 +97,9 @@ struct GameJobCard: View {
                 .motionHover(.destructive)
                 .motionTransition(.selection)
             }
-            if [.pausing, .cancelling].contains(job.status) { ProgressView().controlSize(.small) }
+            if [.pausing, .cancelling].contains(job.status) {
+                ProgressView(job.status.title).controlSize(.small)
+            }
         }
         .motionAnimation(.selection, value: job.status)
     }
@@ -145,7 +148,11 @@ struct GameJobCard: View {
         return chunk.progress
     }
 
-    private func progressBar(_ progress: Double, tint: Color = .accentColor) -> some View {
+    private func progressBar(
+        _ progress: Double,
+        tint: Color = .accentColor,
+        label: String
+    ) -> some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 3)
@@ -156,5 +163,8 @@ struct GameJobCard: View {
             }
         }
         .frame(height: 6)
+        .accessibilityElement()
+        .accessibilityLabel(label)
+        .accessibilityValue("\(Int(progress * 100))%")
     }
 }

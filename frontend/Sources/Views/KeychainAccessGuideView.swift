@@ -1,7 +1,9 @@
 import SwiftUI
 
 struct KeychainAccessGuideView: View {
+    let errorMessage: String?
     let continueAction: () -> Void
+    @AccessibilityFocusState private var errorFocused: Bool
 
     var body: some View {
         VStack(spacing: 24) {
@@ -25,8 +27,16 @@ struct KeychainAccessGuideView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+                    .accessibilityFocused($errorFocused)
+                    .accessibilityLiveRegion(.assertive)
+            }
         }
-        .frame(width: 1150, height: 750)
         .padding(32)
+        .frame(width: 1150, height: 750)
+        .onChange(of: errorMessage) { errorFocused = $1 != nil }
     }
 }

@@ -11,6 +11,7 @@ struct RuntimeSetupView: View {
                     HStack {
                         Text(title)
                             .font(.headline)
+                            .accessibilityLiveRegion(.polite)
                         Spacer()
                         if store.isInstallingCoreRuntime || store.backend.isStarting {
                             ProgressView().controlSize(.small)
@@ -18,6 +19,7 @@ struct RuntimeSetupView: View {
                     }
                     if let progress = store.runtimeProgress, progress.scope == .core {
                         ProgressView(value: progress.fraction)
+                            .accessibilityLabel("本地服务运行时安装进度")
                             .motionAnimation(.progress, value: progress.fraction)
                         Text(progress.message)
                             .font(.caption)
@@ -25,6 +27,7 @@ struct RuntimeSetupView: View {
                     } else if let error = store.runtimeErrorMessage ?? store.backend.errorMessage {
                         Text(error)
                             .foregroundStyle(.red)
+                            .accessibilityLiveRegion(.assertive)
                     }
                     if store.runtimeErrorMessage != nil || store.backend.errorMessage != nil {
                         Button("重试") {

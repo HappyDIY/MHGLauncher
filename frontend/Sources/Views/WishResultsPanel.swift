@@ -87,7 +87,7 @@ private struct WishResultCard: View {
         }
         .padding(10)
         .glassEffect(
-            .clear.tint(accent.opacity(0.1)).interactive(),
+            .clear.tint(accent.opacity(0.1)),
             in: .rect(cornerRadius: 16)
         )
         .motionAnimation(.content, value: amountText)
@@ -124,7 +124,9 @@ private struct WishResultCard: View {
     }
 
     private var amountText: String {
-        mode == .character ? "\(item.constellation) 命" : "×\(item.count)"
+        guard mode == .character else { return "×\(item.count)" }
+        let overflow = item.extraCopies > 0 ? "，额外 ×\(item.extraCopies)" : ""
+        return "\(item.constellation) 命\(overflow)"
     }
 
     private var accent: Color {

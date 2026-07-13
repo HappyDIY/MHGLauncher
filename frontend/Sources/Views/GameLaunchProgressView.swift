@@ -2,6 +2,7 @@ import SwiftUI
 
 struct GameLaunchProgressView: View {
     let launch: GameLaunch
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         GlassCard("启动实况", icon: "terminal") {
@@ -37,7 +38,13 @@ struct GameLaunchProgressView: View {
                     .frame(minHeight: 110, maxHeight: 180)
                     .onChange(of: launch.logs.count) {
                         if let id = launch.logs.last?.id {
-                            withAnimation { proxy.scrollTo(id, anchor: .bottom) }
+                            if reduceMotion {
+                                proxy.scrollTo(id, anchor: .bottom)
+                            } else {
+                                withAnimation(LauncherMotion.animation(.content, reduceMotion: false)) {
+                                    proxy.scrollTo(id, anchor: .bottom)
+                                }
+                            }
                         }
                     }
                 }

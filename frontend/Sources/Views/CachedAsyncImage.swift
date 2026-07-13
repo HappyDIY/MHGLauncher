@@ -26,6 +26,7 @@ actor ImageMemoryCache {
 struct CachedAsyncImage<Placeholder: View>: View {
     let url: URL?
     let contentMode: ContentMode
+    let accessibilityLabel: String?
     @ViewBuilder let placeholder: () -> Placeholder
 
     @Environment(\.apiClient) private var client
@@ -35,10 +36,12 @@ struct CachedAsyncImage<Placeholder: View>: View {
     init(
         url: URL?,
         contentMode: ContentMode = .fit,
+        accessibilityLabel: String? = nil,
         @ViewBuilder placeholder: @escaping () -> Placeholder
     ) {
         self.url = url
         self.contentMode = contentMode
+        self.accessibilityLabel = accessibilityLabel
         self.placeholder = placeholder
     }
 
@@ -57,6 +60,8 @@ struct CachedAsyncImage<Placeholder: View>: View {
                 placeholder().motionTransition(.content)
             }
         }
+        .accessibilityHidden(accessibilityLabel == nil)
+        .accessibilityLabel(accessibilityLabel ?? "")
         .motionAnimation(.content, value: phase)
         .task(id: url) {
             // 先查内存缓存，命中则直接展示，避免滚动复用时的重复下载与解码。

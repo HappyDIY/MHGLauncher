@@ -3,20 +3,39 @@ import Foundation
 extension LauncherStore {
     func loadValueData() async {
         guard let uid = selectedRole?.uid else { return }
-        await perform {
+        do {
             let client = try requireClient()
             async let events: [GachaEvent] = client.get("/v1/gacha-events")
-            async let loadedCharacters: [GameCharacter] = client.get("/v1/characters", query: [URLQueryItem(name: "uid", value: uid)])
+            async let loadedCharacters: [GameCharacter] = client.get(
+                "/v1/characters", query: [URLQueryItem(name: "uid", value: uid)]
+            )
             async let settings: NotificationSettings = client.get("/v1/notifications/settings")
             async let goals: [AchievementGoal] = client.get("/v1/achievements/goals")
-            value.gachaEvents = try await events
-            characters = try await loadedCharacters
-            if selectedCharacterId == nil || !characters.contains(where: { $0.avatarId == selectedCharacterId }) {
-                selectedCharacterId = characters.first?.avatarId
+            do {
+                try await loadAchievementData(client: client)
+                value.achievementGoals = try await goals
+                value.achievementLoaded = true
+                value.achievementError = nil
+            } catch {
+                value.achievementError = Self.presentableMessage(error.localizedDescription)
             }
-            value.notificationSettings = try await settings
-            value.achievementGoals = try await goals
-            try await loadAchievementData(client: client)
+            do { value.gachaEvents = try await events } catch { message = Self.presentableMessage(error.localizedDescription) }
+            do {
+                characters = try await loadedCharacters
+                if selectedCharacterId == nil
+                    || !characters.contains(where: { $0.avatarId == selectedCharacterId }) {
+                    selectedCharacterId = characters.first?.avatarId
+                }
+            } catch { message = Self.presentableMessage(error.localizedDescription) }
+            do {
+                value.notificationSettings = try await settings
+                value.notificationError = nil
+            } catch {
+                value.notificationError = Self.presentableMessage(error.localizedDescription)
+            }
+        } catch {
+            value.achievementError = Self.presentableMessage(error.localizedDescription)
+            value.notificationError = value.achievementError
         }
     }
 

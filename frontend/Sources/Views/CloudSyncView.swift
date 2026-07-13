@@ -17,6 +17,11 @@ struct CloudSyncView: View {
                             Label("认证登录", systemImage: "checkmark.seal")
                         }
                         .buttonStyle(.borderedProminent)
+                        .disabled(
+                            store.value.cloudLoginURL.trimmingCharacters(
+                                in: .whitespacesAndNewlines
+                            ).isEmpty || store.isBusy
+                        )
                         if let session = store.value.cloudSession {
                             Text("UID \(session.uid)")
                                 .foregroundStyle(.secondary)
@@ -31,18 +36,25 @@ struct CloudSyncView: View {
                     } label: {
                         Label("上传", systemImage: "square.and.arrow.up")
                     }
+                    .disabled(!canSync)
                     Button {
                         Task { await store.retrieveCloudWishes() }
                     } label: {
                         Label("取回", systemImage: "square.and.arrow.down")
                     }
+                    .disabled(!canSync)
                     Spacer()
                     Text(store.value.cloudMessage.nonempty ?? "等待操作")
                         .foregroundStyle(.secondary)
+                        .accessibilityLiveRegion(.polite)
                 }
             }
             Spacer()
         }
         .motionEntrance(.content)
+    }
+
+    private var canSync: Bool {
+        store.selectedRole != nil && store.value.cloudSession != nil && !store.isBusy
     }
 }

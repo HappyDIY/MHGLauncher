@@ -4,6 +4,22 @@ import Testing
 
 @Suite("增值功能按钮业务逻辑")
 struct AdditionalButtonBusinessActionTests {
+    @Test("无关接口失败不阻止成就快照加载")
+    @MainActor
+    func achievementDomainLoadsIndependently() async {
+        let backend = ValueFakeBackend(failureRoute: "/v1/gacha-events")
+        let store = LauncherStore(deviceOwnerAuthenticator: ValueAuthenticator())
+        store.backend.useClient(APIClient(token: "fixture") { try await backend.respond($0) })
+        store.account = InteractiveFixtures.account
+        store.roles = [InteractiveFixtures.role]
+
+        await store.loadValueData()
+
+        #expect(store.value.achievementLoaded)
+        #expect(store.value.achievementError == nil)
+        #expect(store.selectedAchievementArchive?.id == "archive-1")
+    }
+
     @Test("卡池角色成就云端与通知按钮走完整契约")
     @MainActor
     func valueButtonsRunBusinessActions() async throws {
@@ -54,10 +70,19 @@ private struct ValueAuthenticator: DeviceOwnerAuthenticating {
 private actor ValueFakeBackend {
     private var requests: [APIRequest] = []
     private(set) var savedAchievementRevision: Int?
+    private let failureRoute: String?
+
+    init(failureRoute: String? = nil) { self.failureRoute = failureRoute }
 
     func respond(_ request: APIRequest) throws -> APIResponse {
         requests.append(request)
         let route = request.path.components(separatedBy: "?")[0]
+        if route == failureRoute {
+            return APIResponse(
+                status: 500,
+                body: Data(#"{"code":"fixture_failure","message":"fixture failed","details":{}}"#.utf8)
+            )
+        }
         switch (request.method, route) {
         case ("GET", "/v1/gacha-events"), ("POST", "/v1/gacha-events/refresh"): return try json([event])
         case ("GET", "/v1/characters"), ("POST", "/v1/characters/refresh"): return try json([character])

@@ -88,6 +88,8 @@ struct CharactersView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityAddTraits(store.selectedCharacterId == character.avatarId ? .isSelected : [])
+                    .accessibilityValue(store.selectedCharacterId == character.avatarId ? "已选择" : "未选择")
                     .motionHover(.selection)
                 }
             }

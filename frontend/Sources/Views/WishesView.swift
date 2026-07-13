@@ -13,7 +13,15 @@ struct WishesView: View {
         VStack(alignment: .leading, spacing: 16) {
             header
                 .motionEntrance(order: 0)
-            if !store.companionLoaded {
+            if store.selectedRole == nil {
+                ContentUnavailableView {
+                    Label("需要选择角色", systemImage: "person.crop.circle.badge.questionmark")
+                } description: {
+                    Text("登录并选择角色后可同步和查看祈愿记录。")
+                } actions: {
+                    Button("前往账号") { store.selectedDestination = .account }
+                }
+            } else if !store.companionLoaded {
                 loadingPlaceholder
                     .motionTransition(.content)
             } else if store.wishes.isEmpty {
@@ -27,13 +35,6 @@ struct WishesView: View {
                 )
                 .motionEntrance(order: 1)
                 workspace.motionEntrance(order: 2)
-            }
-        }
-        .overlay {
-            if let operation = store.wishOperation {
-                WishOperationOverlay(operation: operation) {
-                    store.wishOperation = nil
-                }
             }
         }
         .motionAnimation(.emphasis, value: store.wishOperation?.id)

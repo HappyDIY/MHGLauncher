@@ -16,11 +16,14 @@ struct PoolSelector: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            ForEach(sorted) { detail in
-                poolButton(detail)
+        ScrollView(.horizontal) {
+            HStack(spacing: 12) {
+                ForEach(sorted) { detail in
+                    poolButton(detail)
+                }
             }
         }
+        .scrollIndicators(.hidden)
     }
 
     private func poolButton(_ detail: WishBannerDetail) -> some View {

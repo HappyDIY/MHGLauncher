@@ -8,6 +8,7 @@ struct RuntimeStatusView: View {
             HStack {
                 Label(statusText, systemImage: store.gameRuntimeReady ? "checkmark.circle" : "arrow.down.circle")
                     .foregroundStyle(store.gameRuntimeReady ? .green : .secondary)
+                    .accessibilityLiveRegion(.polite)
                 Spacer()
                 if store.isInstallingGameRuntime {
                     ProgressView().controlSize(.small)
@@ -21,6 +22,7 @@ struct RuntimeStatusView: View {
             }
             if let progress = store.runtimeProgress, progress.scope == .game {
                 ProgressView(value: progress.fraction)
+                    .accessibilityLabel("游戏运行组件安装进度")
                     .motionAnimation(.progress, value: progress.fraction)
                 Text(progress.message)
                     .font(.caption)

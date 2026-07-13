@@ -30,13 +30,14 @@ struct AppCommands: Commands {
                 store?.selectedDestination = .wishes
             }
             .keyboardShortcut("3", modifiers: .command)
+            .disabled(store == nil)
 
             Divider()
 
             Button("同步记录") {
                 Task { await store?.syncWishes() }
             }
-            .disabled(store?.wishOperation != nil)
+            .disabled(store.map { $0.wishOperation != nil || $0.selectedRole == nil } ?? true)
 
             Divider()
 
@@ -44,6 +45,7 @@ struct AppCommands: Commands {
                 store?.selectedDestination = .wishes
                 store?.triggerWishImport = true
             }
+            .disabled(store?.selectedRole == nil)
 
             Button("导出 UIGF 数据") {
                 store?.selectedDestination = .wishes
@@ -65,6 +67,7 @@ struct AppCommands: Commands {
                 store?.selectedDestination = .account
             }
             .keyboardShortcut("5", modifiers: .command)
+            .disabled(store == nil)
 
             Divider()
 
@@ -101,6 +104,7 @@ struct AppCommands: Commands {
                     store?.selectedDestination = .account
                     Task { await store?.beginQRLogin() }
                 }
+                .disabled(store == nil)
             }
         }
     }
@@ -134,7 +138,7 @@ struct MHGLauncherApp: App {
             if instanceGuard == nil {
                 EmptyView()
             } else if showsKeychainGuide {
-                KeychainAccessGuideView {
+                KeychainAccessGuideView(errorMessage: store.message) {
                     switch KeychainAccessPrompt.authorizeAfterGuide() {
                     case .success:
                         showsKeychainGuide = false

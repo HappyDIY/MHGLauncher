@@ -17,6 +17,7 @@ struct NotesView: View {
                     }
                     .buttonStyle(.glassProminent)
                     .motionHover(.prominent)
+                    .disabled(store.selectedRole == nil || store.isBusy)
                 }
                 .motionEntrance(order: 0)
                 if let note = store.dailyNote {
@@ -79,6 +80,7 @@ struct NotesView: View {
             }
         }
         .motionAnimation(.content, value: store.dailyNote != nil)
+        .accessibilityLiveRegion(.polite)
     }
 
     private var refreshedText: String {

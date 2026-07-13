@@ -77,8 +77,10 @@ struct HomeView: View {
                 Task { await store.startGameJob(.predownload) }
             } label: {
                 if store.pendingGameJobKind == .predownload {
-                    ProgressView()
-                        .controlSize(.small)
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.small)
+                        Text("正在准备预下载")
+                    }
                 } else {
                     Label("预下载", systemImage: "arrow.down")
                 }

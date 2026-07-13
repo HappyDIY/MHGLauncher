@@ -35,6 +35,7 @@ struct AccountLoginView: View {
                     .foregroundStyle(.secondary)
                     .contentTransition(.opacity)
                     .motionAnimation(.content, value: loginStatus)
+                    .accessibilityLiveRegion(.polite)
                 Button(store.qrSession == nil ? "生成二维码" : "重新生成") {
                     Task { await store.beginQRLogin() }
                 }
@@ -56,12 +57,15 @@ struct AccountLoginView: View {
                     .padding(10)
                     .background(.white, in: RoundedRectangle(cornerRadius: 12))
                     .motionTransition(.emphasis)
+                    .accessibilityLabel("米游社登录二维码")
+                    .accessibilityHint("使用米游社 App 扫描并在手机上确认登录")
             } else {
                 Image(systemName: "qrcode")
                     .font(.system(size: 90))
                     .frame(width: 200, height: 200)
                     .foregroundStyle(.secondary)
                     .motionTransition(.emphasis)
+                    .accessibilityLabel("尚未生成登录二维码")
             }
         }
     }

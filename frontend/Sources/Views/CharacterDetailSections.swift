@@ -20,6 +20,8 @@ struct CharacterSkillStrip: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 7)
                     .background(.black.opacity(0.22), in: .capsule)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(skill.name ?? "技能")，等级 \(skill.level ?? 0)")
                 }
             }
         }
@@ -45,6 +47,9 @@ struct CharacterConstellationStrip: View {
                 }
                 .frame(width: 38, height: 38)
                 .help(constellation?.description ?? constellation?.name ?? "\(index + 1) 命")
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(constellation?.name ?? "第 \(index + 1) 命座")
+                .accessibilityValue(index < active ? "已激活" : "未激活")
             }
         }
     }

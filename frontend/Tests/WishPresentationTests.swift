@@ -43,6 +43,15 @@ struct WishPresentationTests {
         #expect(result.constellation == 1)
     }
 
+    @Test("角色重复数量不显示不存在的命座")
+    func clampsConstellationAndReportsOverflow() {
+        let item = WishResultItem(
+            id: "1", name: "测试角色", rank: 5, iconUrl: nil, count: 9
+        )
+        #expect(item.constellation == 6)
+        #expect(item.extraCopies == 2)
+    }
+
     @Test("武器成果显示持有数量并按星级排序")
     func aggregatesWeaponResults() {
         let records = [
@@ -55,6 +64,19 @@ struct WishPresentationTests {
 
         #expect(results.map(\.name) == ["五星武器", "四星武器"])
         #expect(results[1].count == 2)
+    }
+
+    @Test("五星筛选保留完整卡池保底计数")
+    func pityIsCalculatedBeforeRankFiltering() throws {
+        let records = [
+            record(id: "3", itemId: "1003", name: "五星", type: "角色", rank: 5),
+            record(id: "2", itemId: "1002", name: "三星", type: "武器", rank: 3),
+            record(id: "1", itemId: "1001", name: "四星", type: "角色", rank: 4)
+        ]
+        let fiveStar = try #require(WishHistoryPresentation.entries(
+            records: records, selectedGachaType: "301"
+        ).first { $0.record.rank == 5 })
+        #expect(fiveStar.pity == 3)
     }
 
     @Test("卡池统计兼容缺失限定指标的旧版后端")

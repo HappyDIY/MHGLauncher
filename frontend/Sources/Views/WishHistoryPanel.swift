@@ -20,7 +20,7 @@ struct WishHistoryPanel: View {
                 }
                 .width(42)
                 TableColumn("时间") { entry in
-                    Text(entry.record.time.formatted(date: .numeric, time: .shortened))
+                    Text(WishHistoryPresentation.dateTime(entry.record.time))
                         .foregroundStyle(.secondary)
                 }
                 .width(min: 116, ideal: 142)
@@ -77,10 +77,18 @@ struct WishHistoryPanel: View {
 
     private var dateFilterRow: some View {
         HStack(spacing: 8) {
+            Toggle(
+                "从",
+                isOn: dateEnabled(
+                    $dateFrom,
+                    fallback: calendar.startOfDay(for: records.last?.time ?? Date())
+                )
+            )
+                .toggleStyle(.checkbox)
             DatePicker(
                 "从",
                 selection: Binding(
-                    get: { dateFrom ?? records.first?.time ?? Date() },
+                    get: { dateFrom ?? records.last?.time ?? Date() },
                     set: { dateFrom = calendar.startOfDay(for: $0) }
                 ),
                 displayedComponents: .date
@@ -88,11 +96,11 @@ struct WishHistoryPanel: View {
             .labelsHidden()
             .datePickerStyle(.compact)
             .frame(width: 120)
+            .disabled(dateFrom == nil)
             .motionHover(.subtle)
-            Text("至")
-                .font(.caption)
-                .foregroundStyle(.secondary)
 
+            Toggle("到", isOn: dateEnabled($dateTo, fallback: calendar.endOfDay(for: Date())))
+                .toggleStyle(.checkbox)
             DatePicker(
                 "到",
                 selection: Binding(
@@ -104,6 +112,7 @@ struct WishHistoryPanel: View {
             .labelsHidden()
             .datePickerStyle(.compact)
             .frame(width: 120)
+            .disabled(dateTo == nil)
             .motionHover(.subtle)
 
             if dateFrom != nil || dateTo != nil {
@@ -122,21 +131,23 @@ struct WishHistoryPanel: View {
 
     private var calendar: Calendar {
         var cal = Calendar.current
-        cal.timeZone = TimeZone(identifier: "Asia/Shanghai") ?? .current
+        cal.timeZone = WishHistoryPresentation.timeZone
         return cal
     }
 
-    private struct PityEntry: Identifiable {
-        var id: String { record.id }
-        let record: WishRecord
-        let pity: Int
+    private func dateEnabled(_ date: Binding<Date?>, fallback: Date) -> Binding<Bool> {
+        Binding(
+            get: { date.wrappedValue != nil },
+            set: { date.wrappedValue = $0 ? fallback : nil }
+        )
     }
 
-    private var filteredRecords: [PityEntry] {
+    private var filteredRecords: [WishPityEntry] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let matches = records.filter { item in
-            let matchesPool = selectedGachaType == nil
-                || item.normalizedGachaType == selectedGachaType
+        return WishHistoryPresentation.entries(
+            records: records, selectedGachaType: selectedGachaType
+        ).filter { entry in
+            let item = entry.record
             let matchesRank = rankFilter.rank.map { item.rank == $0 } ?? true
             let matchesSearch = query.isEmpty
                 || item.name.localizedCaseInsensitiveContains(query)
@@ -147,23 +158,7 @@ struct WishHistoryPanel: View {
             if let to = dateTo {
                 matchesDate = matchesDate && item.time <= to
             }
-            return matchesPool && matchesRank && matchesSearch && matchesDate
-        }
-        return buildPityEntries(matches)
-    }
-
-    private func buildPityEntries(_ list: [WishRecord]) -> [PityEntry] {
-        var pityMap: [String: Int] = [:]
-        var counter = 0
-        for record in list.reversed() {
-            counter += 1
-            pityMap[record.id] = counter
-            if record.rank == 5 {
-                counter = 0
-            }
-        }
-        return list.map { entry in
-            PityEntry(record: entry, pity: pityMap[entry.id] ?? 1)
+            return matchesRank && matchesSearch && matchesDate
         }
     }
 }

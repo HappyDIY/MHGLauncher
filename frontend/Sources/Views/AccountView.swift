@@ -71,6 +71,8 @@ struct AccountView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(role.selected ? .isSelected : [])
+                .accessibilityValue(role.selected ? "已选择" : "未选择")
                 .motionHover(role.selected ? .selection : .subtle)
                 .motionEntrance(order: store.roles.firstIndex { $0.id == role.id } ?? 0)
             }
@@ -99,6 +101,8 @@ struct AccountView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(account.selected ? .isSelected : [])
+                .accessibilityValue(account.selected ? "已选择" : "未选择")
                 .motionHover(account.selected ? .selection : .subtle)
             }
         }

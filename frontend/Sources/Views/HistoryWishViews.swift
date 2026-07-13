@@ -31,6 +31,8 @@ struct HistoryWishRow: View {
             .background(rowBackground)
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityValue(selected ? "已选择" : "未选择")
         .motionHover(.subtle)
     }
 
@@ -143,6 +145,7 @@ struct HistoryWishIcon: View {
             if showsBadge || item.count > 0 { badge(item.count) }
         }
         .help("\(item.name) × \(item.count)")
+        .accessibilityLabel("\(item.name)，数量 \(item.count)")
     }
 
     private func badge(_ count: Int) -> some View {

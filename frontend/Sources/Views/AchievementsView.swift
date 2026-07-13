@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-
 struct AchievementsView: View {
     @Bindable var store: LauncherStore
     @State var searchText = ""
@@ -13,7 +12,22 @@ struct AchievementsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header.motionEntrance(order: 0)
-            if store.selectedAchievementArchive == nil {
+            if store.selectedRole == nil {
+                ContentUnavailableView(
+                    "需要选择角色", systemImage: "person.crop.circle.badge.questionmark",
+                    description: Text("登录并选择角色后可管理成就档案。")
+                )
+            } else if let error = store.value.achievementError {
+                ContentUnavailableView {
+                    Label("无法载入成就", systemImage: "exclamationmark.triangle")
+                } description: { Text(error) } actions: {
+                    Button("重试") { Task { await store.loadValueData() } }
+                }
+                .accessibilityLiveRegion(.assertive)
+            } else if !store.value.achievementLoaded {
+                ProgressView("正在载入成就")
+                    .accessibilityLiveRegion(.polite)
+            } else if store.selectedAchievementArchive == nil {
                 emptyArchive.motionTransition(.content)
             } else {
                 toolbar.motionEntrance(order: 1)
@@ -33,59 +47,52 @@ struct AchievementsView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             PageHeader(title: "成就管理", subtitle: headerSubtitle)
-            Button("新建档案", systemImage: "plus") {
-                Task { await store.createAchievementArchive() }
+            HStack(spacing: 10) {
+                Button("新建档案", systemImage: "plus") {
+                    Task { await store.createAchievementArchive() }
+                }
+                .buttonStyle(.glassProminent)
+                Button("删除档案", systemImage: "trash", role: .destructive) {
+                    confirmsRemoval = true
+                }
+                .disabled(store.selectedAchievementArchive == nil)
+                Menu("UIAF", systemImage: "doc.badge.gearshape") {
+                    Button("导入 UIAF", systemImage: "square.and.arrow.down") { importFile() }
+                    Button("导出 UIAF", systemImage: "square.and.arrow.up") { exportFile() }
+                        .disabled(store.value.achievementEntries.isEmpty)
+                }
+                .disabled(store.selectedAchievementArchive == nil)
             }
-            .buttonStyle(.glassProminent)
-            .motionHover(.prominent)
-            Button("删除档案", systemImage: "trash", role: .destructive) {
-                confirmsRemoval = true
-            }
-            .buttonStyle(.glass)
-            .motionHover(.destructive)
-            .disabled(store.selectedAchievementArchive == nil)
-            Menu {
-                Button("导入 UIAF", systemImage: "square.and.arrow.down") { importFile() }
-                Button("导出 UIAF", systemImage: "square.and.arrow.up") { exportFile() }
-                    .disabled(store.value.achievementEntries.isEmpty)
-            } label: {
-                Label("UIAF", systemImage: "doc.badge.gearshape")
-            }
-            .menuStyle(.button)
-            .buttonStyle(.glass)
-            .motionHover()
-            .disabled(store.selectedAchievementArchive == nil)
         }
     }
 
     private var toolbar: some View {
-        HStack(spacing: 12) {
-            Picker("布局", selection: $layoutMode) {
-                ForEach(AchievementLayoutMode.allCases) { mode in
-                    Text(mode.rawValue).tag(mode)
+        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
+            GridRow {
+                Picker("布局", selection: $layoutMode) {
+                    ForEach(AchievementLayoutMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                TextField("搜索标题、描述、版本或成就 ID", text: $searchText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(minWidth: 220)
+                Picker("档案", selection: archiveSelection) {
+                    ForEach(store.value.achievementArchives) { archive in
+                        Text(archive.name).tag(archive.id)
+                    }
                 }
             }
-            .pickerStyle(.segmented)
-            .frame(width: 128)
-            TextField("搜索标题、描述、版本或成就 ID", text: $searchText)
-                .textFieldStyle(.roundedBorder)
-                .frame(minWidth: 260)
-            Picker("档案", selection: archiveSelection) {
-                ForEach(store.value.achievementArchives) { archive in
-                    Text(archive.name).tag(archive.id)
-                }
+            GridRow {
+                Toggle("未完成优先", isOn: $uncompletedFirst).toggleStyle(.checkbox)
+                Toggle("每日委托", isOn: $dailyOnly).toggleStyle(.checkbox)
+                Text("\(filteredEntries.count) / \(store.value.achievementEntries.count)")
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
             }
-            .frame(width: 190)
-            Toggle("未完成优先", isOn: $uncompletedFirst)
-                .toggleStyle(.checkbox)
-            Toggle("每日委托", isOn: $dailyOnly)
-                .toggleStyle(.checkbox)
-            Spacer()
-            Text("\(filteredEntries.count) / \(store.value.achievementEntries.count)")
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
         }
         .padding(14)
         .glassEffect(.regular, in: .rect(cornerRadius: 12))
@@ -141,6 +148,8 @@ struct AchievementsView: View {
                 )
             }
             .buttonStyle(.plain)
+            .accessibilityAddTraits(selectedGoal == goal.id ? .isSelected : [])
+            .accessibilityValue(selectedGoal == goal.id ? "已选择" : "未选择")
         }
     }
 

@@ -56,7 +56,9 @@ private struct FiveStarPullRow: View {
                 .stroke(.white.opacity(0.08))
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(item.name)，\(item.pity) 抽")
+        .accessibilityLabel(
+            "\(item.name)，\(item.pity) 抽，\(WishHistoryPresentation.dateTime(item.time))"
+        )
     }
 
     private var content: some View {
