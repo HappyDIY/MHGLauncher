@@ -3,6 +3,7 @@ import { networkInterfaces } from "node:os";
 import type { Account } from "../core/models";
 import { AppError } from "../core/errors";
 import { cookies } from "../providers/signing";
+import { runCommand } from "./process-command";
 
 const iv = "1234567890ABCDEF";
 const registryKey = "HKCU\\Software\\miHoYo\\原神";
@@ -13,22 +14,21 @@ export interface RegistryAccount {
 }
 export interface RegistrySnapshot { value: string | null }
 
-export function writeGameAccountRegistry(wine: string, env: NodeJS.ProcessEnv, account: RegistryAccount): RegistrySnapshot {
-  const snapshot = readGameAccountRegistry(wine, env);
-  const raw = createGameAccountRegistryValue(account, cleanMac(env.MHG_GAME_ACCOUNT_MAC ?? "") || macAddress() || wineMacAddress(wine, env));
+export async function writeGameAccountRegistry(wine: string, env: NodeJS.ProcessEnv, account: RegistryAccount): Promise<RegistrySnapshot> {
+  const snapshot = await readGameAccountRegistry(wine, env);
+  const hostMac = cleanMac(env.MHG_GAME_ACCOUNT_MAC ?? "") || macAddress();
+  const raw = createGameAccountRegistryValue(account, hostMac || await wineMacAddress(wine, env));
   const hex = Buffer.concat([Buffer.from(raw, "utf8"), Buffer.from([0])]).toString("hex");
-  const result = spawnSync(wine, ["reg", "add", registryKey, "/v", registryValue, "/t", "REG_BINARY", "/d", hex, "/f"], {
-    env, stdio: "ignore",
-  });
+  const result = await runCommand(wine, ["reg", "add", registryKey, "/v", registryValue, "/t", "REG_BINARY", "/d", hex, "/f"], { env });
   if (result.status !== 0) throw new AppError("game_account_registry_failed", "游戏账号写入 Wine 注册表失败", 500);
   return snapshot;
 }
 
-export function restoreGameAccountRegistry(wine: string, env: NodeJS.ProcessEnv, snapshot: RegistrySnapshot): void {
+export async function restoreGameAccountRegistry(wine: string, env: NodeJS.ProcessEnv, snapshot: RegistrySnapshot): Promise<void> {
   const args = snapshot.value
     ? ["reg", "add", registryKey, "/v", registryValue, "/t", "REG_BINARY", "/d", snapshot.value, "/f"]
     : ["reg", "delete", registryKey, "/v", registryValue, "/f"];
-  spawnSync(wine, args, { env, stdio: "ignore" });
+  await runCommand(wine, args, { env });
 }
 
 export function launchAccount(account: Account, credential: string): RegistryAccount {
@@ -60,8 +60,8 @@ function mihoyoSdk(account: RegistryAccount, mac: string, now: number): string {
   return encrypt(JSON.stringify(data), mac);
 }
 
-function readGameAccountRegistry(wine: string, env: NodeJS.ProcessEnv): RegistrySnapshot {
-  const result = spawnSync(wine, ["reg", "query", registryKey, "/v", registryValue], { env, encoding: "utf8" });
+async function readGameAccountRegistry(wine: string, env: NodeJS.ProcessEnv): Promise<RegistrySnapshot> {
+  const result = await runCommand(wine, ["reg", "query", registryKey, "/v", registryValue], { env });
   const match = result.status === 0 ? result.stdout.match(/REG_BINARY\s+([0-9a-f]+)/i) : null;
   return { value: match?.[1] ?? null };
 }
@@ -72,7 +72,7 @@ function encrypt(value: string, mac: string): string {
   const errors: string[] = [];
   for (const command of ["/usr/bin/openssl", "/opt/homebrew/bin/openssl", "openssl"]) {
     const extra = command === "/usr/bin/openssl" ? [] : ["-provider", "legacy", "-provider", "default"];
-    const result = spawnSync(command, [...args.slice(0, 2), ...extra, ...args.slice(2)], { input: value, encoding: "utf8" });
+    const result = spawnSync(command, [...args.slice(0, 2), ...extra, ...args.slice(2)], { input: value, encoding: "utf8", timeout: 10_000 });
     if (result.status === 0 && result.stdout.trim()) return result.stdout.trim();
     errors.push(`${command}: ${result.error?.message ?? result.stderr.trim() ?? `status ${result.status}`}`);
   }
@@ -81,7 +81,7 @@ function encrypt(value: string, mac: string): string {
 
 function macAddress(): string {
   for (const command of [["/usr/sbin/networksetup", "-listallhardwareports"], ["/sbin/ifconfig", "en0"]] as const) {
-    const result = spawnSync(command[0], command.slice(1), { encoding: "utf8" });
+    const result = spawnSync(command[0], command.slice(1), { encoding: "utf8", timeout: 10_000 });
     const match = result.stdout.match(/(?:Ethernet Address|ether)\s+([0-9a-fA-F:]{17})/);
     const value = match ? cleanMac(match[1] ?? "") : "";
     if (validMac(value)) return value;
@@ -95,8 +95,8 @@ function macAddress(): string {
   return "";
 }
 
-function wineMacAddress(wine: string, env: NodeJS.ProcessEnv): string {
-  const result = spawnSync(wine, ["ipconfig", "/all"], { env, encoding: "utf8" });
+async function wineMacAddress(wine: string, env: NodeJS.ProcessEnv): Promise<string> {
+  const result = await runCommand(wine, ["ipconfig", "/all"], { env });
   if (result.status !== 0) return "";
   const matches = result.stdout.matchAll(/Physical address[^:]*:\s*([0-9a-fA-F-]{17})/g);
   for (const match of matches) {

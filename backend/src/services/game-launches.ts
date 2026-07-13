@@ -11,6 +11,7 @@ import { detectGame } from "./game-detection";
 import type { RegistryAccount } from "./game-account-registry";
 import { RevisionNotifier } from "./revision-notifier";
 import { loadLaunchStatuses, persistLaunchStatus } from "./game-launch-status-store";
+import { ResourceCoordinator, type ResourceLease } from "./resource-coordinator";
 export interface StartLaunch {
   install_path: string; performance_profile: GamePerformanceProfile; metal_hud: boolean;
   network_debug: boolean; wine_log: boolean; frame_pacing: number; account?: RegistryAccount;
@@ -29,7 +30,7 @@ export class GameLaunchService {
     private readonly runtimeRoot: string,
     private readonly runner: GameLaunchRunner = new WineLaunchRunner(),
     private readonly integrity: DllIntegrity = MHYPBASE_INTEGRITY,
-    private readonly resourcesBusy: () => boolean = () => false,
+    private readonly coordinator = new ResourceCoordinator(),
   ) {
     for (const launch of loadLaunchStatuses(this.dataDir)) {
       this.launches.set(launch.id, launch); this.persisted.set(launch.id, JSON.stringify(launch)); this.notifier.mark(launch.id, launch);
@@ -38,24 +39,26 @@ export class GameLaunchService {
     if (!this.guardian.pending()) this.finishRecovered();
   }
   start(input: StartLaunch): GameLaunch {
-    if (this.resourcesBusy()) throw new AppError("game_job_busy", "游戏资源任务运行期间无法启动游戏", 409);
     if ([...this.launches.values()].some((value) => !["exited", "stopped", "failed"].includes(value.status))) {
       throw new AppError("game_launch_busy", "游戏正在启动或运行", 409);
     }
     const detected = detectGame(input.install_path);
     if (!detected) throw new AppError("game_not_installed", "所选目录中未检测到可启动的原神客户端", 409);
+    const id = randomUUID(), lease = this.coordinator.claim(detected.path, id);
+    try {
     ensureGameConfiguration(detected.path, detected.version);
     const now = new Date().toISOString();
     const launch: GameLaunch = {
-      id: randomUUID(), status: "preparing", message: "", performance_profile: input.performance_profile,
+      id, status: "preparing", message: "", performance_profile: input.performance_profile,
       metal_hud: input.metal_hud, network_debug: input.network_debug, wine_log: input.wine_log, progress: 0.05,
       logs: [{ sequence: 1, timestamp: now, kind: "launch", message: "启动任务已创建" }],
       started_at: now, updated_at: now, revision: 0,
     };
     this.notifier.mark(launch.id, launch); this.persist(launch); this.launches.set(launch.id, launch);
     const controller = new AbortController(); this.controllers.set(launch.id, controller);
-    setImmediate(() => void this.execute(launch, detected.path, input.frame_pacing, controller.signal, input.wine_log, input.account));
+    setImmediate(() => void this.execute(launch, detected.path, input.frame_pacing, controller.signal, input.wine_log, lease, input.account));
     return launch;
+    } catch (error) { this.coordinator.release(lease); throw error; }
   }
   async wait(id: string, after: number, waitMs: number): Promise<GameLaunch> {
     return this.notifier.wait(id, after, waitMs, () => this.get(id));
@@ -78,7 +81,7 @@ export class GameLaunchService {
   recovery(): { pending: boolean; warnings: string[] } { return { pending: this.guardian.pending(), warnings: this.guardian.warnings() }; }
   async drain(): Promise<void> { await this.guardian.drain(() => this.active()); }
   close(): void { this.guardian.close(); }
-  private async execute(launch: GameLaunch, gameRoot: string, framePacing: number, signal: AbortSignal, wineLog: boolean, account?: RegistryAccount): Promise<void> {
+  private async execute(launch: GameLaunch, gameRoot: string, framePacing: number, signal: AbortSignal, wineLog: boolean, lease: ResourceLease, account?: RegistryAccount): Promise<void> {
     const sessionDir = join(this.dataDir, "launches", launch.id);
     let journal: DllJournal | null = null, code: number | null = null, failure: unknown = null;
     try {
@@ -118,10 +121,10 @@ export class GameLaunchService {
       this.dnsLines.delete(launch.id);
       this.wineLines.delete(launch.id);
       this.logReadAt.delete(launch.id);
+      this.coordinator.release(lease);
       }
     }
   }
-
   private update(launch: GameLaunch, status: GameLaunch["status"], message: string, progress?: number): void {
     const now = new Date().toISOString();
     launch.status = status; launch.message = message; launch.updated_at = now;
@@ -129,7 +132,6 @@ export class GameLaunchService {
     if (message) launch.logs.push({ sequence: launch.logs.length + 1, timestamp: now, kind: "launch", message });
     this.notifier.mark(launch.id, launch); this.persist(launch);
   }
-
   private readDnsLogs(launch: GameLaunch): void {
     const path = join(this.dataDir, "launches", launch.id, "dns.log");
     if (!existsSync(path)) return;

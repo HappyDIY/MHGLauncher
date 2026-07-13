@@ -9,11 +9,11 @@ import { copyRangeSync, hashFile, hashFileSync, xxhash64File } from "../src/serv
 
 const roots: string[] = [];
 const root = (): string => { const value = mkdtempSync(join(tmpdir(), "download-")); roots.push(value); return value; };
-afterEach(() => { vi.unstubAllGlobals(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 test("续传部分下载", async () => {
   const dir = root(), target = join(dir, "game.zip"), content = Buffer.from("0123456789"); writeFileSync(`${target}.part`, content.subarray(0, 4));
-  let range = ""; vi.stubGlobal("fetch", vi.fn(async (_url, init) => { range = new Headers(init?.headers).get("Range") ?? ""; return new Response(content.subarray(4), { status: 206 }); }));
+  let range = ""; vi.stubGlobal("fetch", vi.fn(async (_url, init) => { range = new Headers(init?.headers).get("Range") ?? ""; return new Response(content.subarray(4), { status: 206, headers: { "Content-Range": "bytes 4-9/10" } }); }));
   await download({ url: "https://fixture/game", md5: createHash("md5").update(content).digest("hex"), size: content.length, filename: "game.zip" }, target, new DownloadControl(), () => undefined);
   expect(range).toBe("bytes=4-"); expect(readFileSync(target)).toEqual(content);
 });
@@ -36,7 +36,7 @@ test("连接中断后从已落盘位置自动续传", async () => {
     calls += 1;
     if (calls === 1) return new Response(content.subarray(0, 4));
     resumedRange = new Headers(init?.headers).get("Range") ?? "";
-    return new Response(content.subarray(4), { status: 206 });
+    return new Response(content.subarray(4), { status: 206, headers: { "Content-Range": "bytes 4-9/10" } });
   }));
   await download({ url: "https://fixture/retry", md5: createHash("md5").update(content).digest("hex"), size: content.length, filename: "retry" }, target, new DownloadControl(), () => undefined);
   expect(resumedRange).toBe("bytes=4-"); expect(readFileSync(target)).toEqual(content);
@@ -44,6 +44,28 @@ test("连接中断后从已落盘位置自动续传", async () => {
 
 test("取消控制会中断检查点", async () => { const control = new DownloadControl(); control.cancel(); await expect(control.checkpoint()).rejects.toThrow("任务已取消"); });
 test("暂停后可恢复", async () => { const control = new DownloadControl(); control.pause(); const waiting = control.checkpoint(); control.resume(); await expect(waiting).resolves.toBeUndefined(); });
+
+test("只有 worker 到达暂停屏障后才确认暂停", async () => {
+  const control = new DownloadControl(), acknowledged = control.pause(); let paused = false;
+  void acknowledged.then(() => { paused = true; }); await Promise.resolve(); expect(paused).toBe(false);
+  const checkpoint = control.checkpoint(); await acknowledged; expect(paused).toBe(true); control.resume(); await checkpoint;
+});
+
+test("拒绝错位续传响应并从零重新下载", async () => {
+  const target = join(root(), "range"), content = Buffer.from("0123456789"); writeFileSync(`${target}.part`, content.subarray(0, 4)); let calls = 0;
+  vi.stubGlobal("fetch", vi.fn(async () => ++calls === 1
+    ? new Response("evil", { status: 206, headers: { "Content-Range": "bytes 0-3/10" } })
+    : new Response(content)));
+  await download({ url: "https://fixture/range", md5: createHash("md5").update(content).digest("hex"), size: content.length, filename: "range" }, target, new DownloadControl(), () => undefined);
+  expect(calls).toBe(2); expect(readFileSync(target)).toEqual(content);
+});
+
+test("读取停滞会在期限内失败而非永久挂起", async () => {
+  vi.stubEnv("MHG_DOWNLOAD_STALL_TIMEOUT_MS", "50");
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(new ReadableStream({ start() {} }))));
+  const pending = download({ url: "https://fixture/stall", md5: "", size: 1, filename: "stall" }, join(root(), "stall"), new DownloadControl(), () => undefined);
+  await expect(pending).rejects.toThrow("长时间无数据");
+});
 
 test("取消会中断挂起的下载请求", async () => {
   const control = new DownloadControl(); let signal: AbortSignal | undefined;

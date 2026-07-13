@@ -31,6 +31,10 @@ function cacheFiles(build: GameBuild): Array<{ name: string; size: number }> {
   return [...new Map(build.assets.flatMap(({ chunks }) => chunks).map(({ name, size }) => [name, { name, size }])).values()];
 }
 
+export function predownloadCachedBytes(cacheDir: string, build: GameBuild): number {
+  return readPredownloadStatus(cacheDir, build) ? cacheFiles(build).reduce((total, item) => total + item.size, 0) : 0;
+}
+
 export function writePredownloadStatus(cacheDir: string, status: PredownloadStatus): void {
   writeFileSync(join(cacheDir, STATUS_FILENAME), JSON.stringify(status));
 }

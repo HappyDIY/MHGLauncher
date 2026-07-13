@@ -11,6 +11,7 @@ import { preallocateFileDescriptor } from "./file-allocation";
 import type { TokenBucketRateLimiter } from "./rate-limiter";
 import { hashFile, xxhash64File } from "./file-hash";
 import { safeIdentifier } from "../core/safe-path";
+import { concurrentMap } from "./concurrent-map";
 
 export async function installSophon(
   assets: GameAsset[], staging: string, cache: string, control: DownloadControl,
@@ -25,7 +26,7 @@ export async function installSophon(
       for (const chunk of asset.chunks) { progress(chunk.size); chunkProgress(chunk.name, chunk.size, chunk.size); }
       releaseChunks(asset.chunks, cache, references); continue;
     }
-    const chunks = await concurrentMap(asset.chunks, workers, (chunk) => getChunk(chunk, cache, control, progress, chunkProgress, rateLimiter));
+    const chunks = await concurrentMap(asset.chunks, workers, control, (chunk) => getChunk(chunk, cache, control, progress, chunkProgress, rateLimiter));
     ensureParent(target); const temporary = `${target}.${process.pid}.mhg-installing`; rmSync(temporary, { force: true });
     try {
       const descriptor = openSync(temporary, "w");
@@ -51,15 +52,6 @@ async function getChunk(chunk: SophonChunk, cache: string, control: DownloadCont
   await streamDownload(chunk.url, partial, chunk.size, chunk.name, control, progress, (done) => report(chunk.name, done, chunk.size), rateLimiter);
   if (!await xxh(partial, chunk.name)) { progress(-chunk.size); rmSync(partial); throw new AppError("sophon_chunk_invalid", `${chunk.name} 分块校验失败`); }
   renameSync(partial, path); return path;
-}
-
-async function concurrentMap<T, R>(items: T[], limit: number, task: (item: T) => Promise<R>): Promise<R[]> {
-  const results = new Array<R>(items.length); let next = 0;
-  async function worker(): Promise<void> {
-    while (next < items.length) { const index = next++; const item = items[index]; if (item) results[index] = await task(item); }
-  }
-  await Promise.all(Array.from({ length: Math.min(Math.max(limit, 1), items.length) }, worker));
-  return results;
 }
 
 function chunkReferences(assets: GameAsset[]): Map<string, number> {

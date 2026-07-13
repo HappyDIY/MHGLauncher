@@ -8,6 +8,7 @@ import { recoverInterruptedDlls } from "../src/services/game-launch-recovery";
 import type { GameLaunchRunner, LaunchReporter, LaunchRunInput } from "../src/services/game-launch-process";
 import { GameLaunchService } from "../src/services/game-launches";
 import { AppError } from "../src/core/errors";
+import { ResourceCoordinator } from "../src/services/resource-coordinator";
 
 const roots: string[] = [];
 
@@ -133,6 +134,13 @@ describe("游戏启动会话", () => {
     writeFileSync(join(fixture.data, "launches"), "blocked");
     expect(() => service.start({ install_path: fixture.game, performance_profile: "optimized", metal_hud: false, network_debug: false, wine_log: false, frame_pacing: 0 })).toThrow();
     expect(service.active()).toBe(false);
+  });
+
+  test("资源任务占用同一安装目录时拒绝启动", () => {
+    const fixture = makeFixture(), coordinator = new ResourceCoordinator(), lease = coordinator.claim(fixture.game, "resource-job");
+    const service = new GameLaunchService(fixture.data, fixture.runtime, new FixtureRunner(), fixture.integrity, coordinator);
+    expect(() => service.start({ install_path: fixture.game, performance_profile: "optimized", metal_hud: false, network_debug: false, wine_log: false, frame_pacing: 0 })).toThrow("正在被其他任务使用");
+    coordinator.release(lease); expect(service.active()).toBe(false);
   });
 
   test("停止确认失败发布终态并交由恢复守护任务", async () => {

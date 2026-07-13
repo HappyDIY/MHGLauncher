@@ -5,14 +5,19 @@ import { streamDownload } from "./download-transfer";
 import { hashFileSync } from "./file-hash";
 
 export class DownloadControl {
-  private paused = false; private cancelled = false; private waiters: (() => void)[] = []; private readonly controller = new AbortController();
+  private paused = false; private cancelled = false; private waiters: (() => void)[] = []; private pauseAcknowledged?: () => void; private readonly controller = new AbortController();
   get signal(): AbortSignal { return this.controller.signal; }
-  pause(): void { this.paused = true; }
+  pause(): Promise<void> {
+    this.paused = true;
+    return new Promise<void>((resolve) => { this.pauseAcknowledged = resolve; });
+  }
   resume(): void { this.paused = false; this.release(); }
-  cancel(): void { this.cancelled = true; this.controller.abort(); this.release(); }
+  cancel(): void { this.cancelled = true; this.controller.abort(new DOMException("任务已取消", "AbortError")); this.release(); }
+  abortWorkers(reason: unknown): void { if (!this.controller.signal.aborted) this.controller.abort(reason); this.release(); }
   async checkpoint(): Promise<void> {
-    if (this.paused) await new Promise<void>((resolve) => this.waiters.push(resolve));
+    if (this.paused) { this.pauseAcknowledged?.(); this.pauseAcknowledged = undefined; await new Promise<void>((resolve) => this.waiters.push(resolve)); }
     if (this.cancelled) throw new DOMException("任务已取消", "AbortError");
+    if (this.controller.signal.aborted) throw this.controller.signal.reason;
   }
   private release(): void { for (const resolve of this.waiters.splice(0)) resolve(); }
 }

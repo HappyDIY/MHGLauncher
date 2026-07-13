@@ -21,6 +21,7 @@ import { NotificationService } from "../services/notifications";
 import { GachaEventService } from "../services/gacha-events";
 import { CloudSyncService } from "../services/cloud-sync";
 import { PreparedLoginStore } from "../services/prepared-logins";
+import { ResourceCoordinator } from "../services/resource-coordinator";
 
 export class Container {
   readonly settings: Settings;
@@ -49,10 +50,10 @@ export class Container {
     this.images = new ImageCache(config.dataDir);
     this.accounts = new AccountService(this.store, this.provider);
     this.preparedLogins = new PreparedLoginStore();
-    this.games = new GameService(this.store, this.provider, config.dataDir, config.downloadWorkers, config.downloadSpeedLimitKB);
+    const resources = new ResourceCoordinator();
+    this.games = new GameService(this.store, this.provider, config.dataDir, config.downloadWorkers, config.downloadSpeedLimitKB, resources);
     this.launches = new GameLaunchService(
-      config.dataDir, process.env.MHG_RUNTIME_ROOT ?? join(process.cwd(), "runtime"), undefined, undefined,
-      () => this.games.busy(),
+      config.dataDir, process.env.MHG_RUNTIME_ROOT ?? join(process.cwd(), "runtime"), undefined, undefined, resources,
     );
     this.notes = new NoteService(this.store, this.provider);
 	    this.wishes = new WishService(this.store, this.provider, this.images);

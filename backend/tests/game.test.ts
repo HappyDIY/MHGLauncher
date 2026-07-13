@@ -2,13 +2,14 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, expect, test } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import { fixture, request } from "./helpers";
 import { prepareBuild } from "../src/services/game-build";
 import { normalizeBuild } from "../src/providers/provider";
 import { Store } from "../src/core/database";
 import { GameService } from "../src/services/games";
 import { FixtureProvider } from "../src/providers/fixture";
+import { ResourceCoordinator } from "../src/services/resource-coordinator";
 
 beforeEach(() => fixture());
 test("检测官方游戏目录版本", async () => {
@@ -98,6 +99,20 @@ test("不同版本的空构建被拒绝且保留原目录", async () => {
   try {
     await expect(service.start("update", game)).rejects.toMatchObject({ code: "game_build_empty" });
     expect(existsSync(join(game, "YuanShen.exe"))).toBe(true);
+  } finally { store.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("资源任务在首个 await 前占用安装目录", async () => {
+  const root = mkdtempSync(join(tmpdir(), "game-reservation-")), data = join(root, "data"), fixtures = join(root, "fixtures"), game = join(root, "game");
+  mkdirSync(fixtures); mkdirSync(game); writeFileSync(join(game, "YuanShen.exe"), "game"); writeFileSync(join(game, "config.ini"), "game_version=5.7.0\n");
+  const provider = new FixtureProvider(fixtures), gate = Promise.withResolvers<Awaited<ReturnType<FixtureProvider["getBuild"]>>>();
+  vi.spyOn(provider, "getBuild").mockReturnValue(gate.promise);
+  const store = new Store(join(data, "test.db")), service = new GameService(store, provider, data, 4, 0, new ResourceCoordinator());
+  try {
+    const first = service.start("update", game); await Promise.resolve();
+    await expect(service.start("update", game)).rejects.toMatchObject({ code: "game_resource_busy" });
+    gate.resolve(normalizeBuild({ version: "5.8.0", kind: "version_diff", deprecated_files: ["old.dat"] }));
+    expect((await waitJob(service, await first)).status).toBe("completed");
   } finally { store.close(); rmSync(root, { recursive: true, force: true }); }
 });
 

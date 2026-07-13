@@ -4,11 +4,13 @@ import { join } from "node:path";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 const spawnSyncMock = vi.fn(() => ({ status: 0, stdout: "" }));
+const runCommandMock = vi.fn(async () => ({ status: 0, stdout: "", stderr: "" }));
 
 vi.mock("node:child_process", () => ({
   spawnSync: spawnSyncMock,
   spawn: vi.fn(),
 }));
+vi.mock("../src/services/process-command", () => ({ runCommand: runCommandMock }));
 
 const { WineLaunchRunner } = await import("../src/services/game-launch-process");
 
@@ -17,10 +19,11 @@ const roots: string[] = [];
 describe("Wine 游戏进程启动器", () => {
   afterEach(() => {
     spawnSyncMock.mockClear();
+    runCommandMock.mockClear();
     for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
   });
 
-  test("预启动时启用 Wine Retina 模式", () => {
+  test("预启动时异步启用 Wine Retina 模式", async () => {
     const fixture = makeRuntimeFixture();
     const runner = new WineLaunchRunner() as unknown as {
       preflight: (
@@ -30,10 +33,10 @@ describe("Wine 游戏进程启动器", () => {
         winemetal: string,
         prefix: string,
         profile: "optimized",
-      ) => void;
+      ) => Promise<void>;
     };
 
-    runner.preflight(
+    await runner.preflight(
       fixture.wine,
       fixture.wineboot,
       fixture.wineserver,
@@ -42,10 +45,10 @@ describe("Wine 游戏进程启动器", () => {
       "optimized",
     );
 
-    expect(spawnSyncMock).toHaveBeenCalledWith(fixture.wine, [
+    expect(runCommandMock).toHaveBeenCalledWith(fixture.wine, [
       "reg", "add", "HKCU\\Software\\Wine\\Mac Driver",
       "/v", "RetinaMode", "/t", "REG_SZ", "/d", "Y", "/f",
-    ], expect.objectContaining({ stdio: "ignore" }));
+    ], expect.objectContaining({ env: expect.any(Object) }));
     expect(existsSync(join(fixture.prefix, "drive_c", "windows", "system32", "winemetal.dll"))).toBe(true);
   });
 });

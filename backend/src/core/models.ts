@@ -73,7 +73,7 @@ export interface GameState {
   predownload_version: string | null; predownload_finished: boolean;
 }
 export type JobKind = "install" | "update" | "verify" | "predownload";
-type JobStatus = "queued" | "running" | "paused" | "completed" | "cancelled" | "failed";
+type JobStatus = "queued" | "running" | "pausing" | "paused" | "cancelling" | "completed" | "cancelled" | "failed";
 interface ChunkProgress { name: string; bytes_done: number; total: number }
 export interface GameJob {
   id: string; kind: JobKind; status: JobStatus; completed_bytes: number; total_bytes: number;

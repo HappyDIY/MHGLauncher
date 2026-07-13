@@ -35,7 +35,7 @@ describe("游戏账号注册表", () => {
     expect(JSON.parse(result.stdout).data[0]).toMatchObject({ token: "stoken-value", accessToken: "stoken-value", stoken: "stoken-value" });
   });
 
-  test("Wine 注册表写入 REG_BINARY 且保留 null 结尾", () => {
+  test("Wine 注册表写入 REG_BINARY 且保留 null 结尾", async () => {
     const root = mkdtempSync(join(tmpdir(), "mhg-registry-")); roots.push(root);
     const wine = join(root, "wine"), capture = join(root, "args.txt");
     writeFileSync(wine, `#!/bin/sh
@@ -47,7 +47,7 @@ printf '%s\\n' "$@" > "$CAPTURE"
 `);
     chmodSync(wine, 0o755);
 
-    writeGameAccountRegistry(wine, { ...process.env, CAPTURE: capture, MHG_GAME_ACCOUNT_MAC: "FC-B2-14-50-82-E5" }, account);
+    await writeGameAccountRegistry(wine, { ...process.env, CAPTURE: capture, MHG_GAME_ACCOUNT_MAC: "FC-B2-14-50-82-E5" }, account);
     const args = readFileSync(capture, "utf8").trimEnd().split("\n");
     expect(args).toContain("REG_BINARY");
     const bytes = Buffer.from(args.at(args.indexOf("/d") + 1) ?? "", "hex");
@@ -60,7 +60,7 @@ printf '%s\\n' "$@" > "$CAPTURE"
     expect(JSON.parse(result.stdout).data[0].mid).toBe("mid-1");
   });
 
-  test("会话结束恢复原注册表值", () => {
+  test("会话结束恢复原注册表值", async () => {
     const root = mkdtempSync(join(tmpdir(), "mhg-registry-")); roots.push(root);
     const wine = join(root, "wine"), capture = join(root, "calls.txt");
     writeFileSync(wine, `#!/bin/sh
@@ -68,7 +68,7 @@ if [ "$2" = "query" ]; then printf 'value REG_BINARY DEADBEEF\n'; exit 0; fi
 printf '%s\n' "$@" >> "$CAPTURE"
 `); chmodSync(wine, 0o755);
     const env = { ...process.env, CAPTURE: capture, MHG_GAME_ACCOUNT_MAC: "FC-B2-14-50-82-E5" };
-    const snapshot = writeGameAccountRegistry(wine, env, account); restoreGameAccountRegistry(wine, env, snapshot);
+    const snapshot = await writeGameAccountRegistry(wine, env, account); await restoreGameAccountRegistry(wine, env, snapshot);
     const calls = readFileSync(capture, "utf8");
     expect(snapshot.value).toBe("DEADBEEF"); expect(calls).toMatch(/\/d\nDEADBEEF\n\/f/);
   });

@@ -5,6 +5,7 @@ import type { DownloadControl } from "./download";
 import type { TokenBucketRateLimiter } from "./rate-limiter";
 
 const retryLimit = 5;
+const localWriteErrors = new Set(["EACCES", "EDQUOT", "ENOSPC", "EROFS"]);
 
 export async function streamDownload(
   url: string, partial: string, expectedSize: number, label: string, control: DownloadControl,
@@ -19,28 +20,34 @@ export async function streamDownload(
   while (offset < expectedSize) {
     await control.checkpoint();
     try {
-      const response = await fetch(url, { headers: offset ? { Range: `bytes=${offset}-` } : {}, signal: control.signal });
-      if (offset && response.status !== 206) {
+      const response = await fetch(url, {
+        headers: offset ? { Range: `bytes=${offset}-` } : {},
+        signal: AbortSignal.any([control.signal, AbortSignal.timeout(stallTimeout())]),
+      });
+      if (offset && (response.status !== 206 || !validRange(response.headers.get("content-range"), offset, expectedSize))) {
         progress(-offset); offset = 0; report(0); rmSync(partial, { force: true });
         continue;
       }
       if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
-      const reader = response.body.getReader(), descriptor = openSync(partial, offset ? "a" : "w");
+      const remaining = expectedSize - offset, length = Number(response.headers.get("content-length") ?? remaining);
+      if (Number.isFinite(length) && length > remaining) throw new Error("响应大小超出清单");
+      const reader = response.body.getReader(), descriptor = openFile(partial, offset ? "a" : "w");
       try {
         while (offset < expectedSize) {
           await control.checkpoint();
-          const value = await reader.read();
+          const value = await readWithStall(reader, label);
           if (value.done) break;
           if (rateLimiter) await acquireBytes(rateLimiter, value.value.length, control);
-          writeSync(descriptor, value.value); offset += value.value.length;
+          writeFile(descriptor, value.value); offset += value.value.length;
           progress(value.value.length); report(offset);
           if (offset > expectedSize) throw new Error("响应大小超出清单");
         }
-      } finally { closeSync(descriptor); }
+      } finally { closeSync(descriptor); if (offset >= expectedSize) void reader.cancel(); }
       if (offset < expectedSize) throw new Error("连接提前结束");
       failures = 0;
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") throw error;
+      if (error instanceof AppError && error.code === "storage_write_failed") throw error;
       failures += 1;
       if (failures > retryLimit) {
         const detail = error instanceof Error ? error.message : "未知错误";
@@ -53,6 +60,40 @@ export async function streamDownload(
       }
     }
   }
+}
+
+function validRange(value: string | null, offset: number, expectedSize: number): boolean {
+  const match = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(value ?? "");
+  return match !== null && Number(match[1]) === offset && Number(match[2]) < expectedSize && Number(match[3]) === expectedSize;
+}
+
+function stallTimeout(): number {
+  const configured = Number(process.env.MHG_DOWNLOAD_STALL_TIMEOUT_MS ?? 30_000);
+  return Number.isFinite(configured) ? Math.max(50, configured) : 30_000;
+}
+
+async function readWithStall(reader: ReadableStreamDefaultReader<Uint8Array>, label: string): Promise<ReadableStreamReadResult<Uint8Array>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      reader.read(),
+      new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new AppError("download_stalled", `${label} 下载连接长时间无数据`, 504)), stallTimeout()); }),
+    ]);
+  } catch (error) { void reader.cancel(); throw error; }
+  finally { if (timer) clearTimeout(timer); }
+}
+
+function openFile(path: string, flags: "a" | "w"): number {
+  try { return openSync(path, flags); } catch (error) { throw localWriteError(error); }
+}
+
+function writeFile(descriptor: number, value: Uint8Array): void {
+  try { writeSync(descriptor, value); } catch (error) { throw localWriteError(error); }
+}
+
+function localWriteError(error: unknown): unknown {
+  const code = (error as NodeJS.ErrnoException).code;
+  return code && localWriteErrors.has(code) ? new AppError("storage_write_failed", `本地存储写入失败：${code}`, 507) : error;
 }
 
 async function acquireBytes(limiter: TokenBucketRateLimiter, bytes: number, control: DownloadControl): Promise<void> {
