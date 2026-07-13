@@ -14,10 +14,7 @@ describe("游戏账号注册表", () => {
   test("SDK 字符串可用源项目 DES-CBC 规则解密", () => {
     const mac = "A1B2C3D4E5F6";
     const sdk = createGameAccountRegistryValue(account, mac, 1_700_000_000);
-    const result = spawnSync("openssl", ["enc", "-d", "-des-cbc", "-provider", "legacy", "-provider", "default",
-      "-K", Buffer.from(mac.slice(0, 8), "utf8").toString("hex"), "-iv", "1234567890ABCDEF", "-base64", "-A"], {
-      input: sdk, encoding: "utf8",
-    });
+    const result = decrypt(sdk, mac.slice(0, 8));
     expect(result.status).toBe(0);
     expect(JSON.parse(result.stdout).data[0]).toMatchObject({
       uid: "10001", mid: "mid-1", token: "cookie-token", accessToken: "cookie-token",
@@ -28,10 +25,7 @@ describe("游戏账号注册表", () => {
 
   test("旧凭据缺少 cookie_token 时回退到 stoken", () => {
     const sdk = createGameAccountRegistryValue({ ...account, credential: "stoken=stoken-value; mid=mid-1" }, "A1B2C3D4E5F6");
-    const result = spawnSync("openssl", ["enc", "-d", "-des-cbc", "-provider", "legacy", "-provider", "default",
-      "-K", Buffer.from("A1B2C3D4", "utf8").toString("hex"), "-iv", "1234567890ABCDEF", "-base64", "-A"], {
-      input: sdk, encoding: "utf8",
-    });
+    const result = decrypt(sdk, "A1B2C3D4");
     expect(JSON.parse(result.stdout).data[0]).toMatchObject({ token: "stoken-value", accessToken: "stoken-value", stoken: "stoken-value" });
   });
 
@@ -53,10 +47,7 @@ printf '%s\\n' "$@" > "$CAPTURE"
     const bytes = Buffer.from(args.at(args.indexOf("/d") + 1) ?? "", "hex");
     expect(bytes.at(-1)).toBe(0);
     expect(bytes.subarray(0, -1).toString("utf8")).toMatch(/^[A-Za-z0-9+/]+=*$/);
-    const result = spawnSync("openssl", ["enc", "-d", "-des-cbc", "-provider", "legacy", "-provider", "default",
-      "-K", Buffer.from("FCB21450", "utf8").toString("hex"), "-iv", "1234567890ABCDEF", "-base64", "-A"], {
-      input: bytes.subarray(0, -1).toString("utf8"), encoding: "utf8",
-    });
+    const result = decrypt(bytes.subarray(0, -1).toString("utf8"), "FCB21450");
     expect(JSON.parse(result.stdout).data[0].mid).toBe("mid-1");
   });
 
@@ -73,3 +64,9 @@ printf '%s\n' "$@" >> "$CAPTURE"
     expect(snapshot.value).toBe("DEADBEEF"); expect(calls).toMatch(/\/d\nDEADBEEF\n\/f/);
   });
 });
+
+function decrypt(input: string, key: string): ReturnType<typeof spawnSync> {
+  return spawnSync("/usr/bin/openssl", ["enc", "-d", "-des-cbc",
+    "-K", Buffer.from(key, "utf8").toString("hex"),
+    "-iv", "1234567890ABCDEF", "-base64", "-A"], { input, encoding: "utf8" });
+}
