@@ -91,19 +91,22 @@ struct MobileCaptchaVerificationContext: Identifiable, Sendable {
 
 struct QRResult: Codable, Sendable {
     let session: QRSession
-    let identity: AccountIdentity?
+    let preparedLogin: PreparedLogin?
 }
 
-struct LoginCompleteRequest: Codable {
+struct PreparedLogin: Codable, Sendable {
+    let transactionId: String
     let identity: AccountIdentity
-    let credentialRef: String
+    let roles: [GameRole]
+    let expiresAt: Date
 }
 
 struct LoginCompleteResponse: Codable {
     let account: Account
-    let identity: AccountIdentity?
     let roles: [GameRole]
 }
+
+struct LoginCommitRequest: Codable { let transactionId: String }
 
 struct AccountSelectionResponse: Codable {
     let account: Account

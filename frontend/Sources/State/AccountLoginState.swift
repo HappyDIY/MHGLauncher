@@ -11,9 +11,17 @@ extension LauncherStore {
     }
 
     func startQRLoginAttempt() -> Int {
+        _ = startLoginGeneration()
         qrLoginAttempt += 1
         return qrLoginAttempt
     }
+
+    func startLoginGeneration() -> Int {
+        loginGeneration += 1
+        return loginGeneration
+    }
+
+    func isCurrentLoginGeneration(_ value: Int) -> Bool { value == loginGeneration }
 
     func applyQRSession(_ session: QRSession, attempt: Int) -> Bool {
         guard attempt == qrLoginAttempt else { return false }
@@ -27,6 +35,10 @@ extension LauncherStore {
         qrLoginAttempt += 1
         qrSession = nil
         loginFormPresented = false
+    }
+
+    func resetLoginFlow() {
+        _ = startLoginGeneration(); qrLoginAttempt += 1; qrSession = nil; clearLoginSecrets()
     }
 
     func mobileVerification(from error: APIErrorPayload) -> MobileCaptchaVerificationContext? {

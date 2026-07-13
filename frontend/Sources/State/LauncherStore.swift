@@ -69,6 +69,7 @@ final class LauncherStore {
     var speedLimitKB = 0
     let loginDeferralKey = "loginLaunchDeferrals"
     var qrLoginAttempt = 0
+    var loginGeneration = 0
     var selectedRole: GameRole? {
         roles.first(where: \.selected) ?? roles.first
     }

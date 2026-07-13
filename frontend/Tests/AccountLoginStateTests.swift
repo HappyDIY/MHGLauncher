@@ -56,7 +56,10 @@ struct AccountLoginStateTests {
         defer { try? store.keychain.delete(account: store.keychainAccount(for: aid)) }
         store.backend.useClient(APIClient(token: "token") { request in
             if request.path == "/v1/auth/cookie-login" {
-                return json(200, loginResponse(aid: aid, credential: "stoken=normalized-secret"))
+                return json(200, preparedResponse(aid: aid, credential: "stoken=normalized-secret"))
+            }
+            if request.path == "/v1/auth/commit" {
+                return json(200, loginResponse(aid: aid))
             }
             if request.path == "/v1/accounts" {
                 return json(200, "[\(accountJSON(aid: aid))]")
@@ -68,6 +71,18 @@ struct AccountLoginStateTests {
         #expect(store.statusMessage == "账号登录成功")
         #expect(store.loginFormPresented == false)
         #expect(try store.keychain.read(account: store.keychainAccount(for: aid)) == "stoken=normalized-secret")
+    }
+
+    @Test("commit 失败会恢复旧钥匙串凭据并撤销事务")
+    func failedCommitRollsBackKeychain() async throws {
+        let aid = "rollback-\(UUID().uuidString)", transport = PreparedTransport(aid: aid)
+        let store = LauncherStore(); store.loginCookie = "login_ticket=temporary"
+        let key = store.keychainAccount(for: aid); try store.keychain.save("stoken=old", account: key)
+        defer { try? store.keychain.delete(account: key) }
+        store.backend.useClient(APIClient(token: "token") { try await transport.response(for: $0) })
+        await store.loginByCookie()
+        #expect(try store.keychain.read(account: key) == "stoken=old")
+        #expect(await transport.aborted)
     }
 
     @Test("二维码成功后旧过期响应不会覆盖账号状态")
@@ -82,6 +97,16 @@ struct AccountLoginStateTests {
         #expect(store.account?.aid == "1001")
         #expect(store.qrSession == nil)
         #expect(store.message == nil)
+    }
+}
+
+private actor PreparedTransport {
+    let aid: String; var aborted = false
+    init(aid: String) { self.aid = aid }
+    func response(for request: APIRequest) throws -> APIResponse {
+        if request.path == "/v1/auth/cookie-login" { return json(200, preparedResponse(aid: aid, credential: "stoken=new")) }
+        if request.path == "/v1/auth/abort" { aborted = true; return json(200, "{}") }
+        return json(500, #"{"code":"commit_failed","message":"提交失败","details":{}}"#)
     }
 }
 
@@ -128,9 +153,15 @@ private func json(_ status: Int, _ body: String) -> APIResponse {
     APIResponse(status: status, body: Data(body.utf8))
 }
 
-private func loginResponse(aid: String, credential: String) -> String {
+private func preparedResponse(aid: String, credential: String) -> String {
     """
-    {"account":\(accountJSON(aid: aid)),"identity":{"aid":"\(aid)","mid":"mid","nickname":"旅行者","credential":"\(credential)"},"roles":[]}
+    {"transaction_id":"00000000-0000-4000-8000-000000000001","identity":{"aid":"\(aid)","mid":"mid","nickname":"旅行者","credential":"\(credential)"},"roles":[],"expires_at":"2099-06-25T08:00:00Z"}
+    """
+}
+
+private func loginResponse(aid: String) -> String {
+    """
+    {"account":\(accountJSON(aid: aid)),"roles":[]}
     """
 }
 

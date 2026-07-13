@@ -13,6 +13,10 @@ struct AccountLoginView: View {
             }
             .pickerStyle(.segmented)
             .motionHover(.subtle)
+            .onChange(of: loginMode) { _, mode in
+                store.resetLoginFlow()
+                if mode == .qr { Task { await store.beginQRLogin() } }
+            }
             switch loginMode {
             case .qr: qrLoginContent
             case .mobile: mobileLoginContent

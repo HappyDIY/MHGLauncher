@@ -20,11 +20,12 @@ actor ActionFakeBackend {
             return empty()
         case ("POST", "/v1/auth/qr-sessions"): return try json(qr("created"))
         case ("GET", "/v1/auth/qr-sessions/qr-1"): return try json(qrResult())
-        case ("POST", "/v1/auth/complete"): return try json(loginResponse())
+        case ("POST", "/v1/auth/commit"): return try json(loginResponse())
+        case ("POST", "/v1/auth/abort"): return empty()
         case ("POST", "/v1/auth/mobile-captcha"): return try json(mobileSession())
         case ("POST", "/v1/auth/mobile-captcha/verification"): return try json(mobileSession())
-        case ("POST", "/v1/auth/mobile-login"): return try json(loginResponse())
-        case ("POST", "/v1/auth/cookie-login"): return try json(loginResponse())
+        case ("POST", "/v1/auth/mobile-login"): return try json(preparedLogin())
+        case ("POST", "/v1/auth/cookie-login"): return try json(preparedLogin())
         case ("GET", "/v1/game/status"), ("GET", "/v1/game/status/path"):
             return try json(InteractiveFixtures.gameState)
         case ("GET", "/v1/game/space-check"):
@@ -95,7 +96,6 @@ private func selection() -> AccountSelectionResponse {
 private func loginResponse() -> LoginCompleteResponse {
     LoginCompleteResponse(
         account: InteractiveFixtures.account,
-        identity: nil,
         roles: [InteractiveFixtures.role]
     )
 }
@@ -112,12 +112,21 @@ private func qr(_ status: String) -> QRSession {
 private func qrResult() -> QRResult {
     QRResult(
         session: qr("confirmed"),
+        preparedLogin: preparedLogin()
+    )
+}
+
+private func preparedLogin() -> PreparedLogin {
+    PreparedLogin(
+        transactionId: "00000000-0000-4000-8000-000000000001",
         identity: AccountIdentity(
             aid: InteractiveFixtures.account.aid,
             mid: InteractiveFixtures.account.mid,
             nickname: InteractiveFixtures.account.nickname,
             credential: "stoken=qr; mid=mid"
-        )
+        ),
+        roles: [InteractiveFixtures.role],
+        expiresAt: .now.addingTimeInterval(300)
     )
 }
 
