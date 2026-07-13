@@ -3,26 +3,27 @@ import type { Container } from "../core/container";
 import { AppError } from "../core/errors";
 import { exportUIGF } from "../services/uigf";
 
-const credential = z.object({ credential: z.string().min(1) });
-const gachaUrl = z.object({ gacha_url: z.string().url(), token: z.string().optional().default("") });
-const cloudUid = z.object({ uid: z.string().min(1), token: z.string().min(1) });
-const archive = z.object({ name: z.string().min(1) });
+const credential = z.object({ credential: z.string().min(1).max(16_384) }).strict();
+const gachaUrl = z.object({ gacha_url: z.string().url().max(16_384), token: z.string().max(1024).optional().default("") }).strict();
+const cloudUid = z.object({ uid: z.string().regex(/^\d{9,10}$/), token: z.string().min(1).max(1024) }).strict();
+const archive = z.object({ name: z.string().min(1).max(128) }).strict();
 const achievementSave = z.object({
   archive_id: z.string().min(1), expected_revision: z.number().int().min(0),
-  items: z.array(z.object({ achievement_id: z.number().int(), current: z.number().int(), status: z.number().int(), timestamp: z.number().int() })),
-});
+  items: z.array(z.object({ achievement_id: z.number().int(), current: z.number().int(), status: z.number().int(), timestamp: z.number().int() }).strict()).max(200_000),
+}).strict();
 const settings = z.object({
-  daily_commission_enabled: z.boolean().optional(), daily_commission_time: z.string().optional(),
+  daily_commission_enabled: z.boolean().optional(), daily_commission_time: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/).optional(),
   resin_full_enabled: z.boolean().optional(),
   gacha_refresh_enabled: z.boolean().optional(), version_update_enabled: z.boolean().optional(),
-});
+}).strict();
+const characterId = z.string().regex(/^(?:0|[1-9]\d{0,15})$/).refine((value) => Number(value) <= Number.MAX_SAFE_INTEGER);
 
 export async function valueRoute(app: Container, method: string, path: string, query: URLSearchParams, body: unknown): Promise<Response | null> {
   const role = () => { const value = app.accounts.selectedRole(); if (!value) throw new AppError("role_missing", "尚未选择原神角色", 409); return value; };
   if (method === "GET" && path === "/characters") return json(app.characters.list(required(query, "uid")));
   if (method === "POST" && path === "/characters/refresh") return json(await app.characters.refresh(credential.parse(body).credential, role()));
   const character = match(path, /^\/characters\/([^/]+)\/refresh$/);
-  if (method === "POST" && character) return json(await app.characters.refreshDetail(credential.parse(body).credential, role(), character));
+  if (method === "POST" && character) return json(await app.characters.refreshDetail(credential.parse(body).credential, role(), characterId.parse(character)));
   if (method === "GET" && path === "/gacha-events") return json(app.gachaEvents.list());
   if (method === "POST" && path === "/gacha-events/refresh") return json(await app.gachaEvents.refresh(credential.parse(body).credential, role()));
   if (method === "GET" && path === "/achievements/archives") return json(app.achievements.archives());

@@ -1,18 +1,26 @@
 import type { PoolClient } from "pg";
 import { pool, transaction } from "./db";
+import { z } from "zod";
+import { HttpError } from "./http";
 
-export type CloudWish = {
-  id: string; uid: string; gacha_type: string; uigf_gacha_type: string; item_id: string;
-  name: string; item_type: string; rank: number; time: string;
-};
+export const cloudWishSchema = z.object({
+  id: z.string().regex(/^\d{1,19}$/), uid: z.string().regex(/^\d{9,10}$/),
+  gacha_type: z.enum(["100", "200", "301", "302", "400", "500"]),
+  uigf_gacha_type: z.enum(["100", "200", "301", "302", "500"]), item_id: z.string().regex(/^\d{1,19}$/),
+  name: z.string().max(128), item_type: z.string().max(64), rank: z.number().int().min(1).max(5),
+  time: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/).refine((value) => Number.isFinite(Date.parse(value))),
+}).strict();
+export type CloudWish = z.infer<typeof cloudWishSchema>;
 
-export async function upload(uid: string, items: CloudWish[]): Promise<{ uploaded: number }> {
+export async function upload(uid: string, items: unknown[]): Promise<{ uploaded: number }> {
   return transaction((client) => uploadWithClient(client, uid, items));
 }
 
-export async function uploadWithClient(client: PoolClient, uid: string, items: CloudWish[]): Promise<{ uploaded: number }> {
+export async function uploadWithClient(client: PoolClient, uid: string, items: unknown[]): Promise<{ uploaded: number }> {
   const unique = new Map<string, CloudWish>();
-  for (const item of items) if (item.uid === uid && /^\d{1,19}$/.test(item.id)) unique.set(item.id, item);
+  let parsed: CloudWish[]; try { parsed = z.array(cloudWishSchema).max(20_000).parse(items); }
+  catch { throw new HttpError(422, "gacha_items_invalid", "抽卡记录格式无效"); }
+  for (const item of parsed) if (item.uid === uid) unique.set(item.id, item);
   const filtered = [...unique.values()].sort((left, right) => left.id.length - right.id.length || left.id.localeCompare(right.id));
   for (const item of filtered) {
     await client.query(`INSERT INTO gacha_records(uid,id,gacha_type,uigf_gacha_type,item_id,name,item_type,rank,time,payload)
@@ -26,7 +34,8 @@ export async function uploadWithClient(client: PoolClient, uid: string, items: C
 
 export async function retrieve(uid: string): Promise<{ items: CloudWish[] }> {
   const result = await pool().query("SELECT payload FROM gacha_records WHERE uid=$1 ORDER BY time DESC,LENGTH(id) DESC,id DESC", [uid]);
-  return { items: result.rows.map((row) => row.payload as CloudWish) };
+  try { return { items: z.array(cloudWishSchema).max(20_000).parse(result.rows.map((row) => row.payload)) }; }
+  catch { throw new HttpError(500, "stored_data_invalid", "云端记录格式无效"); }
 }
 
 export async function endIds(uid: string): Promise<Record<string, string>> {

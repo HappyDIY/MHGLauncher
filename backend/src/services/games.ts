@@ -20,6 +20,7 @@ import { checkedPredownloadBuild } from "./predownload-build";
 import { RevisionNotifier } from "./revision-notifier";
 import { audioLanguages, detectGame, gameBuildSize as size, gameStateOutput as output } from "./game-detection";
 import { ResourceCoordinator, type ResourceLease } from "./resource-coordinator";
+import { pruneTerminal } from "./task-retention";
 export class GameService {
   private readonly jobs = new Map<string, GameJob>();
   private readonly controls = new Map<string, DownloadControl>();
@@ -66,6 +67,7 @@ export class GameService {
     } catch { return { version: null, finished: false }; }
   }
   async start(kind: JobKind, path: string): Promise<GameJob> {
+    for (const id of pruneTerminal(this.jobs, ({ status }) => ["completed", "cancelled", "failed"].includes(status), ({ last_update }) => Date.parse(last_update) || 0)) this.controls.delete(id);
     if (this.busy()) throw new AppError("game_job_busy", "已有游戏资源任务正在运行", 409);
     const detected = detectGame(path);
     if (kind === "update" && !detected) throw new AppError("game_not_installed", "所选目录中未检测到可更新的原神客户端");

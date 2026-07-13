@@ -12,16 +12,15 @@ import type { RegistryAccount } from "./game-account-registry";
 import { RevisionNotifier } from "./revision-notifier";
 import { loadLaunchStatuses, persistLaunchStatus } from "./game-launch-status-store";
 import { ResourceCoordinator, type ResourceLease } from "./resource-coordinator";
+import { pruneLaunches } from "./game-launch-retention";
 export interface StartLaunch {
   install_path: string; performance_profile: GamePerformanceProfile; metal_hud: boolean;
   network_debug: boolean; wine_log: boolean; frame_pacing: number; account?: RegistryAccount;
 }
 export class GameLaunchService {
   private readonly launches = new Map<string, GameLaunch>();
-  private readonly dnsLines = new Map<string, number>();
-  private readonly wineLines = new Map<string, number>();
-  private readonly logReadAt = new Map<string, number>();
-  private readonly controllers = new Map<string, AbortController>();
+  private readonly dnsLines = new Map<string, number>(); private readonly wineLines = new Map<string, number>();
+  private readonly logReadAt = new Map<string, number>(); private readonly controllers = new Map<string, AbortController>();
   private readonly notifier = new RevisionNotifier<GameLaunch>();
   private readonly persisted = new Map<string, string>();
   private readonly guardian: DllRecoveryGuardian;
@@ -39,6 +38,7 @@ export class GameLaunchService {
     if (!this.guardian.pending()) this.finishRecovered();
   }
   start(input: StartLaunch): GameLaunch {
+    pruneLaunches(this.dataDir, this.launches, [this.persisted, this.controllers, this.dnsLines, this.wineLines, this.logReadAt]);
     if ([...this.launches.values()].some((value) => !["exited", "stopped", "failed"].includes(value.status))) {
       throw new AppError("game_launch_busy", "游戏正在启动或运行", 409);
     }
@@ -129,7 +129,8 @@ export class GameLaunchService {
     const now = new Date().toISOString();
     launch.status = status; launch.message = message; launch.updated_at = now;
     if (progress !== undefined) launch.progress = Math.max(launch.progress, Math.min(progress, 1));
-    if (message) launch.logs.push({ sequence: launch.logs.length + 1, timestamp: now, kind: "launch", message });
+    if (message) launch.logs.push({ sequence: (launch.logs.at(-1)?.sequence ?? 0) + 1, timestamp: now, kind: "launch", message });
+    if (launch.logs.length > 200) launch.logs = launch.logs.slice(-200);
     this.notifier.mark(launch.id, launch); this.persist(launch);
   }
   private readDnsLogs(launch: GameLaunch): void {
@@ -143,13 +144,13 @@ export class GameLaunchService {
       if (!milliseconds || !pid || !api || !host || !action || result === undefined) continue;
       const state = action === "blocked" ? "屏蔽" : Number(result) === 0 ? `成功${address ? ` → ${address}` : ""}` : `未找到 ${result}`;
       launch.logs.push({
-        sequence: launch.logs.length + 1, timestamp: new Date(Number(milliseconds)).toISOString(), kind: "dns",
+        sequence: (launch.logs.at(-1)?.sequence ?? 0) + 1, timestamp: new Date(Number(milliseconds)).toISOString(), kind: "dns",
         message: `DNS · PID ${pid} · ${api} · ${host} · ${state}`,
       });
     }
+    if (launch.logs.length > 200) launch.logs = launch.logs.slice(-200);
     if (lines.length !== offset) { this.dnsLines.set(launch.id, lines.length); this.notifier.mark(launch.id, launch); this.persist(launch); }
   }
-
   private readWineLogs(launch: GameLaunch): void {
     const path = join(this.dataDir, "launches", launch.id, "wine.log");
     if (!existsSync(path)) return;
@@ -170,7 +171,7 @@ export class GameLaunchService {
         const trimmed = line.trim();
         if (!trimmed) continue;
         launch.logs.push({
-          sequence: launch.logs.length + 1, timestamp: now, kind: "wine",
+          sequence: (launch.logs.at(-1)?.sequence ?? 0) + 1, timestamp: now, kind: "wine",
           message: trimmed.slice(0, 500),
         });
       }
@@ -181,7 +182,6 @@ export class GameLaunchService {
       closeSync(fd);
     }
   }
-
   private persist(launch: GameLaunch): void {
     const payload = JSON.stringify(launch);
     if (this.persisted.get(launch.id) === payload) return;

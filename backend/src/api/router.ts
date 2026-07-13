@@ -7,33 +7,36 @@ import { exportUIGF } from "../services/uigf";
 import { launchAccount } from "../services/game-account-registry";
 import { longPollOptions } from "../services/revision-notifier";
 import { valueRoute } from "./value-routes";
+import { readJsonBody } from "../core/request-body";
 
-const credential = z.object({ credential: z.string().min(1) });
-const roleSync = z.object({ aid: z.string().min(1), credential: z.string().min(1) });
-const selectAccount = z.object({ aid: z.string().min(1) });
-const selectRole = z.object({ uid: z.string().min(1) });
-const mobile = z.object({ mobile: z.string().regex(/^1\d{10}$/) });
-const mobileLogin = z.object({ mobile: z.string().regex(/^1\d{10}$/), captcha: z.string().min(4), action_type: z.string().min(1), aigis: z.string().optional().nullable() });
-const mobileVerification = z.object({ mobile: z.string().regex(/^1\d{10}$/), session_id: z.string().min(1), challenge: z.string().min(1), validate: z.string().min(1) });
-const cookieLogin = z.object({ credential: z.string().min(1) });
-const loginTransaction = z.object({ transaction_id: z.string().uuid() });
-const refresh = z.object({ credential: z.string(), xrpc_challenge: z.string().default(""), xrpc_challenge_path: z.string().default("") });
-const verification = z.object({ credential: z.string(), challenge: z.string(), validate: z.string(), xrpc_challenge_path: z.string().default("") });
-const startJob = z.object({ kind: z.enum(["install", "update", "verify", "predownload"]), install_path: z.string().min(1) });
-const controlJob = z.object({ action: z.enum(["pause", "resume", "cancel"]) });
-const speedLimit = z.object({ speed_limit_kb: z.number().int().min(0) });
+const credential = z.object({ credential: z.string().min(1).max(16_384) }).strict();
+const roleSync = z.object({ aid: z.string().min(1).max(32), credential: z.string().min(1).max(16_384) }).strict();
+const selectAccount = z.object({ aid: z.string().min(1).max(32) }).strict();
+const selectRole = z.object({ uid: z.string().regex(/^\d{9,10}$/) }).strict();
+const mobile = z.object({ mobile: z.string().regex(/^1\d{10}$/) }).strict();
+const mobileLogin = z.object({ mobile: z.string().regex(/^1\d{10}$/), captcha: z.string().min(4).max(16), action_type: z.string().min(1).max(128), aigis: z.string().max(16_384).optional().nullable() }).strict();
+const mobileVerification = z.object({ mobile: z.string().regex(/^1\d{10}$/), session_id: z.string().min(1).max(256), challenge: z.string().min(1).max(4096), validate: z.string().min(1).max(4096) }).strict();
+const cookieLogin = z.object({ credential: z.string().min(1).max(16_384) }).strict();
+const loginTransaction = z.object({ transaction_id: z.string().uuid() }).strict();
+const refresh = z.object({ credential: z.string().max(16_384), xrpc_challenge: z.string().max(4096).default(""), xrpc_challenge_path: z.string().max(2048).default("") }).strict();
+const verification = z.object({ credential: z.string().max(16_384), challenge: z.string().max(4096), validate: z.string().max(4096), xrpc_challenge_path: z.string().max(2048).default("") }).strict();
+const startJob = z.object({ kind: z.enum(["install", "update", "verify", "predownload"]), install_path: z.string().min(1).max(4096) }).strict();
+const controlJob = z.object({ action: z.enum(["pause", "resume", "cancel"]) }).strict();
+const speedLimit = z.object({ speed_limit_kb: z.number().int().min(0).max(10_000_000) }).strict();
 const startLaunch = z.object({
   install_path: z.string().min(1), performance_profile: z.enum(["optimized", "compatibility", "baseline"]).default("optimized"),
   metal_hud: z.boolean().default(false), network_debug: z.boolean().default(false),
   wine_log: z.boolean().default(false),
-  frame_pacing: z.number().int().min(0).max(240).default(0), credential: z.string().min(1).optional(),
-});
+  frame_pacing: z.number().int().min(0).max(240).default(0), credential: z.string().min(1).max(16_384).optional(),
+}).strict();
+const characterId = z.string().regex(/^(?:0|[1-9]\d{0,15})$/).refine((value) => Number(value) <= Number.MAX_SAFE_INTEGER);
 
 export async function dispatch(request: Request): Promise<Response> {
   try {
     authorize(request);
     const url = new URL(request.url), path = url.pathname.replace(/^\/v1/, "");
-    const body = request.method === "POST" || request.method === "PUT" ? await request.json() : undefined;
+    const limit = ["/wishes/tasks/import", "/achievements/import"].includes(path) ? 64 * 1024 * 1024 : 1024 * 1024;
+    const body = request.method === "POST" || request.method === "PUT" ? await readJsonBody(request, limit) : undefined;
     return await route(request.method, path, url.searchParams, body);
   } catch (error) {
     if (error instanceof z.ZodError) return Response.json({ code: "validation_error", message: "请求参数无效", details: { issues: JSON.stringify(error.issues) } }, { status: 422 });
@@ -130,7 +133,7 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   if (method === "POST" && character) {
     const value = credential.parse(body), role = app.accounts.selectedRole();
     if (!role) throw new AppError("role_missing", "尚未选择原神角色", 409);
-    return json(await app.characters.refreshDetail(value.credential, role, character));
+    return json(await app.characters.refreshDetail(value.credential, role, characterId.parse(character)));
   }
   if (method === "POST" && path === "/notes/refresh") {
     const value = refresh.parse(body), role = app.accounts.selectedRole();

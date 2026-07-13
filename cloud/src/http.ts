@@ -10,7 +10,7 @@ export function json(value: unknown, status = 200): Response {
 
 export function fail(error: unknown): Response {
   if (error instanceof HttpError) return json({ code: error.code, message: error.message }, error.status);
-  return json({ code: "internal_error", message: error instanceof Error ? error.message : "云端服务异常" }, 500);
+  return json({ code: "internal_error", message: "云端服务异常" }, 500);
 }
 
 export function bearer(request: Request): string {

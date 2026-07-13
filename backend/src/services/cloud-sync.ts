@@ -5,6 +5,15 @@ import { AppError } from "../core/errors";
 import type { CloudLoginResult } from "../core/models";
 import type { GameRecordSource } from "../providers/game-record";
 import type { WishService } from "./wishes";
+import { z } from "zod";
+
+const cloudWish = z.object({
+  id: z.string().regex(/^\d{1,19}$/), uid: z.string().regex(/^\d{9,10}$/),
+  gacha_type: z.enum(["100", "200", "301", "302", "400", "500"]),
+  uigf_gacha_type: z.enum(["100", "200", "301", "302", "500"]), item_id: z.string().regex(/^\d{1,19}$/),
+  name: z.string().max(128), item_type: z.string().max(64), rank: z.number().int().min(1).max(5),
+  time: z.string().datetime(),
+}).strict();
 
 export class CloudSyncService {
   constructor(
@@ -43,7 +52,9 @@ export class CloudSyncService {
   }
 
   async uploadWishes(uid: string, token: string): Promise<Record<string, number>> {
-    const items = this.wishes.list(uid);
+    const items = this.wishes.list(uid).map(({ id, uid: itemUid, gacha_type, uigf_gacha_type, item_id, name, item_type, rank, time }) => (
+      { id, uid: itemUid, gacha_type, uigf_gacha_type, item_id, name, item_type, rank, time }
+    ));
     if (!this.settings.cloudBaseUrl) return { uploaded: items.length };
     await this.assertRemoteIdentity(uid, token);
     return this.remote<Record<string, number>>("/api/v1/gacha/upload", token, { items });
@@ -52,9 +63,11 @@ export class CloudSyncService {
   async retrieveWishes(uid: string, token: string): Promise<Record<string, number>> {
     if (!this.settings.cloudBaseUrl) return { imported: 0 };
     await this.assertRemoteIdentity(uid, token);
-    const items = await this.remote<{ items: unknown[] }>("/api/v1/gacha/retrieve", token, {});
-    this.wishes.save(items.items as Parameters<WishService["save"]>[0]);
-    return { imported: items.items.length };
+    const payload = await this.remote<{ items: unknown[] }>("/api/v1/gacha/retrieve", token, {});
+    const items = z.array(cloudWish).max(20_000).safeParse(payload.items);
+    if (!items.success) throw new AppError("cloud_payload_invalid", "云端记录格式无效", 502);
+    this.wishes.save(items.data);
+    return { imported: items.data.length };
   }
 
   async deleteWishes(uid: string, token: string): Promise<Record<string, number>> {

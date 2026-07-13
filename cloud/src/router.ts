@@ -3,24 +3,30 @@ import { issue, requireFresh, requireSession, reverify, revoke, verifyGachaUrl }
 import { ready } from "./db";
 import { bearer, fail, HttpError, json } from "./http";
 import * as gacha from "./gacha";
+import { readJsonBody } from "./body";
 
-const gachaUrl = z.object({ gacha_url: z.string().url() });
-const uploadBody = z.object({ items: z.array(z.any()) });
+const gachaUrl = z.object({ gacha_url: z.string().url().max(16_384) }).strict();
+const uploadBody = z.object({ items: z.array(gacha.cloudWishSchema).max(20_000) }).strict();
 
 export async function dispatch(request: Request): Promise<Response> {
   try {
     await ready();
     const url = new URL(request.url);
     const path = url.pathname.replace(/^\/api\/v1/, "");
-    const body = request.method === "POST" ? await request.json() : undefined;
-    return await route(request.method, path, body, request);
+    let freshUid: string | undefined;
+    if (path === "/gacha/upload") freshUid = (await requireFresh(bearer(request))).uid;
+    else if (path === "/auth/reverify") await requireSession(bearer(request));
+    const acceptsBody = ["/auth/gacha-url", "/auth/reverify", "/gacha/upload"].includes(path);
+    const maxBytes = path === "/gacha/upload" ? 16 * 1024 * 1024 : 1024 * 1024;
+    const body = request.method === "POST" && acceptsBody ? await readJsonBody(request, maxBytes) : undefined;
+    return await route(request.method, path, body, request, freshUid);
   } catch (error) {
     if (error instanceof z.ZodError) return json({ code: "validation_error", message: "请求参数无效", detail: error.issues }, 422);
     return fail(error);
   }
 }
 
-async function route(method: string, path: string, body: unknown, request: Request): Promise<Response> {
+async function route(method: string, path: string, body: unknown, request: Request, freshUid?: string): Promise<Response> {
   if (method === "POST" && path === "/auth/gacha-url") {
     const proof = await verifyGachaUrl(gachaUrl.parse(body).gacha_url);
     const session = await issue(proof.uid, (client) => gacha.uploadWithClient(client, proof.uid, proof.items).then(() => undefined));
@@ -39,8 +45,8 @@ async function route(method: string, path: string, body: unknown, request: Reque
     const session = await requireSession(bearer(request)); return json(await gacha.endIds(session.uid));
   }
   if (method === "POST" && path === "/gacha/upload") {
-    const value = uploadBody.parse(body), session = await requireFresh(bearer(request));
-    return json(await gacha.upload(session.uid, value.items));
+    const value = uploadBody.parse(body);
+    return json(await gacha.upload(freshUid ?? "", value.items));
   }
   if (method === "POST" && path === "/gacha/retrieve") {
     const session = await requireSession(bearer(request)); return json(await gacha.retrieve(session.uid));

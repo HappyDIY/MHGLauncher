@@ -7,7 +7,8 @@ import { LiveProvider } from "../src/providers/live";
 import { cookies, sign } from "../src/providers/signing";
 import { normalizeBuild } from "../src/providers/provider";
 import { AppError, errorResponse } from "../src/core/errors";
-import { decodeSophonManifest } from "../src/providers/sophon";
+import { decodeSophonManifest, decodeZstdLimited, readBoundedResponse } from "../src/providers/sophon";
+import { zstdCompressSync } from "node:zlib";
 
 const provider = (): FixtureProvider => new FixtureProvider(join(process.cwd(), "fixtures"));
 const roots: string[] = [];
@@ -111,5 +112,9 @@ describe("Provider 契约", () => {
     const asset = (decodeSophonManifest(data).assets as Record<string, unknown>[])[0];
     expect(asset).toMatchObject({ asset_name: "YuanShen.exe", asset_size: 42, asset_hash_md5: "abc" });
     expect((asset?.asset_chunks as Record<string, unknown>[])[0]).toMatchObject({ chunk_name: "hash_chunk", chunk_size: 20 });
+  });
+  test("Sophon 响应和解压结果都有硬上限", async () => {
+    await expect(readBoundedResponse(new Response("123456"), 5)).rejects.toMatchObject({ code: "sophon_response_too_large" });
+    expect(() => decodeZstdLimited(zstdCompressSync(Buffer.alloc(1024)), 100)).toThrow("超过大小限制");
   });
 });

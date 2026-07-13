@@ -34,7 +34,10 @@ export async function installSophon(
       try {
         for (let index = 0; index < chunks.length; index += 1) {
           const chunk = asset.chunks[index], path = chunks[index]; if (!chunk || !path) continue;
-          const decoded = zstdDecompressSync(readFileSync(path));
+          if (!Number.isSafeInteger(chunk.decompressed_size) || chunk.decompressed_size < 0 || chunk.decompressed_size > 256 * 1024 * 1024) throw new AppError("sophon_chunk_too_large", `${chunk.name} 解压大小超过限制`);
+          let decoded: Buffer;
+          try { decoded = zstdDecompressSync(readFileSync(path), { maxOutputLength: chunk.decompressed_size }); }
+          catch { throw new AppError("sophon_chunk_content_invalid", `${chunk.name} 内容解压失败`); }
           if (decoded.length !== chunk.decompressed_size || createHash("md5").update(decoded).digest("hex") !== chunk.decompressed_md5.toLowerCase()) throw new AppError("sophon_chunk_content_invalid", `${chunk.name} 内容校验失败`);
           writeSync(descriptor, decoded, 0, decoded.length, chunk.offset);
         }

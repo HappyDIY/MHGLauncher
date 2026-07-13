@@ -1,6 +1,7 @@
-import { chmodSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { GameLaunch } from "../core/models";
+import { containedPath, safeIdentifier } from "../core/safe-path";
 
 export function loadLaunchStatuses(dataDir: string): GameLaunch[] {
   const root = join(dataDir, "launches"); if (!existsSync(root)) return [];
@@ -24,4 +25,15 @@ export function persistLaunchStatus(dataDir: string, launch: GameLaunch): string
   renameSync(temp, target);
   const parent = openSync(directory, "r"); try { fsyncSync(parent); } finally { closeSync(parent); }
   return payload;
+}
+
+export function removeLaunchStatus(dataDir: string, id: string): boolean {
+  try {
+    const directory = containedPath(join(dataDir, "launches"), safeIdentifier(id, "启动会话"));
+    if (!existsSync(directory)) return true;
+    if (existsSync(join(directory, "dll-journal.json"))) return false;
+    const value = JSON.parse(readFileSync(join(directory, "status.json"), "utf8")) as GameLaunch;
+    if (value.id !== id || !["exited", "stopped", "failed"].includes(value.status)) return false;
+    rmSync(directory, { recursive: true }); return true;
+  } catch { return false; }
 }

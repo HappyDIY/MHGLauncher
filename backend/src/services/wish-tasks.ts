@@ -5,9 +5,11 @@ import type { AccountService } from "./accounts";
 import { importUIGF } from "./uigf";
 import type { WishService } from "./wishes";
 import { RevisionNotifier } from "./revision-notifier";
+import { pruneTerminal } from "./task-retention";
 
 export class WishTasks {
   private readonly jobs = new Map<string, WishTask>();
+  private readonly updatedAt = new Map<string, number>();
   private readonly notifier = new RevisionNotifier<WishTask>();
   constructor(private readonly accounts: AccountService, private readonly wishes: WishService) {}
 
@@ -46,6 +48,7 @@ export class WishTasks {
   }
 
   private create(kind: string): WishTask {
+    for (const id of pruneTerminal(this.jobs, ({ status }) => ["completed", "failed"].includes(status), (job) => this.updatedAt.get(job.id) ?? 0)) this.updatedAt.delete(id);
     if ([...this.jobs.values()].some(({ status }) => status === "queued" || status === "running")) throw new AppError("wish_task_busy", "已有祈愿任务正在运行", 409);
     const job: WishTask = { id: randomUUID(), kind, status: "queued", progress: 0, logs: [], result: null, error: "", revision: 0 };
     this.jobs.set(job.id, job); this.append(job, "后端已创建任务"); return job;
@@ -62,9 +65,10 @@ export class WishTasks {
 
   private append(job: WishTask, message: string, progress?: number | null, emphasized = false): void {
     if (progress !== undefined) job.progress = progress;
-    job.logs.push({ sequence: job.logs.length + 1, message, emphasized });
+    job.logs.push({ sequence: (job.logs.at(-1)?.sequence ?? 0) + 1, message, emphasized });
+    if (job.logs.length > 200) job.logs.splice(0, job.logs.length - 200);
     this.touch(job);
   }
 
-  private touch(job: WishTask): void { this.notifier.mark(job.id, job); }
+  private touch(job: WishTask): void { this.updatedAt.set(job.id, Date.now()); this.notifier.mark(job.id, job); }
 }

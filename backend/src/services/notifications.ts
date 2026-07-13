@@ -57,6 +57,7 @@ export class NotificationService {
   }
 
   private after(value: string, now: Date): boolean {
+    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) return false;
     const [hour = 20, minute = 0] = value.split(":").map(Number);
     const cn = new Date(now.getTime() + 8 * 60 * 60 * 1000);
     return cn.getUTCHours() > hour || (cn.getUTCHours() === hour && cn.getUTCMinutes() >= minute);

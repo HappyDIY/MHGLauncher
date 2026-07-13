@@ -10,11 +10,11 @@ const item = z.object({
   rank_type: z.coerce.string().optional(),
 }).passthrough();
 const gameUid = z.coerce.string().regex(/^\d{9,10}$/);
-const account = z.object({ uid: gameUid, timezone: z.coerce.number().int().min(-12).max(14).default(8), list: z.array(item) }).passthrough();
-const modern = z.object({ info: z.object({ version: z.enum(["v4.0", "v4.1", "v4.2"]) }).passthrough(), hk4e: z.array(account).default([]) }).passthrough();
+const account = z.object({ uid: gameUid, timezone: z.coerce.number().int().min(-12).max(14).default(8), list: z.array(item).max(200_000) }).passthrough();
+const modern = z.object({ info: z.object({ version: z.enum(["v4.0", "v4.1", "v4.2"]) }).passthrough(), hk4e: z.array(account).max(100).default([]) }).passthrough();
 const legacy = z.object({
   info: z.object({ uid: gameUid, uigf_version: z.string().regex(/^v[23]\./) }).passthrough(),
-  list: z.array(item).default([]),
+  list: z.array(item).max(200_000).default([]),
 }).passthrough();
 const gachaTypes = new Set(["100", "200", "301", "302", "400", "500"]);
 const uigfTypes = new Set(["100", "200", "301", "302", "500"]);
@@ -25,6 +25,7 @@ export function importUIGF(payload: unknown): WishRecord[] {
     const groups: { uid: string; timezone: number; list: z.infer<typeof item>[] }[] = raw.info?.uigf_version
       ? ((value) => [{ uid: value.info.uid, timezone: 8, list: value.list }])(legacy.parse(payload))
       : modern.parse(payload).hk4e;
+    if (groups.reduce((total, group) => total + group.list.length, 0) > 200_000) throw new AppError("uigf_too_large", "UIGF 记录不能超过 200000 条", 413);
     const records = groups.flatMap((group) => group.list.map((value) => record(group.uid, group.timezone, value)));
     if (!records.length) throw new AppError("uigf_empty", "UIGF 文件不包含原神祈愿记录");
     return records;

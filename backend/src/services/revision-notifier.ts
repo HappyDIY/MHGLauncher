@@ -17,7 +17,7 @@ export class RevisionNotifier<T extends Revisioned> {
     await new Promise<void>((resolve) => {
       const set = this.waiters.get(id) ?? new Set<Resolver>();
       set.add(resolve); this.waiters.set(id, set);
-      setTimeout(() => { set.delete(resolve); resolve(); }, ms).unref();
+      setTimeout(() => { set.delete(resolve); if (!set.size) this.waiters.delete(id); resolve(); }, ms).unref();
     });
     return read();
   }

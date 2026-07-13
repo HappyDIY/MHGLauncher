@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import { fixture, request } from "./helpers";
+import { dispatch } from "../src/api/router";
 
 describe("本地 API 契约", () => {
   beforeEach(() => fixture());
@@ -54,6 +55,22 @@ describe("本地 API 契约", () => {
     const response = await request("POST", "/v1/auth/mobile-captcha", { mobile: "invalid" });
     expect(response.status).toBe(422);
     expect(await response.json()).toMatchObject({ code: "validation_error", message: "请求参数无效" });
+  });
+  test("畸形、超限和包含未知字段的 JSON 使用稳定客户端错误", async () => {
+    const malformed = await dispatch(new Request("http://local/v1/auth/mobile-captcha", {
+      method: "POST", headers: { Authorization: "Bearer test-token", "Content-Type": "application/json" }, body: "{",
+    }));
+    expect(malformed.status).toBe(400); expect(await malformed.json()).toMatchObject({ code: "invalid_json" });
+    const oversized = await dispatch(new Request("http://local/v1/auth/mobile-captcha", {
+      method: "POST", headers: { Authorization: "Bearer test-token", "Content-Type": "application/json", "Content-Length": String(1024 * 1024 + 1) }, body: "{}",
+    }));
+    expect(oversized.status).toBe(413); expect(await oversized.json()).toMatchObject({ code: "request_too_large" });
+    const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new Uint8Array(1024 * 1024)); controller.enqueue(new Uint8Array([1])); controller.close(); } });
+    const streamed = await dispatch(new Request("http://local/v1/auth/mobile-captcha", {
+      method: "POST", headers: { Authorization: "Bearer test-token", "Content-Type": "application/json" }, body: stream, duplex: "half",
+    } as RequestInit & { duplex: "half" }));
+    expect(streamed.status).toBe(413);
+    expect((await request("POST", "/v1/auth/mobile-captcha", { mobile: "13800138000", ignored: true })).status).toBe(422);
   });
   test("未知任务返回 404", async () => expect((await request("GET", "/v1/wishes/tasks/missing")).status).toBe(404));
   test("删除账号返回 204", async () => expect((await request("DELETE", "/v1/account")).status).toBe(204));
@@ -151,6 +168,11 @@ async function loginCookie(credential: string): Promise<void> {
 	    expect((await request("GET", "/v1/cycles/abyss?uid=100000001")).status).toBe(404);
 	    expect((await request("POST", "/v1/cycles/abyss/refresh", { credential: "fixture" })).status).toBe(404);
 	    expect((await request("POST", "/v1/cycles/abyss/upload", { uid: "100000001", token: "fixture", schedule_id: "old" })).status).toBe(404);
+	  });
+
+	  test("提醒时间只接受严格 HH:mm", async () => {
+	    for (const value of ["abc", "24:00", "9:30", "23:60"]) expect((await request("PUT", "/v1/notifications/settings", { daily_commission_time: value })).status).toBe(422);
+	    expect((await request("PUT", "/v1/notifications/settings", { daily_commission_time: "23:59" })).status).toBe(200);
 	  });
 	});
 

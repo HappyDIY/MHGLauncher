@@ -59,11 +59,35 @@ test("数据接口仅使用 bearer 会话 UID", async () => {
   const session = await issue("100000008");
   const item = { id: "1", uid: "100000008", gacha_type: "301", uigf_gacha_type: "301", item_id: "1",
     name: "角色", item_type: "角色", rank: 5, time: "2026-01-01T00:00:00Z" };
-  const uploaded = await cloudRequest("POST", "/api/v1/gacha/upload", session.token, { uid: "100000009", items: [item] });
+  const uploaded = await cloudRequest("POST", "/api/v1/gacha/upload", session.token, { items: [item] });
   expect(uploaded.status).toBe(200);
   const retrieved = await (await cloudRequest("POST", "/api/v1/gacha/retrieve", session.token, { uid: "100000009" })).json();
   expect(retrieved.items).toHaveLength(1); expect(retrieved.items[0].uid).toBe("100000008");
   expect((await cloudRequest("DELETE", "/api/v1/gacha/100000009", session.token)).status).toBe(404);
+});
+
+test("上传严格校验记录、数组和请求体边界", async () => {
+  const session = await issue("100000010");
+  const item = { id: "1", uid: "100000010", gacha_type: "301", uigf_gacha_type: "301", item_id: "1",
+    name: "角色", item_type: "角色", rank: 5, time: "2026-01-01T00:00:00Z" };
+  expect((await cloudRequest("POST", "/api/v1/gacha/upload", session.token, { items: [{ ...item, rank: 9 }] })).status).toBe(422);
+  expect((await cloudRequest("POST", "/api/v1/gacha/upload", session.token, { items: [item], ignored: true })).status).toBe(422);
+  const tooLarge = await dispatch(new Request("http://cloud/api/v1/gacha/upload", {
+    method: "POST", headers: { Authorization: `Bearer ${session.token}`, "Content-Type": "application/json", "Content-Length": String(16 * 1024 * 1024 + 1) }, body: "{}",
+  }));
+  expect(tooLarge.status).toBe(413); expect(await tooLarge.json()).toMatchObject({ code: "request_too_large" });
+  const malformed = await dispatch(new Request("http://cloud/api/v1/gacha/upload", {
+    method: "POST", headers: { Authorization: `Bearer ${session.token}`, "Content-Type": "application/json" }, body: "{",
+  }));
+  expect(malformed.status).toBe(400); expect(await malformed.json()).toMatchObject({ code: "invalid_json" });
+});
+
+test("读取历史坏 payload 返回稳定错误而不强制转换", async () => {
+  const session = await issue("100000011");
+  await pool().query(`INSERT INTO gacha_records(uid,id,gacha_type,uigf_gacha_type,item_id,name,item_type,rank,time,payload)
+    VALUES($1,'1','301','301','1','角色','角色',5,now(),$2)`, ["100000011", { uid: "100000011", id: "broken" }]);
+  const response = await cloudRequest("POST", "/api/v1/gacha/retrieve", session.token, {});
+  expect(response.status).toBe(500); expect(await response.json()).toEqual({ code: "stored_data_invalid", message: "云端记录格式无效" });
 });
 
 function cloudRequest(method: string, path: string, token: string, body?: unknown): Promise<Response> {

@@ -18,6 +18,7 @@ message FileInfo { string name=1; } message DeleteFiles { repeated FileInfo info
 message DeleteFilesEntry { string key=1; DeleteFiles delete_files=2; }
 message PatchManifest { repeated PatchFileData file_datas=1; repeated DeleteFilesEntry delete_files_entries=2; }`;
 const root = parse(proto, { keepCase: true }).root;
+const MAX_METADATA_BYTES = 64 * 1024 * 1024, MAX_MANIFEST_BYTES = 64 * 1024 * 1024, MAX_DECOMPRESSED_BYTES = 256 * 1024 * 1024;
 
 export function decodeSophonManifest(buffer: Uint8Array): JSONValue {
   const model = root.lookupType("SophonManifest");
@@ -97,16 +98,18 @@ export class Sophon {
 
   private async assets(item: JSONValue): Promise<GameAsset[]> {
     const manifest = await this.manifest(item, "SophonManifest") as JSONValue;
-    return (manifest.assets as JSONValue[] ?? []).map((asset) => ({ name: String(asset.asset_name), size: Number(asset.asset_size), md5: String(asset.asset_hash_md5),
+    const values = manifest.assets as JSONValue[] ?? [];
+    if (values.length > 200_000 || values.reduce((count, asset) => count + ((asset.asset_chunks as JSONValue[] | undefined)?.length ?? 0), 0) > 200_000) throw new AppError("sophon_manifest_too_large", "Sophon 清单条目过多", 502);
+    return values.map((asset) => ({ name: String(asset.asset_name), size: Number(asset.asset_size), md5: String(asset.asset_hash_md5),
       chunks: (asset.asset_chunks as JSONValue[] ?? []).map((chunk) => ({ name: String(chunk.chunk_name), decompressed_md5: String(chunk.chunk_decompressed_hash_md5), offset: Number(chunk.chunk_on_file_offset), size: Number(chunk.chunk_size), decompressed_size: Number(chunk.chunk_size_decompressed), url: this.url(item.chunk_download as JSONValue, String(chunk.chunk_name)) })) }));
   }
 
   private async manifest(item: JSONValue, type: "SophonManifest" | "PatchManifest"): Promise<unknown> {
     const info = item.manifest as JSONValue, response = await fetch(this.url(item.manifest_download as JSONValue, String(info.id)));
     if (!response.ok) throw new AppError("sophon_manifest_invalid", "Sophon 清单下载失败", 502);
-    const compressed = Buffer.from(await response.arrayBuffer());
+    const compressed = await readBoundedResponse(response, MAX_MANIFEST_BYTES);
     if (type === "SophonManifest") { const expected = String(info.id).replace("manifest_", "").split("_", 1)[0]; if ((await xxhash()).h64Raw(compressed).toString(16).padStart(16, "0") !== expected?.toLowerCase()) throw new AppError("sophon_manifest_invalid", "Sophon 清单校验失败", 502); }
-    const decoded = zstdDecompressSync(compressed); if (createHash("md5").update(decoded).digest("hex") !== String(info.checksum).toLowerCase()) throw new AppError("sophon_manifest_invalid", "Sophon 清单内容校验失败", 502);
+    const decoded = decodeZstdLimited(compressed); if (createHash("md5").update(decoded).digest("hex") !== String(info.checksum).toLowerCase()) throw new AppError("sophon_manifest_invalid", "Sophon 清单内容校验失败", 502);
     if (type === "SophonManifest") return decodeSophonManifest(decoded);
     const model = root.lookupType(type); return model.toObject(model.decode(decoded), { longs: Number, defaults: true });
   }
@@ -116,5 +119,29 @@ export class Sophon {
     return (data.manifests as JSONValue[] ?? []).filter((item) => selected.has(String(item.matching_field)));
   }
   private url(download: JSONValue, name: string): string { const prefix = String(download.url_prefix).replace(/\/$/, ""), suffix = String(download.url_suffix ?? ""); return `${prefix}/${name}${suffix && !suffix.startsWith("?") ? "?" : ""}${suffix}`; }
-  private async data(url: string, init?: RequestInit): Promise<JSONValue> { const response = await fetch(url, init), payload = await response.json() as JSONValue; if (!response.ok || Number(payload.retcode ?? 0) !== 0) throw new AppError("mihoyo_error", String(payload.message || "下载服务请求失败"), 502); return payload.data as JSONValue ?? {}; }
+  private async data(url: string, init?: RequestInit): Promise<JSONValue> {
+    const response = await fetch(url, init); if (!response.ok) throw new AppError("mihoyo_error", "下载服务请求失败", 502);
+    let payload: JSONValue; try { payload = JSON.parse((await readBoundedResponse(response, MAX_METADATA_BYTES)).toString("utf8")) as JSONValue; }
+    catch (error) { if (error instanceof AppError) throw error; throw new AppError("sophon_metadata_invalid", "下载服务元数据无效", 502); }
+    if (Number(payload.retcode ?? 0) !== 0) throw new AppError("mihoyo_error", String(payload.message || "下载服务请求失败"), 502);
+    return payload.data as JSONValue ?? {};
+  }
+}
+
+export async function readBoundedResponse(response: Response, maxBytes: number): Promise<Buffer> {
+  const declared = response.headers.get("content-length");
+  if (declared && Number(declared) > maxBytes) throw new AppError("sophon_response_too_large", "Sophon 响应超过大小限制", 502);
+  if (!response.body) throw new AppError("sophon_response_invalid", "Sophon 响应缺少内容", 502);
+  const reader = response.body.getReader(), chunks: Uint8Array[] = []; let total = 0;
+  while (true) {
+    const { done, value } = await reader.read(); if (done) break; total += value.length;
+    if (total > maxBytes) { await reader.cancel(); throw new AppError("sophon_response_too_large", "Sophon 响应超过大小限制", 502); }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks, total);
+}
+
+export function decodeZstdLimited(compressed: Uint8Array, maxBytes = MAX_DECOMPRESSED_BYTES): Buffer {
+  try { return zstdDecompressSync(compressed, { maxOutputLength: maxBytes }); }
+  catch { throw new AppError("sophon_manifest_too_large", "Sophon 清单解压结果超过大小限制", 502); }
 }

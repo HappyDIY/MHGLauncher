@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { equalToken, verifyGachaUrl } from "../src/auth";
+import { fail } from "../src/http";
 
 afterEach(() => { vi.restoreAllMocks(); });
 
@@ -24,5 +25,10 @@ describe("云端认证工具", () => {
     const result = await verifyGachaUrl("https://public-operation-hk4e.mihoyo.com/gacha?authkey=x&uid=100000001");
     expect(result.uid).toBe("100000002");
     expect(fetch.mock.calls[0]?.[1]).toMatchObject({ redirect: "error" });
+  });
+
+  test("内部异常不会把原文返回客户端", async () => {
+    const response = fail(new Error("postgres password=secret"));
+    expect(await response.json()).toEqual({ code: "internal_error", message: "云端服务异常" });
   });
 });
