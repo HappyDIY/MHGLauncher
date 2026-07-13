@@ -65,8 +65,9 @@ printf '%s\n' "$@" >> "$CAPTURE"
   });
 });
 
-function decrypt(input: string, key: string): ReturnType<typeof spawnSync> {
-  return spawnSync("/usr/bin/openssl", ["enc", "-d", "-des-cbc",
+function decrypt(input: string, key: string): { status: number | null; stdout: string } {
+  const result = spawnSync("/usr/bin/openssl", ["enc", "-d", "-des-cbc",
     "-K", Buffer.from(key, "utf8").toString("hex"),
     "-iv", "1234567890ABCDEF", "-base64", "-A"], { input, encoding: "utf8" });
+  return { status: result.status, stdout: result.stdout };
 }
