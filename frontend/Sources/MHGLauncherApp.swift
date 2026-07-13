@@ -151,7 +151,7 @@ struct MHGLauncherApp: App {
                     .task {
                         await startLauncherIfNeeded()
                     }
-                    .onDisappear { store.backend.stop() }
+                    .onDisappear { Task { await store.backend.stop() } }
                     .focusedSceneValue(\.launcherStore, store)
             }
         }

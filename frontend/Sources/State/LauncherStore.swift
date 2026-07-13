@@ -116,7 +116,7 @@ final class LauncherStore {
     }
 
     func retryBootstrap() async {
-        backend.stop()
+        await backend.stop()
         runtimeProgress = nil
         await bootstrap()
     }

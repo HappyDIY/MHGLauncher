@@ -9,6 +9,8 @@ final class BackendProcess {
     private(set) var isStarting = false
     private var process: Process?
     private var socketPath: String?
+    private var drains: [ProcessPipeDrain] = []
+    private var isStopping = false
 
     var isReady: Bool { client != nil }
 
@@ -34,26 +36,38 @@ final class BackendProcess {
                 socketPath: socketPath,
                 runtime: runtime
             )
+            let outputDrain = ProcessPipeDrain(handle: pipe.fileHandleForReading, capturesReady: true)
+            let errorDrain = ProcessPipeDrain(handle: errorPipe.fileHandleForReading, capturesReady: false)
+            drains = [outputDrain, errorDrain]
+            process.terminationHandler = { [weak self] finished in
+                Task { @MainActor in self?.processExited(finished) }
+            }
             try process.run()
             self.process = process
-            let readyPath = try await Self.readSocketPath(from: pipe.fileHandleForReading)
+            let readyPath = try await outputDrain.readyPath()
             guard readyPath == socketPath else { throw CocoaError(.fileReadCorruptFile) }
             self.socketPath = socketPath
             client = APIClient(socketPath: socketPath, token: token)
         } catch {
             process?.terminate()
+            for drain in drains { drain.close() }
+            drains.removeAll()
             process = nil
             client = nil
             errorMessage = Self.startupFailureMessage
         }
     }
 
-    func stop() {
-        process?.terminate()
-        if let socketPath { try? FileManager.default.removeItem(atPath: socketPath) }
-        process = nil
-        socketPath = nil
-        client = nil
+    func stop() async {
+        guard let process else { client = nil; return }
+        isStopping = true; process.terminate(); client = nil
+        let deadline = ContinuousClock.now + .seconds(5)
+        while process.isRunning && ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(50)) }
+        if process.isRunning {
+            errorMessage = "本地服务正在等待游戏退出并恢复临时文件"
+            return
+        }
+        cleanup(process)
     }
 
     func useClient(_ client: APIClient) {
@@ -81,26 +95,9 @@ final class BackendProcess {
     }
 
     nonisolated static func readSocketPath(from handle: FileHandle) async throws -> String {
-        try await Task.detached {
-            var data = Data()
-            while data.count <= 16_384 {
-                let chunk = handle.availableData
-                guard !chunk.isEmpty else {
-                    throw CocoaError(.fileReadCorruptFile)
-                }
-                data.append(chunk)
-                guard let newline = data.firstIndex(of: 0x0A) else { continue }
-                let line = data[..<newline]
-                let object = try JSONSerialization.jsonObject(with: Data(line))
-                guard let payload = object as? [String: Any],
-                      payload["event"] as? String == "ready",
-                      let socketPath = payload["socket_path"] as? String else {
-                    throw CocoaError(.fileReadCorruptFile)
-                }
-                return socketPath
-            }
-            throw CocoaError(.fileReadTooLarge)
-        }.value
+        let drain = ProcessPipeDrain(handle: handle, capturesReady: true)
+        defer { drain.close() }
+        return try await drain.readyPath()
     }
 
     nonisolated static func makeSocketPath() -> String {
@@ -108,4 +105,17 @@ final class BackendProcess {
     }
 
     nonisolated static let startupFailureMessage = "本地服务启动失败，请检查运行时安装后重试"
+
+    private func processExited(_ finished: Process) {
+        guard process === finished else { return }
+        let unexpected = !isStopping && finished.terminationStatus != 0
+        cleanup(finished)
+        if unexpected { errorMessage = Self.startupFailureMessage }
+    }
+
+    private func cleanup(_ finished: Process) {
+        guard process === finished else { return }
+        for drain in drains { drain.close() }
+        drains.removeAll(); process = nil; socketPath = nil; client = nil; isStopping = false
+    }
 }

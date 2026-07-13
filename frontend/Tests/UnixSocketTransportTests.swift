@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import Testing
 @testable import MHGLauncher
@@ -41,5 +42,27 @@ struct UnixSocketTransportTests {
     @Test("生成短 Socket 路径")
     func shortPath() {
         #expect(BackendProcess.makeSocketPath().utf8.count < 104)
+    }
+
+    @Test("Socket 禁止 SIGPIPE")
+    func noSignalPipe() throws {
+        let descriptor = try UnixSocketTransport.makeConfiguredSocket()
+        defer { Darwin.close(descriptor) }
+        var value: Int32 = 0
+        var length = socklen_t(MemoryLayout.size(ofValue: value))
+        #expect(getsockopt(descriptor, SOL_SOCKET, SO_NOSIGPIPE, &value, &length) == 0)
+        #expect(value == 1)
+    }
+
+    @Test("等待 ready 可取消且有期限")
+    func cancellableReadyWait() async throws {
+        let pipe = Pipe(), drain = ProcessPipeDrain(handle: pipe.fileHandleForReading, capturesReady: true)
+        let cancelled = Task { try await drain.readyPath(timeout: .seconds(5)) }
+        cancelled.cancel()
+        await #expect(throws: CancellationError.self) { _ = try await cancelled.value }
+        let timeoutPipe = Pipe(), timeoutDrain = ProcessPipeDrain(handle: timeoutPipe.fileHandleForReading, capturesReady: true)
+        let timed = Task { try await timeoutDrain.readyPath(timeout: .milliseconds(20)) }
+        await #expect(throws: URLError.self) { _ = try await timed.value }
+        drain.close(); timeoutDrain.close(); try pipe.fileHandleForWriting.close(); try timeoutPipe.fileHandleForWriting.close()
     }
 }

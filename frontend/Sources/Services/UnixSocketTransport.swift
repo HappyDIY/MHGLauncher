@@ -5,16 +5,41 @@ struct UnixSocketTransport: Sendable {
     let path: String
 
     func send(_ request: APIRequest) async throws -> APIResponse {
-        try await Task.detached {
-            let descriptor = try connect(path: path, timeout: request.timeout)
-            defer { Darwin.close(descriptor) }
-            try write(requestData(request), to: descriptor)
-            return try parse(readAll(from: descriptor))
-        }.value
+        let lifetime = SocketLifetime()
+        return try await withTaskCancellationHandler {
+            try await Task.detached {
+                try Task.checkCancellation()
+                let descriptor = try connect(path: path, timeout: request.timeout)
+                try lifetime.install(descriptor)
+                defer { lifetime.close() }
+                try write(requestData(request), to: descriptor)
+                return try parse(readAll(from: descriptor))
+            }.value
+        } onCancel: { lifetime.close() }
     }
 
     static func parseResponse(_ data: Data) throws -> APIResponse {
         try parse(data)
+    }
+
+    static func makeConfiguredSocket() throws -> Int32 { try socketDescriptor() }
+}
+
+private final class SocketLifetime: @unchecked Sendable {
+    private let lock = NSLock()
+    private var descriptor: Int32 = -1
+    private var cancelled = false
+
+    func install(_ descriptor: Int32) throws {
+        lock.lock()
+        guard !cancelled else { lock.unlock(); Darwin.close(descriptor); throw CancellationError() }
+        self.descriptor = descriptor; lock.unlock()
+    }
+
+    func close() {
+        lock.lock(); cancelled = true
+        let value = descriptor; descriptor = -1; lock.unlock()
+        if value >= 0 { Darwin.shutdown(value, SHUT_RDWR); Darwin.close(value) }
     }
 }
 
@@ -22,9 +47,9 @@ private func connect(path: String, timeout: TimeInterval) throws -> Int32 {
     guard path.utf8.count < MemoryLayout<sockaddr_un>.size - 2 else {
         throw POSIXError(.ENAMETOOLONG)
     }
-    let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
-    guard descriptor >= 0 else { throw POSIXError(.init(rawValue: errno) ?? .EIO) }
-    var value = timeval(tv_sec: Int(timeout), tv_usec: 0)
+    let descriptor = try socketDescriptor()
+    let seconds = max(timeout, 0.001)
+    var value = timeval(tv_sec: Int(seconds), tv_usec: Int32((seconds.rounded(.down) == seconds ? 0 : (seconds - seconds.rounded(.down)) * 1_000_000)))
     setsockopt(descriptor, SOL_SOCKET, SO_RCVTIMEO, &value, socklen_t(MemoryLayout.size(ofValue: value)))
     setsockopt(descriptor, SOL_SOCKET, SO_SNDTIMEO, &value, socklen_t(MemoryLayout.size(ofValue: value)))
     var address = sockaddr_un()
@@ -46,6 +71,16 @@ private func connect(path: String, timeout: TimeInterval) throws -> Int32 {
     return descriptor
 }
 
+private func socketDescriptor() throws -> Int32 {
+    let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
+    guard descriptor >= 0 else { throw POSIXError(.init(rawValue: errno) ?? .EIO) }
+    var enabled: Int32 = 1
+    guard setsockopt(descriptor, SOL_SOCKET, SO_NOSIGPIPE, &enabled, socklen_t(MemoryLayout.size(ofValue: enabled))) == 0 else {
+        let error = POSIXError(.init(rawValue: errno) ?? .EIO); Darwin.close(descriptor); throw error
+    }
+    return descriptor
+}
+
 private func requestData(_ request: APIRequest) -> Data {
     var headers = request.headers
     headers["Host"] = "localhost"
@@ -63,7 +98,9 @@ private func write(_ data: Data, to descriptor: Int32) throws {
         guard let base = raw.baseAddress else { return }
         var offset = 0
         while offset < raw.count {
+            try Task.checkCancellation()
             let count = Darwin.write(descriptor, base.advanced(by: offset), raw.count - offset)
+            if count < 0 && errno == EINTR { continue }
             guard count > 0 else { throw POSIXError(.init(rawValue: errno) ?? .EIO) }
             offset += count
         }
@@ -74,6 +111,7 @@ private func readAll(from descriptor: Int32) throws -> Data {
     var result = Data()
     var buffer = [UInt8](repeating: 0, count: 64 * 1024)
     while true {
+        try Task.checkCancellation()
         let count = Darwin.read(descriptor, &buffer, buffer.count)
         if count == 0 { return result }
         guard count > 0 else {
@@ -81,6 +119,7 @@ private func readAll(from descriptor: Int32) throws -> Data {
             throw POSIXError(.init(rawValue: errno) ?? .EIO)
         }
         result.append(buffer, count: count)
+        if result.count > 64 * 1024 * 1024 { throw URLError(.dataLengthExceedsMaximum) }
     }
 }
 
