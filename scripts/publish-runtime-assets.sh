@@ -3,6 +3,10 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 tag="${1:?缺少版本 tag，例如 v0.1.0}"
+[[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]] || {
+  printf '运行时版本 tag 必须是 v 开头的语义版本。\n' >&2
+  exit 2
+}
 asset_dir="$root/build/runtime-assets/$tag"
 
 command -v gh >/dev/null || {

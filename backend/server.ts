@@ -1,14 +1,15 @@
-import { chmod, rm } from "node:fs/promises";
+import { chmod } from "node:fs/promises";
 import { createServer } from "node:http";
 import next from "next";
 import { closeContainer, container } from "./src/core/container";
 import { validateServerSettings } from "./src/core/config";
+import { releaseSocket, requireUnusedSocketPath, socketIdentity } from "./src/core/server-socket";
 
 const config = container().settings;
 validateServerSettings(config);
 const application = next({ dev: process.env.NODE_ENV !== "production", dir: process.cwd() });
 await application.prepare();
-await rm(config.socketPath, { force: true });
+await requireUnusedSocketPath(config.socketPath);
 const server = createServer(application.getRequestHandler());
 server.requestTimeout = config.requestTimeout;
 server.headersTimeout = Math.min(config.requestTimeout, 60_000);
@@ -18,6 +19,7 @@ await new Promise<void>((resolve, reject) => {
   server.listen(config.socketPath, 128, () => resolve());
 });
 await chmod(config.socketPath, 0o600);
+const listeningSocket = await socketIdentity(config.socketPath);
 process.stdout.write(`${JSON.stringify({ event: "ready", socket_path: config.socketPath })}\n`);
 
 let closing = false;
@@ -31,7 +33,7 @@ async function shutdown(): Promise<void> {
   await closed;
   clearTimeout(deadline);
   closeContainer();
-  await rm(config.socketPath, { force: true });
+  await releaseSocket(config.socketPath, listeningSocket);
 }
 
 const expectedParent = Number(process.env.MHG_PARENT_PID ?? 0);

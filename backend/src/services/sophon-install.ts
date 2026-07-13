@@ -10,6 +10,7 @@ import { ensureParent, safeTarget } from "./installer";
 import { preallocateFileDescriptor } from "./file-allocation";
 import type { TokenBucketRateLimiter } from "./rate-limiter";
 import { hashFile, xxhash64File } from "./file-hash";
+import { safeIdentifier } from "../core/safe-path";
 
 export async function installSophon(
   assets: GameAsset[], staging: string, cache: string, control: DownloadControl,
@@ -45,7 +46,7 @@ export async function installSophon(
 }
 
 async function getChunk(chunk: SophonChunk, cache: string, control: DownloadControl, progress: (n: number) => void, report: (name: string, done: number, total: number) => void, rateLimiter?: TokenBucketRateLimiter | null): Promise<string> {
-  const path = join(cache, chunk.name); if (existsSync(path) && await xxh(path, chunk.name)) { progress(chunk.size); report(chunk.name, chunk.size, chunk.size); return path; }
+  const name = safeIdentifier(chunk.name, "分块标识"), path = join(cache, name); if (existsSync(path) && await xxh(path, name)) { progress(chunk.size); report(name, chunk.size, chunk.size); return path; }
   const partial = `${path}.part`;
   await streamDownload(chunk.url, partial, chunk.size, chunk.name, control, progress, (done) => report(chunk.name, done, chunk.size), rateLimiter);
   if (!await xxh(partial, chunk.name)) { progress(-chunk.size); rmSync(partial); throw new AppError("sophon_chunk_invalid", `${chunk.name} 分块校验失败`); }

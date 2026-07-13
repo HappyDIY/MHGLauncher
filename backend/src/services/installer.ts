@@ -1,15 +1,12 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync } from "node:fs";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { AppError } from "../core/errors";
 import { hash } from "./download";
+import { containedPath } from "../core/safe-path";
 
 export function safeTarget(root: string, name: string): string {
-  const normalized = name.replaceAll("\\", "/");
-  if (isAbsolute(normalized) || normalized.split("/").includes("..")) throw new AppError("archive_path_unsafe", `压缩包路径不安全：${name}`);
-  const target = resolve(root, normalized), child = relative(resolve(root), target);
-  if (child.startsWith("..") || isAbsolute(child)) throw new AppError("archive_path_unsafe", `压缩包路径不安全：${name}`);
-  return target;
+  return containedPath(root, name);
 }
 
 export function extract(archives: string[], staging: string): void {

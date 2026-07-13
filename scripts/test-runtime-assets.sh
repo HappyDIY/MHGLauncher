@@ -5,6 +5,15 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 
+if "$root/scripts/build-runtime-assets.sh" '../../outside' >/dev/null 2>&1; then
+  printf '构建脚本接受了不安全 tag。\n' >&2
+  exit 1
+fi
+if "$root/scripts/publish-runtime-assets.sh" '../../outside' >/dev/null 2>&1; then
+  printf '发布脚本接受了不安全 tag。\n' >&2
+  exit 1
+fi
+
 manifest="$("$root/scripts/create-smoke-runtime-assets.sh" "$stage/assets" v0.1.0)"
 jq -e '.schemaVersion == 1 and .tag == "v0.1.0"' "$manifest" >/dev/null
 

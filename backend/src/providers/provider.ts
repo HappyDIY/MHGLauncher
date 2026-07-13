@@ -1,4 +1,5 @@
 import type { AccountIdentity, DailyNote, GameRole, MobileCaptchaSession, QRSession, WishRecord } from "../core/models";
+import { safeIdentifier } from "../core/safe-path";
 
 export interface PackageSegment { url: string; md5: string; size: number; filename: string }
 export interface SophonChunk { name: string; decompressed_md5: string; offset: number; size: number; decompressed_size: number; url: string }
@@ -29,7 +30,7 @@ export interface Provider {
 
 export function normalizeBuild(value: Partial<GameBuild> & Pick<GameBuild, "version">): GameBuild {
   return {
-    version: value.version, kind: value.kind ?? "full", pending_bytes: value.pending_bytes ?? 0,
+    version: safeIdentifier(value.version, "游戏版本"), kind: value.kind ?? "full", pending_bytes: value.pending_bytes ?? 0,
     segments: value.segments ?? [], assets: value.assets ?? [], patch_assets: value.patch_assets ?? [],
     deprecated_files: value.deprecated_files ?? [], is_predownload: value.is_predownload ?? false,
   };

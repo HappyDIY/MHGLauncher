@@ -7,6 +7,7 @@ import { DownloadControl } from "./download";
 import { streamDownload } from "./download-transfer";
 import { ensureParent, safeTarget } from "./installer";
 import { copyRangeSync, hashFileSync, xxhash64File } from "./file-hash";
+import { safeIdentifier } from "../core/safe-path";
 
 export async function installPatches(
   assets: GamePatchAsset[], staging: string, cache: string, control: DownloadControl,
@@ -19,7 +20,7 @@ export async function installPatches(
 }
 
 async function getPatch(patch: SophonPatch, cache: string, control: DownloadControl, progress: (n: number) => void, report: (name: string, done: number, total: number) => void): Promise<string> {
-  const path = join(cache, patch.id); if (existsSync(path) && await valid(path, patch)) { progress(patch.file_size); report(patch.id, patch.file_size, patch.file_size); return path; }
+  const id = safeIdentifier(patch.id, "补丁标识"), path = join(cache, id); if (existsSync(path) && await valid(path, patch)) { progress(patch.file_size); report(id, patch.file_size, patch.file_size); return path; }
   const partial = `${path}.part`;
   await streamDownload(patch.url, partial, patch.file_size, patch.id, control, progress, (done) => report(patch.id, done, patch.file_size));
   if (!await valid(partial, patch)) { progress(-patch.file_size); rmSync(partial); throw new AppError("sophon_patch_invalid", `${patch.id} 增量补丁校验失败`); }

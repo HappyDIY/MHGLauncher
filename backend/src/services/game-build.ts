@@ -1,7 +1,8 @@
 import { existsSync, readFileSync, rmSync } from "node:fs";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { basename, join, normalize } from "node:path";
 import type { GameBuild } from "../providers/provider";
 import { selectInvalidAssets } from "./game-integrity";
+import { containedPath } from "../core/safe-path";
 
 export function prepareBuild(build: GameBuild, path: string, installed: string): GameBuild {
   const protectedBuild = withoutProtectedAssets(build);
@@ -19,8 +20,7 @@ export function removeRetired(staging: string, build: GameBuild): void {
 
 export function removeSafe(root: string, name: string): void {
   if (isProtectedAsset(name)) return;
-  const target = resolve(root, name.replaceAll("\\", "/")), child = relative(resolve(root), target);
-  if (!isAbsolute(child) && !child.startsWith("..")) rmSync(target, { force: true });
+  rmSync(containedPath(root, name), { force: true });
 }
 
 function withoutProtectedAssets(build: GameBuild): GameBuild {
@@ -34,5 +34,6 @@ function withoutProtectedAssets(build: GameBuild): GameBuild {
 
 function isProtectedAsset(name: string): boolean {
   // mhypbase.dll 由启动器运行时提供，不能被官方资源更新替换。
-  return name.replaceAll("\\", "/").split("/").at(-1)?.toLowerCase() === "mhypbase.dll";
+  const canonical = normalize(name.replaceAll("\\", "/"));
+  return basename(canonical).toLowerCase() === "mhypbase.dll";
 }
