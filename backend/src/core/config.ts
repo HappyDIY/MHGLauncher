@@ -1,5 +1,6 @@
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { AppError } from "./errors";
 
 export interface Settings {
   dataDir: string;
@@ -33,4 +34,13 @@ export function settings(env: NodeJS.ProcessEnv = process.env): Settings {
 	    socketPath: resolve(env.MHG_SOCKET_PATH ?? join(tmpdir(), `mhg-${process.pid}.sock`)),
 	    cloudBaseUrl: env.MHG_CLOUD_BASE_URL ?? "",
 	  };
-	}
+		}
+
+export function validateServerSettings(value: Settings): void {
+  if (!value.apiToken.trim()) {
+    throw new AppError("api_token_missing", "MHG_API_TOKEN 不能为空", 500);
+  }
+  if (!Number.isFinite(value.requestTimeout) || value.requestTimeout < 1_000 || value.requestTimeout > 300_000) {
+    throw new AppError("request_timeout_invalid", "MHG_REQUEST_TIMEOUT 必须位于 1000 到 300000 毫秒之间", 500);
+  }
+}

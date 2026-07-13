@@ -2,12 +2,16 @@ import { chmod, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import next from "next";
 import { closeContainer, container } from "./src/core/container";
+import { validateServerSettings } from "./src/core/config";
 
 const config = container().settings;
+validateServerSettings(config);
 const application = next({ dev: process.env.NODE_ENV !== "production", dir: process.cwd() });
 await application.prepare();
 await rm(config.socketPath, { force: true });
 const server = createServer(application.getRequestHandler());
+server.requestTimeout = config.requestTimeout;
+server.headersTimeout = Math.min(config.requestTimeout, 60_000);
 
 await new Promise<void>((resolve, reject) => {
   server.once("error", reject);
@@ -21,7 +25,11 @@ async function shutdown(): Promise<void> {
   if (closing) return;
   closing = true;
   clearInterval(parentMonitor);
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  const closed = new Promise<void>((resolve) => server.close(() => resolve()));
+  const deadline = setTimeout(() => server.closeAllConnections(), config.requestTimeout);
+  deadline.unref();
+  await closed;
+  clearTimeout(deadline);
   closeContainer();
   await rm(config.socketPath, { force: true });
 }
