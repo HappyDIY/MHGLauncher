@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { container } from "../core/container";
 import { AppError, errorResponse } from "../core/errors";
@@ -9,13 +9,14 @@ import { longPollOptions } from "../services/revision-notifier";
 import { valueRoute } from "./value-routes";
 
 const credential = z.object({ credential: z.string().min(1) });
+const roleSync = z.object({ aid: z.string().min(1), credential: z.string().min(1) });
 const selectAccount = z.object({ aid: z.string().min(1) });
 const selectRole = z.object({ uid: z.string().min(1) });
 const mobile = z.object({ mobile: z.string().regex(/^1\d{10}$/) });
 const mobileLogin = z.object({ mobile: z.string().regex(/^1\d{10}$/), captcha: z.string().min(4), action_type: z.string().min(1), aigis: z.string().optional().nullable() });
 const mobileVerification = z.object({ mobile: z.string().regex(/^1\d{10}$/), session_id: z.string().min(1), challenge: z.string().min(1), validate: z.string().min(1) });
 const cookieLogin = z.object({ credential: z.string().min(1) });
-const complete = z.object({ identity: z.object({ aid: z.string(), mid: z.string(), nickname: z.string(), credential: z.string() }), credential_ref: z.string() });
+const loginTransaction = z.object({ transaction_id: z.string().uuid() });
 const refresh = z.object({ credential: z.string(), xrpc_challenge: z.string().default(""), xrpc_challenge_path: z.string().default("") });
 const verification = z.object({ credential: z.string(), challenge: z.string(), validate: z.string(), xrpc_challenge_path: z.string().default("") });
 const startJob = z.object({ kind: z.enum(["install", "update", "verify", "predownload"]), install_path: z.string().min(1) });
@@ -48,29 +49,38 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   if (method === "POST" && path === "/account/select") return json({ account: app.accounts.select(selectAccount.parse(body).aid), roles: app.accounts.roles() });
   if (method === "GET" && path === "/roles") return json(app.accounts.roles());
   if (method === "POST" && path === "/roles/select") return json(app.accounts.selectRole(selectRole.parse(body).uid));
-  if (method === "POST" && path === "/roles/sync") return json(await app.accounts.syncRoles(credential.parse(body).credential));
-  if (method === "POST" && path === "/auth/qr-sessions") return json(await app.provider.createQRSession());
+  if (method === "POST" && path === "/roles/sync") { const value = roleSync.parse(body); return json(await app.accounts.syncRoles(value.aid, value.credential)); }
+  if (method === "POST" && path === "/auth/qr-sessions") {
+    const session = await app.provider.createQRSession(); app.preparedLogins.begin(`qr:${session.id}`); return json(session);
+  }
   const qr = match(path, /^\/auth\/qr-sessions\/([^/]+)$/);
-  if (method === "GET" && qr) { const [session, identity] = await app.provider.queryQRSession(qr); return json({ session, identity }); }
-  if (method === "POST" && path === "/auth/mobile-captcha") return json(await app.provider.createMobileCaptcha(mobile.parse(body).mobile));
+  if (method === "GET" && qr) {
+    const [session, identity] = await app.provider.queryQRSession(qr);
+    const prepared = identity ? app.preparedLogins.prepare(`qr:${qr}`, identity, await app.accounts.prepareRoles(identity)) : null;
+    return json({ session, prepared_login: prepared });
+  }
+  if (method === "POST" && path === "/auth/mobile-captcha") {
+    const value = mobile.parse(body).mobile, session = await app.provider.createMobileCaptcha(value);
+    app.preparedLogins.begin(`mobile:${value}`); return json(session);
+  }
   if (method === "POST" && path === "/auth/mobile-captcha/verification") {
     const value = mobileVerification.parse(body);
     return json(await app.provider.verifyMobileCaptcha(value.mobile, value.session_id, value.challenge, value.validate));
   }
   if (method === "POST" && path === "/auth/mobile-login") {
     const value = mobileLogin.parse(body), identity = await app.provider.loginByMobileCaptcha(value.mobile, value.captcha, value.action_type, value.aigis);
-    const account = app.accounts.save(identity, `keychain:account:${identity.aid}`);
-    return json({ account, identity, roles: await app.accounts.syncRoles(identity.credential, account.aid) });
+    return json(app.preparedLogins.prepare(`mobile:${value.mobile}`, identity, await app.accounts.prepareRoles(identity)));
   }
   if (method === "POST" && path === "/auth/cookie-login") {
-    const value = cookieLogin.parse(body), identity = await app.provider.identifyCredential(value.credential);
-    const account = app.accounts.save(identity, `keychain:account:${identity.aid}`);
-    return json({ account, identity, roles: await app.accounts.syncRoles(identity.credential, account.aid) });
+    const source = `cookie:${randomUUID()}`; app.preparedLogins.begin(source);
+    const identity = await app.provider.identifyCredential(cookieLogin.parse(body).credential);
+    return json(app.preparedLogins.prepare(source, identity, await app.accounts.prepareRoles(identity)));
   }
-  if (method === "POST" && path === "/auth/complete") {
-    const value = complete.parse(body), account = app.accounts.save(value.identity, value.credential_ref);
-    return json({ account, roles: await app.accounts.syncRoles(value.identity.credential, account.aid) });
+  if (method === "POST" && path === "/auth/commit") {
+    const prepared = app.preparedLogins.consume(loginTransaction.parse(body).transaction_id);
+    return json(app.accounts.commit(prepared.identity, prepared.roles));
   }
+  if (method === "POST" && path === "/auth/abort") { app.preparedLogins.abort(loginTransaction.parse(body).transaction_id); return new Response(null, { status: 204 }); }
   if (method === "GET" && path === "/game/status") return json(await app.games.state());
   if (method === "GET" && path === "/game/status/path") return json(await app.games.state(required(query, "install_path")));
   if (method === "GET" && path === "/game/space-check") { const installPath = required(query, "install_path"); const state = await app.games.state(installPath); return json(await app.games.spaceCheck(installPath, state.download_bytes, (query.get("kind") ?? "update") as JobKind)); }
@@ -83,8 +93,14 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   if (method === "POST" && gameControl) return json(app.games.control(gameControl, controlJob.parse(body).action));
   if (method === "POST" && path === "/game/launch") {
     const value = startLaunch.parse(body), account = app.accounts.get();
-    const authTicket = account && value.credential ? await app.provider.createAuthTicket(value.credential) : undefined;
-    return json(app.launches.start({ ...value, account: account && value.credential ? launchAccount(account, value.credential) : undefined, auth_ticket: authTicket }), 202);
+    let registryAccount;
+    if (account && value.credential) {
+      const identity = await app.provider.identifyCredential(value.credential);
+      if (identity.aid !== account.aid || identity.mid !== account.mid) throw new AppError("credential_identity_mismatch", "凭据与当前账号不匹配", 403);
+      registryAccount = launchAccount(account, value.credential);
+    }
+    const { credential: ignored, ...launch } = value; void ignored;
+    return json(app.launches.start({ ...launch, account: registryAccount }), 202);
   }
   const launchStop = match(path, /^\/game\/launches\/([^/]+)\/stop$/);
   if (method === "POST" && launchStop) return json(app.launches.stop(launchStop), 202);

@@ -33,15 +33,17 @@ describe("登录风控兼容", () => {
       code: "verification_required",
       details: { gt: "gt-token", challenge: "server-challenge", session_id: "risk-session" },
     });
-    const session = await provider.verifyMobileCaptcha("13800138000", "risk-session", "client-challenge", "validate-token");
+    const session = await provider.verifyMobileCaptcha("13800138000", "risk-session", "server-challenge", "validate-token");
     const [sessionId, encoded] = aigis.split(";");
     expect(session).toMatchObject({ action_type: "login", aigis: "verified-aigis" });
     expect(sessionId).toBe("risk-session");
     expect(JSON.parse(Buffer.from(encoded ?? "", "base64").toString("utf8"))).toEqual({
-      geetest_challenge: "client-challenge",
+      geetest_challenge: "server-challenge",
       geetest_validate: "validate-token",
       geetest_seccode: "validate-token|jordan",
     });
+    await expect(provider.verifyMobileCaptcha("13800138000", "risk-session", "server-challenge", "validate-token"))
+      .rejects.toMatchObject({ code: "aigis_session_missing" });
   });
 
   test("二维码确认必须带 token_type 1", () => {

@@ -3,7 +3,7 @@ import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
-import { createGameAccountRegistryValue, writeGameAccountRegistry, type RegistryAccount } from "../src/services/game-account-registry";
+import { createGameAccountRegistryValue, restoreGameAccountRegistry, writeGameAccountRegistry, type RegistryAccount } from "../src/services/game-account-registry";
 
 const roots: string[] = [];
 const account: RegistryAccount = { aid: "10001", mid: "mid-1", nickname: "旅行者", credential: "stoken=stoken-value; cookie_token=cookie-token; mid=mid-1" };
@@ -58,5 +58,18 @@ printf '%s\\n' "$@" > "$CAPTURE"
       input: bytes.subarray(0, -1).toString("utf8"), encoding: "utf8",
     });
     expect(JSON.parse(result.stdout).data[0].mid).toBe("mid-1");
+  });
+
+  test("会话结束恢复原注册表值", () => {
+    const root = mkdtempSync(join(tmpdir(), "mhg-registry-")); roots.push(root);
+    const wine = join(root, "wine"), capture = join(root, "calls.txt");
+    writeFileSync(wine, `#!/bin/sh
+if [ "$2" = "query" ]; then printf 'value REG_BINARY DEADBEEF\n'; exit 0; fi
+printf '%s\n' "$@" >> "$CAPTURE"
+`); chmodSync(wine, 0o755);
+    const env = { ...process.env, CAPTURE: capture, MHG_GAME_ACCOUNT_MAC: "FC-B2-14-50-82-E5" };
+    const snapshot = writeGameAccountRegistry(wine, env, account); restoreGameAccountRegistry(wine, env, snapshot);
+    const calls = readFileSync(capture, "utf8");
+    expect(snapshot.value).toBe("DEADBEEF"); expect(calls).toMatch(/\/d\nDEADBEEF\n\/f/);
   });
 });

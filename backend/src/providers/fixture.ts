@@ -26,7 +26,9 @@ export class FixtureProvider implements Provider {
   }
 
   async identifyCredential(credential: string): Promise<AccountIdentity> {
-    return { aid: "10001", mid: "fixture-mid", nickname: "测试旅行者", credential };
+    const aid = /(?:^|;\s*)(?:stuid|account_id)=([^;]+)/.exec(credential)?.[1] ?? "10001";
+    const mid = /(?:^|;\s*)mid=([^;]+)/.exec(credential)?.[1] ?? `fixture-mid-${aid}`;
+    return { aid, mid, nickname: "测试旅行者", credential };
   }
 
   async createMobileCaptcha(mobile: string): Promise<MobileCaptchaSession> {

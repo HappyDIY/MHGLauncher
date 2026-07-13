@@ -23,7 +23,8 @@ CgGs52bFoYMtyi+xEQIDAQAB
 -----END PUBLIC KEY-----`;
 
 export class LiveProvider implements Provider {
-  private readonly device: Device; private readonly sophon = new Sophon(); private readonly sessions = new Map<string, QRSession>(); private readonly aigisSessions = new Map<string, AigisSession>();
+  private readonly device: Device; private readonly sophon = new Sophon(); private readonly sessions = new Map<string, QRSession>();
+  private readonly aigisSessions = new Map<string, { session: AigisSession; mobile: string; expires: number }>();
   constructor(config: Settings, private readonly wishSleep: WishSyncSleeper = defaultWishSyncSleeper) { this.device = new Device(join(config.dataDir, "device.json")); }
 
   async createQRSession(): Promise<QRSession> {
@@ -59,9 +60,13 @@ export class LiveProvider implements Provider {
   }
 
   async verifyMobileCaptcha(mobile: string, sessionId: string, challenge: string, validate: string): Promise<MobileCaptchaSession> {
-    if (!this.aigisSessions.has(sessionId)) throw new AppError("aigis_session_missing", "验证码验证会话不存在或已过期", 404);
+    const pending = this.aigisSessions.get(sessionId); this.aigisSessions.delete(sessionId);
+    if (!pending || pending.mobile !== mobile || pending.expires < Date.now()
+      || verificationFromAigis(pending.session).challenge !== challenge) {
+      throw new AppError("aigis_session_missing", "验证码验证会话不存在或已过期", 404);
+    }
     const session = await this.createMobileCaptchaWithAigis(mobile, createAigisHeader(sessionId, challenge, validate));
-    this.aigisSessions.delete(sessionId); return session;
+    return session;
   }
 
   private async createMobileCaptchaWithAigis(mobile: string, aigis: string): Promise<MobileCaptchaSession> {
@@ -73,7 +78,7 @@ export class LiveProvider implements Provider {
     const rawAigis = response.headers.get("x-rpc-aigis");
     const aigisSession = parseAigisSession(rawAigis);
     if (aigisSession) {
-      this.aigisSessions.set(aigisSession.session_id, aigisSession);
+      this.aigisSessions.set(aigisSession.session_id, { session: aigisSession, mobile, expires: Date.now() + 5 * 60_000 });
       throw new AppError("verification_required", "请完成人机验证后重试", 428, { ...verificationFromAigis(aigisSession) });
     }
     if (!response.ok || Number(payload.retcode ?? 0) !== 0) throw new AppError("mihoyo_error", String(payload.message || "验证码发送失败"), 502);
@@ -145,7 +150,9 @@ export class LiveProvider implements Provider {
     const data = await this.request(`https://api-takumi.mihoyo.com/auth/api/getMultiTokenByLoginTicket?${query}`);
     const stoken = (data.list as JSONValue[] | undefined)?.find((item) => item.name === "stoken")?.token;
     if (!stoken) throw new AppError("credential_invalid", "Cookie 登录票据无法换取 stoken，请重新获取 Cookie", 422);
-    map.set("stuid", uid); map.set("stoken", String(stoken)); return this.serialize(map);
+    map.set("stuid", uid); map.set("stoken", String(stoken));
+    map.delete("login_ticket"); map.delete("login_uid");
+    return this.serialize(map);
   }
   private async enrichCredential(value: string, cookieImport = false): Promise<string> {
     try {

@@ -13,7 +13,7 @@ import { RevisionNotifier } from "./revision-notifier";
 
 export interface StartLaunch {
   install_path: string; performance_profile: GamePerformanceProfile; metal_hud: boolean;
-  network_debug: boolean; wine_log: boolean; frame_pacing: number; account?: RegistryAccount; auth_ticket?: string;
+  network_debug: boolean; wine_log: boolean; frame_pacing: number; account?: RegistryAccount;
 }
 
 export class GameLaunchService {
@@ -49,7 +49,7 @@ export class GameLaunchService {
     };
     this.launches.set(launch.id, this.notifier.mark(launch.id, launch)); this.persist(launch);
     const controller = new AbortController(); this.controllers.set(launch.id, controller);
-    setImmediate(() => void this.execute(launch, detected.path, input.frame_pacing, controller.signal, input.wine_log, input.account, input.auth_ticket));
+    setImmediate(() => void this.execute(launch, detected.path, input.frame_pacing, controller.signal, input.wine_log, input.account));
     return launch;
   }
 
@@ -73,7 +73,7 @@ export class GameLaunchService {
     return launch;
   }
 
-  private async execute(launch: GameLaunch, gameRoot: string, framePacing: number, signal: AbortSignal, wineLog: boolean, account?: RegistryAccount, authTicket?: string): Promise<void> {
+  private async execute(launch: GameLaunch, gameRoot: string, framePacing: number, signal: AbortSignal, wineLog: boolean, account?: RegistryAccount): Promise<void> {
     const sessionDir = join(this.dataDir, "launches", launch.id);
     let journal: DllJournal | null = null;
     try {
@@ -83,7 +83,7 @@ export class GameLaunchService {
       const code = await this.runner.run({
         gameRoot, runtimeRoot: this.runtimeRoot, dataDir: this.dataDir, sessionDir,
         profile: launch.performance_profile, metalHud: launch.metal_hud,
-        networkDebug: launch.network_debug, wineLog, framePacing, signal, account, authTicket,
+        networkDebug: launch.network_debug, wineLog, framePacing, signal, account,
       }, (status, message = "", progress) => this.update(launch, status, message, progress));
       const warning = restoreDll(journal);
       const stopped = launch.status === "stopping";

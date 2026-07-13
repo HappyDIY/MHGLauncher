@@ -5,13 +5,13 @@ import { AppError } from "../core/errors";
 import type { GameLaunchStatus, GamePerformanceProfile } from "../core/models";
 import { launchEnvironment, runtimePaths } from "./game-launch-environment";
 import { configureChineseGameLanguage } from "./game-launch-language";
-import { writeGameAccountRegistry, type RegistryAccount } from "./game-account-registry";
+import { restoreGameAccountRegistry, writeGameAccountRegistry, type RegistryAccount, type RegistrySnapshot } from "./game-account-registry";
 
 export interface LaunchRunInput {
   gameRoot: string; runtimeRoot: string; dataDir: string; sessionDir: string;
   profile: GamePerformanceProfile; metalHud: boolean; networkDebug: boolean; wineLog: boolean;
   framePacing: number; signal: AbortSignal;
-  account?: RegistryAccount; authTicket?: string;
+  account?: RegistryAccount;
 }
 export type LaunchReporter = (status: GameLaunchStatus, message?: string, progress?: number) => void;
 export interface GameLaunchRunner { run(input: LaunchRunInput, report: LaunchReporter): Promise<number> }
@@ -28,8 +28,9 @@ export class WineLaunchRunner implements GameLaunchRunner {
       process.env, paths, prefix, input.sessionDir, input.profile,
       input.metalHud, input.networkDebug, input.wineLog, input.framePacing,
     );
+    let registrySnapshot: RegistrySnapshot | null = null;
     if (input.account) {
-      writeGameAccountRegistry(paths.wine, env, input.account);
+      registrySnapshot = writeGameAccountRegistry(paths.wine, env, input.account);
       report("starting", "已将启动器账号写入游戏登录状态", 0.62);
     }
     report("starting", "正在创建游戏进程", 0.68);
@@ -41,11 +42,17 @@ export class WineLaunchRunner implements GameLaunchRunner {
     mkdirSync(dirname(logPath), { recursive: true, mode: 0o700 });
     const descriptor = openSync(logPath, "a", 0o600);
     const exeArgs = [join(input.gameRoot, "YuanShen.exe"), "-force-d3d11"];
-    if (input.authTicket) exeArgs.push(`login_auth_ticket=${input.authTicket}`);
-    const child = spawn(paths.wine, exeArgs, {
-      cwd: input.gameRoot, detached: true, env, stdio: ["ignore", descriptor, descriptor],
-    });
-    closeSync(descriptor);
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn(paths.wine, exeArgs, {
+        cwd: input.gameRoot, detached: true, env, stdio: ["ignore", descriptor, descriptor],
+      });
+    } catch (error) {
+      if (registrySnapshot) restoreGameAccountRegistry(paths.wine, env, registrySnapshot);
+      throw error;
+    } finally {
+      closeSync(descriptor);
+    }
     child.unref(); report("waiting_window", "游戏进程已创建，正在等待窗口", 0.82);
     const gate = String(env.MHG_DNS_GATE_FILE);
     let released = false;
@@ -62,7 +69,10 @@ export class WineLaunchRunner implements GameLaunchRunner {
       clearInterval(probe); releaseGate("窗口探针超时，已自动解除域名屏蔽");
     }, 30_000);
     return await new Promise<number>((resolve, reject) => {
-      const cleanup = (): void => { clearInterval(probe); clearTimeout(fallback); rmSync(gate, { force: true }); };
+      const cleanup = (): void => {
+        clearInterval(probe); clearTimeout(fallback); rmSync(gate, { force: true });
+        if (registrySnapshot) { restoreGameAccountRegistry(paths.wine, env, registrySnapshot); registrySnapshot = null; }
+      };
       const stop = (): void => { cleanup(); this.stopServer(paths.wineserver, prefix); resolve(0); };
       input.signal.addEventListener("abort", stop, { once: true });
       child.once("error", (error) => { cleanup(); input.signal.removeEventListener("abort", stop); this.stopServer(paths.wineserver, prefix); reject(error); });

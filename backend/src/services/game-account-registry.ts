@@ -11,14 +11,24 @@ const registryValue = "MIHOYOSDK_ADL_PROD_CN_h3123967166";
 export interface RegistryAccount {
   aid: string; mid: string; nickname: string; credential: string;
 }
+export interface RegistrySnapshot { value: string | null }
 
-export function writeGameAccountRegistry(wine: string, env: NodeJS.ProcessEnv, account: RegistryAccount): void {
+export function writeGameAccountRegistry(wine: string, env: NodeJS.ProcessEnv, account: RegistryAccount): RegistrySnapshot {
+  const snapshot = readGameAccountRegistry(wine, env);
   const raw = createGameAccountRegistryValue(account, cleanMac(env.MHG_GAME_ACCOUNT_MAC ?? "") || macAddress() || wineMacAddress(wine, env));
   const hex = Buffer.concat([Buffer.from(raw, "utf8"), Buffer.from([0])]).toString("hex");
   const result = spawnSync(wine, ["reg", "add", registryKey, "/v", registryValue, "/t", "REG_BINARY", "/d", hex, "/f"], {
     env, stdio: "ignore",
   });
   if (result.status !== 0) throw new AppError("game_account_registry_failed", "游戏账号写入 Wine 注册表失败", 500);
+  return snapshot;
+}
+
+export function restoreGameAccountRegistry(wine: string, env: NodeJS.ProcessEnv, snapshot: RegistrySnapshot): void {
+  const args = snapshot.value
+    ? ["reg", "add", registryKey, "/v", registryValue, "/t", "REG_BINARY", "/d", snapshot.value, "/f"]
+    : ["reg", "delete", registryKey, "/v", registryValue, "/f"];
+  spawnSync(wine, args, { env, stdio: "ignore" });
 }
 
 export function launchAccount(account: Account, credential: string): RegistryAccount {
@@ -48,6 +58,12 @@ function mihoyoSdk(account: RegistryAccount, mac: string, now: number): string {
     }],
   };
   return encrypt(JSON.stringify(data), mac);
+}
+
+function readGameAccountRegistry(wine: string, env: NodeJS.ProcessEnv): RegistrySnapshot {
+  const result = spawnSync(wine, ["reg", "query", registryKey, "/v", registryValue], { env, encoding: "utf8" });
+  const match = result.status === 0 ? result.stdout.match(/REG_BINARY\s+([0-9a-f]+)/i) : null;
+  return { value: match?.[1] ?? null };
 }
 
 function encrypt(value: string, mac: string): string {

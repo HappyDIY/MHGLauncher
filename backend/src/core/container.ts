@@ -20,6 +20,7 @@ import { AchievementService } from "../services/achievements";
 import { NotificationService } from "../services/notifications";
 import { GachaEventService } from "../services/gacha-events";
 import { CloudSyncService } from "../services/cloud-sync";
+import { PreparedLoginStore } from "../services/prepared-logins";
 
 export class Container {
   readonly settings: Settings;
@@ -38,6 +39,7 @@ export class Container {
 	  readonly notifications: NotificationService;
 	  readonly gachaEvents: GachaEventService;
 	  readonly cloud: CloudSyncService;
+	  readonly preparedLogins: PreparedLoginStore;
 
   constructor(config = settings()) {
     this.settings = config; mkdirSync(config.dataDir, { recursive: true });
@@ -46,6 +48,7 @@ export class Container {
 	    this.records = config.providerMode === "fixture" ? new FixtureGameRecordSource(config.fixtureDir) : new LiveGameRecordSource(config);
     this.images = new ImageCache(config.dataDir);
     this.accounts = new AccountService(this.store, this.provider);
+    this.preparedLogins = new PreparedLoginStore();
     this.games = new GameService(this.store, this.provider, config.dataDir, config.downloadWorkers, config.downloadSpeedLimitKB);
     this.launches = new GameLaunchService(
       config.dataDir, process.env.MHG_RUNTIME_ROOT ?? join(process.cwd(), "runtime"), undefined, undefined,

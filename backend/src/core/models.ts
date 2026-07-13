@@ -1,6 +1,7 @@
 type QRStatus = "created" | "scanned" | "confirmed" | "expired";
 export interface QRSession { id: string; url: string; status: QRStatus; expires_at: string; credential?: string | null }
 export interface AccountIdentity { aid: string; mid: string; nickname: string; credential: string }
+export interface PreparedLogin { transaction_id: string; identity: AccountIdentity; roles: GameRole[]; expires_at: string }
 export interface MobileCaptchaVerification { gt: string; challenge: string; session_id: string }
 export interface MobileCaptchaSession {
   mobile: string; action_type: string; countdown: number; aigis?: string | null;

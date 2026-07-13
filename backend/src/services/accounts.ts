@@ -17,16 +17,25 @@ function account(row: Record<string, unknown>): Account {
 export class AccountService {
   constructor(private readonly store: Store, private readonly provider: Provider) {}
 
-  save(identity: AccountIdentity, credentialRef: string): Account {
+  commit(identity: AccountIdentity, roles: GameRole[]): { account: Account; roles: GameRole[] } {
     const updated_at = new Date().toISOString();
+    const credentialRef = `keychain:account:${identity.aid}`;
+    let selectedUid = String(this.store.one("SELECT uid FROM roles WHERE account_aid=? AND selected=1", identity.aid)?.uid ?? "");
+    if (!roles.some(({ uid }) => uid === selectedUid)) selectedUid = roles[0]?.uid ?? "";
+    const insertRole = this.store.db.prepare("INSERT INTO roles(uid,account_aid,nickname,region,level,selected) VALUES(?,?,?,?,?,?)");
     this.store.db.transaction(() => {
       this.store.db.exec("UPDATE account SET selected=0");
       this.store.db.prepare(`INSERT INTO account(aid,mid,nickname,credential_ref,selected,updated_at) VALUES(?,?,?,?,1,?)
         ON CONFLICT(aid) DO UPDATE SET mid=excluded.mid,nickname=excluded.nickname,
         credential_ref=excluded.credential_ref,selected=1,updated_at=excluded.updated_at`)
         .run(identity.aid, identity.mid, identity.nickname, credentialRef, updated_at);
+      this.store.db.prepare("DELETE FROM roles WHERE account_aid=?").run(identity.aid);
+      for (const value of roles) insertRole.run(value.uid, identity.aid, value.nickname, value.region, value.level, Number(value.uid === selectedUid));
     })();
-    return { aid: identity.aid, mid: identity.mid, nickname: identity.nickname, credential_ref: credentialRef, selected: true, updated_at };
+    return {
+      account: { aid: identity.aid, mid: identity.mid, nickname: identity.nickname, credential_ref: credentialRef, selected: true, updated_at },
+      roles: this.roles(identity.aid),
+    };
   }
 
   list(): Account[] { return this.store.all("SELECT * FROM account ORDER BY selected DESC,updated_at DESC").map(account); }
@@ -70,15 +79,24 @@ export class AccountService {
     }
   }
 
-  async syncRoles(credential: string, aid = this.get()?.aid): Promise<GameRole[]> {
-    if (!aid) return [];
-    const roles = (await this.provider.getRoles(credential)).map((value, index) => ({ ...value, selected: index === 0 }));
+  async prepareRoles(identity: AccountIdentity): Promise<GameRole[]> {
+    return (await this.provider.getRoles(identity.credential)).map((value, index) => ({ ...value, selected: index === 0 }));
+  }
+
+  async syncRoles(aid: string, credential: string): Promise<GameRole[]> {
+    const target = this.list().find((value) => value.aid === aid);
+    if (!target) throw new AppError("account_missing", "账号不存在", 404);
+    const identity = await this.provider.identifyCredential(credential);
+    if (identity.aid !== target.aid || identity.mid !== target.mid) throw new AppError("credential_identity_mismatch", "凭据与账号身份不匹配", 403);
+    const roles = await this.prepareRoles(identity);
+    let selectedUid = String(this.store.one("SELECT uid FROM roles WHERE account_aid=? AND selected=1", aid)?.uid ?? "");
+    if (!roles.some(({ uid }) => uid === selectedUid)) selectedUid = roles[0]?.uid ?? "";
     const insert = this.store.db.prepare("INSERT INTO roles(uid,account_aid,nickname,region,level,selected) VALUES(?,?,?,?,?,?)");
     this.store.db.transaction(() => {
       this.store.db.prepare("DELETE FROM roles WHERE account_aid=?").run(aid);
-      for (const value of roles) insert.run(value.uid, aid, value.nickname, value.region, value.level, Number(value.selected));
+      for (const value of roles) insert.run(value.uid, aid, value.nickname, value.region, value.level, Number(value.uid === selectedUid));
     })();
-    return roles;
+    return this.roles(aid);
   }
 
   roles(aid = this.get()?.aid): GameRole[] { return aid ? this.store.all("SELECT * FROM roles WHERE account_aid=? ORDER BY selected DESC,uid", aid).map(role) : []; }

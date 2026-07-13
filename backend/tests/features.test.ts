@@ -5,8 +5,8 @@ async function login(): Promise<string> {
   const session = await (await request("POST", "/v1/auth/qr-sessions", {})).json();
   await request("GET", `/v1/auth/qr-sessions/${session.id}`);
   const value = await (await request("GET", `/v1/auth/qr-sessions/${session.id}`)).json();
-  await request("POST", "/v1/auth/complete", { identity: value.identity, credential_ref: "keychain:test" });
-  return value.identity.credential as string;
+  await request("POST", "/v1/auth/commit", { transaction_id: value.prepared_login.transaction_id });
+  return value.prepared_login.identity.credential as string;
 }
 
 beforeEach(() => fixture());

@@ -14,15 +14,13 @@ describe("本地 API 契约", () => {
     expect(created.status).toBe("created");
     expect((await (await request("GET", `/v1/auth/qr-sessions/${created.id}`)).json()).session.status).toBe("scanned");
     const confirmed = await (await request("GET", `/v1/auth/qr-sessions/${created.id}`)).json();
-    const response = await request("POST", "/v1/auth/complete", { identity: confirmed.identity, credential_ref: "keychain:test" });
-    const value = await response.json(); expect(value.account.credential_ref).toBe("keychain:test"); expect(value.roles[0].uid).toBe("100000001");
+    const response = await request("POST", "/v1/auth/commit", { transaction_id: confirmed.prepared_login.transaction_id });
+    const value = await response.json(); expect(value.account.credential_ref).toBe("keychain:account:10001"); expect(value.roles[0].uid).toBe("100000001");
   });
 
   test("多账号保留当前账号与角色选择", async () => {
-    const first = { aid: "10001", mid: "mid-1", nickname: "一号", credential: "stoken=1; mid=mid-1" };
-    const second = { aid: "10002", mid: "mid-2", nickname: "二号", credential: "stoken=2; mid=mid-2" };
-    await request("POST", "/v1/auth/complete", { identity: first, credential_ref: "keychain:account:10001" });
-    await request("POST", "/v1/auth/complete", { identity: second, credential_ref: "keychain:account:10002" });
+    await loginCookie("stuid=10001; stoken=1; mid=mid-1");
+    await loginCookie("stuid=10002; stoken=2; mid=mid-2");
     expect((await (await request("GET", "/v1/accounts")).json()).map((value: { aid: string }) => value.aid)).toEqual(["10002", "10001"]);
     const selected = await (await request("POST", "/v1/account/select", { aid: "10001" })).json();
     expect(selected.account.selected).toBe(true);
@@ -33,7 +31,8 @@ describe("本地 API 契约", () => {
 
   test("Cookie 与短信验证码登录归一为账号会话", async () => {
     const cookie = await (await request("POST", "/v1/auth/cookie-login", { credential: "stuid=10001; stoken=fixture; mid=fixture-mid" })).json();
-    expect(cookie.account.credential_ref).toBe("keychain:account:10001");
+    expect(cookie.identity.credential).toContain("stoken=fixture");
+    expect((await (await request("POST", "/v1/auth/commit", { transaction_id: cookie.transaction_id })).json()).account.credential_ref).toBe("keychain:account:10001");
     const captcha = await (await request("POST", "/v1/auth/mobile-captcha", { mobile: "13800138000" })).json();
     expect(captcha.action_type).toBe("fixture-action");
     const verified = await (await request("POST", "/v1/auth/mobile-captcha/verification", {
@@ -42,7 +41,7 @@ describe("本地 API 契约", () => {
     expect(verified.aigis).toBe("fixture-aigis");
     const sms = await (await request("POST", "/v1/auth/mobile-login", { mobile: "13800138000", captcha: "123456", action_type: captcha.action_type })).json();
     expect(sms.identity.credential).toContain("stoken=fixture");
-    expect(sms.roles[0].uid).toBe("100000001");
+    expect(sms.roles[0].uid).toBe("100000001"); expect(sms.transaction_id).toBeTruthy();
   });
 
   test("游戏启动校验安装目录", async () => {
@@ -108,14 +107,20 @@ describe("本地 API 契约", () => {
 	  });
 
 	  test("增值服务接口支持离线 fixture 数据", async () => {
-	    const identity = { aid: "10001", mid: "fixture-mid", nickname: "旅行者", credential: "stoken=fixture; mid=fixture-mid" };
-	    await request("POST", "/v1/auth/complete", { identity, credential_ref: "keychain:account:10001" });
-	    const body = { credential: identity.credential };
+	    const credential = "stuid=10001; stoken=fixture; mid=fixture-mid";
+	    await loginCookie(credential);
+	    const body = { credential };
 	    const characters = await (await request("POST", "/v1/characters/refresh", body)).json();
 	    expect(characters[0].name).toBe("芙宁娜");
 	    const events = await (await request("POST", "/v1/gacha-events/refresh", body)).json();
 	    expect(events[0].orange_up.length).toBeGreaterThan(0);
-	  });
+});
+
+async function loginCookie(credential: string): Promise<void> {
+  const prepared = await (await request("POST", "/v1/auth/cookie-login", { credential })).json();
+  const response = await request("POST", "/v1/auth/commit", { transaction_id: prepared.transaction_id });
+  expect(response.status).toBe(200);
+}
 
 	  test("成就档案支持保存与导出 UIAF", async () => {
 	    const archive = await (await request("POST", "/v1/achievements/archives", { name: "主档案" })).json();
