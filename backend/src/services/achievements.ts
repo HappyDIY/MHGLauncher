@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { AppError } from "../core/errors";
 import type { Store } from "../core/database";
-import type { AchievementArchive, AchievementGoal, AchievementItem, AchievementViewItem } from "../core/models";
+import type { AchievementArchive, AchievementGoal, AchievementItem, AchievementSnapshot, AchievementViewItem } from "../core/models";
 
 type UIAF = { info?: Record<string, unknown>; list?: { id: number; current?: number; status?: number; timestamp?: number }[] };
 type Reward = { Count?: number };
@@ -17,7 +17,7 @@ let goalCache: GoalMeta[] | undefined;
 
 const archive = (row: Record<string, unknown>): AchievementArchive => ({
   id: String(row.id), name: String(row.name), selected: Boolean(row.selected),
-  created_at: String(row.created_at), updated_at: String(row.updated_at),
+  created_at: String(row.created_at), updated_at: String(row.updated_at), revision: Number(row.revision ?? 0),
 });
 const item = (row: Record<string, unknown>): AchievementItem => ({
   archive_id: String(row.archive_id), achievement_id: Number(row.achievement_id),
@@ -46,7 +46,7 @@ export class AchievementService {
     const now = new Date().toISOString(), id = randomUUID();
     this.store.db.transaction(() => {
       if (!this.archives().length) this.store.db.exec("UPDATE achievement_archives SET selected=0");
-      this.store.db.prepare("INSERT INTO achievement_archives(id,name,selected,created_at,updated_at) VALUES(?,?,?,?,?)")
+      this.store.db.prepare("INSERT INTO achievement_archives(id,name,selected,created_at,updated_at,revision) VALUES(?,?,?,?,?,0)")
         .run(id, name.trim(), Number(!this.archives().length), now, now);
     })();
     return { id, name: name.trim(), selected: !this.archives().some((value) => value.id !== id), created_at: now, updated_at: now };
@@ -91,16 +91,42 @@ export class AchievementService {
     });
   }
 
+  snapshot(archiveId: string): AchievementSnapshot {
+    const row = this.store.one("SELECT * FROM achievement_archives WHERE id=?", archiveId);
+    if (!row) throw new AppError("archive_missing", "成就档案不存在", 404);
+    const selected = archive(row);
+    return { archive: selected, entries: this.view(archiveId), revision: selected.revision ?? 0 };
+  }
+
+  saveSnapshot(
+    archiveId: string, expectedRevision: number,
+    values: Omit<AchievementItem, "archive_id" | "updated_at">[],
+  ): AchievementSnapshot {
+    this.store.db.transaction(() => {
+      const current = Number(this.store.one("SELECT revision FROM achievement_archives WHERE id=?", archiveId)?.revision ?? -1);
+      if (current < 0) throw new AppError("archive_missing", "成就档案不存在", 404);
+      if (current !== expectedRevision) throw new AppError("archive_revision_conflict", "成就档案已被其他操作更新", 409);
+      this.writeItems(archiveId, values);
+      this.store.db.prepare("UPDATE achievement_archives SET revision=revision+1,updated_at=? WHERE id=?")
+        .run(new Date().toISOString(), archiveId);
+    })();
+    return this.snapshot(archiveId);
+  }
+
   save(archiveId: string, values: Omit<AchievementItem, "archive_id" | "updated_at">[]): AchievementItem[] {
     this.requireArchive(archiveId);
+    this.store.db.transaction(() => this.writeItems(archiveId, values))();
+    return this.list(archiveId);
+  }
+
+  private writeItems(archiveId: string, values: Omit<AchievementItem, "archive_id" | "updated_at">[]): void {
     const now = new Date().toISOString();
     const insert = this.store.db.prepare(`INSERT INTO achievements(archive_id,achievement_id,current,status,timestamp,updated_at)
       VALUES(?,?,?,?,?,?) ON CONFLICT(archive_id,achievement_id) DO UPDATE SET
       current=excluded.current,status=excluded.status,timestamp=excluded.timestamp,updated_at=excluded.updated_at`);
-    this.store.db.transaction(() => values.forEach((value) => insert.run(
+    values.forEach((value) => insert.run(
       archiveId, value.achievement_id, value.current, value.status, value.timestamp, now,
-    )))();
-    return this.list(archiveId);
+    ));
   }
 
   importUIAF(archiveId: string, payload: UIAF): AchievementItem[] {

@@ -53,9 +53,11 @@ function hash(token: string): string {
 
 function normalize(uid: string, item: Record<string, any>): GachaItem {
   const type = String(item.gacha_type);
+  const rawTime = String(item.time).replace(" ", "T"), epoch = Date.parse(`${rawTime}+08:00`);
+  if (!Number.isFinite(epoch)) throw new HttpError(422, "gacha_item_invalid", "抽卡记录时间无效");
   return { id: String(item.id), uid, gacha_type: type, uigf_gacha_type: type === "400" ? "301" : type,
     item_id: String(item.item_id), name: String(item.name), item_type: String(item.item_type),
-    rank: Number(item.rank_type ?? item.rank), time: String(item.time).replace(" ", "T") };
+    rank: Number(item.rank_type ?? item.rank), time: new Date(epoch).toISOString() };
 }
 
 export function equalToken(a: string, b: string): boolean {

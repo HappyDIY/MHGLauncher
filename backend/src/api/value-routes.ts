@@ -8,7 +8,7 @@ const gachaUrl = z.object({ gacha_url: z.string().url(), token: z.string().optio
 const cloudUid = z.object({ uid: z.string().min(1), token: z.string().min(1) });
 const archive = z.object({ name: z.string().min(1) });
 const achievementSave = z.object({
-  archive_id: z.string().min(1),
+  archive_id: z.string().min(1), expected_revision: z.number().int().min(0),
   items: z.array(z.object({ achievement_id: z.number().int(), current: z.number().int(), status: z.number().int(), timestamp: z.number().int() })),
 });
 const settings = z.object({
@@ -32,9 +32,10 @@ export async function valueRoute(app: Container, method: string, path: string, q
   const archiveDelete = match(path, /^\/achievements\/archives\/([^/]+)$/);
   if (method === "DELETE" && archiveDelete) return json({ deleted: app.achievements.removeArchive(archiveDelete) });
   if (method === "GET" && path === "/achievements/goals") return json(app.achievements.goals());
-  if (method === "GET" && path === "/achievements/view") return json(app.achievements.view(query.get("archive_id") ?? undefined));
+  if (method === "GET" && path === "/achievements/view") return json(app.achievements.view(required(query, "archive_id")));
+  if (method === "GET" && path === "/achievements/snapshot") return json(app.achievements.snapshot(required(query, "archive_id")));
   if (method === "GET" && path === "/achievements") return json(app.achievements.list(query.get("archive_id") ?? undefined));
-  if (method === "POST" && path === "/achievements") { const value = achievementSave.parse(body); return json(app.achievements.save(value.archive_id, value.items)); }
+  if (method === "POST" && path === "/achievements") { const value = achievementSave.parse(body); return json(app.achievements.saveSnapshot(value.archive_id, value.expected_revision, value.items)); }
   if (method === "POST" && path === "/achievements/import") return json(app.achievements.importUIAF(required(query, "archive_id"), body as never));
   if (method === "GET" && path === "/achievements/export") return json(app.achievements.exportUIAF(query.get("archive_id") ?? undefined));
   if (method === "POST" && path === "/cloud/login") return json(await app.cloud.login(gachaUrl.parse(body).gacha_url));

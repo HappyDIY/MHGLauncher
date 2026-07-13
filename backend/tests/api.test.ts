@@ -119,7 +119,9 @@ describe("本地 API 契约", () => {
 
 	  test("成就档案支持保存与导出 UIAF", async () => {
 	    const archive = await (await request("POST", "/v1/achievements/archives", { name: "主档案" })).json();
-	    await request("POST", "/v1/achievements", { archive_id: archive.id, items: [{ achievement_id: 84501, current: 1, status: 2, timestamp: 1_756_000_000 }] });
+	    const saved = await (await request("POST", "/v1/achievements", { archive_id: archive.id, expected_revision: 0, items: [{ achievement_id: 84501, current: 1, status: 2, timestamp: 1_756_000_000 }] })).json();
+	    expect(saved.revision).toBe(1);
+	    expect((await request("POST", "/v1/achievements", { archive_id: archive.id, expected_revision: 0, items: [] })).status).toBe(409);
 	    const items = await (await request("GET", `/v1/achievements?archive_id=${archive.id}`)).json();
 	    expect(items[0].achievement_id).toBe(84501);
     const view = await (await request("GET", `/v1/achievements/view?archive_id=${archive.id}`)).json();

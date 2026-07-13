@@ -6,7 +6,9 @@ export type CloudWish = {
 };
 
 export async function upload(uid: string, items: CloudWish[]): Promise<{ uploaded: number }> {
-  const filtered = items.filter((item) => item.uid === uid && item.id);
+  const unique = new Map<string, CloudWish>();
+  for (const item of items) if (item.uid === uid && /^\d{1,19}$/.test(item.id)) unique.set(item.id, item);
+  const filtered = [...unique.values()].sort((left, right) => left.id.length - right.id.length || left.id.localeCompare(right.id));
   await transaction(async (client) => {
     for (const item of filtered) {
       await client.query(`INSERT INTO gacha_records(uid,id,gacha_type,uigf_gacha_type,item_id,name,item_type,rank,time,payload)
@@ -20,12 +22,13 @@ export async function upload(uid: string, items: CloudWish[]): Promise<{ uploade
 }
 
 export async function retrieve(uid: string): Promise<{ items: CloudWish[] }> {
-  const result = await pool().query("SELECT payload FROM gacha_records WHERE uid=$1 ORDER BY time DESC,id DESC", [uid]);
+  const result = await pool().query("SELECT payload FROM gacha_records WHERE uid=$1 ORDER BY time DESC,LENGTH(id) DESC,id DESC", [uid]);
   return { items: result.rows.map((row) => row.payload as CloudWish) };
 }
 
 export async function endIds(uid: string): Promise<Record<string, string>> {
-  const result = await pool().query("SELECT uigf_gacha_type,MAX(id) id FROM gacha_records WHERE uid=$1 GROUP BY uigf_gacha_type", [uid]);
+  const result = await pool().query(`SELECT DISTINCT ON (uigf_gacha_type) uigf_gacha_type,id FROM gacha_records
+    WHERE uid=$1 ORDER BY uigf_gacha_type,LENGTH(id) DESC,id DESC`, [uid]);
   return Object.fromEntries(result.rows.map((row) => [String(row.uigf_gacha_type), String(row.id)]));
 }
 

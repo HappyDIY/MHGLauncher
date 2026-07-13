@@ -17,6 +17,7 @@ interface WishTaskLog { sequence: number; message: string; emphasized: boolean }
 export interface WishTask {
   id: string; kind: string; status: "queued" | "running" | "completed" | "failed";
   progress: number | null; logs: WishTaskLog[]; result: Record<string, number> | null; error: string; error_code?: string;
+  target_uids?: string[];
   revision?: number;
 }
 export interface CompanionSnapshot {
@@ -33,7 +34,7 @@ export interface GameCharacter {
   icon_url?: string | null; payload: unknown; updated_at: string;
 }
 export interface AchievementArchive {
-  id: string; name: string; selected: boolean; created_at: string; updated_at: string;
+  id: string; name: string; selected: boolean; created_at: string; updated_at: string; revision?: number;
 }
 export interface AchievementItem {
   archive_id: string; achievement_id: number; current: number; status: number;
@@ -45,6 +46,9 @@ export interface AchievementGoal {
 export interface AchievementViewItem extends AchievementItem {
   goal: number; order: number; title: string; description: string; progress: number;
   version: string; reward_count: number; icon_url: string | null; is_daily_quest: boolean;
+}
+export interface AchievementSnapshot {
+  archive: AchievementArchive; entries: AchievementViewItem[]; revision: number;
 }
 export interface GachaEvent {
   id: string; version: string; gacha_type: string; name: string;

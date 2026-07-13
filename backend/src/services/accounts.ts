@@ -53,7 +53,7 @@ export class AccountService {
     if (!value) throw new AppError("role_missing", "角色不存在", 404);
     this.store.db.transaction(() => {
       this.store.db.prepare("UPDATE roles SET selected=0 WHERE account_aid=?").run(current.aid);
-      this.store.db.prepare("UPDATE roles SET selected=1 WHERE uid=?").run(uid);
+      this.store.db.prepare("UPDATE roles SET selected=1 WHERE account_aid=? AND uid=?").run(current.aid, uid);
     })();
     return { ...role(value), selected: true };
   }

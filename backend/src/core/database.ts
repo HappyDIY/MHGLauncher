@@ -1,10 +1,11 @@
 import Database from "better-sqlite3";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { securityMigrations } from "./database-security-migrations";
 
 const schema = `
 	PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
-	CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY);
+		CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY);
 	CREATE TABLE IF NOT EXISTS account(selected INTEGER NOT NULL DEFAULT 0,aid TEXT PRIMARY KEY,mid TEXT NOT NULL,nickname TEXT NOT NULL,credential_ref TEXT NOT NULL,updated_at TEXT NOT NULL);
 	CREATE TABLE IF NOT EXISTS roles(uid TEXT PRIMARY KEY,account_aid TEXT NOT NULL,nickname TEXT NOT NULL,region TEXT NOT NULL,level INTEGER NOT NULL,selected INTEGER NOT NULL DEFAULT 0,FOREIGN KEY(account_aid) REFERENCES account(aid) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS game_state(id INTEGER PRIMARY KEY CHECK(id=1),install_path TEXT NOT NULL,version TEXT NOT NULL,status TEXT NOT NULL,updated_at TEXT NOT NULL);
@@ -40,10 +41,14 @@ export class Store {
   private readonly statements = new Map<string, Database.Statement>();
 
 	  constructor(path: string) {
+	    const existing = existsSync(path), backup = `${path}.pre-security.bak`;
 	    mkdirSync(dirname(path), { recursive: true });
 	    this.db = new Database(path);
+	    if (existing && !existsSync(backup)) {
+	      this.db.pragma("wal_checkpoint(FULL)");
+	      this.db.exec(`VACUUM INTO '${backup.replaceAll("'", "''")}'`);
+	    }
 	    this.db.exec(schema);
-	    this.migrateAccounts();
 	    this.runMigrations();
 	    const columns = this.db.prepare("PRAGMA table_info(wishes)").all() as { name: string }[];
 	    if (!columns.some(({ name }) => name === "uigf_gacha_type")) {
@@ -69,38 +74,23 @@ export class Store {
     return statement;
   }
 
-  private migrateAccounts(): void {
-    const accountColumns = this.db.prepare("PRAGMA table_info(account)").all() as { name: string }[];
-    if (accountColumns.some(({ name }) => name === "id")) {
-      this.db.exec(`
-        ALTER TABLE account RENAME TO account_legacy;
-        CREATE TABLE account(selected INTEGER NOT NULL DEFAULT 0,aid TEXT PRIMARY KEY,mid TEXT NOT NULL,nickname TEXT NOT NULL,credential_ref TEXT NOT NULL,updated_at TEXT NOT NULL);
-        INSERT INTO account(selected,aid,mid,nickname,credential_ref,updated_at)
-          SELECT 1,aid,mid,nickname,credential_ref,updated_at FROM account_legacy;
-        DROP TABLE account_legacy;`);
-    }
-    const roleColumns = this.db.prepare("PRAGMA table_info(roles)").all() as { name: string }[];
-    if (!roleColumns.some(({ name }) => name === "account_aid")) {
-      const aid = (this.one("SELECT aid FROM account WHERE selected=1 ORDER BY updated_at DESC LIMIT 1")?.aid as string | undefined) ?? "";
-      this.db.exec(`
-        ALTER TABLE roles RENAME TO roles_legacy;
-        CREATE TABLE roles(uid TEXT PRIMARY KEY,account_aid TEXT NOT NULL,nickname TEXT NOT NULL,region TEXT NOT NULL,level INTEGER NOT NULL,selected INTEGER NOT NULL DEFAULT 0,FOREIGN KEY(account_aid) REFERENCES account(aid) ON DELETE CASCADE);`);
-      if (aid) {
-        const insert = this.db.prepare("INSERT INTO roles(uid,account_aid,nickname,region,level,selected) SELECT uid,?,nickname,region,level,selected FROM roles_legacy");
-        insert.run(aid);
-      }
-      this.db.exec("DROP TABLE roles_legacy");
-    }
-  }
-
-  private runMigrations(): void {
-    const current = Number(this.one("SELECT MAX(version) version FROM schema_migrations")?.version ?? 0);
-    for (const [version, sql] of migrations) {
+	  private runMigrations(): void {
+	    let current = Number(this.one("SELECT MAX(version) version FROM schema_migrations")?.version ?? 0);
+	    for (const [version, sql] of migrations) {
       if (version <= current) continue;
       this.db.transaction(() => {
         this.db.exec(sql);
-        this.db.prepare("INSERT OR IGNORE INTO schema_migrations(version) VALUES(?)").run(version);
-      })();
-    }
-  }
+	        this.db.prepare("INSERT OR IGNORE INTO schema_migrations(version) VALUES(?)").run(version);
+	      })();
+	      current = version;
+	    }
+	    for (const [version, migrate] of securityMigrations) {
+	      if (version <= current) continue;
+	      this.db.transaction(() => {
+	        migrate(this.db);
+	        this.db.prepare("INSERT INTO schema_migrations(version) VALUES(?)").run(version);
+	      })();
+	      current = version;
+	    }
+	  }
 	}

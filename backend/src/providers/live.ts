@@ -102,7 +102,7 @@ export class LiveProvider implements Provider {
   async *wishes(credential: string, role: GameRole, newest: Record<string, string>): AsyncIterable<WishRecord[]> {
     let authkey = "";
     try { authkey = await this.authkey(credential, role); } catch (error) { normalizeWishSyncError(error); }
-    for (const type of ["100", "200", "301", "302"]) {
+    for (const type of ["100", "200", "301", "302", "500"]) {
       const collected: WishRecord[] = [];
       let end = "0"; while (true) {
         const query = new URLSearchParams({ auth_appid: "webview_gacha", authkey_ver: "1", sign_type: "2", authkey, lang: "zh-cn", gacha_type: type, size: "20", end_id: end });

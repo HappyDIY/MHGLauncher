@@ -28,8 +28,9 @@ export class WishTasks {
     const job = this.create("import_uigf");
     void this.run(job, async () => {
       const records = importUIGF(payload); this.append(job, `已校验 ${records.length} 条 UIGF 记录`, 0.5);
+      job.target_uids = [...new Set(records.map(({ uid }) => uid))].sort();
       this.wishes.save(records);
-      return { result: { imported: records.length }, message: `成功导入 ${records.length} 条记录` };
+      return { result: { imported: records.length, uid_count: job.target_uids.length }, message: `成功导入 ${records.length} 条记录` };
     });
     return job;
   }
