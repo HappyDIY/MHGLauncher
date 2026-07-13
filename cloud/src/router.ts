@@ -1,12 +1,11 @@
 import { z } from "zod";
-import { issue, requireFresh, requireSession, reverify, verifyGachaUrl } from "./auth";
+import { issue, requireFresh, requireSession, reverify, revoke, verifyGachaUrl } from "./auth";
 import { ready } from "./db";
 import { bearer, fail, HttpError, json } from "./http";
 import * as gacha from "./gacha";
 
 const gachaUrl = z.object({ gacha_url: z.string().url() });
-const uidBody = z.object({ uid: z.string().min(1) });
-const uploadBody = uidBody.extend({ items: z.array(z.any()) });
+const uploadBody = z.object({ items: z.array(z.any()) });
 
 export async function dispatch(request: Request): Promise<Response> {
   try {
@@ -14,18 +13,17 @@ export async function dispatch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname.replace(/^\/api\/v1/, "");
     const body = request.method === "POST" ? await request.json() : undefined;
-    return await route(request.method, path, url.searchParams, body, request);
+    return await route(request.method, path, body, request);
   } catch (error) {
     if (error instanceof z.ZodError) return json({ code: "validation_error", message: "请求参数无效", detail: error.issues }, 422);
     return fail(error);
   }
 }
 
-async function route(method: string, path: string, query: URLSearchParams, body: unknown, request: Request): Promise<Response> {
+async function route(method: string, path: string, body: unknown, request: Request): Promise<Response> {
   if (method === "POST" && path === "/auth/gacha-url") {
     const proof = await verifyGachaUrl(gachaUrl.parse(body).gacha_url);
-    const session = await issue(proof.uid);
-    await gacha.upload(proof.uid, proof.items);
+    const session = await issue(proof.uid, (client) => gacha.uploadWithClient(client, proof.uid, proof.items).then(() => undefined));
     return json(session);
   }
   if (method === "POST" && path === "/auth/reverify") {
@@ -33,34 +31,22 @@ async function route(method: string, path: string, query: URLSearchParams, body:
     return json(await reverify(bearer(request), proof.uid));
   }
   if (method === "GET" && path === "/me") return json(await requireSession(bearer(request)));
+  if (method === "POST" && path === "/auth/revoke") { await revoke(bearer(request)); return new Response(null, { status: 204 }); }
   if (method === "GET" && path === "/gacha/entries") {
-    const uid = required(query, "uid"); await requireSession(bearer(request), uid);
-    return json(await gacha.entries(uid));
+    const session = await requireSession(bearer(request)); return json(await gacha.entries(session.uid));
   }
   if (method === "GET" && path === "/gacha/end-ids") {
-    const uid = required(query, "uid"); await requireSession(bearer(request), uid);
-    return json(await gacha.endIds(uid));
+    const session = await requireSession(bearer(request)); return json(await gacha.endIds(session.uid));
   }
   if (method === "POST" && path === "/gacha/upload") {
-    const value = uploadBody.parse(body); await requireFresh(bearer(request), value.uid);
-    return json(await gacha.upload(value.uid, value.items));
+    const value = uploadBody.parse(body), session = await requireFresh(bearer(request));
+    return json(await gacha.upload(session.uid, value.items));
   }
   if (method === "POST" && path === "/gacha/retrieve") {
-    const value = uidBody.parse(body); await requireSession(bearer(request), value.uid);
-    return json(await gacha.retrieve(value.uid));
+    const session = await requireSession(bearer(request)); return json(await gacha.retrieve(session.uid));
   }
-  const remove = match(path, /^\/gacha\/([^/]+)$/);
-  if (method === "DELETE" && remove) { await requireFresh(bearer(request), remove); return json(await gacha.remove(remove)); }
+  if (method === "DELETE" && path === "/gacha") {
+    const session = await requireFresh(bearer(request)); return json(await gacha.remove(session.uid));
+  }
   throw new HttpError(404, "not_found", "接口不存在");
-}
-
-function match(path: string, expression: RegExp): string | null {
-  const value = expression.exec(path)?.[1];
-  return value ? decodeURIComponent(value) : null;
-}
-
-function required(query: URLSearchParams, name: string): string {
-  const value = query.get(name);
-  if (!value) throw new HttpError(422, "validation_error", `${name} 不能为空`);
-  return value;
 }

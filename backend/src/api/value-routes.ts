@@ -44,6 +44,7 @@ export async function valueRoute(app: Container, method: string, path: string, q
   if (method === "POST" && path === "/cloud/wishes/upload") { const value = cloudUid.parse(body); return json(await app.cloud.uploadWishes(value.uid, value.token)); }
   if (method === "POST" && path === "/cloud/wishes/retrieve") { const value = cloudUid.parse(body); return json(await app.cloud.retrieveWishes(value.uid, value.token)); }
   if (method === "POST" && path === "/cloud/wishes/delete") { const value = cloudUid.parse(body); return json(await app.cloud.deleteWishes(value.uid, value.token)); }
+  if (method === "POST" && path === "/cloud/revoke") { const value = cloudUid.parse(body); await app.cloud.revokeSession(value.uid, value.token); return new Response(null, { status: 204 }); }
   if (method === "GET" && path === "/notifications/settings") return json(app.notifications.get());
   if (method === "PUT" && path === "/notifications/settings") return json(app.notifications.update(settings.parse(body)));
   if (method === "POST" && path === "/notifications/evaluate") {

@@ -45,19 +45,30 @@ export class CloudSyncService {
   async uploadWishes(uid: string, token: string): Promise<Record<string, number>> {
     const items = this.wishes.list(uid);
     if (!this.settings.cloudBaseUrl) return { uploaded: items.length };
-    return this.remote<Record<string, number>>("/api/v1/gacha/upload", token, { uid, items });
+    await this.assertRemoteIdentity(uid, token);
+    return this.remote<Record<string, number>>("/api/v1/gacha/upload", token, { items });
   }
 
   async retrieveWishes(uid: string, token: string): Promise<Record<string, number>> {
     if (!this.settings.cloudBaseUrl) return { imported: 0 };
-    const items = await this.remote<{ items: unknown[] }>("/api/v1/gacha/retrieve", token, { uid });
+    await this.assertRemoteIdentity(uid, token);
+    const items = await this.remote<{ items: unknown[] }>("/api/v1/gacha/retrieve", token, {});
     this.wishes.save(items.items as Parameters<WishService["save"]>[0]);
     return { imported: items.items.length };
   }
 
   async deleteWishes(uid: string, token: string): Promise<Record<string, number>> {
     if (!this.settings.cloudBaseUrl) return { deleted: 0 };
-    return this.remote<Record<string, number>>(`/api/v1/gacha/${encodeURIComponent(uid)}`, token, undefined, "DELETE");
+    await this.assertRemoteIdentity(uid, token);
+    return this.remote<Record<string, number>>("/api/v1/gacha", token, undefined, "DELETE");
+  }
+
+  async revokeSession(uid: string, token: string): Promise<void> {
+    if (this.settings.cloudBaseUrl) {
+      await this.assertRemoteIdentity(uid, token);
+      await this.remote<Record<string, never>>("/api/v1/auth/revoke", token, {});
+    }
+    this.store.db.prepare("DELETE FROM cloud_sessions WHERE uid=?").run(uid);
   }
 
   private save(uid: string, tokenRef: string, reverifiedAt: string): void {
@@ -72,9 +83,14 @@ export class CloudSyncService {
       method, headers: { "Content-Type": "application/json", Authorization: token ? `Bearer ${token}` : "" },
       body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(30_000),
     });
-    const payload = await response.json() as T & { message?: string };
+    const payload = response.status === 204 ? {} as T & { message?: string } : await response.json() as T & { message?: string };
     if (!response.ok) throw new AppError("cloud_error", payload.message ?? "云端服务请求失败", response.status);
     return payload;
+  }
+
+  private async assertRemoteIdentity(uid: string, token: string): Promise<void> {
+    const session = await this.remote<{ uid: string }>("/api/v1/me", token, undefined, "GET");
+    if (session.uid !== uid) throw new AppError("cloud_identity_mismatch", "云端会话与角色 UID 不匹配", 403);
   }
 
   private token(): string { return randomBytes(32).toString("base64url"); }

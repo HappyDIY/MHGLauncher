@@ -1,3 +1,4 @@
+import type { PoolClient } from "pg";
 import { pool, transaction } from "./db";
 
 export type CloudWish = {
@@ -6,18 +7,20 @@ export type CloudWish = {
 };
 
 export async function upload(uid: string, items: CloudWish[]): Promise<{ uploaded: number }> {
+  return transaction((client) => uploadWithClient(client, uid, items));
+}
+
+export async function uploadWithClient(client: PoolClient, uid: string, items: CloudWish[]): Promise<{ uploaded: number }> {
   const unique = new Map<string, CloudWish>();
   for (const item of items) if (item.uid === uid && /^\d{1,19}$/.test(item.id)) unique.set(item.id, item);
   const filtered = [...unique.values()].sort((left, right) => left.id.length - right.id.length || left.id.localeCompare(right.id));
-  await transaction(async (client) => {
-    for (const item of filtered) {
-      await client.query(`INSERT INTO gacha_records(uid,id,gacha_type,uigf_gacha_type,item_id,name,item_type,rank,time,payload)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(uid,id) DO UPDATE SET
-        gacha_type=excluded.gacha_type,uigf_gacha_type=excluded.uigf_gacha_type,item_id=excluded.item_id,
-        name=excluded.name,item_type=excluded.item_type,rank=excluded.rank,time=excluded.time,payload=excluded.payload`,
-      [uid, item.id, item.gacha_type, item.uigf_gacha_type || item.gacha_type, item.item_id, item.name, item.item_type, item.rank, item.time, item]);
-    }
-  });
+  for (const item of filtered) {
+    await client.query(`INSERT INTO gacha_records(uid,id,gacha_type,uigf_gacha_type,item_id,name,item_type,rank,time,payload)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(uid,id) DO UPDATE SET
+      gacha_type=excluded.gacha_type,uigf_gacha_type=excluded.uigf_gacha_type,item_id=excluded.item_id,
+      name=excluded.name,item_type=excluded.item_type,rank=excluded.rank,time=excluded.time,payload=excluded.payload`,
+    [uid, item.id, item.gacha_type, item.uigf_gacha_type || item.gacha_type, item.item_id, item.name, item.item_type, item.rank, item.time, item]);
+  }
   return { uploaded: filtered.length };
 }
 
