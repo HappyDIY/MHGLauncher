@@ -1,21 +1,20 @@
 import { randomUUID } from "node:crypto";
-import { chmodSync, closeSync, existsSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, renameSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, fstatSync, openSync, readFileSync, readSync } from "node:fs";
 import { join } from "node:path";
 import { AppError } from "../core/errors";
 import type { GameLaunch, GamePerformanceProfile } from "../core/models";
 import { type DllIntegrity, type DllJournal, MHYPBASE_INTEGRITY, prepareDll, restoreDll } from "./game-launch-files";
 import { type GameLaunchRunner, WineLaunchRunner } from "./game-launch-process";
-import { recoverInterruptedDlls } from "./game-launch-recovery";
+import { DllRecoveryGuardian } from "./game-launch-guardian";
 import { ensureGameConfiguration } from "./game-config";
 import { detectGame } from "./game-detection";
 import type { RegistryAccount } from "./game-account-registry";
 import { RevisionNotifier } from "./revision-notifier";
-
+import { loadLaunchStatuses, persistLaunchStatus } from "./game-launch-status-store";
 export interface StartLaunch {
   install_path: string; performance_profile: GamePerformanceProfile; metal_hud: boolean;
   network_debug: boolean; wine_log: boolean; frame_pacing: number; account?: RegistryAccount;
 }
-
 export class GameLaunchService {
   private readonly launches = new Map<string, GameLaunch>();
   private readonly dnsLines = new Map<string, number>();
@@ -24,14 +23,20 @@ export class GameLaunchService {
   private readonly controllers = new Map<string, AbortController>();
   private readonly notifier = new RevisionNotifier<GameLaunch>();
   private readonly persisted = new Map<string, string>();
+  private readonly guardian: DllRecoveryGuardian;
   constructor(
     private readonly dataDir: string,
     private readonly runtimeRoot: string,
     private readonly runner: GameLaunchRunner = new WineLaunchRunner(),
     private readonly integrity: DllIntegrity = MHYPBASE_INTEGRITY,
     private readonly resourcesBusy: () => boolean = () => false,
-  ) { recoverInterruptedDlls(this.dataDir); }
-
+  ) {
+    for (const launch of loadLaunchStatuses(this.dataDir)) {
+      this.launches.set(launch.id, launch); this.persisted.set(launch.id, JSON.stringify(launch)); this.notifier.mark(launch.id, launch);
+    }
+    this.guardian = new DllRecoveryGuardian(this.dataDir, () => this.finishRecovered());
+    if (!this.guardian.pending()) this.finishRecovered();
+  }
   start(input: StartLaunch): GameLaunch {
     if (this.resourcesBusy()) throw new AppError("game_job_busy", "游戏资源任务运行期间无法启动游戏", 409);
     if ([...this.launches.values()].some((value) => !["exited", "stopped", "failed"].includes(value.status))) {
@@ -47,16 +52,14 @@ export class GameLaunchService {
       logs: [{ sequence: 1, timestamp: now, kind: "launch", message: "启动任务已创建" }],
       started_at: now, updated_at: now, revision: 0,
     };
-    this.launches.set(launch.id, this.notifier.mark(launch.id, launch)); this.persist(launch);
+    this.notifier.mark(launch.id, launch); this.persist(launch); this.launches.set(launch.id, launch);
     const controller = new AbortController(); this.controllers.set(launch.id, controller);
     setImmediate(() => void this.execute(launch, detected.path, input.frame_pacing, controller.signal, input.wine_log, input.account));
     return launch;
   }
-
   async wait(id: string, after: number, waitMs: number): Promise<GameLaunch> {
     return this.notifier.wait(id, after, waitMs, () => this.get(id));
   }
-
   get(id: string): GameLaunch {
     const launch = this.launches.get(id);
     if (!launch) throw new AppError("game_launch_missing", "游戏启动会话不存在", 404);
@@ -64,7 +67,6 @@ export class GameLaunchService {
     if (launch.wine_log) this.readWineLogs(launch);
     return launch;
   }
-
   stop(id: string): GameLaunch {
     const launch = this.get(id);
     if (["exited", "stopped", "failed"].includes(launch.status)) return launch;
@@ -72,33 +74,51 @@ export class GameLaunchService {
     this.controllers.get(id)?.abort();
     return launch;
   }
-
+  active(): boolean { return [...this.launches.values()].some((value) => !["exited", "stopped", "failed"].includes(value.status)); }
+  recovery(): { pending: boolean; warnings: string[] } { return { pending: this.guardian.pending(), warnings: this.guardian.warnings() }; }
+  async drain(): Promise<void> { await this.guardian.drain(() => this.active()); }
+  close(): void { this.guardian.close(); }
   private async execute(launch: GameLaunch, gameRoot: string, framePacing: number, signal: AbortSignal, wineLog: boolean, account?: RegistryAccount): Promise<void> {
     const sessionDir = join(this.dataDir, "launches", launch.id);
-    let journal: DllJournal | null = null;
+    let journal: DllJournal | null = null, code: number | null = null, failure: unknown = null;
     try {
       this.update(launch, "preparing", "正在校验并准备游戏文件", 0.1);
       journal = prepareDll(gameRoot, join(this.runtimeRoot, "assets", "mhypbase.dll"), sessionDir, this.integrity);
       this.update(launch, "preparing", "游戏文件准备完成", 0.22);
-      const code = await this.runner.run({
+      code = await this.runner.run({
         gameRoot, runtimeRoot: this.runtimeRoot, dataDir: this.dataDir, sessionDir,
         profile: launch.performance_profile, metalHud: launch.metal_hud,
         networkDebug: launch.network_debug, wineLog, framePacing, signal, account,
       }, (status, message = "", progress) => this.update(launch, status, message, progress));
-      const warning = restoreDll(journal);
-      const stopped = launch.status === "stopping";
-      const status = stopped ? "stopped" : code === 0 ? "exited" : "failed";
-      const message = stopped ? "游戏已停止，临时文件已恢复" : code === 0 ? "游戏已正常退出" : `游戏进程退出码：${code}`;
-      this.update(launch, status, warning || message, 1);
     } catch (error) {
-      const warning = restoreDll(journal);
-      const message = error instanceof AppError ? error.message : "游戏启动失败，请稍后重试";
-      this.update(launch, "failed", warning ? `${message}；${warning}` : message);
+      failure = error;
     } finally {
+      try {
+      let warning = "", pending = false;
+      if (failure instanceof AppError && failure.code === "wine_server_stop_failed") {
+        warning = "Wine 进程尚未确认退出，DLL 恢复记录已交由守护任务"; pending = true;
+      } else {
+        try { const result = restoreDll(journal); warning = result.warning; pending = result.pending; }
+        catch (error) { warning = error instanceof Error ? error.message : "DLL 恢复失败"; pending = true; }
+      }
+      if (pending || failure) this.guardian.refresh();
+      if (failure) {
+        const message = failure instanceof AppError ? failure.message : "游戏启动失败，请稍后重试";
+        this.update(launch, "failed", warning ? `${message}；${warning}` : message);
+      } else {
+        const stopped = launch.status === "stopping", status = stopped ? "stopped" : code === 0 ? "exited" : "failed";
+        const message = stopped ? "游戏已停止，临时文件已恢复" : code === 0 ? "游戏已正常退出" : `游戏进程退出码：${code}`;
+        this.update(launch, status, warning || message, 1);
+      }
+      } catch (error) {
+        launch.status = "failed"; launch.message = error instanceof Error ? error.message : "启动会话终态持久化失败";
+        this.notifier.mark(launch.id, launch); this.guardian.refresh();
+      } finally {
       this.controllers.delete(launch.id);
       this.dnsLines.delete(launch.id);
       this.wineLines.delete(launch.id);
       this.logReadAt.delete(launch.id);
+      }
     }
   }
 
@@ -163,12 +183,13 @@ export class GameLaunchService {
   private persist(launch: GameLaunch): void {
     const payload = JSON.stringify(launch);
     if (this.persisted.get(launch.id) === payload) return;
-    this.persisted.set(launch.id, payload);
-    const directory = join(this.dataDir, "launches", launch.id); mkdirSync(directory, { recursive: true, mode: 0o700 });
-    const target = join(directory, "status.json"), temp = `${target}.${process.pid}.tmp`;
-    writeFileSync(temp, payload, { mode: 0o600 }); chmodSync(temp, 0o600); renameSync(temp, target);
+    this.persisted.set(launch.id, persistLaunchStatus(this.dataDir, launch));
   }
-
+  private finishRecovered(): void {
+    for (const launch of this.launches.values()) if (!["exited", "stopped", "failed"].includes(launch.status)) {
+      this.update(launch, "exited", this.guardian.warnings().at(-1) ?? "游戏已退出，临时文件已由恢复守护任务还原", 1);
+    }
+  }
   private canReadLogs(id: string): boolean {
     const now = Date.now(), previous = this.logReadAt.get(id) ?? 0;
     if (now - previous < 1_000) return false;

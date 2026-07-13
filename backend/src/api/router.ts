@@ -104,6 +104,7 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   }
   const launchStop = match(path, /^\/game\/launches\/([^/]+)\/stop$/);
   if (method === "POST" && launchStop) return json(app.launches.stop(launchStop), 202);
+  if (method === "GET" && path === "/game/launches/recovery") return json(app.launches.recovery());
   const launch = match(path, /^\/game\/launches\/([^/]+)$/);
   if (method === "GET" && launch) { const wait = longPollOptions(query); return json(await app.launches.wait(launch, wait.after, wait.waitMs)); }
   if (method === "POST" && path === "/wishes/tasks/sync") return json(app.wishTasks.startSync(credential.parse(body).credential), 202);

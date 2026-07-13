@@ -32,6 +32,7 @@ async function shutdown(): Promise<void> {
   deadline.unref();
   await closed;
   clearTimeout(deadline);
+  await container().launches.drain();
   closeContainer();
   await releaseSocket(config.socketPath, listeningSocket);
 }

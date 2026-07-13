@@ -64,7 +64,7 @@ export class Container {
 	    this.cloud = new CloudSyncService(config, this.store, this.records, this.wishes);
 	  }
 
-  close(): void { this.store.close(); }
+  close(): void { this.launches.close(); this.store.close(); }
 }
 
 declare global { var mhgContainer: Container | undefined; }

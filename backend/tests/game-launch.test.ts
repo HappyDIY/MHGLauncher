@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
@@ -7,6 +7,7 @@ import { prepareDll, type DllIntegrity } from "../src/services/game-launch-files
 import { recoverInterruptedDlls } from "../src/services/game-launch-recovery";
 import type { GameLaunchRunner, LaunchReporter, LaunchRunInput } from "../src/services/game-launch-process";
 import { GameLaunchService } from "../src/services/game-launches";
+import { AppError } from "../src/core/errors";
 
 const roots: string[] = [];
 
@@ -32,6 +33,10 @@ class BlockingRunner implements GameLaunchRunner {
 
 class FailingRunner implements GameLaunchRunner {
   async run(): Promise<number> { throw new Error("spawn ENOENT: /private/runtime/wine64"); }
+}
+
+class StopFailingRunner implements GameLaunchRunner {
+  async run(): Promise<number> { throw new AppError("wine_server_stop_failed", "Wine 服务未确认退出", 500); }
 }
 
 describe("游戏启动会话", () => {
@@ -90,9 +95,51 @@ describe("游戏启动会话", () => {
     const session = join(fixture.data, "launches", "interrupted");
     prepareDll(fixture.game, join(fixture.runtime, "assets", "mhypbase.dll"), session, fixture.integrity);
     expect(readFileSync(join(fixture.game, "mhypbase.dll"), "utf8")).toBe("verified-fixture-dll");
-    expect(recoverInterruptedDlls(fixture.data)).toEqual([]);
+    expect(recoverInterruptedDlls(fixture.data)).toEqual({ warnings: [], pending: false });
     expect(readFileSync(join(fixture.game, "mhypbase.dll"), "utf8")).toBe("original-dll");
-    expect(existsSync(join(session, "dll-journal.json.restored"))).toBe(true);
+    expect(existsSync(join(session, "dll-journal.json"))).toBe(false);
+  });
+
+  test("恢复保留原 DLL 权限并消费成功 journal", async () => {
+    const fixture = makeFixture(), target = join(fixture.game, "mhypbase.dll"); chmodSync(target, 0o755);
+    const service = new GameLaunchService(fixture.data, fixture.runtime, new FixtureRunner(), fixture.integrity);
+    const launch = service.start({ install_path: fixture.game, performance_profile: "optimized", metal_hud: false, network_debug: false, wine_log: false, frame_pacing: 0 });
+    await waitFor(() => service.get(launch.id).status === "exited");
+    expect(statSync(target).mode & 0o777).toBe(0o755);
+    expect(existsSync(join(fixture.data, "launches", launch.id, "dll-journal.json"))).toBe(false);
+  });
+
+  test("外部修改时保留恢复记录供后续重试", () => {
+    const fixture = makeFixture(), session = join(fixture.data, "launches", "interrupted");
+    prepareDll(fixture.game, join(fixture.runtime, "assets", "mhypbase.dll"), session, fixture.integrity);
+    writeFileSync(join(fixture.game, "mhypbase.dll"), "external");
+    const result = recoverInterruptedDlls(fixture.data);
+    expect(result.pending).toBe(true); expect(result.warnings[0]).toContain("恢复记录已保留");
+    expect(existsSync(join(session, "dll-journal.json"))).toBe(true);
+  });
+
+  test("重启后重新加载持久会话并完成 DLL 恢复", async () => {
+    const fixture = makeFixture(), first = new GameLaunchService(fixture.data, fixture.runtime, new BlockingRunner(), fixture.integrity);
+    const launch = first.start({ install_path: fixture.game, performance_profile: "optimized", metal_hud: false, network_debug: false, wine_log: false, frame_pacing: 0 });
+    await waitFor(() => first.get(launch.id).status === "running");
+    const restarted = new GameLaunchService(fixture.data, fixture.runtime, new FixtureRunner(), fixture.integrity);
+    expect(restarted.get(launch.id).status).toBe("exited");
+    first.stop(launch.id); await waitFor(() => first.get(launch.id).status === "stopped"); restarted.close();
+  });
+
+  test("初始状态持久化失败不会发布幽灵会话", () => {
+    const fixture = makeFixture(), service = new GameLaunchService(fixture.data, fixture.runtime, new FixtureRunner(), fixture.integrity);
+    mkdirSync(fixture.data, { recursive: true });
+    writeFileSync(join(fixture.data, "launches"), "blocked");
+    expect(() => service.start({ install_path: fixture.game, performance_profile: "optimized", metal_hud: false, network_debug: false, wine_log: false, frame_pacing: 0 })).toThrow();
+    expect(service.active()).toBe(false);
+  });
+
+  test("停止确认失败发布终态并交由恢复守护任务", async () => {
+    const fixture = makeFixture(), service = new GameLaunchService(fixture.data, fixture.runtime, new StopFailingRunner(), fixture.integrity);
+    const launch = service.start({ install_path: fixture.game, performance_profile: "optimized", metal_hud: false, network_debug: false, wine_log: false, frame_pacing: 0 });
+    await waitFor(() => service.get(launch.id).status === "failed");
+    expect(service.get(launch.id).message).toContain("Wine 服务未确认退出"); expect(service.active()).toBe(false);
   });
 });
 

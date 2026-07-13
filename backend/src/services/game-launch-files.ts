@@ -3,6 +3,7 @@ import {
   renameSync, rmSync, writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { AppError } from "../core/errors";
 import { hashFileSync } from "./file-hash";
 
@@ -14,8 +15,11 @@ export const MHYPBASE_INTEGRITY: DllIntegrity = {
 };
 
 export interface DllJournal {
-  target: string; backup: string; original_exists: boolean; original_sha256: string; replacement_md5: string;
+  schema: 2; generation: string; phase: "planned" | "installed"; journal_path: string;
+  target: string; backup: string; original_exists: boolean; original_sha256: string;
+  original_mode: number; original_dev: string; original_ino: string; replacement_md5: string;
 }
+export interface DllRestoreResult { warning: string; pending: boolean }
 
 const verifiedSources = new Map<string, string>();
 
@@ -24,36 +28,55 @@ export function prepareDll(
 ): DllJournal | null {
   verifySource(source, integrity);
   const target = join(gameRoot, "mhypbase.dll");
+  if (existsSync(target) && !lstatSync(target).isFile()) throw new AppError("mhypbase_target_invalid", "mhypbase.dll 目标不是普通文件", 500);
   if (existsSync(target) && digest(target, "md5") === integrity.md5) return null;
   mkdirSync(sessionDir, { recursive: true, mode: 0o700 });
   const backup = join(sessionDir, "mhypbase.original.dll");
+  const journalPath = join(sessionDir, "dll-journal.json");
   const originalExists = existsSync(target);
+  const originalStat = originalExists ? lstatSync(target, { bigint: true }) : null;
   const originalSha256 = originalExists ? digest(target, "sha256") : "";
-  if (originalExists) copyAtomic(target, backup, 0o600);
-  copyAtomic(source, target, originalExists ? lstatSync(target).mode & 0o777 : 0o644);
+  const journal: DllJournal = {
+    schema: 2, generation: `${Date.now()}-${randomUUID()}`, phase: "planned", journal_path: journalPath,
+    target, backup, original_exists: originalExists, original_sha256: originalSha256,
+    original_mode: originalStat ? Number(originalStat.mode & 0o777n) : 0o644,
+    original_dev: originalStat?.dev.toString() ?? "", original_ino: originalStat?.ino.toString() ?? "",
+    replacement_md5: integrity.md5,
+  };
+  writeAtomic(journalPath, JSON.stringify(journal), 0o600);
+  if (originalExists) copyAtomic(target, backup, journal.original_mode);
+  copyAtomic(source, target, journal.original_mode);
   if (digest(target, "md5") !== integrity.md5) {
-    if (originalExists) copyAtomic(backup, target, lstatSync(backup).mode & 0o777);
-    else rmSync(target, { force: true });
+    restoreDll(journal);
     throw new AppError("mhypbase_replace_failed", "mhypbase.dll 原子替换校验失败", 500);
   }
-  const journal = { target, backup, original_exists: originalExists, original_sha256: originalSha256, replacement_md5: integrity.md5 };
-  writeAtomic(join(sessionDir, "dll-journal.json"), JSON.stringify(journal), 0o600);
+  journal.phase = "installed"; writeAtomic(journalPath, JSON.stringify(journal), 0o600);
   return journal;
 }
 
-export function restoreDll(journal: DllJournal | null): string {
-  if (!journal) return "";
+export function restoreDll(journal: DllJournal | null): DllRestoreResult {
+  if (!journal) return { warning: "", pending: false };
+  if (journal.schema !== 2) return { warning: "mhypbase.dll 恢复记录版本无效", pending: true };
+  if (journal.original_exists && existsSync(journal.target) && digest(journal.target, "sha256") === journal.original_sha256) {
+    finishJournal(journal); return { warning: "", pending: false };
+  }
+  if (!journal.original_exists && !existsSync(journal.target)) {
+    finishJournal(journal); return { warning: "", pending: false };
+  }
   if (!existsSync(journal.target) || digest(journal.target, "md5") !== journal.replacement_md5) {
-    return "mhypbase.dll 已被其他程序修改，已保留外部版本";
+    return { warning: "mhypbase.dll 已被其他程序修改，恢复记录已保留", pending: true };
   }
   if (!journal.original_exists) rmSync(journal.target, { force: true });
   else {
     if (!existsSync(journal.backup) || digest(journal.backup, "sha256") !== journal.original_sha256) {
-      return "mhypbase.dll 原始备份校验失败，未执行恢复";
+      return { warning: "mhypbase.dll 原始备份校验失败，恢复记录已保留", pending: true };
     }
-    copyAtomic(journal.backup, journal.target, lstatSync(journal.backup).mode & 0o777);
+    copyAtomic(journal.backup, journal.target, journal.original_mode);
   }
-  return "";
+  if (journal.original_exists && digest(journal.target, "sha256") !== journal.original_sha256) {
+    return { warning: "mhypbase.dll 恢复后校验失败，恢复记录已保留", pending: true };
+  }
+  finishJournal(journal); return { warning: "", pending: false };
 }
 
 function verifySource(path: string, integrity = MHYPBASE_INTEGRITY): void {
@@ -75,13 +98,18 @@ function digest(path: string, algorithm: "md5" | "sha256"): string {
 
 function copyAtomic(source: string, target: string, mode: number): void {
   mkdirSync(dirname(target), { recursive: true });
-  const temp = `${target}.${process.pid}.tmp`;
-  copyFileSync(source, temp); chmodSync(temp, mode); syncFile(temp); renameSync(temp, target);
+  const temp = `${target}.${randomUUID()}.tmp`;
+  copyFileSync(source, temp); chmodSync(temp, mode); syncFile(temp); renameSync(temp, target); syncDirectory(dirname(target));
 }
 
 function writeAtomic(path: string, content: string, mode: number): void {
-  const temp = `${path}.${process.pid}.tmp`;
-  writeFileSync(temp, content, { mode }); syncFile(temp); renameSync(temp, path);
+  const temp = `${path}.${randomUUID()}.tmp`;
+  writeFileSync(temp, content, { mode, flag: "wx" }); syncFile(temp); renameSync(temp, path); syncDirectory(dirname(path));
 }
 
 function syncFile(path: string): void { const fd = openSync(path, "r"); try { fsyncSync(fd); } finally { closeSync(fd); } }
+function syncDirectory(path: string): void { const fd = openSync(path, "r"); try { fsyncSync(fd); } finally { closeSync(fd); } }
+function finishJournal(journal: DllJournal): void {
+  rmSync(journal.backup, { force: true }); rmSync(journal.journal_path, { force: true });
+  syncDirectory(dirname(journal.journal_path)); syncDirectory(dirname(journal.target));
+}

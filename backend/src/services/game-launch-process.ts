@@ -53,7 +53,6 @@ export class WineLaunchRunner implements GameLaunchRunner {
     } finally {
       closeSync(descriptor);
     }
-    child.unref(); report("waiting_window", "游戏进程已创建，正在等待窗口", 0.82);
     const gate = String(env.MHG_DNS_GATE_FILE);
     let released = false;
     const releaseGate = (message: string): void => {
@@ -68,16 +67,28 @@ export class WineLaunchRunner implements GameLaunchRunner {
     const fallback = setTimeout(() => {
       clearInterval(probe); releaseGate("窗口探针超时，已自动解除域名屏蔽");
     }, 30_000);
-    return await new Promise<number>((resolve, reject) => {
-      const cleanup = (): void => {
-        clearInterval(probe); clearTimeout(fallback); rmSync(gate, { force: true });
-        if (registrySnapshot) { restoreGameAccountRegistry(paths.wine, env, registrySnapshot); registrySnapshot = null; }
+    let terminate = (): void => undefined;
+    const completion = new Promise<number>((resolve, reject) => {
+      let cleaned = false, reported = false;
+      const cleanup = (): void => { clearInterval(probe); clearTimeout(fallback); rmSync(gate, { force: true }); };
+      const finish = (code: number, error?: unknown): void => {
+        if (cleaned) return; cleanup();
+        try {
+          this.stopServer(paths.wineserver, prefix);
+          if (registrySnapshot) { restoreGameAccountRegistry(paths.wine, env, registrySnapshot); registrySnapshot = null; }
+          cleaned = true;
+          if (!reported) { reported = true; if (error) reject(error); else resolve(code); }
+        } catch (stopError) { if (!reported) { reported = true; reject(stopError); } }
       };
-      const stop = (): void => { cleanup(); this.stopServer(paths.wineserver, prefix); resolve(0); };
+      const stop = (): void => finish(0);
+      terminate = stop;
       input.signal.addEventListener("abort", stop, { once: true });
-      child.once("error", (error) => { cleanup(); input.signal.removeEventListener("abort", stop); this.stopServer(paths.wineserver, prefix); reject(error); });
-      child.once("exit", (code) => { cleanup(); input.signal.removeEventListener("abort", stop); this.stopServer(paths.wineserver, prefix); resolve(code ?? 1); });
+      child.once("error", (error) => { input.signal.removeEventListener("abort", stop); finish(1, error); });
+      child.once("exit", (code) => { input.signal.removeEventListener("abort", stop); finish(code ?? 1); });
     });
+    try { report("waiting_window", "游戏进程已创建，正在等待窗口", 0.82); }
+    catch (error) { terminate(); await completion.catch(() => undefined); throw error; }
+    return await completion;
   }
 
   private preflight(
@@ -139,7 +150,10 @@ export class WineLaunchRunner implements GameLaunchRunner {
 
   private stopServer(wineserver: string, prefix: string): void {
     const env = { ...process.env, WINEPREFIX: prefix, WINEDEBUG: "-all" };
-    spawnSync(wineserver, ["-k"], { env, stdio: "ignore" });
-    spawnSync(wineserver, ["-w"], { env, stdio: "ignore" });
+    const stop = spawnSync(wineserver, ["-k"], { env, stdio: "ignore", timeout: 30_000 });
+    const wait = stop.status === 0 ? spawnSync(wineserver, ["-w"], { env, stdio: "ignore", timeout: 30_000 }) : null;
+    if (stop.error || stop.status !== 0 || wait?.error || wait?.status !== 0) {
+      throw new AppError("wine_server_stop_failed", "Wine 服务未能在期限内确认退出", 500);
+    }
   }
 }
