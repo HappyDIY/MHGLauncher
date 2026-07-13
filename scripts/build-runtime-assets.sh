@@ -7,6 +7,8 @@ tag="${1:?缺少版本 tag，例如 v0.1.0}"
   printf '运行时版本 tag 必须是 v 开头的语义版本。\n' >&2
   exit 2
 }
+app_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$root/packaging/Info.plist")"
+[[ "$tag" == "v$app_version" ]] || { printf '运行时 tag 必须与 App 版本 v%s 一致。\n' "$app_version" >&2; exit 2; }
 out="$root/build/runtime-assets/$tag"
 stage="$(mktemp -d)"
 asset_base="https://github.com/HappyDIY/MHGLauncher/releases/download/$tag"
@@ -95,10 +97,11 @@ mkdir -p "$backend_stage/backend/app"
 cp -R "$root/build/backend/dist/MHGLauncherBackend/app/." "$backend_stage/backend/app/"
 (
   cd "$backend_stage/backend/app"
-  PATH="$node_root/bin:$PATH" npm ci --omit=dev
+  PATH="$node_root/bin:$PATH" npm_config_build_from_source=true npm ci --omit=dev
+  PATH="$node_root/bin:$PATH" npm sbom --omit=dev --sbom-format cyclonedx >"$stage/backend-sbom.cdx.json"
 )
 find "$backend_stage/backend/app/node_modules" \
-  \( -name '*.md' -o -name '*.map' -o -name '*.tsbuildinfo' \) -type f -delete
+  \( -name '*.map' -o -name '*.tsbuildinfo' \) -type f -delete
 find "$backend_stage/backend/app/node_modules" \
   \( -type d -name test -o -type d -name tests -o -type d -name docs -o -type d -name examples \) \
   -prune -exec rm -rf {} +
@@ -106,12 +109,17 @@ find "$backend_stage/backend/app/node_modules" \
 node_stage="$stage/node"
 mkdir -p "$node_stage/node/bin"
 cp "$node_root/bin/node" "$node_stage/node/bin/node"
+cp "$node_root/LICENSE" "$node_stage/node/LICENSE"
 chmod +x "$node_stage/node/bin/node"
 archive_component node core 24.17.0 node "$node_stage"
 
 modules_stage="$stage/node_modules"
 mkdir -p "$modules_stage/backend/app"
 mv "$backend_stage/backend/app/node_modules" "$modules_stage/backend/app/node_modules"
+mv "$stage/backend-sbom.cdx.json" "$modules_stage/backend/app/SBOM.cdx.json"
+jq -r '.packages | to_entries[] | select(.key | startswith("node_modules/")) | select(.value.dev != true) |
+  "\(.value.name // .key)\t\(.value.version // "unknown")\t\(.value.license // "UNKNOWN")"' \
+  "$root/backend/package-lock.json" >"$modules_stage/backend/app/THIRD_PARTY_NOTICES.txt"
 archive_component node_modules core "$(jq -r '.version' "$root/backend/package-lock.json")" \
   backend/app/node_modules "$modules_stage"
 
@@ -180,9 +188,15 @@ archive_component mhypbase game 1 game-runtime/assets "$mhyp_stage"
 
 jq -s \
   --arg tag "$tag" \
+  --arg appVersion "$app_version" \
   --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg assetBaseURL "$asset_base" \
-  '{schemaVersion:1,tag:$tag,generatedAt:$generatedAt,assetBaseURL:$assetBaseURL,components:.}' \
+  '{schemaVersion:2,tag:$tag,appVersion:$appVersion,platform:"darwin",hostArchitecture:"arm64",
+    guestArchitecture:"x86_64",generatedAt:$generatedAt,assetBaseURL:$assetBaseURL,
+    requiredPaths:["node/bin/node","backend/app/node_modules","backend/hpatchz","game-runtime/bin/mhg-window-probe",
+      "game-runtime/lib/libmhg_dns_gate.dylib","game-runtime/wine/bin/wine","game-runtime/wine/bin/wineboot",
+      "game-runtime/wine/bin/wineserver","game-runtime/wine/lib/wine/x86_64-windows/winemetal.dll",
+      "game-runtime/assets/mhypbase.dll"],components:.}' \
   "$component_file" >"$out/runtime-manifest.json"
 sign_manifest "$out/runtime-manifest.json" "$out/runtime-manifest.json.sig"
 

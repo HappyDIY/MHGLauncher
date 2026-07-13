@@ -1,4 +1,6 @@
 /// <reference types="next" />
 /// <reference types="next/image-types/global" />
+import "./.next/types/routes.d.ts";
 
-// 由 Next.js 类型系统使用。
+// NOTE: This file should not be edited
+// see https://nextjs.org/docs/app/api-reference/config/typescript for more information.

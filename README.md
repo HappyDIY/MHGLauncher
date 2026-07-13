@@ -29,15 +29,13 @@ Run all automated checks:
 ./scripts/test-all.sh
 ```
 
-Build the self-contained application after supplying the verified DLL:
+Build the application bundle:
 
 ```bash
 MHG_MHYPBASE_SOURCE=/path/to/mhypbase.dll ./scripts/build-app.sh
 ```
 
-The output is written to `dist/MHGLauncher.app`.
+The output is written to `dist/MHGLauncher.app`. The App bundle intentionally excludes Node.js and the game runtime; on first use it downloads the version-bound, signed runtime assets from the matching draft-tested Release. Offline first launch therefore requires those assets to have been installed previously.
 ## Status
 
-The application bundle contains an integrity-pinned open-source Wine/DXMT
-runtime. It does not contain or depend on CrossOver.app or its closed-source
-components. See `packaging/GAME_RUNTIME_NOTICES.md` for provenance.
+The downloadable runtime contains integrity-pinned open-source Wine/DXMT components. It does not contain or depend on CrossOver.app or its closed-source components. See `packaging/GAME_RUNTIME_NOTICES.md` for provenance.

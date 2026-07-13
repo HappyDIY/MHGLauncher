@@ -4,6 +4,8 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 out="${1:?缺少输出目录}"
 tag="${2:-v0.1.0}"
+app_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$root/packaging/Info.plist")"
+[[ "$tag" == "v$app_version" ]] || { printf 'Smoke runtime tag 与 App 版本不一致。\n' >&2; exit 2; }
 stage="$(mktemp -d)"
 component_file="$stage/components.jsonl"
 
@@ -16,7 +18,7 @@ size() { stat -f %z "$1"; }
 archive_component() {
   local id="$1" version="$2" install_root="$3" source="$4"
   local file="$id-$version.tar.gz"
-  tar --format=pax -C "$source" -czf "$out/$file" .
+  tar --format=pax --dereference -C "$source" -czf "$out/$file" .
   jq -nc \
     --arg id "$id" --arg version "$version" --arg file "$file" \
     --arg installRoot "$install_root" --argjson size "$(size "$out/$file")" \
@@ -49,9 +51,12 @@ archive_component hpatchz smoke backend "$hpatch_stage"
 
 jq -s \
   --arg tag "$tag" \
+  --arg appVersion "$app_version" \
   --arg generatedAt "1970-01-01T00:00:00Z" \
   --arg assetBaseURL "file://$out" \
-  '{schemaVersion:1,tag:$tag,generatedAt:$generatedAt,assetBaseURL:$assetBaseURL,components:.}' \
+  '{schemaVersion:2,tag:$tag,appVersion:$appVersion,platform:"darwin",hostArchitecture:"arm64",
+    guestArchitecture:"x86_64",generatedAt:$generatedAt,assetBaseURL:$assetBaseURL,
+    requiredPaths:["node/bin/node","backend/app/node_modules","backend/hpatchz"],components:.}' \
   "$component_file" >"$out/runtime-manifest.json"
 
 printf '%s\n' "$out/runtime-manifest.json"
