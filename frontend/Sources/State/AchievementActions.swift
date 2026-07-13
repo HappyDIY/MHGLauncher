@@ -78,12 +78,15 @@ extension LauncherStore {
 
     func importUIAF(from url: URL) async {
         guard let archiveId = selectedAchievementArchive?.id else { return }
+        let revision = value.achievementRevision
         await perform {
-            _ = try await requireClient().upload(
-                "/v1/achievements/import?archive_id=\(archiveId)",
+            let snapshot: AchievementSnapshot = try await requireClient().upload(
+                "/v1/achievements/import?archive_id=\(archiveId)&expected_revision=\(revision)",
                 json: try UIGFFileIO.read(from: url)
-            ) as [AchievementItem]
-            try await loadAchievementData()
+            )
+            guard selectedAchievementArchive?.id == archiveId,
+                  value.achievementRevision == revision else { return }
+            applyAchievementSnapshot(snapshot, archives: value.achievementArchives)
         }
     }
 

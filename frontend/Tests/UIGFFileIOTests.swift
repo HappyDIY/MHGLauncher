@@ -19,4 +19,17 @@ struct UIGFFileIOTests {
             try UIGFFileIO.formattedJSON(Data("backend error".utf8))
         }
     }
+
+    @Test("导入在读取前拒绝超大文件")
+    func rejectsOversizedImport() throws {
+        let url = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        FileManager.default.createFile(atPath: url.path, contents: nil)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let handle = try FileHandle(forWritingTo: url)
+        try handle.truncate(atOffset: UInt64(UIGFFileIO.maximumImportBytes + 1))
+        try handle.close()
+        #expect(throws: URLError.self) {
+            _ = try UIGFFileIO.read(from: url)
+        }
+    }
 }

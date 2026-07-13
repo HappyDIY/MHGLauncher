@@ -3,6 +3,8 @@ import Foundation
 
 extension LauncherStore {
     func refreshGame() async {
+        gameStateIntent += 1
+        let intent = gameStateIntent
         await perform {
             let client = try requireClient()
             let path = installPath.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -15,67 +17,11 @@ extension LauncherStore {
                     query: [URLQueryItem(name: "install_path", value: path)]
                 )
             }
+            guard gameStateIntent == intent else { return }
             gameState = state
             if path.isEmpty || state.status != .notInstalled {
                 installPath = state.installPath
             }
-        }
-    }
-
-    func startGameJob(_ kind: JobKind) async {
-        guard pendingGameJobKind == nil else { return }
-        pendingGameJobKind = kind
-        gameJob = nil
-        defer { pendingGameJobKind = nil }
-        await perform {
-            guard !installPath.isEmpty else {
-                message = "请先选择安装目录"
-                return
-            }
-            let client = try requireClient()
-            let path = installPath.trimmingCharacters(in: .whitespacesAndNewlines)
-            let checkPath = path.isEmpty ? "/v1/game/status" : "/v1/game/status/path"
-            let query = path.isEmpty ? [] : [URLQueryItem(name: "install_path", value: path)]
-            let state: GameState = try await client.get(checkPath, query: query)
-            guard state.status != .notInstalled || kind == .install else {
-                message = "所选目录中未检测到游戏客户端"
-                return
-            }
-            guard kind != .predownload || state.canStartPredownload else {
-                message = "请先完成常规更新或资源修复后再预下载"
-                return
-            }
-            let spaceCheck: SpaceCheckResult = try await client.get(
-                "/v1/game/space-check",
-                query: [
-                    URLQueryItem(name: "install_path", value: state.installPath),
-                    URLQueryItem(name: "kind", value: kind.rawValue)
-                ]
-            )
-            guard spaceCheck.sufficient else {
-                let available = ByteCountFormatter.string(fromByteCount: spaceCheck.available, countStyle: .file)
-                let required = ByteCountFormatter.string(fromByteCount: spaceCheck.required, countStyle: .file)
-                message = "磁盘空间不足：需要 \(required)，可用 \(available)"
-                return
-            }
-            let request = StartJobRequest(kind: kind, installPath: state.installPath)
-            let job: GameJob = try await client.post("/v1/game/jobs", body: request)
-            gameJob = job
-            pendingGameJobKind = nil
-            try await pollJob(job.id, client: client)
-        }
-    }
-
-    func controlGameJob(_ action: String) async {
-        await perform {
-            guard let job = gameJob else { return }
-            let client = try requireClient()
-            let request = ControlJobRequest(action: action)
-            let updated: GameJob = try await client.post(
-                "/v1/game/jobs/\(job.id)/control",
-                body: request
-            )
-            gameJob = updated
         }
     }
 
@@ -134,8 +80,11 @@ extension LauncherStore {
                 credential: launchCredential
             )
             let launch: GameLaunch = try await client.post("/v1/game/launch", body: request)
+            gameLaunchIntent += 1
+            let intent = gameLaunchIntent
+            launchPollingTask?.cancel()
             gameLaunch = launch
-            Task { await self.pollLaunch(launch.id, client: client) }
+            launchPollingTask = Task { await self.pollLaunch(launch.id, intent: intent, client: client) }
         }
     }
 
@@ -146,7 +95,8 @@ extension LauncherStore {
         await perform {
             let client = try requireClient()
             let updated: GameLaunch = try await client.post("/v1/game/launches/\(launch.id)/stop")
-            gameLaunch = updated
+            guard gameLaunch?.id == launch.id else { return }
+            applyGameLaunch(updated)
         }
     }
 
@@ -155,7 +105,7 @@ extension LauncherStore {
         return maximum % 60 == 0 ? maximum : 0
     }
 
-    private func pollLaunch(_ id: String, client: APIClient) async {
+    private func pollLaunch(_ id: String, intent: Int, client: APIClient) async {
         do {
             var revision = gameLaunch?.revision
             while !Task.isCancelled {
@@ -163,29 +113,24 @@ extension LauncherStore {
                     "/v1/game/launches/\(id)",
                     query: LongPollQuery.items(after: revision)
                 )
-                gameLaunch = launch
+                guard gameLaunchIntent == intent, gameLaunch?.id == id else { return }
+                applyGameLaunch(launch)
                 revision = launch.revision
                 if [.stopped, .exited, .failed].contains(launch.status) { return }
             }
+        } catch is CancellationError {
+            return
+        } catch let error as URLError where error.code == .cancelled {
+            return
         } catch {
+            guard gameLaunchIntent == intent else { return }
             message = Self.presentableMessage(error.localizedDescription)
         }
     }
 
-    private func pollJob(_ id: String, client: APIClient) async throws {
-        var revision = gameJob?.revision
-        while !Task.isCancelled {
-            let job: GameJob = try await client.get(
-                "/v1/game/jobs/\(id)",
-                query: LongPollQuery.items(after: revision)
-            )
-            gameJob = job
-            revision = job.revision
-            if [.completed, .cancelled, .failed].contains(job.status) {
-                await refreshGame()
-                return
-            }
-        }
+    private func applyGameLaunch(_ value: GameLaunch) {
+        guard gameLaunch?.id != value.id || (value.revision ?? 0) >= (gameLaunch?.revision ?? 0) else { return }
+        gameLaunch = value
     }
 }
 

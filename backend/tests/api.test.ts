@@ -144,6 +144,11 @@ async function loginCookie(credential: string): Promise<void> {
 	    const saved = await (await request("POST", "/v1/achievements", { archive_id: archive.id, expected_revision: 0, items: [{ achievement_id: 84501, current: 1, status: 2, timestamp: 1_756_000_000 }] })).json();
 	    expect(saved.revision).toBe(1);
 	    expect((await request("POST", "/v1/achievements", { archive_id: archive.id, expected_revision: 0, items: [] })).status).toBe(409);
+	    const imported = await (await request("POST", `/v1/achievements/import?archive_id=${archive.id}&expected_revision=1`, {
+	      info: { uiaf_version: "v1.1" }, list: [{ id: 84502, current: 1, status: 3, timestamp: 1_756_000_001 }],
+	    })).json();
+	    expect(imported.revision).toBe(2);
+	    expect((await request("POST", `/v1/achievements/import?archive_id=${archive.id}&expected_revision=1`, { list: [] })).status).toBe(409);
 	    const items = await (await request("GET", `/v1/achievements?archive_id=${archive.id}`)).json();
 	    expect(items[0].achievement_id).toBe(84501);
     const view = await (await request("GET", `/v1/achievements/view?archive_id=${archive.id}`)).json();

@@ -1,9 +1,23 @@
 import Foundation
 
 enum UIGFFileIO {
+    static let maximumImportBytes = 64 * 1024 * 1024
+
     static func read(from url: URL) throws -> Data {
         try withSecurityScope(url) {
-            try Data(contentsOf: url)
+            let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? maximumImportBytes + 1
+            guard size <= maximumImportBytes else { throw URLError(.dataLengthExceedsMaximum) }
+            let handle = try FileHandle(forReadingFrom: url)
+            defer { try? handle.close() }
+            var result = Data()
+            while true {
+                let chunk = try handle.read(upToCount: 1024 * 1024) ?? Data()
+                if chunk.isEmpty { return result }
+                guard result.count <= maximumImportBytes - chunk.count else {
+                    throw URLError(.dataLengthExceedsMaximum)
+                }
+                result.append(chunk)
+            }
         }
     }
 

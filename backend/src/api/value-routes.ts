@@ -37,7 +37,9 @@ export async function valueRoute(app: Container, method: string, path: string, q
   if (method === "GET" && path === "/achievements/snapshot") return json(app.achievements.snapshot(required(query, "archive_id")));
   if (method === "GET" && path === "/achievements") return json(app.achievements.list(query.get("archive_id") ?? undefined));
   if (method === "POST" && path === "/achievements") { const value = achievementSave.parse(body); return json(app.achievements.saveSnapshot(value.archive_id, value.expected_revision, value.items)); }
-  if (method === "POST" && path === "/achievements/import") return json(app.achievements.importUIAF(required(query, "archive_id"), body as never));
+  if (method === "POST" && path === "/achievements/import") return json(app.achievements.importUIAF(
+    required(query, "archive_id"), revision(query), body as never,
+  ));
   if (method === "GET" && path === "/achievements/export") return json(app.achievements.exportUIAF(query.get("archive_id") ?? undefined));
   if (method === "POST" && path === "/cloud/login") return json(await app.cloud.login(gachaUrl.parse(body).gacha_url));
   if (method === "POST" && path === "/cloud/reverify") { const value = gachaUrl.parse(body); return json(await app.cloud.reverify(value.gacha_url, value.token)); }
@@ -59,3 +61,10 @@ export async function valueRoute(app: Container, method: string, path: string, q
 function json(value: unknown, status = 200): Response { return Response.json(value, { status }); }
 function match(path: string, expression: RegExp): string | null { return expression.exec(path)?.[1] ? decodeURIComponent(expression.exec(path)?.[1] ?? "") : null; }
 function required(query: URLSearchParams, name: string): string { const value = query.get(name); if (!value) throw new AppError("validation_error", `${name} 不能为空`, 422); return value; }
+function revision(query: URLSearchParams): number {
+  const value = required(query, "expected_revision");
+  if (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value))) {
+    throw new AppError("validation_error", "expected_revision 无效", 422);
+  }
+  return Number(value);
+}

@@ -27,6 +27,10 @@ final class LauncherStore {
     var gameJob: GameJob?
     var pendingGameJobKind: JobKind?
     var gameLaunch: GameLaunch?
+    @ObservationIgnored var gameStateIntent = 0
+    @ObservationIgnored var gameJobIntent = 0
+    @ObservationIgnored var gameLaunchIntent = 0
+    @ObservationIgnored var launchPollingTask: Task<Void, Never>?
     var isLaunchingGame = false
     var isStoppingGame = false
     var gamePerformanceProfile = GamePerformanceProfile(

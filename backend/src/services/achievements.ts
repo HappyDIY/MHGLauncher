@@ -129,12 +129,12 @@ export class AchievementService {
     ));
   }
 
-  importUIAF(archiveId: string, payload: UIAF): AchievementItem[] {
+  importUIAF(archiveId: string, expectedRevision: number, payload: UIAF): AchievementSnapshot {
     const values = (payload.list ?? []).map((value) => ({
       achievement_id: Number(value.id), current: Number(value.current ?? 0),
       status: Number(value.status ?? 0), timestamp: Number(value.timestamp ?? 0),
     })).filter((value) => value.achievement_id > 0);
-    return this.save(archiveId, values);
+    return this.saveSnapshot(archiveId, expectedRevision, values);
   }
 
   exportUIAF(archiveId = this.selectedId()): Record<string, unknown> {
