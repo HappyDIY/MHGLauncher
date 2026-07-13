@@ -8,6 +8,7 @@ import { streamDownload } from "./download-transfer";
 import { ensureParent, safeTarget } from "./installer";
 import { copyRangeSync, hashFileSync, xxhash64File } from "./file-hash";
 import { safeIdentifier } from "../core/safe-path";
+import { randomUUID } from "node:crypto";
 
 export async function installPatches(
   assets: GamePatchAsset[], staging: string, cache: string, control: DownloadControl,
@@ -29,18 +30,25 @@ async function getPatch(patch: SophonPatch, cache: string, control: DownloadCont
 
 function apply(asset: GamePatchAsset, source: string, staging: string): void {
   const target = safeTarget(staging, asset.name); ensureParent(target);
-  const segment = `${source}.${asset.patch.start}.segment`;
-  copyRangeSync(source, segment, asset.patch.start, asset.patch.length);
+  const id = randomUUID(), segment = safeTarget(staging, `.mhg-patch-segment-${id}`);
+  const output = safeTarget(staging, `.mhg-patch-output-${id}`);
   try {
+    try { copyRangeSync(source, segment, asset.patch.start, asset.patch.length); }
+    catch { throw new AppError("sophon_patch_range_invalid", `${asset.name} 增量补丁范围无效`); }
+    let prepared = segment;
     if (asset.patch.original_name) {
-      if (!existsSync(target)) throw new AppError("sophon_patch_source_missing", `${asset.name} 缺少原始文件`);
-      const output = `${target}.patched`; rmSync(output, { force: true }); const tool = process.env.MHG_HPATCHZ ?? join(process.cwd(), "hpatchz");
-      const result = spawnSync(tool, [target, segment, output]);
+      const original = safeTarget(staging, asset.patch.original_name);
+      if (!existsSync(original) || !statSync(original).isFile()) throw new AppError("sophon_patch_source_missing", `${asset.patch.original_name} 缺少原始文件`);
+      const tool = process.env.MHG_HPATCHZ ?? join(process.cwd(), "hpatchz");
+      const result = spawnSync(tool, [original, segment, output]);
       if (result.status !== 0 || !existsSync(output) || statSync(output).size !== asset.size) { rmSync(output, { force: true }); throw new AppError("sophon_patch_apply_failed", `${asset.name} 增量补丁应用失败`); }
-      renameSync(output, target);
-    } else renameSync(segment, target);
-    if (hashFileSync(target, "md5") !== asset.md5.toLowerCase()) { rmSync(target); throw new AppError("sophon_patch_result_invalid", `${asset.name} 增量更新校验失败`); }
-  } finally { rmSync(segment, { force: true }); }
+      prepared = output;
+    }
+    if (statSync(prepared).size !== asset.size || hashFileSync(prepared, "md5") !== asset.md5.toLowerCase()) {
+      throw new AppError("sophon_patch_result_invalid", `${asset.name} 增量更新校验失败`);
+    }
+    renameSync(prepared, target);
+  } finally { rmSync(segment, { force: true }); rmSync(output, { force: true }); }
 }
 
 async function valid(path: string, patch: SophonPatch): Promise<boolean> {

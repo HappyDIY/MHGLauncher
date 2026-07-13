@@ -21,7 +21,7 @@ export interface Provider {
   loginByMobileCaptcha(mobile: string, captcha: string, actionType: string, aigis?: string | null): Promise<AccountIdentity>;
   getRoles(credential: string): Promise<GameRole[]>;
   getBuild(installedVersion?: string, audioLanguages?: string[]): Promise<GameBuild>;
-  getPredownloadBuild(audioLanguages?: string[]): Promise<GameBuild | null>;
+  getPredownloadBuild(installedVersion?: string, audioLanguages?: string[]): Promise<GameBuild | null>;
   wishes(credential: string, role: GameRole, newest: Record<string, string>): AsyncIterable<WishRecord[]>;
   getDailyNote(credential: string, role: GameRole, challenge?: string, challengePath?: string): Promise<DailyNote>;
   verifyNoteChallenge(credential: string, challenge: string, validate: string, challengePath?: string): Promise<string>;

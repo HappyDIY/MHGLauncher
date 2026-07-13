@@ -102,7 +102,7 @@ export class LiveProvider implements Provider {
   }
 
   getBuild(version = "", audioLanguages?: string[]): Promise<GameBuild> { return this.sophon.build(version, audioLanguages); }
-  getPredownloadBuild(audioLanguages?: string[]): Promise<GameBuild | null> { return this.sophon.predownloadBuild(audioLanguages); }
+  getPredownloadBuild(installedVersion?: string, audioLanguages?: string[]): Promise<GameBuild | null> { return this.sophon.predownloadBuild(installedVersion, audioLanguages); }
 
   async *wishes(credential: string, role: GameRole, newest: Record<string, string>): AsyncIterable<WishRecord[]> {
     let authkey = "";

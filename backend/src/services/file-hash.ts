@@ -1,6 +1,6 @@
 import { createHash, type BinaryLike } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { closeSync, openSync, readSync, writeSync } from "node:fs";
+import { closeSync, fstatSync, openSync, readSync, writeSync } from "node:fs";
 import xxhash from "xxhash-wasm";
 
 type HashAlgorithm = "md5" | "sha256";
@@ -30,16 +30,20 @@ export async function xxhash64File(path: string): Promise<string> {
 }
 
 export function copyRangeSync(source: string, target: string, start: number, length: number): void {
-  const input = openSync(source, "r"), output = openSync(target, "w");
-  const buffer = Buffer.allocUnsafe(1024 * 1024);
-  let offset = start, remaining = length;
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(length) || start < 0 || length <= 0) throw new RangeError("invalid patch range");
+  const input = openSync(source, "r");
   try {
-    while (remaining > 0) {
-      const size = Math.min(buffer.length, remaining);
-      const count = readSync(input, buffer, 0, size, offset);
-      if (count <= 0) break;
-      writeSync(output, buffer, 0, count);
-      offset += count; remaining -= count;
-    }
-  } finally { closeSync(input); closeSync(output); }
+    if (start + length > fstatSync(input).size) throw new RangeError("patch range exceeds source");
+    const output = openSync(target, "wx", 0o600);
+    const buffer = Buffer.allocUnsafe(1024 * 1024); let offset = start, remaining = length;
+    try {
+      while (remaining > 0) {
+        const size = Math.min(buffer.length, remaining), count = readSync(input, buffer, 0, size, offset);
+        if (count !== size) throw new RangeError("short patch read");
+        let written = 0; while (written < count) written += writeSync(output, buffer, written, count - written);
+        offset += count; remaining -= count;
+      }
+      if (remaining !== 0) throw new RangeError("short patch range");
+    } finally { closeSync(output); }
+  } finally { closeSync(input); }
 }

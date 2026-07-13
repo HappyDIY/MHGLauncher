@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { zstdCompressSync } from "node:zlib";
@@ -10,6 +10,7 @@ import { normalizeBuild } from "../src/providers/provider";
 import { checkedPredownloadBuild, diffPredownloadBuild } from "../src/services/predownload-build";
 import { downloadChunksOnly } from "../src/services/predownload";
 import { DownloadControl } from "../src/services/download";
+import { predownloadDigest, readPredownloadStatus, writePredownloadStatus } from "../src/services/predownload-status";
 
 test("预下载只计算本地缺失的差异分块", () => {
   const shared = chunk("shared", "same"), old = chunk("old", "old"), next = chunk("next", "next");
@@ -42,6 +43,16 @@ test("预下载完成后保留分块缓存", async () => {
 
   expect(existsSync(join(cache, name))).toBe(true);
   vi.unstubAllGlobals();
+});
+
+test("完成标记绑定清单摘要和真实缓存", () => {
+  const root = mkdtempSync(join(tmpdir(), "predownload-status-")), cache = join(root, "cache"), entry = chunk("abcd_chunk", "x", 3);
+  const build = normalizeBuild({ version: "6.7.0", assets: [asset("game.bin", "md5", [entry])] });
+  mkdirSync(cache);
+  writeFileSync(join(cache, entry.name), "123");
+  writePredownloadStatus(cache, { tag: build.version, manifest_digest: predownloadDigest(build), finished: true, total_chunks: 1 });
+  expect(readPredownloadStatus(cache, build)?.finished).toBe(true);
+  rmSync(join(cache, entry.name)); expect(readPredownloadStatus(cache, build)).toBeNull();
 });
 
 function asset(name: string, md5: string, chunks: SophonChunk[]): GameAsset {

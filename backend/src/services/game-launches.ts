@@ -7,7 +7,7 @@ import { type DllIntegrity, type DllJournal, MHYPBASE_INTEGRITY, prepareDll, res
 import { type GameLaunchRunner, WineLaunchRunner } from "./game-launch-process";
 import { recoverInterruptedDlls } from "./game-launch-recovery";
 import { ensureGameConfiguration } from "./game-config";
-import { detectGame } from "./games";
+import { detectGame } from "./game-detection";
 import type { RegistryAccount } from "./game-account-registry";
 import { RevisionNotifier } from "./revision-notifier";
 

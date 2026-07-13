@@ -51,7 +51,7 @@ export class FixtureProvider implements Provider {
     return normalizeBuild(this.json<Partial<GameBuild> & Pick<GameBuild, "version">>("build.json"));
   }
 
-  async getPredownloadBuild(_audioLanguages?: string[]): Promise<GameBuild | null> {
+  async getPredownloadBuild(_installedVersion?: string, _audioLanguages?: string[]): Promise<GameBuild | null> {
     try { return normalizeBuild(this.json<Partial<GameBuild> & Pick<GameBuild, "version">>("predownload.json")); }
     catch { return null; }
   }

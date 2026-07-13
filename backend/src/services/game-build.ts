@@ -4,11 +4,11 @@ import type { GameBuild } from "../providers/provider";
 import { selectInvalidAssets } from "./game-integrity";
 import { containedPath } from "../core/safe-path";
 
-export function prepareBuild(build: GameBuild, path: string, installed: string): GameBuild {
+export function prepareBuild(build: GameBuild, path: string, installed: string, strictVerify = false): GameBuild {
   const protectedBuild = withoutProtectedAssets(build);
   if (!path || installed !== protectedBuild.version) return protectedBuild;
   if (!protectedBuild.assets.length) return protectedBuild;
-  const assets = selectInvalidAssets(path, protectedBuild.assets);
+  const assets = selectInvalidAssets(path, protectedBuild.assets, strictVerify);
   return { ...protectedBuild, assets, kind: "package_repair" };
 }
 

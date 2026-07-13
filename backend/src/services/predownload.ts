@@ -29,8 +29,15 @@ export async function downloadPatchesOnly(
   for (const patchAsset of patchAssets) {
     await control.checkpoint();
     const patchId = safeIdentifier(patchAsset.patch.id, "补丁标识"), path = join(cache, patchId);
+    if (existsSync(path) && await xxh(path, patchId)) {
+      progress(patchAsset.patch.file_size); chunkProgress(patchId, patchAsset.patch.file_size, patchAsset.patch.file_size); continue;
+    }
     chunkProgress(patchAsset.patch.id, 0, patchAsset.patch.file_size);
     await streamDownload(patchAsset.patch.url, `${path}.part`, patchAsset.patch.file_size, patchAsset.patch.id, control, progress, (done) => chunkProgress(patchAsset.patch.id, done, patchAsset.patch.file_size), rateLimiter);
+    if (!await xxh(`${path}.part`, patchId)) {
+      progress(-patchAsset.patch.file_size); rmSync(`${path}.part`, { force: true });
+      throw new AppError("sophon_patch_invalid", `${patchId} 预下载补丁校验失败`);
+    }
     renameSync(`${path}.part`, path); chunkProgress(patchAsset.patch.id, patchAsset.patch.file_size, patchAsset.patch.file_size);
   }
 }

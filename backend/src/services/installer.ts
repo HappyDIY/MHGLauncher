@@ -1,5 +1,6 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { cpSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { AppError } from "../core/errors";
 import { hash } from "./download";
@@ -29,16 +30,58 @@ export function verify(staging: string): void {
   }
 }
 
-export function activate(staging: string, destination: string): void {
-  const backup = `${destination}.backup`; rmSync(backup, { recursive: true, force: true });
-  if (existsSync(destination)) renameSync(destination, backup);
-  try { renameSync(staging, destination); }
-  catch (error) { if (existsSync(backup) && !existsSync(destination)) renameSync(backup, destination); throw error; }
-  rmSync(backup, { recursive: true, force: true });
+interface ActivationJournal { schema: 1; staging_name: string; backup_name: string; phase: "backing_up" | "promoting" }
+
+export function activate(staging: string, destination: string, fault?: (phase: string) => void): void {
+  const parent = dirname(destination), journalPath = `${destination}.mhg-activation.json`;
+  if (dirname(staging) !== parent) throw new AppError("activation_cross_volume", "暂存目录必须与游戏目录位于同一父目录");
+  recoverActivation(destination);
+  const hadDestination = existsSync(destination);
+  const backup = join(parent, `${basename(destination)}.mhg-backup-${randomUUID()}`);
+  const journal: ActivationJournal = { schema: 1, staging_name: basename(staging), backup_name: basename(backup), phase: "backing_up" };
+  writeJournal(journalPath, journal); fault?.("before_backup");
+  try {
+    if (hadDestination) renameSync(destination, backup);
+    fault?.("after_backup"); journal.phase = "promoting"; writeJournal(journalPath, journal);
+    renameSync(staging, destination); fault?.("after_promote");
+    rmSync(backup, { recursive: true, force: true }); rmSync(journalPath, { force: true });
+  } catch (error) {
+    if (existsSync(destination) && (existsSync(backup) || !hadDestination)) rmSync(destination, { recursive: true, force: true });
+    if (existsSync(backup) && !existsSync(destination)) renameSync(backup, destination);
+    rmSync(journalPath, { force: true }); throw error;
+  }
+}
+
+export function recoverActivation(destination: string): void {
+  const journalPath = `${destination}.mhg-activation.json`;
+  if (!existsSync(journalPath)) return;
+  const parent = dirname(destination), base = basename(destination);
+  let value: ActivationJournal;
+  try { value = JSON.parse(readFileSync(journalPath, "utf8")) as ActivationJournal; }
+  catch { throw new AppError("activation_journal_invalid", "游戏激活恢复记录损坏"); }
+  if (value.schema !== 1 || basename(value.backup_name) !== value.backup_name || basename(value.staging_name) !== value.staging_name
+    || !value.backup_name.startsWith(`${base}.mhg-backup-`) || !value.staging_name.startsWith(`${base}.mhg-staging-`)) {
+    throw new AppError("activation_journal_invalid", "游戏激活恢复记录无效");
+  }
+  const backup = join(parent, value.backup_name), staging = join(parent, value.staging_name);
+  const promoted = value.phase === "promoting" && existsSync(destination) && !existsSync(staging);
+  if (promoted) rmSync(backup, { recursive: true, force: true });
+  else if (existsSync(backup)) {
+    rmSync(destination, { recursive: true, force: true }); renameSync(backup, destination);
+  }
+  rmSync(staging, { recursive: true, force: true }); rmSync(journalPath, { force: true });
 }
 
 export function stageExisting(source: string, staging: string): void {
-  rmSync(staging, { recursive: true, force: true }); if (existsSync(source)) cpSync(source, staging, { recursive: true }); else mkdirSync(staging, { recursive: true });
+  if (existsSync(staging)) throw new AppError("staging_exists", "游戏暂存目录已存在");
+  if (existsSync(source)) cpSync(source, staging, { recursive: true }); else mkdirSync(staging, { recursive: true });
 }
 
 export function ensureParent(path: string): void { mkdirSync(dirname(path), { recursive: true }); }
+
+function writeJournal(path: string, value: ActivationJournal): void {
+  const temp = `${path}.${randomUUID()}.tmp`, descriptor = openSync(temp, "wx", 0o600);
+  try { writeSync(descriptor, JSON.stringify(value)); fsyncSync(descriptor); } finally { closeSync(descriptor); }
+  renameSync(temp, path);
+  const directory = openSync(dirname(path), "r"); try { fsyncSync(directory); } finally { closeSync(directory); }
+}

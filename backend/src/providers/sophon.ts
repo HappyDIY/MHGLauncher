@@ -37,13 +37,14 @@ export class Sophon {
     this.cached = { time: Date.now(), key, build }; return build;
   }
 
-  async predownloadBuild(audioLanguages = ["zh-cn"]): Promise<GameBuild | null> {
+  async predownloadBuild(version = "", audioLanguages = ["zh-cn"]): Promise<GameBuild | null> {
     const languages = [...new Set(audioLanguages)].sort();
     const { pre } = await this.branches();
     if (!pre) return null;
     const key = `pre:${languages.join(",")}`;
     if (this.cached?.key === key && Date.now() - this.cached.time < 300_000) return this.cached.build;
-    const build = await this.fullBuild(pre, languages);
+    const build = (pre.diff_tags as string[] ?? []).includes(version)
+      ? await this.patchBuild(pre, version, languages) : await this.fullBuild(pre, languages);
     const result = { ...build, is_predownload: true };
     this.cached = { time: Date.now(), key, build: result }; return result;
   }
@@ -52,15 +53,18 @@ export class Sophon {
     const query = new URLSearchParams({ branch: String(branch.branch), package_id: String(branch.package_id), password: String(branch.password) });
     if (String(branch.branch).toLowerCase() !== "predownload") query.set("tag", String(branch.tag));
     const data = await this.data(`https://downloader-api.mihoyo.com/downloader/sophon_chunk/api/getBuild?${query}`);
+    const selected = this.selected(data, languages); if (!selected.length) throw new AppError("sophon_build_empty", "Sophon 构建未包含所需资源清单", 502);
     const assets: GameAsset[] = [];
-    for (const item of this.selected(data, languages)) assets.push(...await this.assets(item));
+    for (const item of selected) assets.push(...await this.assets(item));
+    if (!assets.length) throw new AppError("sophon_build_empty", "Sophon 构建资源为空", 502);
     return normalizeBuild({ version: String(data.tag), assets });
   }
 
   private async patchBuild(branch: JSONValue, version: string, languages: string[]): Promise<GameBuild> {
     const data = await this.data("https://downloader-api.mihoyo.com/downloader/sophon_chunk/api/getPatchBuild", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(branch) });
     const patch_assets: GamePatchAsset[] = [], deprecated_files: string[] = [];
-    for (const item of this.selected(data, languages)) {
+    const selected = this.selected(data, languages); if (!selected.length) throw new AppError("sophon_build_empty", "Sophon 差分构建未包含所需资源清单", 502);
+    for (const item of selected) {
       const manifest = await this.manifest(item, "PatchManifest") as JSONValue;
       for (const file of manifest.file_datas as JSONValue[] ?? []) {
         const info = (file.patches_entries as JSONValue[] ?? []).find((entry) => entry.key === version)?.patch_info as JSONValue | undefined;
@@ -71,6 +75,7 @@ export class Sophon {
       const deleted = (manifest.delete_files_entries as JSONValue[] ?? []).find((entry) => entry.key === version)?.delete_files?.infos as JSONValue[] | undefined;
       deprecated_files.push(...(deleted ?? []).map((value) => String(value.name)));
     }
+    if (!patch_assets.length && !deprecated_files.length) throw new AppError("sophon_build_empty", "Sophon 差分构建不包含任何变更", 502);
     return normalizeBuild({ version: String(data.tag), kind: "version_diff", patch_assets, deprecated_files });
   }
 

@@ -80,7 +80,7 @@ export interface GameJob {
   message: string; download_speed: number; chunks_completed: number; chunks_total: number;
   active_chunks: ChunkProgress[]; last_update: string; revision?: number;
 }
-export interface PredownloadStatus { tag: string; finished: boolean; total_chunks: number }
+export interface PredownloadStatus { tag: string; manifest_digest: string; finished: boolean; total_chunks: number }
 export type GameLaunchStatus = "preparing" | "starting" | "waiting_window" | "running" | "stopping" | "stopped" | "exited" | "failed";
 export type GamePerformanceProfile = "optimized" | "compatibility" | "baseline";
 interface GameLaunchLog { sequence: number; timestamp: string; kind: "launch" | "dns" | "wine"; message: string }

@@ -71,3 +71,10 @@ test("xxhash 与范围复制不读取整块补丁", async () => {
   expect(readFileSync(target).toString()).toBe("456789");
   expect(await xxhash64File(source)).toBe((await xxhash()).h64Raw(content).toString(16).padStart(16, "0"));
 });
+
+test("范围复制拒绝越界和非安全整数且不产生输出", () => {
+  const dir = root(), source = join(dir, "patch.bin"); writeFileSync(source, "1234");
+  expect(() => copyRangeSync(source, join(dir, "overflow"), 3, 2)).toThrow("exceeds source");
+  expect(() => copyRangeSync(source, join(dir, "unsafe"), Number.MAX_SAFE_INTEGER + 1, 1)).toThrow("invalid patch range");
+  expect(existsSync(join(dir, "overflow"))).toBe(false);
+});

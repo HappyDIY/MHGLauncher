@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, expect, test } from "vitest";
@@ -67,7 +67,7 @@ test("忽略启动器托管的反作弊 DLL", () => {
   expect(build.deprecated_files).toEqual(["old.dat"]);
 });
 
-test("Sophon 更新不复制完整游戏目录且取消终态任务幂等", async () => {
+test("Sophon 更新通过暂存目录原子提交且取消终态任务幂等", async () => {
   const root = mkdtempSync(join(tmpdir(), "in-place-update-")), data = join(root, "data"), fixtures = join(root, "fixtures"), game = join(root, "Genshin Impact Game");
   mkdirSync(fixtures, { recursive: true }); mkdirSync(game);
   const exe = "same-binary", md5 = createHash("md5").update(exe).digest("hex");
@@ -79,7 +79,40 @@ test("Sophon 更新不复制完整游戏目录且取消终态任务幂等", asyn
     for (let i = 0; i < 20 && !["completed", "failed", "cancelled"].includes(job.status); i += 1) {
       await new Promise((resolve) => setTimeout(resolve, 10)); job = service.get(job.id);
     }
-    expect(job.status).toBe("completed"); expect(existsSync(`${game}.staging`)).toBe(false);
+    expect(job.status).toBe("completed"); expect(readdirSync(root).some((name) => name.includes("mhg-staging"))).toBe(false);
     expect(service.control(job.id, "cancel").status).toBe("completed");
   } finally { store.close(); rmSync(root, { recursive: true, force: true }); }
 });
+
+test("仅含删除项的差分完成删除后才更新版本", async () => {
+  const { root, game, service, store } = serviceFor({ version: "5.8.0", kind: "version_diff", deprecated_files: ["old.dat"] });
+  writeFileSync(join(game, "old.dat"), "old");
+  try {
+    const job = await waitJob(service, await service.start("update", game));
+    expect(job.status).toBe("completed"); expect(existsSync(join(game, "old.dat"))).toBe(false);
+  } finally { store.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("不同版本的空构建被拒绝且保留原目录", async () => {
+  const { root, game, service, store } = serviceFor({ version: "5.8.0" });
+  try {
+    await expect(service.start("update", game)).rejects.toMatchObject({ code: "game_build_empty" });
+    expect(existsSync(join(game, "YuanShen.exe"))).toBe(true);
+  } finally { store.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+function serviceFor(build: Record<string, unknown>): { root: string; game: string; service: GameService; store: Store } {
+  const root = mkdtempSync(join(tmpdir(), "game-transaction-")), data = join(root, "data"), fixtures = join(root, "fixtures"), game = join(root, "game");
+  mkdirSync(fixtures); mkdirSync(game); writeFileSync(join(game, "YuanShen.exe"), "game"); writeFileSync(join(game, "config.ini"), "game_version=5.7.0\n");
+  writeFileSync(join(fixtures, "build.json"), JSON.stringify(build));
+  const store = new Store(join(data, "test.db"));
+  return { root, game, store, service: new GameService(store, new FixtureProvider(fixtures), data) };
+}
+
+async function waitJob(service: GameService, initial: Awaited<ReturnType<GameService["start"]>>): Promise<ReturnType<GameService["get"]>> {
+  let job = initial;
+  for (let index = 0; index < 30 && !["completed", "failed", "cancelled"].includes(job.status); index += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10)); job = service.get(job.id);
+  }
+  return job;
+}

@@ -2,6 +2,7 @@ import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { GameAsset, GameBuild } from "../providers/provider";
 import { safeTarget } from "./installer";
+import { hashFileSync } from "./file-hash";
 
 interface IntegrityEntry { md5: string; size: number; mtime_ns: string }
 interface IntegrityIndex { version: 1; assets: Record<string, IntegrityEntry> }
@@ -15,21 +16,23 @@ export function writeIntegrityIndex(root: string, build: GameBuild): void {
   writeFileSync(join(root, INDEX_NAME), JSON.stringify(index));
 }
 
-export function selectInvalidAssets(root: string, assets: GameAsset[]): GameAsset[] {
+export function selectInvalidAssets(root: string, assets: GameAsset[], strict = false): GameAsset[] {
   const index = readIndex(root), packageHashes = readPackageHashes(root);
-  return assets.filter((asset) => !fastValid(root, asset, index, packageHashes));
+  return assets.filter((asset) => !fastValid(root, asset, index, packageHashes, strict));
 }
 
 function fastValid(
-  root: string, asset: GameAsset, index: IntegrityIndex | null, packageHashes: Map<string, string>,
+  root: string, asset: GameAsset, index: IntegrityIndex | null, packageHashes: Map<string, string>, strict: boolean,
 ): boolean {
   const name = normalize(asset.name), path = safeTarget(root, name);
   if (!existsSync(path)) return false;
   const stat = statSync(path, { bigint: true });
   if (!stat.isFile() || stat.size !== BigInt(asset.size)) return false;
   const expected = asset.md5.toLowerCase(), saved = index?.assets[name];
-  if (saved) return saved.md5 === expected && saved.size === asset.size && saved.mtime_ns === stat.mtimeNs.toString();
-  return packageHashes.get(name) === expected;
+  const metadataMatches = saved
+    ? saved.md5 === expected && saved.size === asset.size && saved.mtime_ns === stat.mtimeNs.toString()
+    : packageHashes.get(name) === expected;
+  return metadataMatches && (!strict || hashFileSync(path, "md5") === expected);
 }
 
 function record(index: IntegrityIndex, root: string, name: string, md5: string, size: number): void {

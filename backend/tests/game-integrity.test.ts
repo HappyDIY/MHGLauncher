@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
@@ -27,4 +27,14 @@ test("官方清单快速路径仍检查文件存在与大小", () => {
   expect(selectInvalidAssets(root, [value])).toEqual([]);
   rmSync(join(root, value.name));
   expect(selectInvalidAssets(root, [value])).toEqual([value]);
+});
+
+test("显式校验读取内容并拒绝同尺寸同时间损坏", () => {
+  const root = mkdtempSync(join(tmpdir(), "integrity-strict-")), value = asset("data.bin", "abc"), path = join(root, value.name);
+  const fixed = new Date("2026-01-01T00:00:00Z");
+  writeFileSync(path, "abc"); utimesSync(path, fixed, fixed);
+  writeIntegrityIndex(root, normalizeBuild({ version: "1", assets: [value] }));
+  writeFileSync(path, "xyz"); utimesSync(path, fixed, fixed);
+  expect(selectInvalidAssets(root, [value])).toEqual([]);
+  expect(selectInvalidAssets(root, [value], true)).toEqual([value]);
 });
