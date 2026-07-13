@@ -3,10 +3,20 @@ import Foundation
 extension LauncherStore {
     func loadAchievementData(client: APIClient? = nil) async throws {
         let api = try client ?? requireClient()
-        async let archives: [AchievementArchive] = api.get("/v1/achievements/archives")
-        async let entries: [AchievementEntry] = api.get("/v1/achievements/view")
-        value.achievementArchives = try await archives
-        value.achievementEntries = try await entries
+        value.achievementIntent += 1
+        let intent = value.achievementIntent
+        let archives: [AchievementArchive] = try await api.get("/v1/achievements/archives")
+        guard intent == value.achievementIntent else { return }
+        guard let archive = archives.first(where: \.selected) ?? archives.first else {
+            value.achievementArchives = []; value.achievementEntries = []; value.achievementRevision = 0
+            return
+        }
+        let snapshot: AchievementSnapshot = try await api.get(
+            "/v1/achievements/snapshot",
+            query: [URLQueryItem(name: "archive_id", value: archive.id)]
+        )
+        guard intent == value.achievementIntent, snapshot.archive.id == archive.id else { return }
+        applyAchievementSnapshot(snapshot, archives: archives)
     }
 
     func createAchievementArchive(named name: String? = nil) async {
@@ -39,6 +49,7 @@ extension LauncherStore {
 
     func saveAchievement(_ entry: AchievementEntry, checked: Bool) async {
         guard let archiveId = selectedAchievementArchive?.id else { return }
+        let revision = value.achievementRevision
         await perform {
             let item = AchievementItemInput(
                 achievementId: entry.achievementId,
@@ -46,11 +57,22 @@ extension LauncherStore {
                 status: checked ? 3 : 0,
                 timestamp: checked ? Int(Date().timeIntervalSince1970) : 0
             )
-            _ = try await requireClient().post(
-                "/v1/achievements",
-                body: AchievementSaveRequest(archiveId: archiveId, items: [item])
-            ) as [AchievementItem]
-            try await loadAchievementData()
+            do {
+                let snapshot: AchievementSnapshot = try await requireClient().post(
+                    "/v1/achievements",
+                    body: AchievementSaveRequest(
+                        archiveId: archiveId,
+                        expectedRevision: revision,
+                        items: [item]
+                    )
+                )
+                guard selectedAchievementArchive?.id == archiveId,
+                      value.achievementRevision == revision else { return }
+                applyAchievementSnapshot(snapshot, archives: value.achievementArchives)
+            } catch let error as APIErrorPayload where error.code == "archive_revision_conflict" {
+                try await loadAchievementData()
+                throw error
+            }
         }
     }
 
@@ -74,5 +96,16 @@ extension LauncherStore {
 
     var selectedAchievementArchive: AchievementArchive? {
         value.achievementArchives.first(where: \.selected) ?? value.achievementArchives.first
+    }
+
+    private func applyAchievementSnapshot(
+        _ snapshot: AchievementSnapshot,
+        archives: [AchievementArchive]
+    ) {
+        value.achievementArchives = archives.map {
+            $0.id == snapshot.archive.id ? snapshot.archive : $0
+        }
+        value.achievementEntries = snapshot.entries
+        value.achievementRevision = snapshot.revision
     }
 }

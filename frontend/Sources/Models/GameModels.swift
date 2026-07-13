@@ -51,7 +51,9 @@ struct SpeedLimitRequest: Codable {
 enum JobStatus: String, Codable, Sendable {
     case queued
     case running
+    case pausing
     case paused
+    case cancelling
     case completed
     case cancelled
     case failed

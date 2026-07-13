@@ -8,6 +8,8 @@ final class ValueStore {
     var achievementArchives: [AchievementArchive] = []
     var achievementGoals: [AchievementGoal] = []
     var achievementEntries: [AchievementEntry] = []
+    var achievementRevision = 0
+    var achievementIntent = 0
     var notificationSettings: NotificationSettings?
     var notificationEvents: [NotificationEvent] = []
     var cloudSession: CloudSession?

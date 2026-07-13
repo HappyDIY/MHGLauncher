@@ -64,6 +64,8 @@ struct GameModelTests {
     func statusTitle() {
         #expect(GameStatus.updateAvailable.title == "有可用更新")
         #expect(JobStatus.paused.title == "已暂停")
+        #expect(JobStatus.pausing.title == "正在暂停")
+        #expect(JobStatus.cancelling.title == "正在取消")
     }
 
     @Test("预下载任务类型解码")

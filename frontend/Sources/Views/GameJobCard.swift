@@ -96,6 +96,7 @@ struct GameJobCard: View {
                 .motionHover(.destructive)
                 .motionTransition(.selection)
             }
+            if [.pausing, .cancelling].contains(job.status) { ProgressView().controlSize(.small) }
         }
         .motionAnimation(.selection, value: job.status)
     }

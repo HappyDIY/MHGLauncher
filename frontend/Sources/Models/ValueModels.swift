@@ -19,6 +19,7 @@ struct AchievementArchive: Codable, Sendable, Identifiable {
     let selected: Bool
     let createdAt: Date
     let updatedAt: Date
+    var revision: Int? = nil
 }
 
 struct AchievementItem: Codable, Sendable, Identifiable {
@@ -105,7 +106,14 @@ struct AchievementArchiveRequest: Codable {
 
 struct AchievementSaveRequest: Codable {
     let archiveId: String
+    let expectedRevision: Int
     let items: [AchievementItemInput]
+}
+
+struct AchievementSnapshot: Codable, Sendable {
+    let archive: AchievementArchive
+    let entries: [AchievementEntry]
+    let revision: Int
 }
 
 struct AchievementItemInput: Codable {

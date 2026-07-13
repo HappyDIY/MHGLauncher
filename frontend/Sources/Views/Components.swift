@@ -78,7 +78,9 @@ extension JobStatus {
         switch self {
         case .queued: "等待中"
         case .running: "处理中"
+        case .pausing: "正在暂停"
         case .paused: "已暂停"
+        case .cancelling: "正在取消"
         case .completed: "已完成"
         case .cancelled: "已取消"
         case .failed: "失败"
