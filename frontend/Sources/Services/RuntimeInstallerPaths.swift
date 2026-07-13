@@ -33,26 +33,10 @@ extension RuntimeInstaller {
             .appending(path: ".\(tag)-\(suffix)-\(UUID().uuidString)")
     }
 
-    func promoteGame(stage: URL, runtime: InstalledRuntime) throws {
-        let gameStage = stage.appending(path: "game-runtime")
-        let marker = stage.appending(path: ".game-complete")
-        let backup = runtime.rootURL.appending(path: ".game-runtime.backup")
-        try? fileManager.removeItem(at: backup)
-        if fileManager.fileExists(atPath: runtime.gameRuntimeURL.path) {
-            try fileManager.moveItem(at: runtime.gameRuntimeURL, to: backup)
-        }
-        do {
-            try fileManager.moveItem(at: gameStage, to: runtime.gameRuntimeURL)
-            try? fileManager.removeItem(at: runtime.rootURL.appending(path: ".game-complete"))
-            try fileManager.moveItem(at: marker, to: runtime.rootURL.appending(path: ".game-complete"))
-            try? fileManager.removeItem(at: backup)
-            try? fileManager.removeItem(at: stage)
-        } catch {
-            if fileManager.fileExists(atPath: backup.path) {
-                try? fileManager.moveItem(at: backup, to: runtime.gameRuntimeURL)
-            }
-            throw error
-        }
+    func recoverPromotion(tag: String) {
+        let parent = dataDirectory().appending(path: "Runtimes")
+        let journal = parent.appending(path: ".\(tag).promotion.json")
+        try? RuntimePromotion.recover(journal: journal, fileManager: fileManager)
     }
 
     @MainActor

@@ -2,10 +2,15 @@ import Foundation
 
 typealias RuntimeProgressHandler = @MainActor (RuntimeProgress) -> Void
 
+private struct LoadedRuntimeManifest {
+    let manifest: RuntimeManifest
+    let data: Data
+}
 final class RuntimeInstaller: @unchecked Sendable {
     let fileManager: FileManager
     let bundle: Bundle
     let environment: [String: String]
+    private let gate = RuntimeInstallGate()
 
     init(
         fileManager: FileManager = .default,
@@ -18,15 +23,61 @@ final class RuntimeInstaller: @unchecked Sendable {
     }
 
     func ensureCore(progress: RuntimeProgressHandler? = nil) async throws -> InstalledRuntime {
+        try await withTaskCancellationHandler {
+            try await gate.run(scope: .core) { [self] in
+                try await performEnsureCore(progress: progress)
+            }
+        } onCancel: {
+            Task { await self.gate.cancel(scope: .core) }
+        }
+    }
+
+    func ensureGame(progress: RuntimeProgressHandler? = nil) async throws -> InstalledRuntime {
+        _ = try await ensureCore(progress: progress)
+        return try await withTaskCancellationHandler {
+            try await gate.run(scope: .game) { [self] in
+                try await performEnsureGame(progress: progress)
+            }
+        } onCancel: {
+            Task { await self.gate.cancel(scope: .game) }
+        }
+    }
+
+    func isGameInstalled() -> Bool {
+        recoverPromotion(tag: tag())
+        return gameReady(paths(tag: tag()))
+    }
+
+    func installedCoreRuntime() -> InstalledRuntime? {
+        recoverPromotion(tag: tag())
+        let runtime = paths()
+        return coreReady(runtime) ? runtime : nil
+    }
+
+    func paths(tag: String? = nil) -> InstalledRuntime {
+        let tag = tag ?? self.tag()
+        let root = dataDirectory().appending(path: "Runtimes").appending(path: tag)
+        return InstalledRuntime(
+            tag: tag,
+            rootURL: root,
+            backendAppURL: root.appending(path: "backend/app"),
+            nodeURL: root.appending(path: "node/bin/node"),
+            hpatchzURL: root.appending(path: "backend/hpatchz"),
+            gameRuntimeURL: root.appending(path: "game-runtime")
+        )
+    }
+
+    private func performEnsureCore(progress: RuntimeProgressHandler?) async throws -> InstalledRuntime {
+        try Task.checkCancellation()
         if let installed = installedCoreRuntime() {
             try copyBackendApp(to: installed.backendAppURL)
             return installed
         }
-        let manifest = try await loadManifest()
+        let loaded = try await loadManifest()
+        let manifest = loaded.manifest
         let runtime = paths(tag: manifest.tag)
         let stage = stageURL(tag: manifest.tag, suffix: "core")
-        try? fileManager.removeItem(at: stage)
-        try fileManager.createDirectory(at: stage, withIntermediateDirectories: true)
+        try prepare(stage: stage)
         do {
             try copyBackendApp(to: stage.appending(path: "backend/app"))
             try await install(
@@ -36,12 +87,11 @@ final class RuntimeInstaller: @unchecked Sendable {
                 destination: stage,
                 progress: progress
             )
-            try "core".write(
-                to: stage.appending(path: ".core-complete"),
-                atomically: true,
-                encoding: .utf8
+            try RuntimeInstallLedger.write(
+                manifest: manifest, manifestData: loaded.data, scope: .core, root: stage
             )
-            try promote(stage: stage, destination: runtime.rootURL)
+            try Task.checkCancellation()
+            try RuntimePromotion.promote(stage: stage, destination: runtime.rootURL, fileManager: fileManager)
             return runtime
         } catch {
             try? fileManager.removeItem(at: stage)
@@ -49,14 +99,19 @@ final class RuntimeInstaller: @unchecked Sendable {
         }
     }
 
-    func ensureGame(progress: RuntimeProgressHandler? = nil) async throws -> InstalledRuntime {
-        let runtime = try await ensureCore(progress: progress)
+    private func performEnsureGame(progress: RuntimeProgressHandler?) async throws -> InstalledRuntime {
+        let runtime = paths(tag: tag())
         if gameReady(runtime) { return runtime }
-        let manifest = try await loadManifest()
+        let loaded = try await loadManifest()
+        let manifest = loaded.manifest
+        guard !manifest.components(kind: .game).isEmpty else {
+            throw RuntimeInstallError.invalidManifest
+        }
         let stage = stageURL(tag: manifest.tag, suffix: "game")
-        try? fileManager.removeItem(at: stage)
-        try fileManager.createDirectory(at: stage, withIntermediateDirectories: true)
+        try prepare(stage: stage)
         do {
+            try fileManager.copyItem(at: runtime.rootURL, to: stage)
+            try? fileManager.removeItem(at: stage.appending(path: "game-runtime"))
             try await install(
                 manifest: manifest,
                 components: manifest.components(kind: .game),
@@ -64,42 +119,16 @@ final class RuntimeInstaller: @unchecked Sendable {
                 destination: stage,
                 progress: progress
             )
-            try "game".write(
-                to: stage.appending(path: ".game-complete"),
-                atomically: true,
-                encoding: .utf8
+            try RuntimeInstallLedger.write(
+                manifest: manifest, manifestData: loaded.data, scope: .game, root: stage
             )
-            try promoteGame(stage: stage, runtime: runtime)
+            try Task.checkCancellation()
+            try RuntimePromotion.promote(stage: stage, destination: runtime.rootURL, fileManager: fileManager)
             return runtime
         } catch {
             try? fileManager.removeItem(at: stage)
             throw error
         }
-    }
-
-    func isGameInstalled() -> Bool {
-        let runtime = paths(tag: tag())
-        return gameReady(runtime)
-    }
-
-    func installedCoreRuntime() -> InstalledRuntime? {
-        let runtime = paths()
-        return coreReady(runtime) ? runtime : nil
-    }
-
-    func paths(tag: String? = nil) -> InstalledRuntime {
-        let tag = tag ?? self.tag()
-        let root = dataDirectory()
-            .appending(path: "Runtimes")
-            .appending(path: tag)
-        return InstalledRuntime(
-            tag: tag,
-            rootURL: root,
-            backendAppURL: root.appending(path: "backend/app"),
-            nodeURL: root.appending(path: "node/bin/node"),
-            hpatchzURL: root.appending(path: "backend/hpatchz"),
-            gameRuntimeURL: root.appending(path: "game-runtime")
-        )
     }
 
     private func install(
@@ -118,6 +147,7 @@ final class RuntimeInstaller: @unchecked Sendable {
             RuntimeMirrorCatalog.sources(for: manifest.assetBaseURL, environment: environment),
             probeFile: components.first?.file
         )
+        try Task.checkCancellation()
         for component in components {
             await report(progress, scope, component.id, "正在下载 \(component.id)", completed, total)
             let archive = try await RuntimeArchive.materialize(
@@ -126,53 +156,45 @@ final class RuntimeInstaller: @unchecked Sendable {
                 cacheURL: cacheURL(tag: manifest.tag),
                 sources: sources
             )
+            try Task.checkCancellation()
             await report(progress, scope, component.id, "正在安装 \(component.id)", completed, total)
             try RuntimeArchive.extractTarGzip(archive, to: destination)
+            try Task.checkCancellation()
             completed += component.size
             await report(progress, scope, component.id, "已完成 \(component.id)", completed, total)
         }
     }
 
-    private func loadManifest() async throws -> RuntimeManifest {
+    private func loadManifest() async throws -> LoadedRuntimeManifest {
         let data = try await RuntimeManifestDownload.load(from: manifestURL(), environment: environment)
         let manifest = try JSONDecoder().decode(RuntimeManifest.self, from: data)
-        guard manifest.schemaVersion == 1, manifest.tag == tag() else {
+        let version = RuntimeManifest.appVersion(bundle: bundle)
+        guard manifest.isValid(expectedTag: tag(), appVersion: version) else {
             throw RuntimeInstallError.invalidManifest
         }
-        return manifest
+        return LoadedRuntimeManifest(manifest: manifest, data: data)
     }
 
     private func coreReady(_ runtime: InstalledRuntime) -> Bool {
-        fileManager.isExecutableFile(atPath: runtime.nodeURL.path)
-            && fileManager.isExecutableFile(atPath: runtime.hpatchzURL.path)
-            && fileManager.fileExists(atPath: runtime.backendAppURL.appending(path: "build/server.js").path)
-            && fileManager.fileExists(atPath: runtime.backendAppURL.appending(path: "node_modules").path)
-            && fileManager.fileExists(atPath: runtime.rootURL.appending(path: ".core-complete").path)
+        RuntimeInstallLedger.isReady(
+            root: runtime.rootURL,
+            tag: runtime.tag,
+            appVersion: RuntimeManifest.appVersion(bundle: bundle),
+            scope: .core
+        ) && fileManager.fileExists(atPath: runtime.backendAppURL.appending(path: "build/server.js").path)
     }
 
     private func gameReady(_ runtime: InstalledRuntime) -> Bool {
-        let root = runtime.gameRuntimeURL
-        return fileManager.isExecutableFile(atPath: root.appending(path: "wine/bin/wine").path)
-            && fileManager.isExecutableFile(atPath: root.appending(path: "wine/bin/wineserver").path)
-            && fileManager.fileExists(atPath: root.appending(path: "wine/lib/wine/x86_64-windows/winemetal.dll").path)
-            && fileManager.fileExists(atPath: root.appending(path: "assets/mhypbase.dll").path)
-            && fileManager.fileExists(atPath: runtime.rootURL.appending(path: ".game-complete").path)
+        RuntimeInstallLedger.isReady(
+            root: runtime.rootURL,
+            tag: runtime.tag,
+            appVersion: RuntimeManifest.appVersion(bundle: bundle),
+            scope: .game
+        )
     }
 
-    private func promote(stage: URL, destination: URL) throws {
-        let backup = destination.deletingLastPathComponent().appending(path: ".\(destination.lastPathComponent).backup")
-        try? fileManager.removeItem(at: backup)
-        if fileManager.fileExists(atPath: destination.path) {
-            try fileManager.moveItem(at: destination, to: backup)
-        }
-        do {
-            try fileManager.moveItem(at: stage, to: destination)
-            try? fileManager.removeItem(at: backup)
-        } catch {
-            if fileManager.fileExists(atPath: backup.path) {
-                try? fileManager.moveItem(at: backup, to: destination)
-            }
-            throw error
-        }
+    private func prepare(stage: URL) throws {
+        try? fileManager.removeItem(at: stage)
+        try fileManager.createDirectory(at: stage.deletingLastPathComponent(), withIntermediateDirectories: true)
     }
 }

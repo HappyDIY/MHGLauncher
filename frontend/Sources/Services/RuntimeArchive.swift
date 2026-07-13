@@ -1,6 +1,5 @@
 import CryptoKit
 import Foundation
-
 enum RuntimeInstallError: LocalizedError, Equatable {
     case invalidManifest
     case missingBundledBackend
@@ -28,10 +27,8 @@ enum RuntimeArchive {
         cacheURL: URL,
         sources: [RuntimeDownloadSource] = []
     ) async throws -> URL {
-        try FileManager.default.createDirectory(
-            at: cacheURL,
-            withIntermediateDirectories: true
-        )
+        try Task.checkCancellation()
+        try FileManager.default.createDirectory(at: cacheURL, withIntermediateDirectories: true)
         let archiveURL = cacheURL.appending(path: component.file)
         if isValid(archiveURL, size: component.size, sha256: component.sha256) {
             return archiveURL
@@ -92,6 +89,7 @@ enum RuntimeArchive {
         let writer = try FileHandle(forWritingTo: partial)
         defer { try? writer.close() }
         for part in parts {
+            try Task.checkCancellation()
             let partURL = try await download(named: part.file, manifest: manifest, cacheURL: cacheURL, size: part.size, sha256: part.sha256, sources: sources)
             let reader = try FileHandle(forReadingFrom: partURL)
             defer { try? reader.close() }
@@ -121,15 +119,20 @@ enum RuntimeArchive {
             : sources
         var checksumFailed = false
         for candidate in candidates {
+            try Task.checkCancellation()
             let partial = destination.appendingPathExtension("part")
             try? FileManager.default.removeItem(at: partial)
             let source = candidate.assetURL(named: file)
             do {
                 if source.isFileURL {
+                    let localSize = try source.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? -1
+                    guard Int64(localSize) == size else {
+                        checksumFailed = true
+                        continue
+                    }
                     try FileManager.default.copyItem(at: source, to: partial)
                 } else {
-                    let (temporary, _) = try await URLSession.shared.download(from: source)
-                    try FileManager.default.moveItem(at: temporary, to: partial)
+                    try await RuntimeArchiveRemote.download(from: source, to: partial, limit: size)
                 }
                 guard isValid(partial, size: size, sha256: expected) else {
                     checksumFailed = true
@@ -138,6 +141,12 @@ enum RuntimeArchive {
                 try? FileManager.default.removeItem(at: destination)
                 try FileManager.default.moveItem(at: partial, to: destination)
                 return destination
+            } catch is CancellationError {
+                try? FileManager.default.removeItem(at: partial)
+                throw CancellationError()
+            } catch let error as URLError where error.code == .cancelled {
+                try? FileManager.default.removeItem(at: partial)
+                throw error
             } catch {
                 try? FileManager.default.removeItem(at: partial)
             }

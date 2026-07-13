@@ -98,7 +98,9 @@ struct RuntimeInstallerTests {
         let root = try tempDir(), assets = root.appending(path: "assets")
         try FileManager.default.createDirectory(at: assets, withIntermediateDirectories: true)
         let component = try makeComponent(id: "node", file: "node.tar.gz", root: root, assets: assets)
-        let manifest = RuntimeManifest(schemaVersion: 1, tag: "vtest", generatedAt: "", assetBaseURL: assets, components: [component])
+        let manifest = runtimeManifest(
+            components: [component], assets: assets, requiredPaths: [component.installRoot]
+        )
         let archive = try await RuntimeArchive.materialize(
             component: component, manifest: manifest, cacheURL: root.appending(path: "cache"),
             sources: [
@@ -108,90 +110,73 @@ struct RuntimeInstallerTests {
         )
         #expect(FileManager.default.fileExists(atPath: archive.path))
     }
-}
 
-private struct CoreFixture {
-    let environment: [String: String]
-
-    init(corruptFirstComponent: Bool = false) throws {
+    @Test("旧版清单不再视为可安装")
+    func rejectsLegacyManifest() throws {
         let root = try tempDir()
-        let assets = root.appending(path: "assets")
-        let backend = root.appending(path: "backend-app")
-        let data = root.appending(path: "data")
-        try FileManager.default.createDirectory(at: assets, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: backend.appending(path: "build"), withIntermediateDirectories: true)
-        try Data("server".utf8).write(to: backend.appending(path: "build/server.js"))
-        let components = try [
-            makeComponent(id: "node", file: "node.tar.gz", root: root, assets: assets, executable: "node/bin/node"),
-            makeComponent(id: "node_modules", file: "modules.tar.gz", root: root, assets: assets, marker: "backend/app/node_modules/.keep"),
-            makeComponent(id: "hpatchz", file: "hpatchz.tar.gz", root: root, assets: assets, executable: "backend/hpatchz")
-        ].enumerated().map { index, component in
-            if index == 0 && corruptFirstComponent {
-                return RuntimeComponent(
-                    id: component.id,
-                    kind: component.kind,
-                    version: component.version,
-                    file: component.file,
-                    size: component.size,
-                    sha256: String(repeating: "0", count: 64),
-                    installRoot: component.installRoot,
-                    parts: nil
-                )
-            }
-            return component
-        }
-        let manifest = RuntimeManifest(
-            schemaVersion: 1,
-            tag: "vtest",
-            generatedAt: "1970-01-01T00:00:00Z",
-            assetBaseURL: assets,
-            components: components
+        let component = RuntimeComponent(
+            id: "node", kind: .core, version: "test", file: "node.tar.gz",
+            size: 1, sha256: String(repeating: "0", count: 64),
+            installRoot: "node/bin/node", parts: nil
         )
-        let manifestURL = root.appending(path: "runtime-manifest.json")
-        try JSONEncoder().encode(manifest).write(to: manifestURL)
-        environment = [
-            "MHG_DATA_DIR": data.path,
-            "MHG_BACKEND_APP_DIR": backend.path,
-            "MHG_RUNTIME_MANIFEST_URL": manifestURL.path,
-            "MHG_RUNTIME_TAG": "vtest"
-        ]
+        let valid = runtimeManifest(
+            components: [component], assets: root, requiredPaths: ["node/bin/node"]
+        )
+        let legacy = RuntimeManifest(
+            schemaVersion: 1, tag: valid.tag, appVersion: valid.appVersion,
+            platform: valid.platform, hostArchitecture: valid.hostArchitecture,
+            guestArchitecture: valid.guestArchitecture, generatedAt: valid.generatedAt,
+            assetBaseURL: valid.assetBaseURL, requiredPaths: valid.requiredPaths,
+            components: valid.components
+        )
+        #expect(!legacy.isValid(expectedTag: "v0.1.0", appVersion: "0.1.0"))
     }
-}
 
-private func makeComponent(id: String, file: String, root: URL, assets: URL, executable: String? = nil, marker: String? = nil) throws -> RuntimeComponent {
-    let source = root.appending(path: "\(id)-source")
-    let relative = executable ?? marker ?? ".keep"
-    let target = source.appending(path: relative)
-    try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try Data(id.utf8).write(to: target)
-    if executable != nil {
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: target.path)
+    @Test("安装标记拒绝符号链接必需路径")
+    func markerRejectsSymlink() throws {
+        let root = try tempDir()
+        let target = root.appending(path: "target")
+        try Data("ok".utf8).write(to: target)
+        try FileManager.default.createSymbolicLink(
+            at: root.appending(path: "node"), withDestinationURL: target
+        )
+        let record = RuntimeInstallRecord(
+            schemaVersion: 2, tag: "v0.1.0", appVersion: "0.1.0",
+            manifestDigest: String(repeating: "0", count: 64),
+            scope: .core, requiredPaths: ["node"]
+        )
+        try JSONEncoder().encode(record).write(
+            to: root.appending(path: RuntimeInstallLedger.markerName)
+        )
+        #expect(!RuntimeInstallLedger.isReady(
+            root: root, tag: "v0.1.0", appVersion: "0.1.0", scope: .core
+        ))
     }
-    let archive = assets.appending(path: file)
-    try run("/usr/bin/tar", ["--format=ustar", "-C", source.path, "-czf", archive.path, "."])
-    return RuntimeComponent(
-        id: id,
-        kind: .core,
-        version: "test",
-        file: file,
-        size: Int64(try archive.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0),
-        sha256: try RuntimeArchive.sha256(archive),
-        installRoot: relative,
-        parts: nil
-    )
-}
 
-private func tempDir() throws -> URL {
-    let url = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
-    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-    return url
-}
+    @Test("提升失败恢复旧运行时")
+    func promotionFailureRollsBack() throws {
+        let root = try tempDir()
+        let destination = root.appending(path: "v0.1.0")
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        try Data("old".utf8).write(to: destination.appending(path: "value"))
+        #expect(throws: (any Error).self) {
+            try RuntimePromotion.promote(
+                stage: root.appending(path: "missing"),
+                destination: destination,
+                fileManager: .default
+            )
+        }
+        let value = try Data(contentsOf: destination.appending(path: "value"))
+        #expect(String(decoding: value, as: UTF8.self) == "old")
+    }
 
-private func run(_ executable: String, _ arguments: [String]) throws {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: executable)
-    process.arguments = arguments
-    try process.run()
-    process.waitUntilExit()
-    #expect(process.terminationStatus == 0)
+    @Test("并发安装共享同一事务")
+    func coalescesConcurrentInstall() async throws {
+        let fixture = try CoreFixture()
+        let installer = RuntimeInstaller(environment: fixture.environment)
+        async let first = installer.ensureCore()
+        async let second = installer.ensureCore()
+        let results = try await [first, second]
+        #expect(results[0] == results[1])
+    }
 }

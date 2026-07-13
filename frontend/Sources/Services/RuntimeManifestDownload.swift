@@ -2,26 +2,65 @@ import CryptoKit
 import Foundation
 
 enum RuntimeManifestDownload {
+    private static let manifestLimit = 1024 * 1024
+    private static let signatureLimit = 128
+
     static func load(from url: URL, environment: [String: String]) async throws -> Data {
-        if url.isFileURL { return try Data(contentsOf: url) }
-        let sources = RuntimeMirrorCatalog.sources(
+        if url.isFileURL { return try localData(from: url, limit: manifestLimit) }
+        let mirrors = RuntimeMirrorCatalog.sources(
             for: url.deletingLastPathComponent(), environment: environment
         )
+        let official = RuntimeDownloadSource(id: "manifest", baseURL: url.deletingLastPathComponent())
+        let sources = [official] + mirrors.filter { $0.baseURL != official.baseURL }
         for source in sources {
-            guard let manifest = try? await data(from: source.assetURL(named: url.lastPathComponent)),
-                  let signature = try? await data(from: source.assetURL(named: "\(url.lastPathComponent).sig")),
-                  RuntimeManifestVerifier.isValid(manifest, signature: signature) else { continue }
-            return manifest
+            do {
+                let manifest = try await data(
+                    from: source.assetURL(named: url.lastPathComponent), limit: manifestLimit
+                )
+                let signature = try await data(
+                    from: source.assetURL(named: "\(url.lastPathComponent).sig"),
+                    limit: signatureLimit
+                )
+                if RuntimeManifestVerifier.isValid(manifest, signature: signature) {
+                    return manifest
+                }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch let error as URLError where error.code == .cancelled {
+                throw error
+            } catch {
+                continue
+            }
         }
         throw RuntimeInstallError.invalidManifest
     }
 
-    private static func data(from url: URL) async throws -> Data {
-        let (data, response) = try await URLSession.shared.data(from: url)
+    private static func data(from url: URL, limit: Int) async throws -> Data {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 10
+        configuration.timeoutIntervalForResource = 20
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+        let (bytes, response) = try await session.bytes(from: url)
         guard let response = response as? HTTPURLResponse, 200..<300 ~= response.statusCode else {
             throw URLError(.badServerResponse)
         }
+        if response.expectedContentLength > Int64(limit) {
+            throw URLError(.dataLengthExceedsMaximum)
+        }
+        var data = Data()
+        data.reserveCapacity(min(limit, max(0, Int(response.expectedContentLength))))
+        for try await byte in bytes {
+            guard data.count < limit else { throw URLError(.dataLengthExceedsMaximum) }
+            data.append(byte)
+        }
         return data
+    }
+
+    private static func localData(from url: URL, limit: Int) throws -> Data {
+        let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? limit + 1
+        guard size <= limit else { throw URLError(.dataLengthExceedsMaximum) }
+        return try Data(contentsOf: url, options: .mappedIfSafe)
     }
 }
 
