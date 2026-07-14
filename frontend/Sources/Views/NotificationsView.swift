@@ -49,7 +49,6 @@ struct NotificationsView: View {
             Spacer()
         }
         .task { await store.loadValueData() }
-        .onDisappear { updateTask?.cancel() }
         .motionEntrance(.content)
     }
 
@@ -58,9 +57,10 @@ struct NotificationsView: View {
             store.value.notificationSettings?[keyPath: keyPath] ?? false
         } set: { newValue in
             guard var settings = store.value.notificationSettings else { return }
+            let previous = settings
             settings[keyPath: keyPath] = newValue
             store.value.notificationSettings = settings
-            scheduleSettingsUpdate(settings)
+            scheduleSettingsUpdate(settings, revertingTo: previous)
         }
     }
 
@@ -76,21 +76,25 @@ struct NotificationsView: View {
             ) ?? Date()
         } set: { newValue in
             guard var settings = store.value.notificationSettings else { return }
+            let previous = settings
             let fields = Calendar.current.dateComponents([.hour, .minute], from: newValue)
             settings.dailyCommissionTime = String(
                 format: "%02d:%02d", fields.hour ?? 0, fields.minute ?? 0
             )
             store.value.notificationSettings = settings
-            scheduleSettingsUpdate(settings)
+            scheduleSettingsUpdate(settings, revertingTo: previous)
         }
     }
 
-    private func scheduleSettingsUpdate(_ settings: NotificationSettings) {
+    private func scheduleSettingsUpdate(
+        _ settings: NotificationSettings,
+        revertingTo previous: NotificationSettings
+    ) {
         updateTask?.cancel()
         updateTask = Task {
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
-            await store.updateNotificationSettings(settings)
+            await store.updateNotificationSettings(settings, revertingTo: previous)
         }
     }
 }

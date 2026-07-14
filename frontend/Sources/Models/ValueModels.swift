@@ -59,7 +59,7 @@ struct AchievementEntry: Codable, Sendable, Identifiable, Equatable {
     let isDailyQuest: Bool
 }
 
-struct NotificationSettings: Codable, Sendable {
+struct NotificationSettings: Codable, Sendable, Equatable {
     var dailyCommissionEnabled: Bool
     var dailyCommissionTime: String
     var resinFullEnabled: Bool

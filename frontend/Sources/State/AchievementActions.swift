@@ -1,12 +1,16 @@
 import Foundation
 
 extension LauncherStore {
-    func loadAchievementData(client: APIClient? = nil) async throws {
+    func loadAchievementData(
+        client: APIClient? = nil,
+        uid: String? = nil,
+        generation: Int? = nil
+    ) async throws {
         let api = try client ?? requireClient()
         value.achievementIntent += 1
         let intent = value.achievementIntent
         let archives: [AchievementArchive] = try await api.get("/v1/achievements/archives")
-        guard intent == value.achievementIntent else { return }
+        guard isCurrentAchievementLoad(intent, uid: uid, generation: generation) else { return }
         guard let archive = archives.first(where: \.selected) ?? archives.first else {
             value.achievementArchives = []; value.achievementEntries = []; value.achievementRevision = 0
             return
@@ -15,7 +19,7 @@ extension LauncherStore {
             "/v1/achievements/snapshot",
             query: [URLQueryItem(name: "archive_id", value: archive.id)]
         )
-        guard intent == value.achievementIntent, snapshot.archive.id == archive.id else { return }
+        guard isCurrentAchievementLoad(intent, uid: uid, generation: generation), snapshot.archive.id == archive.id else { return }
         applyAchievementSnapshot(snapshot, archives: archives)
     }
 
@@ -31,10 +35,16 @@ extension LauncherStore {
     }
 
     func selectAchievementArchive(_ archive: AchievementArchive) async {
+        value.achievementIntent &+= 1
+        let intent = value.achievementIntent
+        await achievementSelectionGate.acquire()
+        defer { Task { await achievementSelectionGate.release() } }
+        guard intent == value.achievementIntent else { return }
         await perform {
             _ = try await requireClient().post(
                 "/v1/achievements/archives/\(archive.id)/select"
             ) as AchievementArchive
+            guard intent == value.achievementIntent else { return }
             try await loadAchievementData()
         }
     }
@@ -97,6 +107,12 @@ extension LauncherStore {
         }
         value.achievementEntries = snapshot.entries
         value.achievementRevision = snapshot.revision
+    }
+
+    private func isCurrentAchievementLoad(_ intent: Int, uid: String?, generation: Int?) -> Bool {
+        guard intent == value.achievementIntent else { return false }
+        guard let uid, let generation else { return true }
+        return isCurrentCompanionData(uid: uid, generation: generation)
     }
 
     private func saveAchievement(

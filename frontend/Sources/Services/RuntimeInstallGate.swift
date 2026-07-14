@@ -4,6 +4,7 @@ actor RuntimeInstallGate {
     private struct Flight {
         let id: UUID
         let task: Task<InstalledRuntime, Error>
+        var waiters: Set<UUID>
     }
 
     private var flights: [RuntimeInstallScope: Flight] = [:]
@@ -12,23 +13,36 @@ actor RuntimeInstallGate {
         scope: RuntimeInstallScope,
         operation: @escaping @Sendable () async throws -> InstalledRuntime
     ) async throws -> InstalledRuntime {
-        if let flight = flights[scope] {
-            return try await flight.task.value
+        let waiter = UUID()
+        let flight: Flight
+        if var current = flights[scope] {
+            current.waiters.insert(waiter)
+            flights[scope] = current
+            flight = current
+        } else {
+            flight = Flight(id: UUID(), task: Task(operation: operation), waiters: [waiter])
+            flights[scope] = flight
         }
-        let flight = Flight(id: UUID(), task: Task(operation: operation))
-        flights[scope] = flight
-        do {
-            let result = try await flight.task.value
-            clear(scope: scope, id: flight.id)
-            return result
-        } catch {
-            clear(scope: scope, id: flight.id)
-            throw error
+        return try await withTaskCancellationHandler {
+            do {
+                let result = try await flight.task.value
+                try Task.checkCancellation()
+                clear(scope: scope, id: flight.id)
+                return result
+            } catch {
+                clear(scope: scope, id: flight.id)
+                throw error
+            }
+        } onCancel: {
+            Task { await self.cancel(scope: scope, id: flight.id, waiter: waiter) }
         }
     }
 
-    func cancel(scope: RuntimeInstallScope) {
-        flights[scope]?.task.cancel()
+    private func cancel(scope: RuntimeInstallScope, id: UUID, waiter: UUID) {
+        guard var flight = flights[scope], flight.id == id else { return }
+        flight.waiters.remove(waiter)
+        flights[scope] = flight
+        if flight.waiters.isEmpty { flight.task.cancel() }
     }
 
     private func clear(scope: RuntimeInstallScope, id: UUID) {

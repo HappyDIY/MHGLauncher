@@ -11,13 +11,25 @@ export class RevisionNotifier<T extends Revisioned> {
     return value;
   }
 
-  async wait(id: string, after: number, ms: number, read: () => T): Promise<T> {
+  async wait(id: string, after: number, ms: number, read: () => T, signal?: AbortSignal): Promise<T> {
     const current = read();
     if ((current.revision ?? 0) > after || ms <= 0) return current;
     await new Promise<void>((resolve) => {
       const set = this.waiters.get(id) ?? new Set<Resolver>();
-      set.add(resolve); this.waiters.set(id, set);
-      setTimeout(() => { set.delete(resolve); if (!set.size) this.waiters.delete(id); resolve(); }, ms).unref();
+      let finished = false;
+      const release = () => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", release);
+        set.delete(release);
+        if (!set.size) this.waiters.delete(id);
+        resolve();
+      };
+      const timer = setTimeout(release, ms);
+      set.add(release); this.waiters.set(id, set);
+      if (signal?.aborted) release(); else signal?.addEventListener("abort", release, { once: true });
+      timer.unref();
     });
     return read();
   }

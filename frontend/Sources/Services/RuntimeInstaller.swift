@@ -23,23 +23,15 @@ final class RuntimeInstaller: @unchecked Sendable {
     }
 
     func ensureCore(progress: RuntimeProgressHandler? = nil) async throws -> InstalledRuntime {
-        try await withTaskCancellationHandler {
-            try await gate.run(scope: .core) { [self] in
-                try await performEnsureCore(progress: progress)
-            }
-        } onCancel: {
-            Task { await self.gate.cancel(scope: .core) }
+        try await gate.run(scope: .core) { [self] in
+            try await performEnsureCore(progress: progress)
         }
     }
 
     func ensureGame(progress: RuntimeProgressHandler? = nil) async throws -> InstalledRuntime {
         _ = try await ensureCore(progress: progress)
-        return try await withTaskCancellationHandler {
-            try await gate.run(scope: .game) { [self] in
-                try await performEnsureGame(progress: progress)
-            }
-        } onCancel: {
-            Task { await self.gate.cancel(scope: .game) }
+        return try await gate.run(scope: .game) { [self] in
+            try await performEnsureGame(progress: progress)
         }
     }
 

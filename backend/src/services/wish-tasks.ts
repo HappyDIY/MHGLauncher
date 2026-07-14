@@ -43,8 +43,8 @@ export class WishTasks {
     return value;
   }
 
-  async wait(id: string, after: number, waitMs: number): Promise<WishTask> {
-    return this.notifier.wait(id, after, waitMs, () => this.get(id));
+  async wait(id: string, after: number, waitMs: number, signal?: AbortSignal): Promise<WishTask> {
+    return this.notifier.wait(id, after, waitMs, () => this.get(id), signal);
   }
 
   private create(kind: string): WishTask {

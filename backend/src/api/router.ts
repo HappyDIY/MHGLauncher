@@ -37,14 +37,14 @@ export async function dispatch(request: Request): Promise<Response> {
     const url = new URL(request.url), path = url.pathname.replace(/^\/v1/, "");
     const limit = ["/wishes/tasks/import", "/achievements/import"].includes(path) ? 64 * 1024 * 1024 : 1024 * 1024;
     const body = request.method === "POST" || request.method === "PUT" ? await readJsonBody(request, limit) : undefined;
-    return await route(request.method, path, url.searchParams, body);
+    return await route(request.method, path, url.searchParams, body, request.signal);
   } catch (error) {
     if (error instanceof z.ZodError) return Response.json({ code: "validation_error", message: "请求参数无效", details: { issues: JSON.stringify(error.issues) } }, { status: 422 });
     return errorResponse(error);
   }
 }
 
-async function route(method: string, path: string, query: URLSearchParams, body: unknown): Promise<Response> {
+async function route(method: string, path: string, query: URLSearchParams, body: unknown, signal: AbortSignal): Promise<Response> {
   const app = container();
   if (method === "GET" && path === "/accounts") return json(app.accounts.list());
   if (method === "GET" && path === "/account") return json(app.accounts.get());
@@ -91,7 +91,7 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   if (method === "GET" && path === "/settings/speed-limit") return json({ speed_limit_kb: app.games.getSpeedLimit() });
   if (method === "POST" && path === "/settings/speed-limit") { const value = speedLimit.parse(body); app.games.setSpeedLimit(value.speed_limit_kb); return json({ speed_limit_kb: value.speed_limit_kb }); }
   const gameJob = match(path, /^\/game\/jobs\/([^/]+)$/);
-  if (method === "GET" && gameJob) { const wait = longPollOptions(query); return json(await app.games.wait(gameJob, wait.after, wait.waitMs)); }
+  if (method === "GET" && gameJob) { const wait = longPollOptions(query); return json(await app.games.wait(gameJob, wait.after, wait.waitMs, signal)); }
   const gameControl = match(path, /^\/game\/jobs\/([^/]+)\/control$/);
   if (method === "POST" && gameControl) return json(app.games.control(gameControl, controlJob.parse(body).action));
   if (method === "POST" && path === "/game/launch") {
@@ -109,11 +109,11 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   if (method === "POST" && launchStop) return json(app.launches.stop(launchStop), 202);
   if (method === "GET" && path === "/game/launches/recovery") return json(app.launches.recovery());
   const launch = match(path, /^\/game\/launches\/([^/]+)$/);
-  if (method === "GET" && launch) { const wait = longPollOptions(query); return json(await app.launches.wait(launch, wait.after, wait.waitMs)); }
+  if (method === "GET" && launch) { const wait = longPollOptions(query); return json(await app.launches.wait(launch, wait.after, wait.waitMs, signal)); }
   if (method === "POST" && path === "/wishes/tasks/sync") return json(app.wishTasks.startSync(credential.parse(body).credential), 202);
   if (method === "POST" && path === "/wishes/tasks/import") return json(app.wishTasks.startImport(body), 202);
   const task = match(path, /^\/wishes\/tasks\/([^/]+)$/);
-  if (method === "GET" && task) { const wait = longPollOptions(query); return json(await app.wishTasks.wait(task, wait.after, wait.waitMs)); }
+  if (method === "GET" && task) { const wait = longPollOptions(query); return json(await app.wishTasks.wait(task, wait.after, wait.waitMs, signal)); }
   if (method === "GET" && path === "/companion/snapshot") {
     const uid = required(query, "uid"); return json(app.wishes.snapshot(uid, app.notes.get(uid)));
   }

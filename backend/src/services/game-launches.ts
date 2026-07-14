@@ -60,8 +60,8 @@ export class GameLaunchService {
     return launch;
     } catch (error) { this.coordinator.release(lease); throw error; }
   }
-  async wait(id: string, after: number, waitMs: number): Promise<GameLaunch> {
-    return this.notifier.wait(id, after, waitMs, () => this.get(id));
+  async wait(id: string, after: number, waitMs: number, signal?: AbortSignal): Promise<GameLaunch> {
+    return this.notifier.wait(id, after, waitMs, () => this.get(id), signal);
   }
   get(id: string): GameLaunch {
     const launch = this.launches.get(id);

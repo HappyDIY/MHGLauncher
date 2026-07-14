@@ -53,6 +53,7 @@ test("完成标记绑定清单摘要和真实缓存", () => {
   writePredownloadStatus(cache, { tag: build.version, manifest_digest: predownloadDigest(build), finished: true, total_chunks: 1 });
   expect(readPredownloadStatus(cache, build)?.finished).toBe(true);
   rmSync(join(cache, entry.name)); expect(readPredownloadStatus(cache, build)).toBeNull();
+  expect(existsSync(cache)).toBe(false);
 });
 
 function asset(name: string, md5: string, chunks: SophonChunk[]): GameAsset {

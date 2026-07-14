@@ -102,7 +102,7 @@ export class GameService {
     if (!job) throw new AppError("game_job_missing", "游戏资源任务不存在", 404);
     return job;
   }
-  async wait(id: string, after: number, waitMs: number): Promise<GameJob> { return this.notifier.wait(id, after, waitMs, () => this.get(id)); }
+  async wait(id: string, after: number, waitMs: number, signal?: AbortSignal): Promise<GameJob> { return this.notifier.wait(id, after, waitMs, () => this.get(id), signal); }
   control(id: string, action: string): GameJob {
     const job = this.get(id);
     const control = this.controls.get(id);

@@ -12,13 +12,16 @@ export function readPredownloadStatus(cacheDir: string, build?: GameBuild): Pred
   if (!existsSync(path)) return null;
   try {
     const value = JSON.parse(readFileSync(path, "utf8")) as PredownloadStatus;
-    if (!value.finished || !build || value.tag !== build.version || value.manifest_digest !== predownloadDigest(build)) return build ? null : value;
+    if (!valid(value, Boolean(build))) return discard(cacheDir);
+    if (!build) return value;
+    if (!value.finished) return null;
+    if (value.tag !== build.version || value.manifest_digest !== predownloadDigest(build)) return discard(cacheDir);
     for (const item of cacheFiles(build)) {
       const target = join(cacheDir, safeIdentifier(item.name, "预下载缓存标识"));
-      if (!existsSync(target) || !statSync(target).isFile() || statSync(target).size !== item.size) return null;
+      if (!existsSync(target) || !statSync(target).isFile() || statSync(target).size !== item.size) return discard(cacheDir);
     }
     return value;
-  } catch { return null; }
+  } catch { return discard(cacheDir); }
 }
 
 export function predownloadDigest(build: GameBuild): string {
@@ -41,4 +44,15 @@ export function writePredownloadStatus(cacheDir: string, status: PredownloadStat
 
 export function clearPredownloadStatus(cacheDir: string): void {
   rmSync(join(cacheDir, STATUS_FILENAME), { force: true });
+}
+
+function discard(cacheDir: string): null {
+  rmSync(cacheDir, { recursive: true, force: true });
+  return null;
+}
+
+function valid(value: PredownloadStatus, requireDigest: boolean): boolean {
+  return typeof value.tag === "string" && Boolean(value.tag) && typeof value.manifest_digest === "string"
+    && (!requireDigest || /^[a-f0-9]{64}$/i.test(value.manifest_digest)) && typeof value.finished === "boolean"
+    && Number.isInteger(value.total_chunks) && value.total_chunks >= 0;
 }
