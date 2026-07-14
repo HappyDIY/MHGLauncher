@@ -10,7 +10,7 @@ extension LauncherStore {
         } catch let error as LAError where error.code == .userCancel {
             return
         } catch {
-            message = Self.presentableMessage(error.localizedDescription)
+            message = Self.presentableMessage(error)
             return
         }
         await runWishOperation(.clearAll) {
@@ -42,7 +42,7 @@ extension LauncherStore {
         } catch let error as APIErrorPayload {
             failWishOperation(Self.presentableMessage(error))
         } catch {
-            failWishOperation(Self.presentableMessage(error.localizedDescription))
+            failWishOperation(Self.presentableMessage(error))
         }
     }
 

@@ -58,7 +58,7 @@ extension LauncherStore {
                 message = Self.presentableMessage(error)
             }
         } catch {
-            message = Self.presentableMessage(error.localizedDescription)
+            message = Self.presentableMessage(error)
         }
     }
 
@@ -105,7 +105,7 @@ extension LauncherStore {
             }
         } catch {
             noteVerification = nil
-            message = Self.presentableMessage(error.localizedDescription)
+            message = Self.presentableMessage(error)
         }
     }
 

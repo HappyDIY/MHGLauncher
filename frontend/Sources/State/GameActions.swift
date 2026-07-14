@@ -124,7 +124,7 @@ extension LauncherStore {
             return
         } catch {
             guard gameLaunchIntent == intent else { return }
-            message = Self.presentableMessage(error.localizedDescription)
+            message = Self.presentableMessage(error)
         }
     }
 

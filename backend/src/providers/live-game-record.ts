@@ -63,7 +63,7 @@ export class LiveGameRecordSource implements GameRecordSource {
   }
 
   private names(values: JSONValue[] | undefined): string[] { return (values ?? []).map((item) => String(item.name ?? item.item_name ?? "")).filter(Boolean); }
-  private time(value: unknown): string { const seconds = Number(value ?? 0); return seconds > 0 ? new Date(seconds * 1000).toISOString() : ""; }
+  private time(value: unknown): string | null { const seconds = Number(value ?? 0); return seconds > 0 ? new Date(seconds * 1000).toISOString() : null; }
   private wish(uid: string, v: JSONValue): WishRecord { const type = String(v.gacha_type); return { id: String(v.id), uid, gacha_type: type, uigf_gacha_type: type === "400" ? "301" : type, item_id: String(v.item_id), name: String(v.name), item_type: String(v.item_type), rank: Number(v.rank_type), time: String(v.time).replace(" ", "T") }; }
   private headers(cookie: string, ds: string): Record<string, string> { return { Cookie: cookie, DS: ds, "User-Agent": agent, "x-rpc-app_version": "2.95.1", "x-rpc-client_type": "5", "x-rpc-device_id": this.device.deviceId, "x-rpc-device_fp": this.device.deviceFP, "Content-Type": "application/json", Referer: "https://app.mihoyo.com" }; }
   private api(url: string, cookie: string, ds: string, init: RequestInit = {}): Promise<JSONValue> { return this.request(url, { ...init, headers: { ...this.headers(cookie, ds), ...init.headers } }); }

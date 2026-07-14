@@ -101,7 +101,7 @@ final class LauncherStore {
             await backend.start(runtime: runtime)
         } catch {
             isInstallingCoreRuntime = false
-            runtimeErrorMessage = Self.presentableMessage(error.localizedDescription)
+            runtimeErrorMessage = Self.presentableMessage(error)
             message = runtimeErrorMessage
             return
         }
@@ -154,7 +154,7 @@ final class LauncherStore {
         } catch let error as APIErrorPayload {
             message = Self.presentableMessage(error)
         } catch {
-            message = Self.presentableMessage(error.localizedDescription)
+            message = Self.presentableMessage(error)
         }
     }
 

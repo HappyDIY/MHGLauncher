@@ -10,11 +10,14 @@ extension LauncherStore {
         }
     }
 
+    // 按错误类型识别解码异常，避免依赖随 macOS 版本变化的本地化描述（如"数据丢失"）。
+    nonisolated static func presentableMessage(_ error: Error) -> String {
+        if error is DecodingError { return "本地数据格式异常，请刷新后重试" }
+        return presentableMessage(error.localizedDescription)
+    }
+
     nonisolated static func presentableMessage(_ value: String) -> String {
         let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if normalized == "未能读取数据，因为它的格式不正确。" {
-            return "本地数据格式异常，请刷新后重试"
-        }
         let containsChinese = normalized.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) }
         let unsafeTokens = ["\n", "/", "Error", "HTTP", "SQLITE", "ECONN"]
         guard !normalized.isEmpty, !normalized.allSatisfy(\.isNumber), normalized.count <= 120,

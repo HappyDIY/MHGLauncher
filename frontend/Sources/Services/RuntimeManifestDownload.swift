@@ -5,6 +5,16 @@ enum RuntimeManifestDownload {
     private static let manifestLimit = 1024 * 1024
     private static let signatureLimit = 128
 
+    // 解码运行时清单：将 DecodingError 归一为 invalidManifest，
+    // 避免随 macOS 版本变化的本地化解码错误直接展示给用户。
+    static func decode(_ data: Data) throws -> RuntimeManifest {
+        do {
+            return try JSONDecoder().decode(RuntimeManifest.self, from: data)
+        } catch is DecodingError {
+            throw RuntimeInstallError.invalidManifest
+        }
+    }
+
     static func load(from url: URL, environment: [String: String]) async throws -> Data {
         if url.isFileURL { return try localData(from: url, limit: manifestLimit) }
         let mirrors = RuntimeMirrorCatalog.sources(

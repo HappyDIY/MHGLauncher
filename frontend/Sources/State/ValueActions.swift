@@ -17,24 +17,24 @@ extension LauncherStore {
                 value.achievementLoaded = true
                 value.achievementError = nil
             } catch {
-                value.achievementError = Self.presentableMessage(error.localizedDescription)
+                value.achievementError = Self.presentableMessage(error)
             }
-            do { value.gachaEvents = try await events } catch { message = Self.presentableMessage(error.localizedDescription) }
+            do { value.gachaEvents = try await events } catch { message = Self.presentableMessage(error) }
             do {
                 characters = try await loadedCharacters
                 if selectedCharacterId == nil
                     || !characters.contains(where: { $0.avatarId == selectedCharacterId }) {
                     selectedCharacterId = characters.first?.avatarId
                 }
-            } catch { message = Self.presentableMessage(error.localizedDescription) }
+            } catch { message = Self.presentableMessage(error) }
             do {
                 value.notificationSettings = try await settings
                 value.notificationError = nil
             } catch {
-                value.notificationError = Self.presentableMessage(error.localizedDescription)
+                value.notificationError = Self.presentableMessage(error)
             }
         } catch {
-            value.achievementError = Self.presentableMessage(error.localizedDescription)
+            value.achievementError = Self.presentableMessage(error)
             value.notificationError = value.achievementError
         }
     }
@@ -96,7 +96,7 @@ extension LauncherStore {
             value.notificationEvents = events
             try await UserNotificationService().deliver(events)
         } catch {
-            message = Self.presentableMessage(error.localizedDescription)
+            message = Self.presentableMessage(error)
         }
     }
 

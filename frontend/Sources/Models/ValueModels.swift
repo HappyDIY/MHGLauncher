@@ -5,8 +5,8 @@ struct GachaEvent: Codable, Sendable, Identifiable {
     let version: String
     let gachaType: String
     let name: String
-    let startedAt: Date
-    let endedAt: Date
+    let startedAt: Date?
+    let endedAt: Date?
     let orangeUp: [String]
     let purpleUp: [String]
     let bannerUrl: URL?

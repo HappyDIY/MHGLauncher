@@ -46,7 +46,7 @@ extension LauncherStore {
                 message = Self.presentableMessage(error)
             }
         } catch {
-            message = Self.presentableMessage(error.localizedDescription)
+            message = Self.presentableMessage(error)
         }
     }
 
@@ -73,7 +73,7 @@ extension LauncherStore {
         } catch let error as APIErrorPayload {
             message = Self.presentableMessage(error)
         } catch {
-            message = Self.presentableMessage(error.localizedDescription)
+            message = Self.presentableMessage(error)
         }
     }
 

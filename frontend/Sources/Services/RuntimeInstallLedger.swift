@@ -43,18 +43,31 @@ enum RuntimeInstallLedger {
         scope: RuntimeInstallScope
     ) -> Bool {
         let marker = root.appending(path: markerName)
-        guard let data = try? Data(contentsOf: marker, options: .mappedIfSafe),
-              let record = try? JSONDecoder().decode(RuntimeInstallRecord.self, from: data),
-              record.schemaVersion == 2,
-              record.tag == tag,
-              record.appVersion == appVersion,
-              record.manifestDigest.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil,
-              record.scope == scope || record.scope == .game,
-              !record.requiredPaths.isEmpty else { return false }
+        if let data = try? Data(contentsOf: marker, options: .mappedIfSafe),
+           let record = try? JSONDecoder().decode(RuntimeInstallRecord.self, from: data),
+           record.schemaVersion == 2,
+           record.tag == tag,
+           record.appVersion == appVersion,
+           record.manifestDigest.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil,
+           record.scope == scope || record.scope == .game,
+           !record.requiredPaths.isEmpty {
+            let paths = scope == .core
+                ? record.requiredPaths.filter { !$0.hasPrefix("game-runtime/") }
+                : record.requiredPaths
+            return !paths.isEmpty && pathsAreSafe(paths, under: root)
+        }
+        // 兼容旧式 .core-complete/.game-complete 标记：
+        // schema v2 之前安装的运行时没有 ledger，按标记与关键文件判定就绪。
+        return legacyReady(root: root, scope: scope)
+    }
+
+    private static func legacyReady(root: URL, scope: RuntimeInstallScope) -> Bool {
+        let marker = root.appending(path: scope == .core ? ".core-complete" : ".game-complete")
+        guard FileManager.default.fileExists(atPath: marker.path) else { return false }
         let paths = scope == .core
-            ? record.requiredPaths.filter { !$0.hasPrefix("game-runtime/") }
-            : record.requiredPaths
-        return !paths.isEmpty && pathsAreSafe(paths, under: root)
+            ? ["node/bin/node", "backend/app/node_modules", "backend/hpatchz"]
+            : ["game-runtime/wine/bin/wine", "game-runtime/assets/mhypbase.dll"]
+        return pathsAreSafe(paths, under: root)
     }
 
     static func requiredPaths(

@@ -31,18 +31,19 @@ struct HistoryWishEvent: Identifiable, Equatable {
     var totalText: String { "总计 \(total) 抽" }
 
     static func make(events: [GachaEvent], records: [WishRecord]) -> [HistoryWishEvent] {
-        events.map { event in
+        events.compactMap { event in
+            guard let startedAt = event.startedAt, let endedAt = event.endedAt else { return nil }
             let eventRecords = records
                 .filter { $0.normalizedGachaType == event.gachaType.normalizedGachaType }
-                .filter { event.startedAt <= $0.time && $0.time <= event.endedAt }
+                .filter { startedAt <= $0.time && $0.time <= endedAt }
             return HistoryWishEvent(
                 id: event.id,
                 version: event.version,
                 name: event.name,
                 gachaType: event.gachaType,
                 bannerUrl: event.bannerUrl,
-                startedAt: event.startedAt,
-                endedAt: event.endedAt,
+                startedAt: startedAt,
+                endedAt: endedAt,
                 total: eventRecords.count,
                 orangeUp: upItems(names: event.orangeUp, rank: 5, eventRecords: eventRecords, records: records),
                 purpleUp: upItems(names: event.purpleUp, rank: 4, eventRecords: eventRecords, records: records),

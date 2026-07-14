@@ -21,7 +21,18 @@ struct ErrorPresentationTests {
 
     @Test("数据解码错误使用可行动提示")
     func decodingErrorIsActionable() {
-        #expect(LauncherStore.presentableMessage("未能读取数据，因为它的格式不正确。") == "本地数据格式异常，请刷新后重试")
+        // 用真实 DecodingError 验证按类型识别，不依赖随 macOS 版本变化的本地化描述。
+        let error: Error
+        do {
+            struct Required: Decodable { let value: String }
+            _ = try JSONDecoder().decode(Required.self, from: Data("{}".utf8))
+            Issue.record("应抛出 DecodingError")
+            return
+        } catch let caught {
+            error = caught
+        }
+        #expect(error is DecodingError)
+        #expect(LauncherStore.presentableMessage(error) == "本地数据格式异常，请刷新后重试")
     }
 
     @Test("本地服务启动失败不展示系统错误")
