@@ -14,8 +14,9 @@ extension LauncherStore {
 
     func loadCompanionData() async {
         guard let uid = selectedRole?.uid else { return }
+        let generation = companionDataGeneration
         await perform {
-            try await fetchCompanionData(uid: uid)
+            try await fetchCompanionData(uid: uid, generation: generation)
         }
     }
 
@@ -144,12 +145,13 @@ extension LauncherStore {
         }
     }
 
-    private func fetchCompanionData(uid: String) async throws {
+    private func fetchCompanionData(uid: String, generation: Int) async throws {
         let client = try requireClient()
         let snapshot: CompanionSnapshot = try await client.get(
             "/v1/companion/snapshot",
             query: [URLQueryItem(name: "uid", value: uid)]
         )
+        guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
         (wishes, wishStatistics, bannerDetails, dailyNote) = (
             snapshot.wishes,
             snapshot.statistics,

@@ -63,6 +63,8 @@ final class LauncherStore {
     var installPath = ""
     var isBusy = false
     var companionLoaded = false
+    @ObservationIgnored var companionSelectionIntent = 0
+    @ObservationIgnored var companionDataGeneration = 0
     var message: String?
     var statusMessage: String?; var statusMessageRevision = 0
     var wishOperation: WishOperationState?

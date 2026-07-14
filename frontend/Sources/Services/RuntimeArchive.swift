@@ -44,26 +44,6 @@ enum RuntimeArchive {
         return archiveURL
     }
 
-    static func validateTarGzip(_ archiveURL: URL) throws {
-        let output = try runTarListing(arguments: ["-tzf", archiveURL.path])
-        var current = Data()
-        for byte in output {
-            if byte == 0x0A {
-                try validateTarPath(current)
-                current.removeAll(keepingCapacity: true)
-            } else {
-                current.append(byte)
-            }
-        }
-        if !current.isEmpty { try validateTarPath(current) }
-    }
-
-    static func extractTarGzip(_ archiveURL: URL, to destinationURL: URL) throws {
-        try validateTarGzip(archiveURL)
-        try FileManager.default.createDirectory(at: destinationURL, withIntermediateDirectories: true)
-        try runTar(arguments: ["-xzf", archiveURL.path, "-C", destinationURL.path])
-    }
-
     static func sha256(_ url: URL) throws -> String {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
@@ -161,40 +141,4 @@ enum RuntimeArchive {
         return (try? sha256(url)) == expected.lowercased()
     }
 
-    private static func validateTarPath(_ data: Data) throws {
-        let path = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if path.hasPrefix("/") || path == ".." || path.contains("../") {
-            throw RuntimeInstallError.archiveTraversal(path)
-        }
-    }
-
-    private static func runTarListing(arguments: [String]) throws -> Data {
-        let temporary = FileManager.default.temporaryDirectory
-            .appending(path: "mhg-tar-list-\(UUID().uuidString)")
-        FileManager.default.createFile(atPath: temporary.path, contents: nil)
-        defer { try? FileManager.default.removeItem(at: temporary) }
-        let output = try FileHandle(forWritingTo: temporary)
-        defer { try? output.close() }
-        try runTar(arguments: arguments, output: output)
-        return try Data(contentsOf: temporary)
-    }
-
-    private static func runTar(arguments: [String], output: FileHandle? = nil) throws {
-        let process = Process()
-        let error = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
-        process.arguments = arguments
-        process.standardOutput = output ?? FileHandle.nullDevice
-        process.standardError = error
-        try process.run()
-        error.fileHandleForReading.readabilityHandler = { _ in }
-        process.waitUntilExit()
-        error.fileHandleForReading.readabilityHandler = nil
-        guard process.terminationStatus == 0 else {
-            let data = error.fileHandleForReading.readDataToEndOfFile()
-            let message = String(data: data, encoding: .utf8) ?? arguments.joined(separator: " ")
-            throw RuntimeInstallError.processFailed(message)
-        }
-    }
 }

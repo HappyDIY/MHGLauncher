@@ -28,7 +28,7 @@ struct RuntimeInstallerTests {
     }
 
     @Test("拒绝包含目录穿越路径的压缩包")
-    func rejectsTraversalArchive() throws {
+    func rejectsTraversalArchive() async throws {
         let root = try tempDir()
         let parent = root.appending(path: "parent")
         let child = parent.appending(path: "child")
@@ -37,7 +37,7 @@ struct RuntimeInstallerTests {
         let archive = root.appending(path: "bad.tar.gz")
         try run("/usr/bin/tar", ["-czf", archive.path, "-C", child.path, "../evil"])
         #expect(throws: RuntimeInstallError.archiveTraversal("../evil")) {
-            try RuntimeArchive.validateTarGzip(archive)
+            try await RuntimeArchive.validateTarGzip(archive)
         }
     }
 

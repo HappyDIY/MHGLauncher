@@ -3,6 +3,7 @@ import Foundation
 extension LauncherStore {
     func loadValueData() async {
         guard let uid = selectedRole?.uid else { return }
+        let generation = companionDataGeneration
         do {
             let client = try requireClient()
             async let events: [GachaEvent] = client.get("/v1/gacha-events")
@@ -21,7 +22,9 @@ extension LauncherStore {
             }
             do { value.gachaEvents = try await events } catch { message = Self.presentableMessage(error) }
             do {
-                characters = try await loadedCharacters
+                let received = try await loadedCharacters
+                guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
+                characters = received
                 if selectedCharacterId == nil
                     || !characters.contains(where: { $0.avatarId == selectedCharacterId }) {
                     selectedCharacterId = characters.first?.avatarId
@@ -62,6 +65,10 @@ extension LauncherStore {
 
     func uploadCloudWishes() async {
         guard let uid = selectedRole?.uid else { return }
+        guard value.cloudSession?.uid == uid else {
+            message = "请先登录当前角色的云同步服务"
+            return
+        }
         await perform {
             let response: CountResponse = try await requireClient().post(
                 "/v1/cloud/wishes/upload",
@@ -73,6 +80,10 @@ extension LauncherStore {
 
     func retrieveCloudWishes() async {
         guard let uid = selectedRole?.uid else { return }
+        guard value.cloudSession?.uid == uid else {
+            message = "请先登录当前角色的云同步服务"
+            return
+        }
         await perform {
             let response: CountResponse = try await requireClient().post(
                 "/v1/cloud/wishes/retrieve",

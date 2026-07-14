@@ -29,20 +29,26 @@ extension LauncherStore {
         _ kind: WishOperationKind,
         operation: () async throws -> Void
     ) async {
+        guard wishOperation == nil else { return }
         isBusy = true
-        wishOperation = WishOperationState(kind: kind)
+        let state = WishOperationState(kind: kind)
+        let operationID = state.id
+        wishOperation = state
         defer { isBusy = false }
         do {
             try await operation()
-            let id = wishOperation?.id
             try? await Task.sleep(for: .seconds(1.4))
-            if wishOperation?.id == id, wishOperation?.status == .succeeded {
+            if wishOperation?.id == operationID, wishOperation?.status == .succeeded {
                 wishOperation = nil
             }
         } catch let error as APIErrorPayload {
-            failWishOperation(Self.presentableMessage(error))
+            if wishOperation?.id == operationID {
+                failWishOperation(Self.presentableMessage(error))
+            }
         } catch {
-            failWishOperation(Self.presentableMessage(error))
+            if wishOperation?.id == operationID {
+                failWishOperation(Self.presentableMessage(error))
+            }
         }
     }
 
@@ -89,10 +95,12 @@ extension LauncherStore {
 
     func reloadWishes(client: APIClient) async throws {
         guard let uid = selectedRole?.uid else { throw LauncherError.roleMissing }
+        let generation = companionDataGeneration
         let snapshot: CompanionSnapshot = try await client.get(
             "/v1/companion/snapshot",
             query: [URLQueryItem(name: "uid", value: uid)]
         )
+        guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
         (wishes, wishStatistics, bannerDetails, dailyNote) = (
             snapshot.wishes,
             snapshot.statistics,

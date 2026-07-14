@@ -115,6 +115,8 @@ extension LauncherStore {
 
     func logout() async {
         _ = startLoginGeneration()
+        _ = startCompanionSelection()
+        _ = resetCompanionData()
         await perform {
             let client = try requireClient()
             let oldAid = account?.aid
@@ -125,10 +127,6 @@ extension LauncherStore {
             accounts = try await client.get("/v1/accounts")
             account = try await client.get("/v1/account")
             roles = try await client.get("/v1/roles")
-            wishes = []
-            wishStatistics = []
-            bannerDetails = []
-            dailyNote = nil
             qrSession = nil
             loginFormPresented = false
             mobileCaptchaVerification = nil
@@ -137,26 +135,34 @@ extension LauncherStore {
     }
 
     func selectAccount(_ value: Account) async {
+        let intent = startCompanionSelection()
         await perform {
             let client = try requireClient()
             let response: AccountSelectionResponse = try await client.post(
                 "/v1/account/select",
                 body: ["aid": value.aid]
             )
+            guard isCurrentCompanionSelection(intent) else { return }
+            _ = resetCompanionData()
             account = response.account
             roles = response.roles
             accounts = try await client.get("/v1/accounts")
+            guard isCurrentCompanionSelection(intent) else { return }
             await loadCompanionData()
+            await loadValueData()
         }
     }
 
     func selectRole(_ value: GameRole) async {
+        let intent = startCompanionSelection()
         await perform {
             let client = try requireClient()
             let selected: GameRole = try await client.post(
                 "/v1/roles/select",
                 body: ["uid": value.uid]
             )
+            guard isCurrentCompanionSelection(intent) else { return }
+            _ = resetCompanionData()
             roles = roles.map { role in
                 GameRole(
                     uid: role.uid,
@@ -167,6 +173,7 @@ extension LauncherStore {
                 )
             }
             await loadCompanionData()
+            await loadValueData()
         }
     }
 

@@ -158,7 +158,7 @@ final class RuntimeInstaller: @unchecked Sendable {
             )
             try Task.checkCancellation()
             await report(progress, scope, component.id, "正在安装 \(component.id)", completed, total)
-            try RuntimeArchive.extractTarGzip(archive, to: destination)
+            try await RuntimeArchive.extractTarGzip(archive, to: destination)
             try Task.checkCancellation()
             completed += component.size
             await report(progress, scope, component.id, "已完成 \(component.id)", completed, total)

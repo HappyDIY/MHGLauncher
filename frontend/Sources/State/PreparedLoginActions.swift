@@ -29,10 +29,13 @@ extension LauncherStore {
     }
 
     private func acceptLogin(_ response: LoginCompleteResponse, client: APIClient) async {
+        _ = startCompanionSelection()
+        _ = resetCompanionData()
         account = response.account; roles = response.roles
         accounts = (try? await client.get("/v1/accounts")) ?? [response.account]
         loginFormPresented = false; clearLoginSecrets(); showStatus("账号登录成功")
         await loadCompanionData()
+        await loadValueData()
     }
 
     func clearLoginSecrets() {

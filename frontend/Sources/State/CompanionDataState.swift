@@ -1,0 +1,29 @@
+import Foundation
+
+extension LauncherStore {
+    func startCompanionSelection() -> Int {
+        companionSelectionIntent &+= 1
+        return companionSelectionIntent
+    }
+
+    func isCurrentCompanionSelection(_ intent: Int) -> Bool {
+        companionSelectionIntent == intent
+    }
+
+    func resetCompanionData() -> Int {
+        companionDataGeneration &+= 1
+        wishes = []
+        wishStatistics = []
+        bannerDetails = []
+        dailyNote = nil
+        characters = []
+        selectedCharacterId = nil
+        companionLoaded = false
+        value.cloudSession = nil
+        return companionDataGeneration
+    }
+
+    func isCurrentCompanionData(uid: String, generation: Int) -> Bool {
+        companionDataGeneration == generation && selectedRole?.uid == uid
+    }
+}
