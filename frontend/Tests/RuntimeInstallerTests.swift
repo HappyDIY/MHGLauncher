@@ -36,7 +36,7 @@ struct RuntimeInstallerTests {
         try Data("bad".utf8).write(to: parent.appending(path: "evil"))
         let archive = root.appending(path: "bad.tar.gz")
         try run("/usr/bin/tar", ["-czf", archive.path, "-C", child.path, "../evil"])
-        #expect(throws: RuntimeInstallError.archiveTraversal("../evil")) {
+        await #expect(throws: RuntimeInstallError.archiveTraversal("../evil")) {
             try await RuntimeArchive.validateTarGzip(archive)
         }
     }
