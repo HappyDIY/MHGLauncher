@@ -49,30 +49,13 @@ extension LauncherStore {
 
     func saveAchievement(_ entry: AchievementEntry, checked: Bool) async {
         guard let archiveId = selectedAchievementArchive?.id else { return }
-        let revision = value.achievementRevision
         await perform {
-            let item = AchievementItemInput(
-                achievementId: entry.achievementId,
-                current: entry.current,
-                status: checked ? 3 : 0,
-                timestamp: checked ? Int(Date().timeIntervalSince1970) : 0
+            try await saveAchievement(
+                id: entry.achievementId,
+                checked: checked,
+                archiveId: archiveId,
+                retryingConflict: true
             )
-            do {
-                let snapshot: AchievementSnapshot = try await requireClient().post(
-                    "/v1/achievements",
-                    body: AchievementSaveRequest(
-                        archiveId: archiveId,
-                        expectedRevision: revision,
-                        items: [item]
-                    )
-                )
-                guard selectedAchievementArchive?.id == archiveId,
-                      value.achievementRevision == revision else { return }
-                applyAchievementSnapshot(snapshot, archives: value.achievementArchives)
-            } catch let error as APIErrorPayload where error.code == "archive_revision_conflict" {
-                try await loadAchievementData()
-                throw error
-            }
         }
     }
 
@@ -91,8 +74,12 @@ extension LauncherStore {
     }
 
     func exportAchievementUIAF(to url: URL) async {
+        guard let archiveId = selectedAchievementArchive?.id else { return }
         await perform {
-            let data = try await requireClient().download("/v1/achievements/export")
+            let data = try await requireClient().download(
+                "/v1/achievements/export",
+                query: [URLQueryItem(name: "archive_id", value: archiveId)]
+            )
             try UIGFFileIO.write(data, to: url)
         }
     }
@@ -110,5 +97,37 @@ extension LauncherStore {
         }
         value.achievementEntries = snapshot.entries
         value.achievementRevision = snapshot.revision
+    }
+
+    private func saveAchievement(
+        id: Int,
+        checked: Bool,
+        archiveId: String,
+        retryingConflict: Bool
+    ) async throws {
+        guard selectedAchievementArchive?.id == archiveId,
+              let entry = value.achievementEntries.first(where: { $0.achievementId == id }) else { return }
+        let revision = value.achievementRevision
+        let item = AchievementItemInput(
+            achievementId: id,
+            current: checked ? entry.progress : entry.current,
+            status: checked ? 3 : 0,
+            timestamp: checked ? Int(Date().timeIntervalSince1970) : 0
+        )
+        do {
+            let snapshot: AchievementSnapshot = try await requireClient().post(
+                "/v1/achievements",
+                body: AchievementSaveRequest(
+                    archiveId: archiveId, expectedRevision: revision, items: [item]
+                )
+            )
+            guard selectedAchievementArchive?.id == archiveId,
+                  value.achievementRevision == revision else { return }
+            applyAchievementSnapshot(snapshot, archives: value.achievementArchives)
+        } catch let error as APIErrorPayload where error.code == "archive_revision_conflict" {
+            guard retryingConflict else { throw error }
+            try await loadAchievementData()
+            try await saveAchievement(id: id, checked: checked, archiveId: archiveId, retryingConflict: false)
+        }
     }
 }

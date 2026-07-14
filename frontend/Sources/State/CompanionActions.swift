@@ -4,7 +4,11 @@ import Foundation
 extension LauncherStore {
     func runNoteRefreshLoop() async {
         while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(300))
+            do {
+                try await Task.sleep(for: .seconds(300))
+            } catch {
+                return
+            }
             if NSApplication.shared.isActive, credential != nil {
                 await refreshNote()
                 await evaluateNotifications()
@@ -111,6 +115,10 @@ extension LauncherStore {
     }
 
     func importUIGF(from url: URL) async {
+        guard selectedRole != nil else {
+            message = LauncherError.roleMissing.localizedDescription
+            return
+        }
         await runWishOperation(.importUIGF) {
             updateWishOperation(nil, "正在读取 \(url.lastPathComponent)")
             let data = try UIGFFileIO.read(from: url)
