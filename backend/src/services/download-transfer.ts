@@ -20,10 +20,7 @@ export async function streamDownload(
   while (offset < expectedSize) {
     await control.checkpoint();
     try {
-      const response = await fetch(url, {
-        headers: offset ? { Range: `bytes=${offset}-` } : {},
-        signal: AbortSignal.any([control.signal, AbortSignal.timeout(stallTimeout())]),
-      });
+      const response = await fetchHeaders(url, offset, control);
       if (offset && (response.status !== 206 || !validRange(response.headers.get("content-range"), offset, expectedSize))) {
         progress(-offset); offset = 0; report(0); rmSync(partial, { force: true });
         continue;
@@ -70,6 +67,20 @@ function validRange(value: string | null, offset: number, expectedSize: number):
 function stallTimeout(): number {
   const configured = Number(process.env.MHG_DOWNLOAD_STALL_TIMEOUT_MS ?? 30_000);
   return Number.isFinite(configured) ? Math.max(50, configured) : 30_000;
+}
+
+async function fetchHeaders(url: string, offset: number, control: DownloadControl): Promise<Response> {
+  const stalled = new AbortController();
+  const timer = setTimeout(() => stalled.abort(), stallTimeout());
+  try {
+    return await fetch(url, {
+      headers: offset ? { Range: `bytes=${offset}-` } : {},
+      signal: AbortSignal.any([control.signal, stalled.signal]),
+    });
+  } catch (error) {
+    if (stalled.signal.aborted) throw new AppError("download_stalled", "下载连接长时间无响应", 504);
+    throw error;
+  } finally { clearTimeout(timer); }
 }
 
 async function readWithStall(reader: ReadableStreamDefaultReader<Uint8Array>, label: string): Promise<ReadableStreamReadResult<Uint8Array>> {

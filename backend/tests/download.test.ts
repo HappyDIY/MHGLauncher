@@ -67,6 +67,30 @@ test("读取停滞会在期限内失败而非永久挂起", async () => {
   await expect(pending).rejects.toThrow("长时间无数据");
 });
 
+test("持续传输超过停滞期限不会断开重连", async () => {
+  vi.stubEnv("MHG_DOWNLOAD_STALL_TIMEOUT_MS", "50");
+  const target = join(root(), "slow"), content = Buffer.from("12345"); let calls = 0;
+  vi.stubGlobal("fetch", vi.fn(async (_url, init: RequestInit) => {
+    calls += 1;
+    const offset = Number(/bytes=(\d+)-/.exec(new Headers(init.headers).get("Range") ?? "")?.[1] ?? 0);
+    const body = content.subarray(offset);
+    return new Response(new ReadableStream({
+      start(controller) {
+        let index = 0, timer: ReturnType<typeof setTimeout> | undefined;
+        const send = () => {
+          if (index === body.length) { controller.close(); return; }
+          controller.enqueue(body.subarray(index, index + 1)); index += 1;
+          timer = setTimeout(send, 20);
+        };
+        init.signal?.addEventListener("abort", () => { if (timer) clearTimeout(timer); controller.error(init.signal?.reason); });
+        send();
+      },
+    }));
+  }));
+  await download({ url: "https://fixture/slow", md5: createHash("md5").update(content).digest("hex"), size: content.length, filename: "slow" }, target, new DownloadControl(), () => undefined);
+  expect(calls).toBe(1); expect(readFileSync(target)).toEqual(content);
+});
+
 test("取消会中断挂起的下载请求", async () => {
   const control = new DownloadControl(); let signal: AbortSignal | undefined;
   vi.stubGlobal("fetch", vi.fn((_url, init: RequestInit) => new Promise<Response>((_resolve, reject) => {
