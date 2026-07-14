@@ -17,7 +17,7 @@ function liveProvider(): LiveProvider {
   return new LiveProvider({ dataDir, databasePath: join(dataDir, "test.db"), apiToken: "", providerMode: "live",
     fixtureDir: join(process.cwd(), "fixtures"), requestTimeout: 30_000, downloadWorkers: 4, downloadSpeedLimitKB: 0, socketPath: join(dataDir, "test.sock") });
 }
-afterEach(() => { vi.restoreAllMocks(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 describe("Provider 契约", () => {
   test("创建二维码", async () => expect((await provider().createQRSession()).status).toBe("created"));
   test("二维码首次轮询为已扫描", async () => { const value = provider(), session = await value.createQRSession(); expect((await value.queryQRSession(session.id))[0].status).toBe("scanned"); });
@@ -116,5 +116,9 @@ describe("Provider 契约", () => {
   test("Sophon 响应和解压结果都有硬上限", async () => {
     await expect(readBoundedResponse(new Response("123456"), 5)).rejects.toMatchObject({ code: "sophon_response_too_large" });
     expect(() => decodeZstdLimited(zstdCompressSync(Buffer.alloc(1024)), 100)).toThrow("超过大小限制");
+  });
+  test("Sophon 响应停滞会在期限内终止", async () => {
+    vi.stubEnv("MHG_SOPHON_STALL_TIMEOUT_MS", "50");
+    await expect(readBoundedResponse(new Response(new ReadableStream({ start() {} })), 5)).rejects.toMatchObject({ code: "sophon_timeout", status: 504 });
   });
 });

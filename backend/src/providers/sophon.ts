@@ -19,6 +19,7 @@ message DeleteFilesEntry { string key=1; DeleteFiles delete_files=2; }
 message PatchManifest { repeated PatchFileData file_datas=1; repeated DeleteFilesEntry delete_files_entries=2; }`;
 const root = parse(proto, { keepCase: true }).root;
 const MAX_METADATA_BYTES = 64 * 1024 * 1024, MAX_MANIFEST_BYTES = 64 * 1024 * 1024, MAX_DECOMPRESSED_BYTES = 256 * 1024 * 1024;
+const DEFAULT_STALL_TIMEOUT_MS = 30_000;
 
 export function decodeSophonManifest(buffer: Uint8Array): JSONValue {
   const model = root.lookupType("SophonManifest");
@@ -105,7 +106,7 @@ export class Sophon {
   }
 
   private async manifest(item: JSONValue, type: "SophonManifest" | "PatchManifest"): Promise<unknown> {
-    const info = item.manifest as JSONValue, response = await fetch(this.url(item.manifest_download as JSONValue, String(info.id)));
+    const info = item.manifest as JSONValue, response = await fetchWithStall(this.url(item.manifest_download as JSONValue, String(info.id)));
     if (!response.ok) throw new AppError("sophon_manifest_invalid", "Sophon 清单下载失败", 502);
     const compressed = await readBoundedResponse(response, MAX_MANIFEST_BYTES);
     if (type === "SophonManifest") { const expected = String(info.id).replace("manifest_", "").split("_", 1)[0]; if ((await xxhash()).h64Raw(compressed).toString(16).padStart(16, "0") !== expected?.toLowerCase()) throw new AppError("sophon_manifest_invalid", "Sophon 清单校验失败", 502); }
@@ -120,7 +121,7 @@ export class Sophon {
   }
   private url(download: JSONValue, name: string): string { const prefix = String(download.url_prefix).replace(/\/$/, ""), suffix = String(download.url_suffix ?? ""); return `${prefix}/${name}${suffix && !suffix.startsWith("?") ? "?" : ""}${suffix}`; }
   private async data(url: string, init?: RequestInit): Promise<JSONValue> {
-    const response = await fetch(url, init); if (!response.ok) throw new AppError("mihoyo_error", "下载服务请求失败", 502);
+    const response = await fetchWithStall(url, init); if (!response.ok) throw new AppError("mihoyo_error", "下载服务请求失败", 502);
     let payload: JSONValue; try { payload = JSON.parse((await readBoundedResponse(response, MAX_METADATA_BYTES)).toString("utf8")) as JSONValue; }
     catch (error) { if (error instanceof AppError) throw error; throw new AppError("sophon_metadata_invalid", "下载服务元数据无效", 502); }
     if (Number(payload.retcode ?? 0) !== 0) throw new AppError("mihoyo_error", String(payload.message || "下载服务请求失败"), 502);
@@ -134,11 +135,40 @@ export async function readBoundedResponse(response: Response, maxBytes: number):
   if (!response.body) throw new AppError("sophon_response_invalid", "Sophon 响应缺少内容", 502);
   const reader = response.body.getReader(), chunks: Uint8Array[] = []; let total = 0;
   while (true) {
-    const { done, value } = await reader.read(); if (done) break; total += value.length;
+    const { done, value } = await readWithStall(reader); if (done) break; total += value.length;
     if (total > maxBytes) { await reader.cancel(); throw new AppError("sophon_response_too_large", "Sophon 响应超过大小限制", 502); }
     chunks.push(value);
   }
   return Buffer.concat(chunks, total);
+}
+
+function stallTimeout(): number {
+  const configured = Number(process.env.MHG_SOPHON_STALL_TIMEOUT_MS ?? DEFAULT_STALL_TIMEOUT_MS);
+  return Number.isFinite(configured) ? Math.max(50, configured) : DEFAULT_STALL_TIMEOUT_MS;
+}
+
+function timeoutError(): AppError {
+  return new AppError("sophon_timeout", "下载服务请求超时", 504);
+}
+
+async function fetchWithStall(url: string, init?: RequestInit): Promise<Response> {
+  const stalled = new AbortController();
+  const signal = init?.signal ? AbortSignal.any([init.signal, stalled.signal]) : stalled.signal;
+  const timer = setTimeout(() => stalled.abort(), stallTimeout());
+  try { return await fetch(url, { ...init, signal }); }
+  catch (error) { if (stalled.signal.aborted) throw timeoutError(); throw error; }
+  finally { clearTimeout(timer); }
+}
+
+async function readWithStall(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<ReadableStreamReadResult<Uint8Array>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      reader.read(),
+      new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(timeoutError()), stallTimeout()); }),
+    ]);
+  } catch (error) { void reader.cancel(); throw error; }
+  finally { if (timer) clearTimeout(timer); }
 }
 
 export function decodeZstdLimited(compressed: Uint8Array, maxBytes = MAX_DECOMPRESSED_BYTES): Buffer {
