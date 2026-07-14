@@ -74,17 +74,19 @@ test("持续传输超过停滞期限不会断开重连", async () => {
     calls += 1;
     const offset = Number(/bytes=(\d+)-/.exec(new Headers(init.headers).get("Range") ?? "")?.[1] ?? 0);
     const body = content.subarray(offset);
+    const scheduled: { value: ReturnType<typeof setTimeout> | undefined } = { value: undefined };
     return new Response(new ReadableStream({
       start(controller) {
-        let index = 0, timer: ReturnType<typeof setTimeout> | undefined;
+        let index = 0;
         const send = () => {
           if (index === body.length) { controller.close(); return; }
           controller.enqueue(body.subarray(index, index + 1)); index += 1;
-          timer = setTimeout(send, 20);
+          scheduled.value = setTimeout(send, 20);
         };
-        init.signal?.addEventListener("abort", () => { if (timer) clearTimeout(timer); controller.error(init.signal?.reason); });
+        init.signal?.addEventListener("abort", () => { if (scheduled.value) clearTimeout(scheduled.value); controller.error(init.signal?.reason); });
         send();
       },
+      cancel() { if (scheduled.value) clearTimeout(scheduled.value); },
     }));
   }));
   await download({ url: "https://fixture/slow", md5: createHash("md5").update(content).digest("hex"), size: content.length, filename: "slow" }, target, new DownloadControl(), () => undefined);
