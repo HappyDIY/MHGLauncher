@@ -14,7 +14,7 @@ import { diskSpaceInfo } from "./disk-space";
 import { maybeRateLimiter } from "./rate-limiter";
 import { makeProgress } from "./job-progress";
 import { downloadChunksOnly, downloadPatchesOnly } from "./predownload"; import { predownloadCachedBytes, predownloadDigest, readPredownloadStatus, writePredownloadStatus, clearPredownloadStatus } from "./predownload-status";
-import { checkedPredownloadBuild } from "./predownload-build";
+import { checkedPredownloadBuild, compareGameVersions } from "./predownload-build";
 import { RevisionNotifier } from "./revision-notifier";
 import { audioLanguages, detectGame, gameBuildSize as size, gameStateOutput as output, gameStorageSize } from "./game-detection";
 import { ResourceCoordinator, type ResourceLease } from "./resource-coordinator";
@@ -39,7 +39,7 @@ export class GameService {
     const build = detected ? prepareBuild(raw, detected.path, detected.version) : raw;
     if (!detected) return output(candidate, "", build, "not_installed");
     this.saveState(detected.path, detected.version);
-    const current = detected.version === build.version && !build.assets.length && !build.patch_assets.length && !build.deprecated_files.length;
+    const current = compareGameVersions(detected.version, build.version) >= 0;
     const predownload = await this.predownloadInfo(detected.path);
     return output(detected.path, detected.version, build, current ? "ready" : "update_available", predownload);
   }
@@ -57,7 +57,7 @@ export class GameService {
     if (!detected) throw new AppError("game_not_installed", "预下载需要已安装的游戏客户端");
     const remote = await this.provider.getPredownloadBuild(detected.version, audioLanguages(detected.path));
     if (!remote) throw new AppError("predownload_unavailable", "当前没有可用的预下载版本");
-    const build = checkedPredownloadBuild(detected.version, await this.provider.getBuild(detected.version, audioLanguages(detected.path)), remote);
+    const build = checkedPredownloadBuild(detected.version, await this.provider.getInstalledBuild(detected.version, audioLanguages(detected.path)), remote);
     const cached = await predownloadCachedBytes(this.cacheFor(detected.path, build.version), build);
     return diskSpaceInfo(detected.path, gameStorageSize(build, true) - cached);
   }
@@ -66,8 +66,8 @@ export class GameService {
       const current = detectGame(gamePath)?.version ?? "";
       const preBuild = await this.provider.getPredownloadBuild(current, audioLanguages(gamePath));
       if (!preBuild) return { version: null, finished: false };
-      const main = await this.provider.getBuild(current, audioLanguages(gamePath));
-      const checked = checkedPredownloadBuild(current, main, preBuild);
+      const local = await this.provider.getInstalledBuild(current, audioLanguages(gamePath));
+      const checked = checkedPredownloadBuild(current, local, preBuild);
       const cache = this.cacheFor(gamePath, preBuild.version);
       const status = await readPredownloadStatus(cache, checked, false);
       return { version: preBuild.version, finished: status?.finished ?? false };
@@ -85,7 +85,7 @@ export class GameService {
     const remote = kind === "predownload" ? await this.provider.getPredownloadBuild(detected?.version ?? "", audioLanguages(root)) : null;
     if (kind === "predownload" && !remote) throw new AppError("predownload_unavailable", "当前没有可用的预下载版本");
     const build = kind === "predownload"
-      ? checkedPredownloadBuild(detected?.version ?? "", await this.provider.getBuild(detected?.version ?? "", audioLanguages(root)), remote as GameBuild)
+      ? checkedPredownloadBuild(detected?.version ?? "", await this.provider.getInstalledBuild(detected?.version ?? "", audioLanguages(root)), remote as GameBuild)
       : prepareBuild(kind === "verify" && detected
         ? await this.provider.getInstalledBuild(detected.version, audioLanguages(root))
         : await this.provider.getBuild(detected?.version ?? "", audioLanguages(root)),
@@ -93,7 +93,7 @@ export class GameService {
     const cache = this.cacheFor(root, build.version), cached = await predownloadCachedBytes(cache, build);
     const storageBuild = kind === "verify" ? canonicalBuild(build) : build, spaceInfo = diskSpaceInfo(root, gameStorageSize(storageBuild, kind === "predownload") - cached);
     if (!spaceInfo.sufficient) throw new AppError("disk_space_insufficient", `磁盘空间不足：需要 ${spaceInfo.required} 字节，可用 ${spaceInfo.available} 字节`, 422, { available: spaceInfo.available, required: spaceInfo.required, sufficient: spaceInfo.sufficient });
-    if (kind === "update" && detected?.version === build.version && size(build) === 0) throw new AppError("game_already_current", "当前游戏版本已是最新", 409);
+    if (kind === "update" && detected && compareGameVersions(detected.version, build.version) >= 0) throw new AppError("game_already_current", "当前游戏版本已是最新", 409);
     const hasWork = build.assets.length > 0 || build.patch_assets.length > 0 || build.segments.length > 0 || build.deprecated_files.length > 0;
     if (kind !== "predownload" && detected?.version !== build.version && !hasWork) {
       throw new AppError("game_build_empty", "下载服务返回了不完整的空构建", 502);
@@ -157,7 +157,7 @@ export class GameService {
       if (canonical.assets.length) writeManagedFile(staging, ".mhg-assets.json", JSON.stringify(canonical.assets.map(({ name }) => name)));
       await control.checkpoint();
       activate(staging, path);
-      this.saveState(path, build.version); rmSync(cache, { recursive: true, force: true }); clearPredownloadStatus(cache);
+      this.saveState(path, build.version); rmSync(job.kind === "verify" ? cache : this.cacheScopeFor(path), { recursive: true, force: true }); clearPredownloadStatus(cache);
       flush(); job.completed_bytes = job.total_bytes; job.download_speed = 0; job.status = "completed"; this.touch(job);
     } catch (error) {
       job.download_speed = 0; job.status = error instanceof DOMException && error.name === "AbortError" ? "cancelled" : "failed";
@@ -193,8 +193,6 @@ export class GameService {
       ON CONFLICT(id) DO UPDATE SET install_path=excluded.install_path,version=excluded.version,status=excluded.status,updated_at=excluded.updated_at`)
       .run(path, version, "ready", new Date().toISOString());
   }
-  private cacheFor(path: string, version: string): string {
-    const scope = createHash("sha256").update(resolve(path)).digest("hex").slice(0, 16);
-    return join(this.dataDir, "downloads", scope, version);
-  }
+  private cacheScopeFor(path: string): string { return join(this.dataDir, "downloads", createHash("sha256").update(resolve(path)).digest("hex").slice(0, 16)); }
+  private cacheFor(path: string, version: string): string { return join(this.cacheScopeFor(path), version); }
 }

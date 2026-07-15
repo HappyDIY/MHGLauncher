@@ -5,8 +5,8 @@ import xxhash from "xxhash-wasm";
 import { AppError } from "../core/errors";
 import type { GameAsset, GameBuild, GamePatchAsset, SophonPatch } from "./provider";
 import { normalizeBuild } from "./provider";
-import { diffGameBuild } from "./build-diff";
 import { validateSophonAssets, validateSophonPatches, validateSophonPaths } from "./sophon-validation";
+import { hasCompletePatchStats, selectPatchOrRemote, selectUpdateBuild } from "./build-selection";
 
 type JSONValue = Record<string, any>;
 const proto = `syntax="proto3";
@@ -37,14 +37,10 @@ export class Sophon {
     if (this.cached?.key === key && Date.now() - this.cached.time < 300_000) return this.cached.build;
     const branch = await this.branch();
     const remote = await this.fullBuild(branch, languages);
-    let build = remote;
-    if ((branch.diff_tags as string[] ?? []).includes(version)) {
-      const patch = await this.patchBuild(branch, version, languages);
-      build = { ...patch, repair_assets: remote.assets };
-    } else if (version && version !== remote.version) {
-      try { build = diffGameBuild(await this.fullBuild(branch, languages, version), remote, "version_diff_chunks"); }
-      catch { build = remote; }
-    }
+    const patch = (branch.diff_tags as string[] ?? []).includes(version)
+      ? () => this.patchBuild(branch, version, languages) : undefined;
+    const build = version && version !== remote.version
+      ? await selectUpdateBuild(remote, () => this.fullBuild(branch, languages, version), patch) : remote;
     this.cached = { time: Date.now(), key, build }; return build;
   }
 
@@ -55,8 +51,9 @@ export class Sophon {
     const key = `pre:${version}:${languages.join(",")}`;
     if (this.cached?.key === key && Date.now() - this.cached.time < 300_000) return this.cached.build;
     const remote = await this.fullBuild(pre, languages);
-    const build = (pre.diff_tags as string[] ?? []).includes(version)
-      ? { ...await this.patchBuild(pre, version, languages), repair_assets: remote.assets } : remote;
+    const patch = (pre.diff_tags as string[] ?? []).includes(version)
+      ? () => this.patchBuild(pre, version, languages) : undefined;
+    const build = await selectPatchOrRemote(remote, patch);
     const result = { ...build, is_predownload: true };
     this.cached = { time: Date.now(), key, build: result }; return result;
   }
@@ -84,6 +81,7 @@ export class Sophon {
   private async patchBuild(branch: JSONValue, version: string, languages: string[]): Promise<GameBuild> {
     const data = await this.data("https://downloader-api.mihoyo.com/downloader/sophon_chunk/api/getPatchBuild", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(branch) });
     const patch_assets: GamePatchAsset[] = [], deprecated_files: string[] = [];
+    if (!hasCompletePatchStats(data.manifests as JSONValue[] ?? [], version)) throw new AppError("sophon_patch_incomplete", "Sophon 差分构建不支持当前版本", 409);
     const selected = this.selected(data, languages); if (!selected.length) throw new AppError("sophon_build_empty", "Sophon 差分构建未包含所需资源清单", 502);
     for (const item of selected) {
       const manifest = await this.manifest(item, "PatchManifest") as JSONValue;

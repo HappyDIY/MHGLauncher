@@ -23,7 +23,7 @@ struct GameState: Codable, Sendable {
     }
 
     var canStartPredownload: Bool {
-        hasPendingPredownload && status == .ready
+        hasPendingPredownload && (status == .ready || status == .updateAvailable)
     }
 }
 

@@ -7,7 +7,7 @@ import { expect, test, vi } from "vitest";
 import xxhash from "xxhash-wasm";
 import type { GameAsset, SophonChunk } from "../src/providers/provider";
 import { normalizeBuild } from "../src/providers/provider";
-import { checkedPredownloadBuild, diffPredownloadBuild } from "../src/services/predownload-build";
+import { checkedPredownloadBuild, compareGameVersions, diffPredownloadBuild } from "../src/services/predownload-build";
 import { downloadChunksOnly } from "../src/services/predownload";
 import { DownloadControl } from "../src/services/download";
 import { predownloadCachedBytes, predownloadDigest, readPredownloadStatus, writePredownloadStatus } from "../src/services/predownload-status";
@@ -29,10 +29,17 @@ test("预下载只计算本地缺失的差异分块", () => {
   expect(diff.deprecated_files).toEqual(["retired.bin"]);
 });
 
-test("预下载要求本机版本与常规通道一致", () => {
+test("预下载要求本地完整清单与本机版本一致", () => {
   const local = normalizeBuild({ version: "6.7.0" });
   const remote = normalizeBuild({ version: "6.8.0", is_predownload: true });
-  expect(() => checkedPredownloadBuild("6.6.0", local, remote)).toThrow("请先完成常规更新或修复");
+  expect(() => checkedPredownloadBuild("6.6.0", local, remote)).toThrow("无法计算预下载差分");
+});
+
+test("版本比较按数值分段且拒绝相同或更旧的预下载", () => {
+  expect(compareGameVersions("6.10.0", "6.9.9")).toBeGreaterThan(0);
+  expect(compareGameVersions("6.8", "6.8.0")).toBe(0);
+  const local = normalizeBuild({ version: "6.8.0" });
+  expect(() => checkedPredownloadBuild("6.8.0", local, normalizeBuild({ version: "6.8.0" }))).toThrow("不高于当前游戏版本");
 });
 
 test("预下载完成后保留分块缓存", async () => {
