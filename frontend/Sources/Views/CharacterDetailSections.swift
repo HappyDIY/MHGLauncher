@@ -10,16 +10,16 @@ struct CharacterSkillStrip: View {
                     HStack(spacing: 8) {
                         CachedAsyncImage(url: skill.icon) {
                             Image(systemName: "sparkles")
-                                .foregroundStyle(.white.opacity(0.8))
+                                .foregroundStyle(.tint)
                         }
                         .frame(width: 28, height: 28)
                         Text("\(skill.level ?? 0)")
                             .font(.headline.monospacedDigit())
-                            .foregroundStyle(.white)
+                            .foregroundStyle(.primary)
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 7)
-                    .background(.black.opacity(0.22), in: .capsule)
+                    .background(.primary.opacity(0.07), in: .capsule)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("\(skill.name ?? "技能")，等级 \(skill.level ?? 0)")
                 }
@@ -38,10 +38,18 @@ struct CharacterConstellationStrip: View {
                 let constellation = values?.dropFirst(index).first
                 ZStack {
                     Circle()
-                        .fill(index < active ? .white.opacity(0.25) : .black.opacity(0.24))
+                        .fill(
+                            index < active
+                                ? Color.accentColor.opacity(0.18)
+                                : Color.primary.opacity(0.06)
+                        )
                     CachedAsyncImage(url: constellation?.icon) {
                         Image(systemName: index < active ? "moon.stars.fill" : "lock.fill")
-                            .foregroundStyle(.white.opacity(index < active ? 0.9 : 0.45))
+                            .foregroundStyle(
+                                index < active
+                                    ? Color.accentColor
+                                    : Color.secondary.opacity(0.5)
+                            )
                     }
                     .padding(8)
                 }
@@ -144,6 +152,10 @@ struct CharacterReliquarySection: View {
                                         .foregroundStyle(.secondary)
                                         .lineLimit(1)
                                 }
+                                Spacer()
+                                Text("+\(relic.level ?? 0)")
+                                    .font(.callout.weight(.semibold).monospacedDigit())
+                                    .foregroundStyle(.secondary)
                             }
                             CharacterPropertyLine(property: relic.mainProperty, bold: true)
                             ForEach(relic.subProperties ?? []) { property in

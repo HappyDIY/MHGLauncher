@@ -9,11 +9,11 @@ struct SectionPanel<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             Label(title, systemImage: icon)
                 .font(.headline)
+            Divider()
             content
         }
-        .padding(16)
+        .padding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(.regular, in: .rect(cornerRadius: 12))
     }
 }
 
