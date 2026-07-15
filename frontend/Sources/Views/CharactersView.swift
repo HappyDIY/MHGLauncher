@@ -13,9 +13,9 @@ struct CharactersView: View {
             } else {
                 HSplitView {
                     CharacterBrowserView(store: store, layout: $layout)
-                        .frame(minWidth: 290, idealWidth: 340, maxWidth: 390)
+                        .frame(minWidth: 250, idealWidth: 310, maxWidth: 360)
                     CharacterDetailView(store: store)
-                        .frame(minWidth: 460, maxWidth: .infinity, maxHeight: .infinity)
+                        .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
         }

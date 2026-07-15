@@ -1,91 +1,5 @@
 import SwiftUI
 
-struct CharacterSkillStrip: View {
-    let skills: [CharacterSkill]
-
-    var body: some View {
-        if !skills.isEmpty {
-            HStack(spacing: 10) {
-                ForEach(skills) { skill in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            CachedAsyncImage(url: skill.icon) {
-                                Image(systemName: "sparkles")
-                                    .foregroundStyle(.tint)
-                            }
-                            .frame(width: 36, height: 36)
-                            Spacer(minLength: 10)
-                            Text("\(skill.level ?? 0)")
-                                .font(.title3.weight(.bold).monospacedDigit())
-                        }
-                        Text(skill.name ?? "技能")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    .padding(10)
-                    .frame(minWidth: 110, maxWidth: 150, minHeight: 76, alignment: .leading)
-                    .background(.primary.opacity(0.055), in: .rect(cornerRadius: 8))
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(skill.name ?? "技能")，等级 \(skill.level ?? 0)")
-                }
-            }
-        }
-    }
-}
-
-struct CharacterConstellationStrip: View {
-    let values: [CharacterConstellation]?
-    let active: Int
-    let tint: Color
-
-    var body: some View {
-        HStack(spacing: 8) {
-            ForEach(0..<6, id: \.self) { index in
-                CharacterConstellationItem(
-                    constellation: constellation(at: index),
-                    index: index,
-                    isActive: index < active,
-                    tint: tint
-                )
-            }
-        }
-    }
-
-    private func constellation(at index: Int) -> CharacterConstellation? {
-        guard let values, index < values.count else { return nil }
-        return values[index]
-    }
-}
-
-private struct CharacterConstellationItem: View {
-    let constellation: CharacterConstellation?
-    let index: Int
-    let isActive: Bool
-    let tint: Color
-
-    var body: some View {
-        ZStack {
-            Circle().fill(isActive ? tint.opacity(0.18) : Color.primary.opacity(0.06))
-            CachedAsyncImage(url: constellation?.icon) {
-                Image(systemName: isActive ? "moon.stars.fill" : "lock.fill")
-                    .foregroundStyle(isActive ? tint : Color.secondary.opacity(0.5))
-            }
-            .padding(8)
-        }
-        .frame(width: 44, height: 44)
-        .overlay(borderColor, in: .circle.stroke())
-        .help(constellation?.description ?? constellation?.name ?? "\(index + 1) 命")
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(constellation?.name ?? "第 \(index + 1) 命座")
-        .accessibilityValue(isActive ? "已激活" : "未激活")
-    }
-
-    private var borderColor: Color {
-        isActive ? tint.opacity(0.34) : Color.secondary.opacity(0.12)
-    }
-}
-
 struct CharacterPropertySection: View {
     let character: GameCharacter
 
@@ -99,7 +13,7 @@ struct CharacterPropertySection: View {
                             HStack {
                                 Text(property.name ?? "")
                                     .foregroundStyle(.secondary)
-                                    .lineLimit(1)
+                                    .lineLimit(2)
                                 Spacer()
                                 Text(property.value ?? "")
                                     .fontWeight(.semibold)
@@ -171,11 +85,11 @@ struct CharacterReliquarySection: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(relic.name ?? "圣遗物")
                                         .font(.headline)
-                                        .lineLimit(1)
+                                        .lineLimit(2)
                                     Text(relic.setName ?? "")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                        .lineLimit(1)
+                                        .lineLimit(2)
                                 }
                                 Spacer()
                                 Text("+\(relic.level ?? 0)")

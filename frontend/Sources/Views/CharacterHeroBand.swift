@@ -17,6 +17,7 @@ struct CharacterHeroBand: View {
                     CharacterConstellationOverview(character: character)
                         .frame(width: 180, alignment: .leading)
                 }
+                .frame(minWidth: 360, alignment: .leading)
                 VStack(alignment: .leading, spacing: 16) {
                     CharacterWeaponOverview(character: character)
                     Divider()
@@ -29,8 +30,8 @@ struct CharacterHeroBand: View {
     }
 
     private var identity: some View {
-        HStack(alignment: .center, spacing: 22) {
-            CharacterIcon(character: character, size: 136)
+        HStack(alignment: .center, spacing: 18) {
+            CharacterIcon(character: character, size: 120)
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 5) {
                     CharacterElementIcon(character: character, size: 17)
@@ -39,16 +40,19 @@ struct CharacterHeroBand: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(character.elementColor)
                 Text(character.name)
-                    .font(.largeTitle.weight(.bold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                HStack(spacing: 18) {
+                    .font(.title.weight(.bold))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 14) {
                     CharacterIdentityStat(value: "\(character.level)", label: "等级")
                     CharacterIdentityStat(value: "\(character.fetter)", label: "好感")
                     CharacterIdentityStat(value: "\(character.rarity)", label: "星级")
                 }
             }
-            Spacer(minLength: 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.trailing, 44)
+        .overlay(alignment: .topTrailing) {
             Button(action: refresh) {
                 Group {
                     if isBusy {
@@ -102,11 +106,13 @@ private struct CharacterWeaponOverview: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(character.weaponName.nonempty ?? "未同步武器")
                     .font(.headline)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                     .help(character.weaponName)
                 Text(weaponDetail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(2)
             }
         }
         .accessibilityElement(children: .combine)
