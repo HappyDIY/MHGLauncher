@@ -78,15 +78,14 @@ private struct CharacterHeroCard: View {
             identity
             Divider()
             HStack(spacing: 10) {
-                CharacterMetric(icon: "moon.stars", value: "\(character.constellation) 命", label: "命之座")
-                Divider().frame(height: 44)
                 CharacterMetric(
                     icon: "sword",
                     value: character.weaponName.nonempty ?? "未同步",
-                    label: "武器"
+                    label: "武器 · 等级 \(character.weaponLevel)"
                 )
                 Divider().frame(height: 44)
-                CharacterMetric(icon: "arrow.up.right", value: "Lv.\(character.weaponLevel)", label: "武器等级")
+                CharacterMetric(icon: "moon.stars", value: "\(character.constellation) 命", label: "命之座")
+                    .frame(maxWidth: 130)
             }
             if !(character.payload?.skills ?? []).isEmpty {
                 DetailStripLabel(title: "天赋等级", icon: "sparkles")
@@ -107,17 +106,20 @@ private struct CharacterHeroCard: View {
             CharacterIcon(character: character, size: 96)
             VStack(alignment: .leading, spacing: 7) {
                 Text(character.name)
-                    .font(.largeTitle.bold())
+                    .font(.title2.weight(.semibold))
                     .lineLimit(1)
                 HStack(spacing: 8) {
-                    Label(character.elementTitle, systemImage: character.elementSymbol)
+                    HStack(spacing: 4) {
+                        CharacterElementIcon(character: character, size: 18)
+                        Text(character.elementTitle)
+                    }
+                    .fontWeight(.semibold)
                         .foregroundStyle(character.elementColor)
-                    Text("Lv.\(character.level)")
+                    Text("等级 \(character.level)")
                     Text("好感 \(character.fetter)")
                 }
-                .font(.callout.weight(.medium))
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
-                StarRow(count: character.rarity)
             }
             Spacer(minLength: 8)
             Button(action: refreshDetail) {
@@ -145,7 +147,7 @@ private struct DetailStripLabel: View {
 
     var body: some View {
         Label(title, systemImage: icon)
-            .font(.caption.weight(.semibold))
+            .font(.subheadline.weight(.semibold))
             .foregroundStyle(.secondary)
     }
 }
@@ -162,7 +164,7 @@ private struct CharacterMetric: View {
                 .frame(width: 18)
             VStack(alignment: .leading, spacing: 3) {
                 Text(value)
-                    .font(.headline)
+                    .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.78)
                     .help(value)
@@ -172,21 +174,5 @@ private struct CharacterMetric: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-    }
-}
-
-private struct StarRow: View {
-    let count: Int
-
-    var body: some View {
-        HStack(spacing: 2) {
-            ForEach(0..<max(count, 0), id: \.self) { _ in
-                Image(systemName: "star.fill")
-                    .font(.caption)
-                    .foregroundStyle(.yellow)
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(count) 星角色")
     }
 }

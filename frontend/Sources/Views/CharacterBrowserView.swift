@@ -22,7 +22,7 @@ struct CharacterBrowserView: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("角色")
-                        .font(.title3.weight(.semibold))
+                        .font(.headline)
                     Text(roleSummary)
                         .font(.caption)
                         .foregroundStyle(.secondary)

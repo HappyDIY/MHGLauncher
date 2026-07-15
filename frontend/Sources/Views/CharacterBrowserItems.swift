@@ -36,13 +36,16 @@ struct CharacterListRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(character.name)
-                        .font(.headline)
+                        .font(.body.weight(.semibold))
                         .lineLimit(1)
-                    Text(character.elementTitle)
+                    HStack(spacing: 3) {
+                        CharacterElementIcon(character: character, size: 12)
+                        Text(character.elementTitle)
+                    }
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(character.elementColor)
                 }
-                Text("Lv.\(character.level) · \(character.weaponName.nonempty ?? "未同步武器")")
+                Text("等级 \(character.level) · \(character.weaponName.nonempty ?? "未同步武器")")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -70,12 +73,13 @@ struct CharacterGridTile: View {
                     .accessibilityHidden(true)
             }
             Text(character.name)
-                .font(.headline)
+                .font(.body.weight(.semibold))
                 .lineLimit(1)
             HStack(spacing: 5) {
-                Label(character.elementTitle, systemImage: character.elementSymbol)
+                CharacterElementIcon(character: character, size: 13)
+                Text(character.elementTitle)
                 Spacer(minLength: 2)
-                Text("Lv.\(character.level)")
+                Text("等级 \(character.level)")
             }
             .font(.caption)
             .foregroundStyle(.secondary)

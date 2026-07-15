@@ -18,6 +18,9 @@ mkdir -p "$contents/MacOS" "$contents/Resources/Backend"
 cp "$root/packaging/Info.plist" "$contents/Info.plist"
 cp "$root/frontend/.build/arm64-apple-macosx/debug/MHGLauncher" \
   "$contents/MacOS/MHGLauncher"
+resource_bundle="$root/frontend/.build/arm64-apple-macosx/debug/MHGLauncher_MHGLauncher.bundle"
+test -d "$resource_bundle"
+cp -R "$resource_bundle" "$contents/Resources/"
 cp -R "$backend_dir/app" "$contents/Resources/Backend/app"
 
 chmod +x "$contents/MacOS/MHGLauncher"

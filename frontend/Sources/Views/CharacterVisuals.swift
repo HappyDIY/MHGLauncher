@@ -14,20 +14,54 @@ extension GameCharacter {
         }
     }
 
-    var elementSymbol: String {
+    var elementAssetName: String? {
         switch element.lowercased() {
-        case "fire", "pyro": "flame.fill"
-        case "water", "hydro": "drop.fill"
-        case "wind", "anemo": "wind"
-        case "electric", "electro": "bolt.fill"
-        case "grass", "dendro": "leaf.fill"
-        case "ice", "cryo": "snowflake"
-        case "rock", "geo": "mountain.2.fill"
-        default: "sparkles"
+        case "fire", "pyro": "ElementFire"
+        case "water", "hydro": "ElementWater"
+        case "wind", "anemo": "ElementWind"
+        case "electric", "electro": "ElementElectric"
+        case "grass", "dendro": "ElementGrass"
+        case "ice", "cryo": "ElementIce"
+        case "rock", "geo": "ElementRock"
+        default: nil
         }
     }
 
     var rarityColor: Color {
         rarity >= 5 ? .orange : .purple
     }
+}
+
+struct CharacterElementIcon: View {
+    let character: GameCharacter
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let name = character.elementAssetName {
+                Image(name, bundle: CharacterResources.bundle)
+                    .resizable()
+                    .renderingMode(.template)
+            } else {
+                Image(systemName: "questionmark.circle")
+                    .resizable()
+            }
+        }
+        .scaledToFit()
+        .foregroundStyle(character.elementColor)
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
+private enum CharacterResources {
+    static let bundle: Bundle = {
+        if let url = Bundle.main.url(
+            forResource: "MHGLauncher_MHGLauncher",
+            withExtension: "bundle"
+        ), let bundle = Bundle(url: url) {
+            return bundle
+        }
+        return .module
+    }()
 }
