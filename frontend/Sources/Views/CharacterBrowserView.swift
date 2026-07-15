@@ -8,65 +8,20 @@ enum CharacterLayout: Hashable {
 struct CharacterBrowserView: View {
     @Bindable var store: LauncherStore
     @Binding var layout: CharacterLayout
+    @State private var elementFilter = CharacterElementFilter.all
 
     var body: some View {
         VStack(spacing: 0) {
-            controls
+            CharacterBrowserControls(
+                searchText: $store.characterSearchText,
+                layout: $layout,
+                elementFilter: $elementFilter,
+                countText: countText,
+                roleSummary: roleSummary
+            )
             Divider()
             browserContent
         }
-    }
-
-    private var controls: some View {
-        VStack(alignment: .leading, spacing: 11) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("角色")
-                        .font(.headline)
-                    Text(roleSummary)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Text(countText)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .contentTransition(.numericText())
-            }
-            HStack(spacing: 7) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                TextField("搜索角色、元素或武器", text: $store.characterSearchText)
-                    .textFieldStyle(.plain)
-                if !normalizedQuery.isEmpty {
-                    Button {
-                        store.characterSearchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .help("清除搜索")
-                    .accessibilityLabel("清除搜索")
-                }
-            }
-            .padding(.horizontal, 11)
-            .frame(height: 32)
-            .glassEffect(.regular.interactive(), in: .capsule)
-            HStack(spacing: 8) {
-                Picker("布局", selection: $layout) {
-                    Label("列表", systemImage: "list.bullet").tag(CharacterLayout.list)
-                    Label("网格", systemImage: "square.grid.2x2").tag(CharacterLayout.grid)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 150)
-                Spacer()
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.top, 2)
-        .padding(.bottom, 12)
     }
 
     @ViewBuilder
@@ -75,7 +30,7 @@ struct CharacterBrowserView: View {
             ContentUnavailableView(
                 "未找到角色",
                 systemImage: "magnifyingglass",
-                description: Text("没有与“\(normalizedQuery)”匹配的角色")
+                description: Text(emptyDescription)
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -93,7 +48,7 @@ struct CharacterBrowserView: View {
                 .contentShape(.rect)
                 .onTapGesture { store.selectCharacter(character) }
         }
-        .listStyle(.sidebar)
+        .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .motionAnimation(.selection, value: store.selectedCharacterId)
     }
@@ -101,8 +56,8 @@ struct CharacterBrowserView: View {
     private var characterGrid: some View {
         ScrollView {
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 132, maximum: 180), spacing: 10)],
-                spacing: 10
+                columns: [GridItem(.adaptive(minimum: 142, maximum: 190), spacing: 12)],
+                spacing: 12
             ) {
                 ForEach(filteredCharacters) { character in
                     Button {
@@ -117,10 +72,10 @@ struct CharacterBrowserView: View {
                     .accessibilityLabel("选择角色 \(character.name)")
                     .accessibilityAddTraits(isSelected(character) ? .isSelected : [])
                     .accessibilityValue(isSelected(character) ? "已选择" : "未选择")
-                    .motionHover(.selection)
+                    .motionHover(.subtle)
                 }
             }
-            .padding(10)
+            .padding(12)
         }
         .motionAnimation(.selection, value: store.selectedCharacterId)
     }
@@ -131,12 +86,16 @@ struct CharacterBrowserView: View {
             if left.level != right.level { return left.level > right.level }
             return left.name < right.name
         }
-        guard !normalizedQuery.isEmpty else { return values }
-        return values.filter {
-            $0.name.localizedCaseInsensitiveContains(normalizedQuery)
-                || $0.elementTitle.localizedCaseInsensitiveContains(normalizedQuery)
-                || $0.weaponName.localizedCaseInsensitiveContains(normalizedQuery)
+        return values.filter { character in
+            elementFilter.matches(character) && matchesSearch(character)
         }
+    }
+
+    private func matchesSearch(_ character: GameCharacter) -> Bool {
+        normalizedQuery.isEmpty
+            || character.name.localizedCaseInsensitiveContains(normalizedQuery)
+            || character.elementTitle.localizedCaseInsensitiveContains(normalizedQuery)
+            || character.weaponName.localizedCaseInsensitiveContains(normalizedQuery)
     }
 
     private var normalizedQuery: String {
@@ -144,9 +103,16 @@ struct CharacterBrowserView: View {
     }
 
     private var countText: String {
-        normalizedQuery.isEmpty
+        normalizedQuery.isEmpty && elementFilter == .all
             ? "\(store.characters.count) 位"
             : "\(filteredCharacters.count) / \(store.characters.count)"
+    }
+
+    private var emptyDescription: String {
+        if !normalizedQuery.isEmpty {
+            return "没有与“\(normalizedQuery)”匹配的角色"
+        }
+        return "当前账号没有\(elementFilter.title)角色"
     }
 
     private var roleSummary: String {

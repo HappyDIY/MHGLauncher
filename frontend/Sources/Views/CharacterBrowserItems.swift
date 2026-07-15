@@ -31,9 +31,9 @@ struct CharacterListRow: View {
     let character: GameCharacter
 
     var body: some View {
-        HStack(spacing: 11) {
-            CharacterIcon(character: character, size: 46)
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(spacing: 12) {
+            CharacterIcon(character: character, size: 52)
+            VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 6) {
                     Text(character.name)
                         .font(.body.weight(.semibold))
@@ -45,17 +45,21 @@ struct CharacterListRow: View {
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(character.elementColor)
                 }
-                Text("等级 \(character.level) · \(character.weaponName.nonempty ?? "未同步武器")")
+                Text(character.weaponName.nonempty ?? "未同步武器")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             Spacer(minLength: 4)
-            Text("\(character.constellation) 命")
-                .font(.caption.weight(.semibold).monospacedDigit())
-                .foregroundStyle(.secondary)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(character.level)")
+                    .font(.title3.weight(.semibold).monospacedDigit())
+                Text("等级 · \(character.constellation) 命")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
-        .padding(.vertical, 5)
+        .padding(.vertical, 6)
     }
 }
 
@@ -64,41 +68,49 @@ struct CharacterGridTile: View {
     let selected: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(alignment: .top) {
-                CharacterIcon(character: character, size: 58)
-                Spacer()
-                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(selected ? Color.accentColor : Color.secondary.opacity(0.5))
-                    .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 8) {
+            ZStack(alignment: .topTrailing) {
+                CharacterIcon(character: character, size: 92)
+                if selected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title3)
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.white, .tint)
+                        .padding(3)
+                        .accessibilityHidden(true)
+                }
             }
-            Text(character.name)
-                .font(.body.weight(.semibold))
-                .lineLimit(1)
+            .frame(maxWidth: .infinity)
             HStack(spacing: 5) {
-                CharacterElementIcon(character: character, size: 13)
-                Text(character.elementTitle)
+                Text(character.name)
+                    .font(.body.weight(.semibold))
+                    .lineLimit(1)
                 Spacer(minLength: 2)
-                Text("等级 \(character.level)")
+                CharacterElementIcon(character: character, size: 14)
             }
-            .font(.caption)
+            HStack {
+                Text("等级 \(character.level)")
+                Spacer()
+                Text("\(character.constellation) 命")
+            }
+            .font(.caption.weight(.medium).monospacedDigit())
             .foregroundStyle(.secondary)
-            Text("\(character.constellation) 命 · \(character.weaponName.nonempty ?? "未同步武器")")
+            Text(character.weaponName.nonempty ?? "未同步武器")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
         .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 154, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 198, alignment: .leading)
         .background(tileBackground, in: .rect(cornerRadius: 8))
-        .overlay(borderColor, in: .rect(cornerRadius: 8).stroke(lineWidth: selected ? 1.5 : 0))
+        .overlay(borderColor, in: .rect(cornerRadius: 8).stroke(lineWidth: selected ? 2 : 1))
     }
 
     private var tileBackground: Color {
-        selected ? character.elementColor.opacity(0.14) : .clear
+        character.elementColor.opacity(selected ? 0.14 : 0.055)
     }
 
     private var borderColor: Color {
-        selected ? character.elementColor.opacity(0.55) : .clear
+        character.elementColor.opacity(selected ? 0.72 : 0.16)
     }
 }

@@ -5,21 +5,27 @@ struct CharacterSkillStrip: View {
 
     var body: some View {
         if !skills.isEmpty {
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 ForEach(skills) { skill in
-                    HStack(spacing: 8) {
-                        CachedAsyncImage(url: skill.icon) {
-                            Image(systemName: "sparkles")
-                                .foregroundStyle(.tint)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            CachedAsyncImage(url: skill.icon) {
+                                Image(systemName: "sparkles")
+                                    .foregroundStyle(.tint)
+                            }
+                            .frame(width: 36, height: 36)
+                            Spacer(minLength: 10)
+                            Text("\(skill.level ?? 0)")
+                                .font(.title3.weight(.bold).monospacedDigit())
                         }
-                        .frame(width: 28, height: 28)
-                        Text("\(skill.level ?? 0)")
-                            .font(.headline.monospacedDigit())
-                            .foregroundStyle(.primary)
+                        Text(skill.name ?? "技能")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(.primary.opacity(0.07), in: .capsule)
+                    .padding(10)
+                    .frame(minWidth: 110, maxWidth: 150, minHeight: 76, alignment: .leading)
+                    .background(.primary.opacity(0.055), in: .rect(cornerRadius: 8))
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("\(skill.name ?? "技能")，等级 \(skill.level ?? 0)")
                 }
@@ -31,35 +37,52 @@ struct CharacterSkillStrip: View {
 struct CharacterConstellationStrip: View {
     let values: [CharacterConstellation]?
     let active: Int
+    let tint: Color
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             ForEach(0..<6, id: \.self) { index in
-                let constellation = values?.dropFirst(index).first
-                ZStack {
-                    Circle()
-                        .fill(
-                            index < active
-                                ? Color.accentColor.opacity(0.18)
-                                : Color.primary.opacity(0.06)
-                        )
-                    CachedAsyncImage(url: constellation?.icon) {
-                        Image(systemName: index < active ? "moon.stars.fill" : "lock.fill")
-                            .foregroundStyle(
-                                index < active
-                                    ? Color.accentColor
-                                    : Color.secondary.opacity(0.5)
-                            )
-                    }
-                    .padding(8)
-                }
-                .frame(width: 38, height: 38)
-                .help(constellation?.description ?? constellation?.name ?? "\(index + 1) 命")
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(constellation?.name ?? "第 \(index + 1) 命座")
-                .accessibilityValue(index < active ? "已激活" : "未激活")
+                CharacterConstellationItem(
+                    constellation: constellation(at: index),
+                    index: index,
+                    isActive: index < active,
+                    tint: tint
+                )
             }
         }
+    }
+
+    private func constellation(at index: Int) -> CharacterConstellation? {
+        guard let values, index < values.count else { return nil }
+        return values[index]
+    }
+}
+
+private struct CharacterConstellationItem: View {
+    let constellation: CharacterConstellation?
+    let index: Int
+    let isActive: Bool
+    let tint: Color
+
+    var body: some View {
+        ZStack {
+            Circle().fill(isActive ? tint.opacity(0.18) : Color.primary.opacity(0.06))
+            CachedAsyncImage(url: constellation?.icon) {
+                Image(systemName: isActive ? "moon.stars.fill" : "lock.fill")
+                    .foregroundStyle(isActive ? tint : Color.secondary.opacity(0.5))
+            }
+            .padding(8)
+        }
+        .frame(width: 44, height: 44)
+        .overlay(borderColor, in: .circle.stroke())
+        .help(constellation?.description ?? constellation?.name ?? "\(index + 1) 命")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(constellation?.name ?? "第 \(index + 1) 命座")
+        .accessibilityValue(isActive ? "已激活" : "未激活")
+    }
+
+    private var borderColor: Color {
+        isActive ? tint.opacity(0.34) : Color.secondary.opacity(0.12)
     }
 }
 
@@ -72,21 +95,23 @@ struct CharacterPropertySection: View {
             SectionPanel(title: "角色属性", icon: "chart.bar") {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 10)], spacing: 10) {
                     ForEach(values) { property in
-                        HStack {
-                            Text(property.name ?? "")
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                            Spacer()
-                            Text(property.value ?? "")
-                                .fontWeight(.semibold)
-                            if let add = property.addValue, !add.isEmpty {
-                                Text(add)
-                                    .foregroundStyle(.green)
+                        VStack(spacing: 8) {
+                            HStack {
+                                Text(property.name ?? "")
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                Spacer()
+                                Text(property.value ?? "")
+                                    .fontWeight(.semibold)
+                                if let add = property.addValue, !add.isEmpty {
+                                    Text(add)
+                                        .foregroundStyle(.green)
+                                }
                             }
+                            Divider()
                         }
                         .font(.callout)
-                        .padding(10)
-                        .background(.quaternary.opacity(0.45), in: .rect(cornerRadius: 8))
+                        .padding(.horizontal, 4)
                     }
                 }
             }
@@ -110,7 +135,7 @@ struct CharacterRecommendationSection: View {
                         }
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.quaternary.opacity(0.45), in: .rect(cornerRadius: 8))
+                        .background(.primary.opacity(0.045), in: .rect(cornerRadius: 8))
                     }
                 }
             }
@@ -163,7 +188,8 @@ struct CharacterReliquarySection: View {
                             }
                         }
                         .padding(12)
-                        .background(.quaternary.opacity(0.45), in: .rect(cornerRadius: 8))
+                        .background(.primary.opacity(0.045), in: .rect(cornerRadius: 8))
+                        .overlay(.primary.opacity(0.08), in: .rect(cornerRadius: 8).stroke())
                     }
                 }
             }
