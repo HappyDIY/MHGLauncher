@@ -1,4 +1,6 @@
+import AppKit
 import Foundation
+import SwiftUI
 import Testing
 @testable import MHGLauncher
 
@@ -85,5 +87,37 @@ struct CharacterModelTests {
         #expect(recommendation.subProperties == ["暴击率", "暴击伤害"])
 
         #expect(property.formattedAddValue == "+74.4%")
+    }
+
+    @Test("加载七元素图标资源")
+    func loadElementIcons() {
+        let names = [
+            "ElementFire", "ElementWater", "ElementWind", "ElementElectric",
+            "ElementGrass", "ElementIce", "ElementRock",
+        ]
+        for name in names {
+            #expect(CharacterResources.image(named: name) != nil)
+        }
+    }
+
+    @MainActor
+    @Test("元素图标视图包含可见像素")
+    func renderElementIcon() throws {
+        let character = GameCharacter(
+            uid: "100000001", avatarId: "10000095", name: "伊涅芙",
+            element: "Electric", level: 90, rarity: 5, constellation: 0,
+            fetter: 10, weaponName: "", weaponLevel: 1, iconUrl: nil,
+            payload: nil, updatedAt: Date(timeIntervalSince1970: 0)
+        )
+        let renderer = ImageRenderer(content: CharacterElementIcon(character: character, size: 32))
+        renderer.scale = 2
+        let data = try #require(renderer.nsImage?.tiffRepresentation)
+        let bitmap = try #require(NSBitmapImageRep(data: data))
+        let hasVisiblePixel = (0..<bitmap.pixelsHigh).contains { y in
+            (0..<bitmap.pixelsWide).contains { x in
+                (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.1
+            }
+        }
+        #expect(hasVisiblePixel)
     }
 }

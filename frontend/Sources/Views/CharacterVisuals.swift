@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 extension GameCharacter {
@@ -38,9 +39,9 @@ struct CharacterElementIcon: View {
 
     var body: some View {
         Group {
-            if let name = character.elementAssetName {
-                Image(name, bundle: CharacterResources.bundle)
-                    .renderingMode(.original)
+            if let name = character.elementAssetName,
+               let image = CharacterResources.image(named: name) {
+                Image(nsImage: image)
                     .resizable()
             } else {
                 Image(systemName: "questionmark.circle")
@@ -54,7 +55,7 @@ struct CharacterElementIcon: View {
     }
 }
 
-private enum CharacterResources {
+enum CharacterResources {
     static let bundle: Bundle = {
         if let url = Bundle.main.url(
             forResource: "MHGLauncher_MHGLauncher",
@@ -64,4 +65,8 @@ private enum CharacterResources {
         }
         return .module
     }()
+
+    static func image(named name: String) -> NSImage? {
+        bundle.image(forResource: name)
+    }
 }
