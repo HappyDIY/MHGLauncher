@@ -1,12 +1,16 @@
 import Foundation
 
 extension LauncherStore {
-    func loadAchievementData(client: APIClient? = nil) async throws {
+    func loadAchievementData(
+        client: APIClient? = nil,
+        uid: String? = nil,
+        generation: Int? = nil
+    ) async throws {
         let api = try client ?? requireClient()
         value.achievementIntent += 1
         let intent = value.achievementIntent
         let archives: [AchievementArchive] = try await api.get("/v1/achievements/archives")
-        guard intent == value.achievementIntent else { return }
+        guard isCurrentAchievementLoad(intent, uid: uid, generation: generation) else { return }
         guard let archive = archives.first(where: \.selected) ?? archives.first else {
             value.achievementArchives = []; value.achievementEntries = []; value.achievementRevision = 0
             return
@@ -15,7 +19,7 @@ extension LauncherStore {
             "/v1/achievements/snapshot",
             query: [URLQueryItem(name: "archive_id", value: archive.id)]
         )
-        guard intent == value.achievementIntent, snapshot.archive.id == archive.id else { return }
+        guard isCurrentAchievementLoad(intent, uid: uid, generation: generation), snapshot.archive.id == archive.id else { return }
         applyAchievementSnapshot(snapshot, archives: archives)
     }
 
@@ -31,10 +35,16 @@ extension LauncherStore {
     }
 
     func selectAchievementArchive(_ archive: AchievementArchive) async {
+        value.achievementIntent &+= 1
+        let intent = value.achievementIntent
+        await achievementSelectionGate.acquire()
+        defer { Task { await achievementSelectionGate.release() } }
+        guard intent == value.achievementIntent else { return }
         await perform {
             _ = try await requireClient().post(
                 "/v1/achievements/archives/\(archive.id)/select"
             ) as AchievementArchive
+            guard intent == value.achievementIntent else { return }
             try await loadAchievementData()
         }
     }
@@ -49,30 +59,13 @@ extension LauncherStore {
 
     func saveAchievement(_ entry: AchievementEntry, checked: Bool) async {
         guard let archiveId = selectedAchievementArchive?.id else { return }
-        let revision = value.achievementRevision
         await perform {
-            let item = AchievementItemInput(
-                achievementId: entry.achievementId,
-                current: entry.current,
-                status: checked ? 3 : 0,
-                timestamp: checked ? Int(Date().timeIntervalSince1970) : 0
+            try await saveAchievement(
+                id: entry.achievementId,
+                checked: checked,
+                archiveId: archiveId,
+                retryingConflict: true
             )
-            do {
-                let snapshot: AchievementSnapshot = try await requireClient().post(
-                    "/v1/achievements",
-                    body: AchievementSaveRequest(
-                        archiveId: archiveId,
-                        expectedRevision: revision,
-                        items: [item]
-                    )
-                )
-                guard selectedAchievementArchive?.id == archiveId,
-                      value.achievementRevision == revision else { return }
-                applyAchievementSnapshot(snapshot, archives: value.achievementArchives)
-            } catch let error as APIErrorPayload where error.code == "archive_revision_conflict" {
-                try await loadAchievementData()
-                throw error
-            }
         }
     }
 
@@ -91,8 +84,12 @@ extension LauncherStore {
     }
 
     func exportAchievementUIAF(to url: URL) async {
+        guard let archiveId = selectedAchievementArchive?.id else { return }
         await perform {
-            let data = try await requireClient().download("/v1/achievements/export")
+            let data = try await requireClient().download(
+                "/v1/achievements/export",
+                query: [URLQueryItem(name: "archive_id", value: archiveId)]
+            )
             try UIGFFileIO.write(data, to: url)
         }
     }
@@ -110,5 +107,43 @@ extension LauncherStore {
         }
         value.achievementEntries = snapshot.entries
         value.achievementRevision = snapshot.revision
+    }
+
+    private func isCurrentAchievementLoad(_ intent: Int, uid: String?, generation: Int?) -> Bool {
+        guard intent == value.achievementIntent else { return false }
+        guard let uid, let generation else { return true }
+        return isCurrentCompanionData(uid: uid, generation: generation)
+    }
+
+    private func saveAchievement(
+        id: Int,
+        checked: Bool,
+        archiveId: String,
+        retryingConflict: Bool
+    ) async throws {
+        guard selectedAchievementArchive?.id == archiveId,
+              let entry = value.achievementEntries.first(where: { $0.achievementId == id }) else { return }
+        let revision = value.achievementRevision
+        let item = AchievementItemInput(
+            achievementId: id,
+            current: checked ? entry.progress : entry.current,
+            status: checked ? 3 : 0,
+            timestamp: checked ? Int(Date().timeIntervalSince1970) : 0
+        )
+        do {
+            let snapshot: AchievementSnapshot = try await requireClient().post(
+                "/v1/achievements",
+                body: AchievementSaveRequest(
+                    archiveId: archiveId, expectedRevision: revision, items: [item]
+                )
+            )
+            guard selectedAchievementArchive?.id == archiveId,
+                  value.achievementRevision == revision else { return }
+            applyAchievementSnapshot(snapshot, archives: value.achievementArchives)
+        } catch let error as APIErrorPayload where error.code == "archive_revision_conflict" {
+            guard retryingConflict else { throw error }
+            try await loadAchievementData()
+            try await saveAchievement(id: id, checked: checked, archiveId: archiveId, retryingConflict: false)
+        }
     }
 }

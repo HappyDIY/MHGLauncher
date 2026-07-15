@@ -170,8 +170,8 @@ struct MHGLauncherApp: App {
     private func startLauncherIfNeeded() async {
         guard !didStart else { return }
         didStart = true
-        store.showStatus("账号登录成功")
         await store.bootstrap()
+        if store.account != nil, store.message == nil { store.showStatus("账号登录成功") }
         await store.runNoteRefreshLoop()
     }
 }

@@ -102,7 +102,7 @@ struct GameView: View {
         let kind = switch state.updateKind {
         case "game_hotfix": "游戏内热更新"
         case "package_repair": "启动器资源修复"
-        case "version_diff": "版本差分"
+        case "version_diff", "version_diff_chunks": "版本差分"
         default: "完整更新"
         }
         let size = ByteCountFormatter.string(

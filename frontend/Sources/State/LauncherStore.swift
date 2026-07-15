@@ -65,6 +65,7 @@ final class LauncherStore {
     var companionLoaded = false
     @ObservationIgnored var companionSelectionIntent = 0
     @ObservationIgnored var companionDataGeneration = 0
+    @ObservationIgnored let achievementSelectionGate = AsyncSerialGate()
     var message: String?
     var statusMessage: String?; var statusMessageRevision = 0
     var wishOperation: WishOperationState?

@@ -93,14 +93,14 @@ struct GameModelTests {
         #expect(state.predownloadVersion == "5.6.0")
         #expect(state.predownloadFinished == false)
         #expect(state.hasPendingPredownload)
-        #expect(!state.canStartPredownload)
+        #expect(state.canStartPredownload)
     }
 
-    @Test("预下载仅在常规更新不可用时允许启动")
-    func predownloadRequiresReadyState() {
+    @Test("预下载允许跨过常规更新直达预发布版本")
+    func predownloadAllowsUpdateAvailableState() {
         let ready = gameState(status: .ready)
         #expect(ready.canStartPredownload)
-        #expect(!gameState(status: .updateAvailable, updateKind: "package_repair").canStartPredownload)
+        #expect(gameState(status: .updateAvailable, updateKind: "package_repair").canStartPredownload)
         #expect(!gameState(status: .notInstalled).canStartPredownload)
     }
 }

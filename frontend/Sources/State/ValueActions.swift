@@ -13,14 +13,23 @@ extension LauncherStore {
             async let settings: NotificationSettings = client.get("/v1/notifications/settings")
             async let goals: [AchievementGoal] = client.get("/v1/achievements/goals")
             do {
-                try await loadAchievementData(client: client)
+                try await loadAchievementData(client: client, uid: uid, generation: generation)
+                guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
                 value.achievementGoals = try await goals
                 value.achievementLoaded = true
                 value.achievementError = nil
             } catch {
+                guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
                 value.achievementError = Self.presentableMessage(error)
             }
-            do { value.gachaEvents = try await events } catch { message = Self.presentableMessage(error) }
+            do {
+                let loaded = try await events
+                guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
+                value.gachaEvents = loaded
+            } catch {
+                guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
+                message = Self.presentableMessage(error)
+            }
             do {
                 let received = try await loadedCharacters
                 guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
@@ -31,12 +40,16 @@ extension LauncherStore {
                 }
             } catch { message = Self.presentableMessage(error) }
             do {
-                value.notificationSettings = try await settings
+                let loaded = try await settings
+                guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
+                value.notificationSettings = loaded
                 value.notificationError = nil
             } catch {
+                guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
                 value.notificationError = Self.presentableMessage(error)
             }
         } catch {
+            guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
             value.achievementError = Self.presentableMessage(error)
             value.notificationError = value.achievementError
         }
@@ -94,9 +107,21 @@ extension LauncherStore {
         }
     }
 
-    func updateNotificationSettings(_ settings: NotificationSettings) async {
-        await perform {
-            value.notificationSettings = try await requireClient().put("/v1/notifications/settings", body: settings)
+    func updateNotificationSettings(
+        _ settings: NotificationSettings,
+        revertingTo previous: NotificationSettings
+    ) async {
+        do {
+            let saved: NotificationSettings = try await requireClient().put(
+                "/v1/notifications/settings", body: settings
+            )
+            guard value.notificationSettings == settings else { return }
+            value.notificationSettings = saved
+            value.notificationError = nil
+        } catch {
+            guard value.notificationSettings == settings else { return }
+            value.notificationSettings = previous
+            value.notificationError = Self.presentableMessage(error)
         }
     }
 

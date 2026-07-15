@@ -124,9 +124,11 @@ export class AchievementService {
     const insert = this.store.db.prepare(`INSERT INTO achievements(archive_id,achievement_id,current,status,timestamp,updated_at)
       VALUES(?,?,?,?,?,?) ON CONFLICT(archive_id,achievement_id) DO UPDATE SET
       current=excluded.current,status=excluded.status,timestamp=excluded.timestamp,updated_at=excluded.updated_at`);
-    values.forEach((value) => insert.run(
-      archiveId, value.achievement_id, value.current, value.status, value.timestamp, now,
-    ));
+    const progress = new Map(achievementMeta().map((value) => [value.Id, value.Progress]));
+    values.forEach((value) => {
+      const current = value.status >= 2 ? Math.max(value.current, progress.get(value.achievement_id) ?? 0) : value.current;
+      insert.run(archiveId, value.achievement_id, current, value.status, value.timestamp, now);
+    });
   }
 
   importUIAF(archiveId: string, expectedRevision: number, payload: UIAF): AchievementSnapshot {

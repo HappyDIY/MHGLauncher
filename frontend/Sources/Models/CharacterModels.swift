@@ -17,7 +17,9 @@ struct GameCharacter: Codable, Sendable, Identifiable, Equatable {
     let updatedAt: Date
 
     var detailReady: Bool {
-        payload?.weapon != nil || !(payload?.skills ?? []).isEmpty
+        payload?.selectedProperties != nil
+            && payload?.skills != nil
+            && payload?.constellations != nil
     }
 
     var elementTitle: String {
@@ -65,13 +67,6 @@ struct CharacterWeapon: Codable, Sendable, Equatable {
     let subProperty: CharacterProperty?
 }
 
-struct CharacterProperty: Codable, Sendable, Equatable, Identifiable {
-    var id: String { "\(name ?? "")-\(value ?? "")-\(addValue ?? "")" }
-    let name: String?
-    let value: String?
-    let addValue: String?
-}
-
 struct CharacterSkill: Codable, Sendable, Equatable, Identifiable {
     var id: String { "\(name ?? "")-\(level ?? 0)" }
     let name: String?
@@ -87,23 +82,4 @@ struct CharacterConstellation: Codable, Sendable, Equatable, Identifiable {
     let icon: URL?
     let isActivated: Bool?
     let description: String?
-}
-
-struct CharacterRecommendation: Codable, Sendable, Equatable {
-    let sandProperties: [String]?
-    let gobletProperties: [String]?
-    let circletProperties: [String]?
-    let subProperties: [String]?
-}
-
-struct CharacterReliquary: Codable, Sendable, Equatable, Identifiable {
-    var id: String { "\(name ?? "")-\(pos ?? 0)" }
-    let name: String?
-    let icon: URL?
-    let setName: String?
-    let rarity: Int?
-    let level: Int?
-    let pos: Int?
-    let mainProperty: CharacterProperty?
-    let subProperties: [CharacterProperty]?
 }

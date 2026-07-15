@@ -40,6 +40,28 @@ struct CompanionDataStateTests {
         await gate.release()
         await first.value
     }
+
+    @Test("迟到的角色详情不能反向选择旧角色")
+    @MainActor
+    func keepsLatestCharacterSelection() async {
+        let backend = SlowCharacterBackend()
+        let store = LauncherStore(deviceOwnerAuthenticator: CompanionAuthenticator())
+        store.backend.useClient(APIClient(token: "fixture") { try await backend.respond($0) })
+        store.account = InteractiveFixtures.account
+        store.roles = [InteractiveFixtures.role]
+        try! store.keychain.save("stoken=fixture", account: store.keychainAccount(for: InteractiveFixtures.account.aid))
+        defer { try? store.keychain.delete(account: store.keychainAccount(for: InteractiveFixtures.account.aid)) }
+        let first = character(id: "1001"), second = character(id: "1002")
+        store.characters = [first, second]
+        store.selectCharacter(first)
+
+        let refresh = Task { await store.refreshCharacterDetail(first) }
+        try? await Task.sleep(for: .milliseconds(20))
+        store.selectCharacter(second)
+        await refresh.value
+
+        #expect(store.selectedCharacterId == second.avatarId)
+    }
 }
 
 @MainActor
@@ -93,6 +115,24 @@ private actor OperationGate {
         releaseWaiter?.resume()
         releaseWaiter = nil
     }
+}
+
+private actor SlowCharacterBackend {
+    func respond(_ request: APIRequest) async throws -> APIResponse {
+        guard request.path == "/v1/characters/1001/refresh" else {
+            return APIResponse(status: 404, body: Data())
+        }
+        try await Task.sleep(for: .milliseconds(80))
+        return try json(character(id: "1001"))
+    }
+}
+
+private func character(id: String) -> GameCharacter {
+    GameCharacter(
+        uid: InteractiveFixtures.role.uid, avatarId: id, name: "旅行者", element: "Anemo",
+        level: 90, rarity: 5, constellation: 0, fetter: 10, weaponName: "剑",
+        weaponLevel: 90, iconUrl: nil, payload: nil, updatedAt: .now
+    )
 }
 
 private func json<T: Encodable>(_ value: T) throws -> APIResponse {

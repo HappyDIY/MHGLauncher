@@ -6,14 +6,12 @@ struct SectionPanel<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             Label(title, systemImage: icon)
-                .font(.headline)
+                .font(.title3.weight(.semibold))
             content
         }
-        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(.regular, in: .rect(cornerRadius: 12))
     }
 }
 

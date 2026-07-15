@@ -11,7 +11,9 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "MHGLauncher",
-            path: "Sources"
+            path: "Sources",
+            exclude: ["Resources/Assets.xcassets"],
+            resources: [.process("Resources/ElementIcons")]
         ),
         .testTarget(
             name: "MHGLauncherTests",
@@ -20,4 +22,3 @@ let package = Package(
         )
     ]
 )
-

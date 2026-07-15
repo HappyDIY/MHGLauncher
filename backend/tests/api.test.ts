@@ -116,7 +116,7 @@ describe("本地 API 契约", () => {
   });
 
 	  test("空间检查返回必要字段", async () => {
-	    const response = await request("GET", "/v1/game/space-check?install_path=/tmp");
+	    const response = await request("GET", "/v1/game/space-check?kind=install&install_path=/tmp");
 	    const info = await response.json();
 	    expect(info).toHaveProperty("available");
 	    expect(info).toHaveProperty("required");
@@ -141,7 +141,7 @@ async function loginCookie(credential: string): Promise<void> {
 
 	  test("成就档案支持保存与导出 UIAF", async () => {
 	    const archive = await (await request("POST", "/v1/achievements/archives", { name: "主档案" })).json();
-	    const saved = await (await request("POST", "/v1/achievements", { archive_id: archive.id, expected_revision: 0, items: [{ achievement_id: 84501, current: 1, status: 2, timestamp: 1_756_000_000 }] })).json();
+	    const saved = await (await request("POST", "/v1/achievements", { archive_id: archive.id, expected_revision: 0, items: [{ achievement_id: 84501, current: 0, status: 2, timestamp: 1_756_000_000 }] })).json();
 	    expect(saved.revision).toBe(1);
 	    expect((await request("POST", "/v1/achievements", { archive_id: archive.id, expected_revision: 0, items: [] })).status).toBe(409);
 	    const imported = await (await request("POST", `/v1/achievements/import?archive_id=${archive.id}&expected_revision=1`, {
@@ -153,6 +153,7 @@ async function loginCookie(credential: string): Promise<void> {
 	    expect(items[0].achievement_id).toBe(84501);
     const view = await (await request("GET", `/v1/achievements/view?archive_id=${archive.id}`)).json();
     expect(view.find((value: { achievement_id: number }) => value.achievement_id === 84501).status).toBe(2);
+	    expect(view.find((value: { achievement_id: number }) => value.achievement_id === 84501).current).toBe(1);
     const goals = await (await request("GET", "/v1/achievements/goals")).json();
     expect(goals.length).toBeGreaterThan(0);
     expect([...view, ...goals].every((value: { icon_url: string | null }) => value.icon_url === null || value.icon_url.startsWith("https://"))).toBe(true);

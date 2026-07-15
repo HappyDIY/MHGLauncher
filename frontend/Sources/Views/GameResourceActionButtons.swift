@@ -10,6 +10,7 @@ struct GameResourceActionButtons: View {
                 action(.predownload, title: "预下载", enabled: store.gameState?.canStartPredownload == true)
             }
             action(.update, title: "更新", enabled: store.gameState?.status == .updateAvailable)
+            action(.verify, title: "校验", enabled: store.gameState.map { $0.status != .notInstalled } == true)
             Spacer()
         }
         .buttonStyle(.glassProminent)

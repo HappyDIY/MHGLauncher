@@ -1,60 +1,5 @@
 import SwiftUI
 
-struct CharacterSkillStrip: View {
-    let skills: [CharacterSkill]
-
-    var body: some View {
-        if !skills.isEmpty {
-            HStack(spacing: 8) {
-                ForEach(skills) { skill in
-                    HStack(spacing: 8) {
-                        CachedAsyncImage(url: skill.icon) {
-                            Image(systemName: "sparkles")
-                                .foregroundStyle(.white.opacity(0.8))
-                        }
-                        .frame(width: 28, height: 28)
-                        Text("\(skill.level ?? 0)")
-                            .font(.headline.monospacedDigit())
-                            .foregroundStyle(.white)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(.black.opacity(0.22), in: .capsule)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(skill.name ?? "技能")，等级 \(skill.level ?? 0)")
-                }
-            }
-        }
-    }
-}
-
-struct CharacterConstellationStrip: View {
-    let values: [CharacterConstellation]?
-    let active: Int
-
-    var body: some View {
-        HStack(spacing: 6) {
-            ForEach(0..<6, id: \.self) { index in
-                let constellation = values?.dropFirst(index).first
-                ZStack {
-                    Circle()
-                        .fill(index < active ? .white.opacity(0.25) : .black.opacity(0.24))
-                    CachedAsyncImage(url: constellation?.icon) {
-                        Image(systemName: index < active ? "moon.stars.fill" : "lock.fill")
-                            .foregroundStyle(.white.opacity(index < active ? 0.9 : 0.45))
-                    }
-                    .padding(8)
-                }
-                .frame(width: 38, height: 38)
-                .help(constellation?.description ?? constellation?.name ?? "\(index + 1) 命")
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(constellation?.name ?? "第 \(index + 1) 命座")
-                .accessibilityValue(index < active ? "已激活" : "未激活")
-            }
-        }
-    }
-}
-
 struct CharacterPropertySection: View {
     let character: GameCharacter
 
@@ -64,21 +9,23 @@ struct CharacterPropertySection: View {
             SectionPanel(title: "角色属性", icon: "chart.bar") {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 10)], spacing: 10) {
                     ForEach(values) { property in
-                        HStack {
-                            Text(property.name ?? "")
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                            Spacer()
-                            Text(property.value ?? "")
-                                .fontWeight(.semibold)
-                            if let add = property.addValue, !add.isEmpty {
-                                Text(add)
-                                    .foregroundStyle(.green)
+                        VStack(spacing: 8) {
+                            HStack {
+                                Text(property.name ?? "")
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                                Spacer()
+                                Text(property.value ?? "")
+                                    .fontWeight(.semibold)
+                                if let add = property.addValue, !add.isEmpty {
+                                    Text(add)
+                                        .foregroundStyle(.green)
+                                }
                             }
+                            Divider()
                         }
                         .font(.callout)
-                        .padding(10)
-                        .background(.quaternary.opacity(0.45), in: .rect(cornerRadius: 8))
+                        .padding(.horizontal, 4)
                     }
                 }
             }
@@ -102,7 +49,7 @@ struct CharacterRecommendationSection: View {
                         }
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.quaternary.opacity(0.45), in: .rect(cornerRadius: 8))
+                        .background(.primary.opacity(0.045), in: .rect(cornerRadius: 8))
                     }
                 }
             }
@@ -138,12 +85,16 @@ struct CharacterReliquarySection: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(relic.name ?? "圣遗物")
                                         .font(.headline)
-                                        .lineLimit(1)
+                                        .lineLimit(2)
                                     Text(relic.setName ?? "")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                        .lineLimit(1)
+                                        .lineLimit(2)
                                 }
+                                Spacer()
+                                Text("+\(relic.level ?? 0)")
+                                    .font(.callout.weight(.semibold).monospacedDigit())
+                                    .foregroundStyle(.secondary)
                             }
                             CharacterPropertyLine(property: relic.mainProperty, bold: true)
                             ForEach(relic.subProperties ?? []) { property in
@@ -151,7 +102,8 @@ struct CharacterReliquarySection: View {
                             }
                         }
                         .padding(12)
-                        .background(.quaternary.opacity(0.45), in: .rect(cornerRadius: 8))
+                        .background(.primary.opacity(0.045), in: .rect(cornerRadius: 8))
+                        .overlay(.primary.opacity(0.08), in: .rect(cornerRadius: 8).stroke())
                     }
                 }
             }

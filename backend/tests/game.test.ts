@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -10,6 +10,7 @@ import { Store } from "../src/core/database";
 import { GameService } from "../src/services/games";
 import { FixtureProvider } from "../src/providers/fixture";
 import { ResourceCoordinator } from "../src/services/resource-coordinator";
+import { gameBuildSize, gameStorageSize } from "../src/services/game-detection";
 
 beforeEach(() => fixture());
 test("检测官方游戏目录版本", async () => {
@@ -37,12 +38,20 @@ test("预下载空间检查使用预下载构建", async () => {
   const info = await (await request("GET", `/v1/game/space-check?kind=predownload&install_path=${encodeURIComponent(game)}`)).json();
   expect(info.required).toBe(1073741825);
 });
-test("预下载前要求常规通道与本机版本一致", async () => {
+test("预下载允许跨过常规更新直达预发布版本", async () => {
   const game = mkdtempSync(join(tmpdir(), "game-"));
   writeFileSync(join(game, "YuanShen.exe"), ""); writeFileSync(join(game, ".mhg-version"), "5.7.0");
   const response = await request("GET", `/v1/game/space-check?kind=predownload&install_path=${encodeURIComponent(game)}`);
-  expect(response.status).toBe(409);
-  expect((await response.json()).code).toBe("predownload_base_mismatch");
+  expect(response.status).toBe(200);
+  expect((await response.json()).required).toBe(1073741825);
+});
+test("本机版本高于远端时不提供降级更新", async () => {
+  const game = mkdtempSync(join(tmpdir(), "game-"));
+  writeFileSync(join(game, "YuanShen.exe"), ""); writeFileSync(join(game, ".mhg-version"), "5.9.1");
+  const state = await (await request("GET", `/v1/game/status/path?install_path=${encodeURIComponent(game)}`)).json();
+  expect(state.status).toBe("ready");
+  const update = await request("POST", "/v1/game/jobs", { kind: "update", install_path: game });
+  expect(update.status).toBe(409); expect((await update.json()).code).toBe("game_already_current");
 });
 test("常驻资源目录清单不视为待下载内容", () => {
   const root = mkdtempSync(join(tmpdir(), "hotfix-")), persistent = join(root, "YuanShen_Data/Persistent"); mkdirSync(persistent, { recursive: true });
@@ -50,6 +59,11 @@ test("常驻资源目录清单不视为待下载内容", () => {
   expect(prepareBuild(normalizeBuild({ version: "1" }), root, "1")).toMatchObject({ kind: "full", pending_bytes: 0 });
 });
 test("无热更新保持构建", () => expect(prepareBuild(normalizeBuild({ version: "1" }), "/tmp/missing", "1").kind).toBe("full"));
+test("空间估算同时包含下载缓存和安装后文件", () => {
+  const build = normalizeBuild({ version: "1", assets: [{ name: "game.bin", size: 100, md5: "0".repeat(32),
+    chunks: [{ name: "chunk", size: 5, decompressed_size: 100, offset: 0, decompressed_md5: "0".repeat(32), url: "" }] }] });
+  expect(gameBuildSize(build)).toBe(5); expect(gameStorageSize(build)).toBe(105);
+});
 test("忽略启动器托管的反作弊 DLL", () => {
   const build = prepareBuild(normalizeBuild({
     version: "2",
@@ -75,12 +89,15 @@ test("Sophon 更新通过暂存目录原子提交且取消终态任务幂等", a
   writeFileSync(join(game, "YuanShen.exe"), exe); writeFileSync(join(game, "config.ini"), "game_version=5.7.0\n");
   writeFileSync(join(fixtures, "build.json"), JSON.stringify({ version: "5.8.0", assets: [{ name: "YuanShen.exe", size: exe.length, md5, chunks: [] }] }));
   const store = new Store(join(data, "test.db")), service = new GameService(store, new FixtureProvider(fixtures), data);
+  const cacheScope = join(data, "downloads", createHash("sha256").update(realpathSync(game)).digest("hex").slice(0, 16));
+  mkdirSync(join(cacheScope, "5.9.0"), { recursive: true }); writeFileSync(join(cacheScope, "5.9.0", "stale"), "x");
   try {
     let job = await service.start("update", game);
     for (let i = 0; i < 20 && !["completed", "failed", "cancelled"].includes(job.status); i += 1) {
       await new Promise((resolve) => setTimeout(resolve, 10)); job = service.get(job.id);
     }
-    expect(job.status).toBe("completed"); expect(readdirSync(root).some((name) => name.includes("mhg-staging"))).toBe(false);
+    expect({ status: job.status, message: job.message }).toEqual({ status: "completed", message: "正在更新游戏资源" }); expect(readdirSync(root).some((name) => name.includes("mhg-staging"))).toBe(false);
+    expect(existsSync(cacheScope)).toBe(false);
     expect(service.control(job.id, "cancel").status).toBe("completed");
   } finally { store.close(); rmSync(root, { recursive: true, force: true }); }
 });

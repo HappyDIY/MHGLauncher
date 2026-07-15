@@ -46,7 +46,7 @@ struct AdditionalButtonBusinessActionTests {
         await store.createAchievementArchive(named: "旅行档案")
         if let archive = store.selectedAchievementArchive { await store.selectAchievementArchive(archive) }
         if let entry = store.value.achievementEntries.first { await store.saveAchievement(entry, checked: true) }
-        await store.updateNotificationSettings(settings)
+        await store.updateNotificationSettings(settings, revertingTo: settings)
         await store.evaluateNotifications()
         store.value.cloudLoginURL = "https://example.invalid/authkey"
         await store.loginCloud()
@@ -59,6 +59,23 @@ struct AdditionalButtonBusinessActionTests {
         #expect(await backend.saw("POST", "/v1/characters/1001/refresh"))
         #expect(await backend.savedAchievementRevision == 0)
         #expect(await backend.saw("POST", "/v1/cloud/wishes/retrieve"))
+    }
+
+    @Test("提醒设置保存失败会恢复已确认状态")
+    @MainActor
+    func rollsBackFailedNotificationSave() async {
+        let backend = ValueFakeBackend(failureRoute: "/v1/notifications/settings")
+        let store = LauncherStore(deviceOwnerAuthenticator: ValueAuthenticator())
+        store.backend.useClient(APIClient(token: "fixture") { try await backend.respond($0) })
+        store.value.notificationSettings = settings
+        var changed = settings
+        changed.gachaRefreshEnabled = false
+        store.value.notificationSettings = changed
+
+        await store.updateNotificationSettings(changed, revertingTo: settings)
+
+        #expect(store.value.notificationSettings == settings)
+        #expect(store.value.notificationError != nil)
     }
 }
 

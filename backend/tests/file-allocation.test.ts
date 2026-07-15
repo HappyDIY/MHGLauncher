@@ -18,14 +18,14 @@ test("ftruncate 预分配文件到指定大小", () => {
   expect(statSync(path).size).toBe(1024 * 1024);
 });
 
-test("预下载状态读写清除", () => {
+test("预下载状态读写清除", async () => {
   const dir = root();
-  expect(readPredownloadStatus(dir)).toBe(null);
+  expect(await readPredownloadStatus(dir)).toBe(null);
   writePredownloadStatus(dir, { tag: "5.6.0", manifest_digest: "digest", finished: false, total_chunks: 100 });
-  const status = readPredownloadStatus(dir);
+  const status = await readPredownloadStatus(dir);
   expect(status?.tag).toBe("5.6.0");
   expect(status?.finished).toBe(false);
   expect(status?.total_chunks).toBe(100);
   clearPredownloadStatus(dir);
-  expect(readPredownloadStatus(dir)).toBe(null);
+  expect(await readPredownloadStatus(dir)).toBe(null);
 });

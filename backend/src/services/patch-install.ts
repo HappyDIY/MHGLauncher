@@ -9,21 +9,26 @@ import { ensureParent, safeTarget } from "./installer";
 import { copyRangeSync, hashFileSync, xxhash64File } from "./file-hash";
 import { safeIdentifier } from "../core/safe-path";
 import { randomUUID } from "node:crypto";
+import type { TokenBucketRateLimiter } from "./rate-limiter";
+import { managedPath } from "./managed-file";
 
 export async function installPatches(
   assets: GamePatchAsset[], staging: string, cache: string, control: DownloadControl,
   progress: (bytes: number) => void, report: (name: string, done: number, total: number) => void,
+  rateLimiter?: TokenBucketRateLimiter | null,
 ): Promise<void> {
   mkdirSync(cache, { recursive: true }); const patches = new Map(assets.map(({ patch }) => [patch.id, patch]));
   const paths = new Map<string, string>();
-  for (const patch of patches.values()) paths.set(patch.id, await getPatch(patch, cache, control, progress, report));
+  for (const patch of patches.values()) paths.set(patch.id, await getPatch(
+    patch, cache, control, progress, report, rateLimiter,
+  ));
   for (const asset of assets) { await control.checkpoint(); apply(asset, paths.get(asset.patch.id) ?? "", staging); }
 }
 
-async function getPatch(patch: SophonPatch, cache: string, control: DownloadControl, progress: (n: number) => void, report: (name: string, done: number, total: number) => void): Promise<string> {
-  const id = safeIdentifier(patch.id, "补丁标识"), path = join(cache, id); if (existsSync(path) && await valid(path, patch)) { progress(patch.file_size); report(id, patch.file_size, patch.file_size); return path; }
-  const partial = `${path}.part`;
-  await streamDownload(patch.url, partial, patch.file_size, patch.id, control, progress, (done) => report(patch.id, done, patch.file_size));
+async function getPatch(patch: SophonPatch, cache: string, control: DownloadControl, progress: (n: number) => void, report: (name: string, done: number, total: number) => void, rateLimiter?: TokenBucketRateLimiter | null): Promise<string> {
+  const id = safeIdentifier(patch.id, "补丁标识"), path = managedPath(cache, id); if (existsSync(path) && await valid(path, patch)) { progress(patch.file_size); report(id, patch.file_size, patch.file_size); return path; }
+  const partial = managedPath(cache, `${id}.part`);
+  await streamDownload(patch.url, partial, patch.file_size, patch.id, control, progress, (done) => report(patch.id, done, patch.file_size), rateLimiter);
   if (!await valid(partial, patch)) { progress(-patch.file_size); rmSync(partial); throw new AppError("sophon_patch_invalid", `${patch.id} 增量补丁校验失败`); }
   renameSync(partial, path); return path;
 }

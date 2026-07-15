@@ -7,11 +7,13 @@ extension LauncherStore {
 
     func loadCharacters() async {
         guard let uid = selectedRole?.uid else { return }
+        let generation = companionDataGeneration
         await perform {
             let loaded: [GameCharacter] = try await requireClient().get(
                 "/v1/characters",
                 query: [URLQueryItem(name: "uid", value: uid)]
             )
+            guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
             characters = loaded
             if selectedCharacterId == nil || !loaded.contains(where: { $0.avatarId == selectedCharacterId }) {
                 selectedCharacterId = loaded.first?.avatarId
@@ -20,12 +22,18 @@ extension LauncherStore {
     }
 
     func refreshCharacters() async {
+        guard let uid = selectedRole?.uid else { return }
+        let generation = companionDataGeneration
         await perform {
-            characters = try await requireClient().post(
+            let loaded: [GameCharacter] = try await requireClient().post(
                 "/v1/characters/refresh",
                 body: CredentialRequest(credential: try requireCredential())
             )
-            selectedCharacterId = characters.first?.avatarId
+            guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
+            characters = loaded
+            if selectedCharacterId == nil || !loaded.contains(where: { $0.avatarId == selectedCharacterId }) {
+                selectedCharacterId = loaded.first?.avatarId
+            }
         }
     }
 
@@ -39,17 +47,20 @@ extension LauncherStore {
     }
 
     func refreshCharacterDetail(_ character: GameCharacter) async {
+        let generation = companionDataGeneration
+        let selectedID = selectedCharacterId
         await perform {
             let loaded: GameCharacter = try await requireClient().post(
                 "/v1/characters/\(character.avatarId)/refresh",
                 body: CredentialRequest(credential: try requireCredential())
             )
+            guard isCurrentCompanionData(uid: character.uid, generation: generation) else { return }
             if let index = characters.firstIndex(where: { $0.avatarId == loaded.avatarId }) {
                 characters[index] = loaded
             } else {
                 characters.append(loaded)
             }
-            selectedCharacterId = loaded.avatarId
+            if selectedCharacterId == selectedID { selectedCharacterId = loaded.avatarId }
         }
     }
 }
