@@ -6,7 +6,7 @@ struct CharacterPropertySection: View {
     var body: some View {
         let values = character.payload?.selectedProperties ?? []
         if !values.isEmpty {
-            SectionPanel(title: "角色属性", icon: "chart.bar") {
+            SectionPanel(title: "角色面板", icon: "chart.bar") {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 190), spacing: 10)], spacing: 10) {
                     ForEach(values) { property in
                         VStack(spacing: 8) {
@@ -17,7 +17,7 @@ struct CharacterPropertySection: View {
                                 Spacer()
                                 Text(property.value ?? "")
                                     .fontWeight(.semibold)
-                                if let add = property.addValue, !add.isEmpty {
+                                if let add = property.formattedAddValue {
                                     Text(add)
                                         .foregroundStyle(.green)
                                 }
@@ -45,7 +45,7 @@ struct CharacterRecommendationSection: View {
                             Text(group.title)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            FlowTags(values: group.values)
+                            FlowTags(values: group.values, tint: character.elementColor)
                         }
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -73,7 +73,10 @@ struct CharacterReliquarySection: View {
         let relics = character.payload?.relics ?? []
         if !relics.isEmpty {
             SectionPanel(title: "圣遗物", icon: "seal") {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], spacing: 10) {
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 2),
+                    spacing: 10
+                ) {
                     ForEach(relics) { relic in
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {

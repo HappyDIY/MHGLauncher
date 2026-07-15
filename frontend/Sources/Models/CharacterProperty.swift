@@ -6,6 +6,13 @@ struct CharacterProperty: Codable, Sendable, Equatable, Identifiable {
     let value: String?
     let addValue: String?
 
+    var formattedAddValue: String? {
+        guard let addValue, !addValue.isEmpty else { return nil }
+        return addValue.hasPrefix("+") || addValue.hasPrefix("-")
+            ? addValue
+            : "+\(addValue)"
+    }
+
     private enum CodingKeys: String, CodingKey {
         case name
         case value

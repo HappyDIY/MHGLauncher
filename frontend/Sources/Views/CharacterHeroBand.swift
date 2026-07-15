@@ -34,7 +34,7 @@ struct CharacterHeroBand: View {
             CharacterIcon(character: character, size: 120)
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 5) {
-                    CharacterElementIcon(character: character, size: 17)
+                    CharacterElementIcon(character: character, size: 22)
                     Text("\(character.elementTitle)元素")
                 }
                 .font(.subheadline.weight(.semibold))

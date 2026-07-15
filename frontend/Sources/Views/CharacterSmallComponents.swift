@@ -17,15 +17,22 @@ struct SectionPanel<Content: View>: View {
 
 struct FlowTags: View {
     let values: [String]
+    let tint: Color
+
+    init(values: [String], tint: Color = .accentColor) {
+        self.values = values
+        self.tint = tint
+    }
 
     var body: some View {
         FlowLayout(spacing: 6) {
             ForEach(values, id: \.self) { value in
                 Text(value)
                     .font(.caption.weight(.medium))
+                    .foregroundStyle(tint)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(.tint.opacity(0.14), in: .capsule)
+                    .background(tint.opacity(0.16), in: .capsule)
             }
         }
     }
@@ -42,7 +49,7 @@ struct CharacterPropertyLine: View {
             Spacer()
             Text(property?.value ?? "")
                 .fontWeight(bold ? .bold : .regular)
-            if let add = property?.addValue, !add.isEmpty {
+            if let add = property?.formattedAddValue {
                 Text(add)
                     .foregroundStyle(.green)
             }

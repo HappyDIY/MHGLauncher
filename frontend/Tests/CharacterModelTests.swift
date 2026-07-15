@@ -23,7 +23,7 @@ struct CharacterModelTests {
               "payload": {
                 "weapon": {"name": "静水流涌之辉", "level": 90},
                 "selected_properties": [{"name": "生命值上限", "value": "39182"}],
-                "skills": [],
+                "skills": [{"skill_type":1,"name":"普通攻击","level":10}],
                 "constellations": []
               },
               "updated_at": "2026-06-11T08:00:00Z"
@@ -34,6 +34,7 @@ struct CharacterModelTests {
         #expect(character.elementTitle == "水")
         #expect(character.payload?.weapon?.name == "静水流涌之辉")
         #expect(character.payload?.selectedProperties?.first?.name == "生命值上限")
+        #expect(character.payload?.skills?.first?.isCombatTalent == true)
         #expect(character.detailReady)
     }
 
@@ -82,5 +83,7 @@ struct CharacterModelTests {
         #expect(recommendation.sandProperties == ["攻击力百分比"])
         #expect(recommendation.circletProperties == ["暴击伤害"])
         #expect(recommendation.subProperties == ["暴击率", "暴击伤害"])
+
+        #expect(property.formattedAddValue == "+74.4%")
     }
 }

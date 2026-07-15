@@ -71,9 +71,12 @@ struct CharacterSkill: Codable, Sendable, Equatable, Identifiable {
     var id: String { "\(name ?? "")-\(level ?? 0)" }
     let name: String?
     let icon: URL?
+    let skillType: Int?
     let level: Int?
     let maxLevel: Int?
     let desc: String?
+
+    var isCombatTalent: Bool { skillType == 1 }
 }
 
 struct CharacterConstellation: Codable, Sendable, Equatable, Identifiable {

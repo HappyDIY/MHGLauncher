@@ -40,15 +40,15 @@ struct CharacterElementIcon: View {
         Group {
             if let name = character.elementAssetName {
                 Image(name, bundle: CharacterResources.bundle)
+                    .renderingMode(.original)
                     .resizable()
-                    .renderingMode(.template)
             } else {
                 Image(systemName: "questionmark.circle")
                     .resizable()
+                    .foregroundStyle(character.elementColor)
             }
         }
         .scaledToFit()
-        .foregroundStyle(character.elementColor)
         .frame(width: size, height: size)
         .accessibilityHidden(true)
     }

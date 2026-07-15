@@ -5,33 +5,19 @@ struct CharacterGrowthSection: View {
 
     @ViewBuilder
     var body: some View {
-        let skills = character.payload?.skills ?? []
-        if skills.isEmpty {
-            SectionPanel(title: "命之座", icon: "moon.stars") {
-                constellationStrip
-            }
-        } else {
-            SectionPanel(title: "天赋与命座", icon: "sparkles") {
-                subsectionTitle("天赋等级")
-                CharacterSkillStrip(skills: skills)
-                subsectionTitle("命之座")
-                constellationStrip
+        if !combatSkills.isEmpty {
+            SectionPanel(title: "天赋", icon: "sparkles") {
+                CharacterSkillStrip(skills: combatSkills)
             }
         }
     }
 
-    private var constellationStrip: some View {
-        CharacterConstellationStrip(
-            values: character.payload?.constellations,
-            active: character.constellation,
-            tint: character.elementColor
-        )
-    }
-
-    private func subsectionTitle(_ title: String) -> some View {
-        Text(title)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
+    private var combatSkills: [CharacterSkill] {
+        let skills = character.payload?.skills ?? []
+        if skills.contains(where: { $0.skillType != nil }) {
+            return skills.filter(\.isCombatTalent)
+        }
+        return Array(skills.prefix(3))
     }
 }
 
@@ -48,11 +34,18 @@ struct CharacterSkillStrip: View {
                 ForEach(skills) { skill in
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            CachedAsyncImage(url: skill.icon) {
-                                Image(systemName: "sparkles")
-                                    .foregroundStyle(.tint)
+                            ZStack {
+                                Circle()
+                                    .fill(Color.secondary.opacity(0.2))
+                                CachedAsyncImage(url: skill.icon) {
+                                    Image(systemName: "sparkles")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(8)
                             }
-                            .frame(width: 36, height: 36)
+                            .frame(width: 40, height: 40)
+                            .clipShape(.circle)
+                            .overlay(Color.secondary.opacity(0.16), in: .circle.stroke())
                             Spacer(minLength: 10)
                             Text("\(skill.level ?? 0)")
                                 .font(.title3.weight(.bold).monospacedDigit())
@@ -71,61 +64,5 @@ struct CharacterSkillStrip: View {
                 }
             }
         }
-    }
-}
-
-struct CharacterConstellationStrip: View {
-    let values: [CharacterConstellation]?
-    let active: Int
-    let tint: Color
-
-    var body: some View {
-        LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 44, maximum: 44), spacing: 8)],
-            alignment: .leading,
-            spacing: 8
-        ) {
-            ForEach(0..<6, id: \.self) { index in
-                CharacterConstellationItem(
-                    constellation: constellation(at: index),
-                    index: index,
-                    isActive: index < active,
-                    tint: tint
-                )
-            }
-        }
-    }
-
-    private func constellation(at index: Int) -> CharacterConstellation? {
-        guard let values, index < values.count else { return nil }
-        return values[index]
-    }
-}
-
-private struct CharacterConstellationItem: View {
-    let constellation: CharacterConstellation?
-    let index: Int
-    let isActive: Bool
-    let tint: Color
-
-    var body: some View {
-        ZStack {
-            Circle().fill(isActive ? tint.opacity(0.18) : Color.primary.opacity(0.06))
-            CachedAsyncImage(url: constellation?.icon) {
-                Image(systemName: isActive ? "moon.stars.fill" : "lock.fill")
-                    .foregroundStyle(isActive ? tint : Color.secondary.opacity(0.5))
-            }
-            .padding(8)
-        }
-        .frame(width: 44, height: 44)
-        .overlay(borderColor, in: .circle.stroke())
-        .help(constellation?.description ?? constellation?.name ?? "\(index + 1) 命")
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(constellation?.name ?? "第 \(index + 1) 命座")
-        .accessibilityValue(isActive ? "已激活" : "未激活")
-    }
-
-    private var borderColor: Color {
-        isActive ? tint.opacity(0.34) : Color.secondary.opacity(0.12)
     }
 }
