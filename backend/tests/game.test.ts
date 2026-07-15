@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -10,7 +10,7 @@ import { Store } from "../src/core/database";
 import { GameService } from "../src/services/games";
 import { FixtureProvider } from "../src/providers/fixture";
 import { ResourceCoordinator } from "../src/services/resource-coordinator";
-import { gameBuildSize, gameStorageSize } from "../src/services/game-detection";
+import { detectGame, gameBuildSize, gameStorageSize } from "../src/services/game-detection";
 
 beforeEach(() => fixture());
 test("检测官方游戏目录版本", async () => {
@@ -30,6 +30,14 @@ test("仅有版本标记不视为已安装", async () => {
   writeFileSync(join(game, ".mhg-version"), "6.6.0");
   const response = await request("GET", `/v1/game/status/path?install_path=${encodeURIComponent(game)}`);
   expect((await response.json()).status).toBe("not_installed");
+});
+test("首个候选目录含符号链接文件时仍检测子目录中的客户端", () => {
+  const root = mkdtempSync(join(tmpdir(), "symlink-fallback-")), parent = join(root, "GenshinImpact");
+  const game = join(parent, "Genshin Impact Game"); mkdirSync(parent); mkdirSync(game);
+  writeFileSync(join(game, "YuanShen.exe"), ""); writeFileSync(join(game, "config.ini"), "game_version=5.8.0\n");
+  symlinkSync(join(game, "YuanShen.exe"), join(parent, "YuanShen.exe"));
+  expect(detectGame(parent)).toMatchObject({ version: "5.8.0" });
+  rmSync(root, { recursive: true, force: true });
 });
 test("未安装时禁止更新", async () => expect((await request("POST", "/v1/game/jobs", { kind: "update", install_path: "/tmp/missing" })).status).toBe(400));
 test("预下载空间检查使用预下载构建", async () => {

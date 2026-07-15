@@ -8,15 +8,17 @@ import { operationChunks } from "./game-build";
 
 export function detectGame(input: string): { path: string; version: string } | null {
   for (const candidate of [resolve(input), join(resolve(input), "Genshin Impact Game")]) {
-    const path = existsSync(candidate) ? realpathSync(candidate) : candidate;
-    recoverActivation(path);
-    const executable = managedPath(path, "YuanShen.exe");
-    if (!existsSync(executable) || !lstatSync(executable).isFile()) continue;
-    const config = managedPath(path, "config.ini");
-    const official = existsSync(config) ? readFileSync(config, "utf8").match(/^game_version\s*=\s*(.+)$/m)?.[1]?.trim() : "";
-    if (official) return { path, version: official };
-    const marker = managedPath(path, ".mhg-version");
-    if (existsSync(marker)) { const version = readFileSync(marker, "utf8").trim(); if (version) return { path, version }; }
+    try {
+      const path = existsSync(candidate) ? realpathSync(candidate) : candidate;
+      recoverActivation(path);
+      const executable = managedPath(path, "YuanShen.exe");
+      if (!existsSync(executable) || !lstatSync(executable).isFile()) continue;
+      const config = managedPath(path, "config.ini");
+      const official = existsSync(config) ? readFileSync(config, "utf8").match(/^game_version\s*=\s*(.+)$/m)?.[1]?.trim() : "";
+      if (official) return { path, version: official };
+      const marker = managedPath(path, ".mhg-version");
+      if (existsSync(marker)) { const version = readFileSync(marker, "utf8").trim(); if (version) return { path, version }; }
+    } catch { continue; }
   }
   return null;
 }
