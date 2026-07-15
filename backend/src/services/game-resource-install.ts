@@ -45,7 +45,7 @@ export async function installGameResources(options: InstallOptions): Promise<Gam
       segment, safeTarget(cache, segment.filename), control, progress,
     ));
     extract(archives, staging); verify(staging);
-  } else if (!performed && kind !== "verify") {
+  } else if (!performed && kind !== "verify" && !(kind === "install" && build.repair_assets.length)) {
     throw new AppError("game_build_empty", "下载服务返回了不完整的空构建", 502);
   }
   if (kind === "update" && build.kind !== "package_repair" && build.kind !== "version_diff" && build.assets.length) {

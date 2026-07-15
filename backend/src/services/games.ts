@@ -22,6 +22,7 @@ import { pruneTerminal } from "./task-retention";
 import { installGameResources } from "./game-resource-install";
 import { managedPath, writeManagedFile } from "./managed-file";
 import { makeGameResourceProgress } from "./game-resource-progress";
+import { findInstallResume, gameOperationPaths, type GameOperationPaths } from "./game-install-resume";
 export class GameService {
   private readonly jobs = new Map<string, GameJob>();
   private readonly controls = new Map<string, DownloadControl>();
@@ -34,10 +35,12 @@ export class GameService {
   busy(): boolean { return [...this.jobs.values()].some(({ status }) => ["queued", "running", "pausing", "paused", "cancelling"].includes(status)); }
   async state(requested?: string): Promise<GameState> {
     const stored = this.store.one("SELECT install_path FROM game_state WHERE id=1");
-    const candidate = requested || String(stored?.install_path ?? "");
-    const detected = candidate ? detectGame(candidate) : null;
-    const raw = await this.provider.getBuild(detected?.version ?? "", audioLanguages(detected?.path ?? candidate));
-    const build = detected ? prepareBuild(raw, detected.path, detected.version) : raw;
+    const input = requested || String(stored?.install_path ?? ""), detected = input ? detectGame(input) : null;
+    const resume = input && !detected ? findInstallResume(input) : null;
+    const candidate = detected?.path ?? resume?.destination ?? input, source = detected?.path ?? resume?.source ?? "";
+    const version = detected?.version ?? resume?.version ?? "";
+    const raw = await this.provider.getBuild(version, audioLanguages(source || candidate));
+    const build = source ? prepareBuild(raw, source, version) : raw;
     if (!detected) return output(candidate, "", build, "not_installed");
     this.saveState(detected.path, detected.version);
     const current = compareGameVersions(detected.version, build.version) >= 0;
@@ -45,13 +48,13 @@ export class GameService {
     return output(detected.path, detected.version, build, current ? "ready" : "update_available", predownload);
   }
   async spaceCheck(path: string, _installBytes: number, kind: JobKind = "update"): Promise<{ available: number; required: number; sufficient: boolean }> {
-    const detected = detectGame(path);
+    const paths = gameOperationPaths(kind, path), { detected } = paths;
     if (kind !== "install" && !detected) throw new AppError("game_not_installed", "资源操作需要已安装的游戏客户端");
     if (kind !== "predownload") {
-      const root = detected?.path ?? resolve(path);
+      const root = paths.root;
       const source = kind === "verify" && detected ? await this.provider.getInstalledBuild(detected.version, audioLanguages(root))
-        : await this.provider.getBuild(detected?.version ?? "", audioLanguages(root));
-      const build = prepareBuild(source, detected?.path ?? "", detected?.version ?? "");
+        : await this.provider.getBuild(paths.version, audioLanguages(paths.source || root));
+      const build = prepareBuild(source, paths.source, paths.version);
       const cached = await predownloadCachedBytes(this.cacheFor(root, build.version), build);
       return diskSpaceInfo(root, gameStorageSize(kind === "verify" ? canonicalBuild(build) : build) - cached);
     }
@@ -77,10 +80,10 @@ export class GameService {
   async start(kind: JobKind, path: string): Promise<GameJob> {
     for (const id of pruneTerminal(this.jobs, ({ status }) => ["completed", "cancelled", "failed"].includes(status), ({ last_update }) => Date.parse(last_update) || 0)) this.controls.delete(id);
     if (this.busy()) throw new AppError("game_job_busy", "已有游戏资源任务正在运行", 409);
-    const detected = detectGame(path);
+    const paths = gameOperationPaths(kind, path), { detected } = paths;
     if (kind === "update" && !detected) throw new AppError("game_not_installed", "所选目录中未检测到可更新的原神客户端");
     if (kind === "predownload" && !detected) throw new AppError("game_not_installed", "预下载需要已安装的游戏客户端");
-    const root = detected?.path ?? resolve(path);
+    const root = paths.root;
     const jobId = randomUUID(), lease = this.coordinator.claim(root, jobId);
     try {
     const remote = kind === "predownload" ? await this.provider.getPredownloadBuild(detected?.version ?? "", audioLanguages(root)) : null;
@@ -89,14 +92,14 @@ export class GameService {
       ? checkedPredownloadBuild(detected?.version ?? "", await this.provider.getInstalledBuild(detected?.version ?? "", audioLanguages(root)), remote as GameBuild)
       : prepareBuild(kind === "verify" && detected
         ? await this.provider.getInstalledBuild(detected.version, audioLanguages(root))
-        : await this.provider.getBuild(detected?.version ?? "", audioLanguages(root)),
-      detected?.path ?? "", detected?.version ?? "");
+        : await this.provider.getBuild(paths.version, audioLanguages(paths.source || root)),
+      paths.source, paths.version);
     const cache = this.cacheFor(root, build.version), cached = await predownloadCachedBytes(cache, build);
     const storageBuild = kind === "verify" ? canonicalBuild(build) : build, spaceInfo = diskSpaceInfo(root, gameStorageSize(storageBuild, kind === "predownload") - cached);
     if (!spaceInfo.sufficient) throw new AppError("disk_space_insufficient", `磁盘空间不足：需要 ${spaceInfo.required} 字节，可用 ${spaceInfo.available} 字节`, 422, { available: spaceInfo.available, required: spaceInfo.required, sufficient: spaceInfo.sufficient });
     if (kind === "update" && detected && compareGameVersions(detected.version, build.version) >= 0) throw new AppError("game_already_current", "当前游戏版本已是最新", 409);
     const hasWork = build.assets.length > 0 || build.patch_assets.length > 0 || build.segments.length > 0 || build.deprecated_files.length > 0;
-    if (kind !== "predownload" && detected?.version !== build.version && !hasWork) {
+    if (kind !== "predownload" && detected?.version !== build.version && !hasWork && !paths.resume) {
       throw new AppError("game_build_empty", "下载服务返回了不完整的空构建", 502);
     }
     const job: GameJob = {
@@ -105,7 +108,7 @@ export class GameService {
       active_chunks: [], last_update: "", revision: 0,
     };
     const control = new DownloadControl(); this.jobs.set(job.id, this.touch(job)); this.controls.set(job.id, control);
-    setImmediate(() => void this.run(job, control, root, build, lease));
+    setImmediate(() => void this.run(job, control, paths, build, lease));
     return job;
     } catch (error) { this.coordinator.release(lease); throw error; }
   }
@@ -128,7 +131,8 @@ export class GameService {
     else throw new AppError("game_job_action_invalid", "任务操作与当前状态不匹配", 409);
     return job;
   }
-  private async run(job: GameJob, control: DownloadControl, path: string, build: GameBuild, lease: ResourceLease): Promise<void> {
+  private async run(job: GameJob, control: DownloadControl, paths: GameOperationPaths, build: GameBuild, lease: ResourceLease): Promise<void> {
+    const path = paths.root;
     job.status = "running"; job.message = job.kind === "predownload" ? "正在下载预下载资源" : job.kind === "verify" ? "正在校验游戏资源" : job.kind === "install" ? "正在安装游戏资源" : "正在更新游戏资源"; this.touch(job);
     if (job.kind === "predownload") return this.runPredownload(job, control, path, build, lease);
     const staging = `${path}.mhg-staging-${job.id}`;
@@ -136,7 +140,7 @@ export class GameService {
       const cache = this.cacheFor(path, build.version);
       const marker = managedPath(staging, ".mhg-staging-version");
       await control.checkpoint();
-      stageExisting(job.kind === "install" ? "" : path, staging);
+      stageExisting(job.kind === "install" ? paths.source : path, staging);
       writeManagedFile(staging, ".mhg-staging-version", build.version);
       mkdirSync(cache, { recursive: true });
       const limiter = maybeRateLimiter(this.mutableSpeedLimitKB);
@@ -153,6 +157,7 @@ export class GameService {
       writeIntegrityIndex(staging, canonical);
       if (canonical.assets.length) writeManagedFile(staging, ".mhg-assets.json", JSON.stringify(canonical.assets.map(({ name }) => name)));
       activate(staging, path);
+      if (paths.resume && paths.resume.source !== path) rmSync(paths.resume.source, { recursive: true, force: true });
       this.saveState(path, build.version); rmSync(job.kind === "verify" ? cache : this.cacheScopeFor(path), { recursive: true, force: true }); clearPredownloadStatus(cache);
       reporting.flush(); job.completed_bytes = job.total_bytes; job.download_speed = 0; job.status = "completed";
       job.message = job.kind === "install" ? "游戏资源安装完成" : job.kind === "verify" ? "游戏资源校验完成" : "游戏资源更新完成"; this.touch(job);
