@@ -25,7 +25,7 @@ export async function installSophon(
   const bases = new Map(baseAssets.map((asset) => [asset.name.toLowerCase(), asset]));
   for (const asset of assets) {
     await control.checkpoint(); const target = safeTarget(staging, asset.name);
-    if (existsSync(target) && await hashFile(target, "md5", control.signal) === asset.md5.toLowerCase()) {
+    if (existsSync(target) && await hashFile(target, "md5", hashOptions(control)) === asset.md5.toLowerCase()) {
       for (const chunk of operationChunks(asset)) { progress(chunk.size); chunkProgress(chunk.name, chunk.size, chunk.size); }
       releaseChunks(asset.chunks, cache, references); continue;
     }
@@ -77,7 +77,7 @@ async function buildAsset(
         }
       }
     } finally { closeSync(descriptor); }
-    if (statSync(temporary).size !== asset.size || await hashFile(temporary, "md5", control.signal) !== asset.md5.toLowerCase()) {
+    if (statSync(temporary).size !== asset.size || await hashFile(temporary, "md5", hashOptions(control)) !== asset.md5.toLowerCase()) {
       throw new AppError("sophon_asset_invalid", `${asset.name} 文件校验失败`);
     }
     renameSync(temporary, target);
@@ -141,4 +141,8 @@ function releaseChunks(chunks: SophonChunk[], cache: string, references: Map<str
 
 async function xxh(path: string, name: string): Promise<boolean> {
   return await xxhash64File(path) === name.split("_", 1)[0]?.toLowerCase();
+}
+
+function hashOptions(control: DownloadControl): { signal: AbortSignal; checkpoint: () => Promise<void> } {
+  return { signal: control.signal, checkpoint: () => control.checkpoint() };
 }

@@ -112,6 +112,24 @@ test("文件哈希使用流式结果", async () => {
   expect(hashFileSync(path, "sha256")).toBe(createHash("sha256").update(content).digest("hex"));
 });
 
+test("文件哈希会响应暂停并报告读取进度", async () => {
+  const path = join(root(), "paused-hash.bin"), content = Buffer.alloc(2 * 1024 * 1024, 7);
+  const control = new DownloadControl(), acknowledged = Promise.withResolvers<void>();
+  let requested = false, completed = 0;
+  writeFileSync(path, content);
+  const hashing = hashFile(path, "md5", {
+    signal: control.signal, checkpoint: () => control.checkpoint(), progress: (bytes) => {
+      completed += bytes;
+      if (!requested) { requested = true; void control.pause().then(acknowledged.resolve); }
+    },
+  });
+  await acknowledged.promise;
+  const held = completed; await new Promise((resolve) => setTimeout(resolve, 10)); expect(completed).toBe(held);
+  control.resume();
+  await expect(hashing).resolves.toBe(createHash("md5").update(content).digest("hex"));
+  expect(completed).toBe(content.length);
+});
+
 test("xxhash 与范围复制不读取整块补丁", async () => {
   const dir = root(), source = join(dir, "patch.bin"), target = join(dir, "segment.bin");
   const content = Buffer.from("0123456789abcdef"); writeFileSync(source, content);

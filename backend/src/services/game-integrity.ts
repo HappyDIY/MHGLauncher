@@ -4,6 +4,7 @@ import type { GameAsset, GameBuild } from "../providers/provider";
 import { safeTarget } from "./installer";
 import { hashFile, hashFileSync } from "./file-hash";
 import { managedPath, writeManagedFile } from "./managed-file";
+import type { DownloadControl } from "./download";
 
 interface IntegrityEntry { md5: string; size: number; mtime_ns: string }
 interface IntegrityIndex { version: 1; assets: Record<string, IntegrityEntry> }
@@ -22,14 +23,26 @@ export function selectInvalidAssets(root: string, assets: GameAsset[], strict = 
   return assets.filter((asset) => !fastValid(root, asset, index, packageHashes, strict));
 }
 
-export async function selectInvalidAssetsStrict(root: string, assets: GameAsset[], signal?: AbortSignal): Promise<GameAsset[]> {
+type IntegrityProgress = (name: string, done: number, total: number, delta: number) => void;
+
+export async function selectInvalidAssetsStrict(
+  root: string, assets: GameAsset[], control: DownloadControl, progress: IntegrityProgress,
+): Promise<GameAsset[]> {
   const invalid: GameAsset[] = [];
   for (const asset of assets) {
+    await control.checkpoint();
     const path = safeTarget(root, normalize(asset.name));
-    if (!existsSync(path)) { invalid.push(asset); continue; }
+    if (!existsSync(path)) { invalid.push(asset); progress(asset.name, asset.size, asset.size, asset.size); continue; }
     const stat = statSync(path, { bigint: true });
-    if (!stat.isFile() || stat.size !== BigInt(asset.size)
-      || await hashFile(path, "md5", signal) !== asset.md5.toLowerCase()) invalid.push(asset);
+    if (!stat.isFile() || stat.size !== BigInt(asset.size)) {
+      invalid.push(asset); progress(asset.name, asset.size, asset.size, asset.size); continue;
+    }
+    let done = 0;
+    const actual = await hashFile(path, "md5", {
+      signal: control.signal, checkpoint: () => control.checkpoint(),
+      progress: (delta) => { done += delta; progress(asset.name, done, asset.size, delta); },
+    });
+    if (actual !== asset.md5.toLowerCase()) invalid.push(asset);
   }
   return invalid;
 }

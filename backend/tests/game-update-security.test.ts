@@ -51,7 +51,7 @@ test("差分补丁失败后使用完整清单修复并校验未变更文件", as
   }));
   try {
     const job = await wait(context.service, await context.service.start("update", context.game));
-    expect({ status: job.status, message: job.message }).toEqual({ status: "completed", message: "正在更新游戏资源" });
+    expect({ status: job.status, message: job.message }).toEqual({ status: "completed", message: "游戏资源更新完成" });
     expect(readFileSync(join(context.game, "data.bin"), "utf8")).toBe("repaired");
     expect(readFileSync(join(context.game, "untouched.bin"), "utf8")).toBe("expected");
   } finally { context.store.close(); }

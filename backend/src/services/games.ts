@@ -21,6 +21,7 @@ import { ResourceCoordinator, type ResourceLease } from "./resource-coordinator"
 import { pruneTerminal } from "./task-retention";
 import { installGameResources } from "./game-resource-install";
 import { managedPath, writeManagedFile } from "./managed-file";
+import { makeGameResourceProgress } from "./game-resource-progress";
 export class GameService {
   private readonly jobs = new Map<string, GameJob>();
   private readonly controls = new Map<string, DownloadControl>();
@@ -139,26 +140,22 @@ export class GameService {
       writeManagedFile(staging, ".mhg-staging-version", build.version);
       mkdirSync(cache, { recursive: true });
       const limiter = maybeRateLimiter(this.mutableSpeedLimitKB);
-      const { progress, chunk, flush } = makeProgress(job, () => this.touch(job));
-      const reserved = new Set([...build.assets.flatMap(operationChunks).map(({ name }) => name), ...build.patch_assets.map(({ patch }) => patch.id)]);
+      const reporting = makeGameResourceProgress(job, build, () => this.touch(job));
       const canonical = await installGameResources({
-        build, kind: job.kind, staging, cache, control, progress, chunk,
-        workers: this.downloadWorkers, limiter, reserve: (chunks) => {
-          for (const value of chunks) if (!reserved.has(value.name)) {
-            reserved.add(value.name); job.total_bytes += value.size; job.chunks_total += 1; }
-          this.touch(job);
-        },
+        build, kind: job.kind, staging, cache, control, progress: reporting.progress, chunk: reporting.chunk,
+        workers: this.downloadWorkers, limiter, reserve: reporting.reserve, phase: reporting.phase,
       });
+      await control.checkpoint(); job.message = "正在提交游戏目录"; job.download_speed = 0; this.touch(job);
       if (!existsSync(managedPath(staging, "YuanShen.exe"))) throw new AppError("game_install_incomplete", "资源安装完成后仍缺少 YuanShen.exe，未激活不完整目录");
       rmSync(marker, { force: true });
       writeManagedFile(staging, ".mhg-version", build.version);
       ensureGameConfiguration(staging, build.version);
       writeIntegrityIndex(staging, canonical);
       if (canonical.assets.length) writeManagedFile(staging, ".mhg-assets.json", JSON.stringify(canonical.assets.map(({ name }) => name)));
-      await control.checkpoint();
       activate(staging, path);
       this.saveState(path, build.version); rmSync(job.kind === "verify" ? cache : this.cacheScopeFor(path), { recursive: true, force: true }); clearPredownloadStatus(cache);
-      flush(); job.completed_bytes = job.total_bytes; job.download_speed = 0; job.status = "completed"; this.touch(job);
+      reporting.flush(); job.completed_bytes = job.total_bytes; job.download_speed = 0; job.status = "completed";
+      job.message = job.kind === "install" ? "游戏资源安装完成" : job.kind === "verify" ? "游戏资源校验完成" : "游戏资源更新完成"; this.touch(job);
     } catch (error) {
       job.download_speed = 0; job.status = error instanceof DOMException && error.name === "AbortError" ? "cancelled" : "failed";
       job.message = error instanceof AppError ? error.message : "游戏任务失败，请稍后重试"; this.touch(job);

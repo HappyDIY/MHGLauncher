@@ -1,4 +1,4 @@
-import type { GameBuild, SophonChunk } from "../providers/provider";
+import type { GameAsset, GameBuild, SophonChunk } from "../providers/provider";
 import type { JobKind } from "../core/models";
 import { AppError } from "../core/errors";
 import type { DownloadControl } from "./download";
@@ -11,11 +11,13 @@ import {
   canonicalAssets, canonicalBuild, removeRetired, removeSafe,
 } from "./game-build";
 import { selectInvalidAssetsStrict } from "./game-integrity";
+import type { GameResourcePhase } from "./game-resource-progress";
 
 interface InstallOptions {
   build: GameBuild; kind: JobKind; staging: string; cache: string; control: DownloadControl;
   progress: (bytes: number) => void; chunk: (name: string, done: number, total: number) => void;
   workers: number; limiter: TokenBucketRateLimiter | null; reserve: (chunks: SophonChunk[]) => void;
+  phase: (phase: GameResourcePhase, assets: GameAsset[]) => void;
 }
 
 export async function installGameResources(options: InstallOptions): Promise<GameBuild> {
@@ -51,13 +53,14 @@ export async function installGameResources(options: InstallOptions): Promise<Gam
   }
   const canonical = canonicalAssets(build);
   if (canonical.length) {
-    const invalid = await selectInvalidAssetsStrict(staging, canonical, control.signal);
+    options.phase("verify", canonical);
+    const invalid = await selectInvalidAssetsStrict(staging, canonical, control, (name, done, total, delta) => {
+      progress(delta); chunk(name, done, total);
+    });
     if (invalid.length) {
+      options.phase("repair", invalid);
       options.reserve(invalid.flatMap(({ chunks }) => chunks));
       await installSophon(invalid, staging, cache, control, progress, chunk, workers, limiter);
-    }
-    if ((await selectInvalidAssetsStrict(staging, canonical, control.signal)).length) {
-      throw new AppError("game_integrity_failed", "游戏资源修复后仍未通过完整性校验");
     }
   } else if (patchFailure) {
     throw patchFailure;

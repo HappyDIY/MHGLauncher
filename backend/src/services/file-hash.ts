@@ -5,9 +5,17 @@ import xxhash from "xxhash-wasm";
 
 type HashAlgorithm = "md5" | "sha256";
 
-export async function hashFile(path: string, algorithm: HashAlgorithm, signal?: AbortSignal): Promise<string> {
+interface HashFileOptions {
+  signal?: AbortSignal;
+  checkpoint?: () => Promise<void>;
+  progress?: (bytes: number) => void;
+}
+
+export async function hashFile(path: string, algorithm: HashAlgorithm, options: HashFileOptions = {}): Promise<string> {
   const hash = createHash(algorithm);
-  for await (const chunk of createReadStream(path, { signal })) hash.update(chunk as BinaryLike);
+  for await (const chunk of createReadStream(path, { signal: options.signal })) {
+    await options.checkpoint?.(); hash.update(chunk as BinaryLike); options.progress?.(chunk.length);
+  }
   return hash.digest("hex");
 }
 
