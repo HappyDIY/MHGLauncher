@@ -44,7 +44,8 @@ export function gameStorageSize(build: GameBuild, predownload = false): number {
   const outputs = new Map<string, number>();
   for (const asset of build.assets) outputs.set(asset.name.toLowerCase(), asset.size);
   for (const asset of build.patch_assets) outputs.set(asset.name.toLowerCase(), asset.size);
-  return download + [...outputs.values()].reduce((total, value) => total + value, 0);
+  if (!outputs.size) return download;
+  return [...outputs.values()].reduce((total, value) => total + value, 0);
 }
 
 export function gameStateOutput(

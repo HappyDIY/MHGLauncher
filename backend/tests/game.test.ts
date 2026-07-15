@@ -59,10 +59,11 @@ test("常驻资源目录清单不视为待下载内容", () => {
   expect(prepareBuild(normalizeBuild({ version: "1" }), root, "1")).toMatchObject({ kind: "full", pending_bytes: 0 });
 });
 test("无热更新保持构建", () => expect(prepareBuild(normalizeBuild({ version: "1" }), "/tmp/missing", "1").kind).toBe("full"));
-test("空间估算同时包含下载缓存和安装后文件", () => {
+test("安装与预下载使用独立空间口径", () => {
   const build = normalizeBuild({ version: "1", assets: [{ name: "game.bin", size: 100, md5: "0".repeat(32),
     chunks: [{ name: "chunk", size: 5, decompressed_size: 100, offset: 0, decompressed_md5: "0".repeat(32), url: "" }] }] });
-  expect(gameBuildSize(build)).toBe(5); expect(gameStorageSize(build)).toBe(105);
+  expect(gameBuildSize(build)).toBe(5); expect(gameStorageSize(build)).toBe(100);
+  expect(gameStorageSize(build, true)).toBe(5);
 });
 test("忽略启动器托管的反作弊 DLL", () => {
   const build = prepareBuild(normalizeBuild({
