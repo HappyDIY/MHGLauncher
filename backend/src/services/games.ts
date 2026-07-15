@@ -41,7 +41,7 @@ export class GameService {
     const version = detected?.version ?? resume?.version ?? "";
     const raw = await this.provider.getBuild(version, audioLanguages(source || candidate));
     const build = source ? prepareBuild(raw, source, version) : raw;
-    if (!detected) return output(candidate, "", build, "not_installed");
+    if (!detected) return output(candidate, resume?.version ?? "", build, resume ? "damaged" : "not_installed");
     this.saveState(detected.path, detected.version);
     const current = compareGameVersions(detected.version, build.version) >= 0;
     const predownload = await this.predownloadInfo(detected.path);

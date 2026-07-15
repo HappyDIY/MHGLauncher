@@ -14,7 +14,7 @@ test("正式目录中的未完成安装会预检复用并补齐客户端标记",
   const context = installContext(false);
   try {
     const state = await context.service.state(context.destination);
-    expect(state).toMatchObject({ install_path: context.destination, status: "not_installed", download_bytes: 0 });
+    expect(state).toMatchObject({ install_path: context.destination, installed_version: "6.7.0", status: "damaged", download_bytes: 0 });
     expect((await context.service.spaceCheck(context.destination, 0, "install")).required).toBe(1024 ** 3);
     expect((await wait(context.service, await context.service.start("install", context.destination))).status).toBe("completed");
     expect(readFileSync(join(context.destination, "config.ini"), "utf8")).toContain("game_version=6.7.0");

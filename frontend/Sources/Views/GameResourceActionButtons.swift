@@ -5,12 +5,16 @@ struct GameResourceActionButtons: View {
 
     var body: some View {
         HStack {
-            action(.install, title: "安装", enabled: store.gameState?.status == .notInstalled)
+            action(
+                .install,
+                title: store.gameState?.status == .damaged ? "继续安装" : "安装",
+                enabled: store.gameState.map { [.notInstalled, .damaged].contains($0.status) } == true
+            )
             if store.gameState?.hasPendingPredownload == true && store.gameState?.status != .notInstalled {
                 action(.predownload, title: "预下载", enabled: store.gameState?.canStartPredownload == true)
             }
             action(.update, title: "更新", enabled: store.gameState?.status == .updateAvailable)
-            action(.verify, title: "校验", enabled: store.gameState.map { $0.status != .notInstalled } == true)
+            action(.verify, title: "校验", enabled: store.gameState.map { [.ready, .updateAvailable].contains($0.status) } == true)
             Spacer()
         }
         .buttonStyle(.glassProminent)
