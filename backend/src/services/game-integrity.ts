@@ -1,8 +1,9 @@
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { GameAsset, GameBuild } from "../providers/provider";
 import { safeTarget } from "./installer";
-import { hashFileSync } from "./file-hash";
+import { hashFile, hashFileSync } from "./file-hash";
+import { managedPath, writeManagedFile } from "./managed-file";
 
 interface IntegrityEntry { md5: string; size: number; mtime_ns: string }
 interface IntegrityIndex { version: 1; assets: Record<string, IntegrityEntry> }
@@ -13,12 +14,24 @@ export function writeIntegrityIndex(root: string, build: GameBuild): void {
   for (const asset of build.assets) record(index, root, asset.name, asset.md5, asset.size);
   for (const asset of build.patch_assets) record(index, root, asset.name, asset.md5, asset.size);
   for (const name of build.deprecated_files) delete index.assets[normalize(name)];
-  writeFileSync(join(root, INDEX_NAME), JSON.stringify(index));
+  writeManagedFile(root, INDEX_NAME, JSON.stringify(index));
 }
 
 export function selectInvalidAssets(root: string, assets: GameAsset[], strict = false): GameAsset[] {
   const index = readIndex(root), packageHashes = readPackageHashes(root);
   return assets.filter((asset) => !fastValid(root, asset, index, packageHashes, strict));
+}
+
+export async function selectInvalidAssetsStrict(root: string, assets: GameAsset[], signal?: AbortSignal): Promise<GameAsset[]> {
+  const invalid: GameAsset[] = [];
+  for (const asset of assets) {
+    const path = safeTarget(root, normalize(asset.name));
+    if (!existsSync(path)) { invalid.push(asset); continue; }
+    const stat = statSync(path, { bigint: true });
+    if (!stat.isFile() || stat.size !== BigInt(asset.size)
+      || await hashFile(path, "md5", signal) !== asset.md5.toLowerCase()) invalid.push(asset);
+  }
+  return invalid;
 }
 
 function fastValid(
@@ -32,7 +45,7 @@ function fastValid(
   const metadataMatches = saved
     ? saved.md5 === expected && saved.size === asset.size && saved.mtime_ns === stat.mtimeNs.toString()
     : packageHashes.get(name) === expected;
-  return metadataMatches && (!strict || hashFileSync(path, "md5") === expected);
+  return strict ? hashFileSync(path, "md5") === expected : metadataMatches;
 }
 
 function record(index: IntegrityIndex, root: string, name: string, md5: string, size: number): void {
@@ -42,7 +55,7 @@ function record(index: IntegrityIndex, root: string, name: string, md5: string, 
 
 function readIndex(root: string): IntegrityIndex | null {
   try {
-    const value = JSON.parse(readFileSync(join(root, INDEX_NAME), "utf8")) as IntegrityIndex;
+    const value = JSON.parse(readFileSync(managedPath(root, INDEX_NAME), "utf8")) as IntegrityIndex;
     return value.version === 1 && value.assets && typeof value.assets === "object" ? value : null;
   } catch { return null; }
 }

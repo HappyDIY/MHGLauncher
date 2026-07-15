@@ -1,4 +1,4 @@
-import { cpSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeSync } from "node:fs";
+import { constants, cpSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
@@ -16,6 +16,10 @@ export function extract(archives: string[], staging: string): void {
     const listed = spawnSync("/usr/bin/unzip", ["-Z1", archive], { encoding: "utf8" });
     if (listed.status !== 0) throw new AppError("archive_unsupported", `${archive} 不是受支持的 ZIP 包`);
     for (const name of listed.stdout.split("\n").filter(Boolean)) safeTarget(staging, name);
+    const modes = spawnSync("/usr/bin/unzip", ["-Z", "-l", archive], { encoding: "utf8" });
+    if (modes.status !== 0 || modes.stdout.split("\n").some(unsupportedArchiveEntry)) {
+      throw new AppError("archive_link_unsupported", "压缩包包含链接或特殊文件");
+    }
     const result = spawnSync("/usr/bin/unzip", ["-qq", "-o", archive, "-d", staging], { encoding: "utf8" });
     if (result.status !== 0) throw new AppError("archive_extract_failed", `压缩包解压失败：${result.stderr}`);
   }
@@ -74,7 +78,8 @@ export function recoverActivation(destination: string): void {
 
 export function stageExisting(source: string, staging: string): void {
   if (existsSync(staging)) throw new AppError("staging_exists", "游戏暂存目录已存在");
-  if (existsSync(source)) cpSync(source, staging, { recursive: true }); else mkdirSync(staging, { recursive: true });
+  if (existsSync(source)) cpSync(source, staging, { recursive: true, mode: constants.COPYFILE_FICLONE });
+  else mkdirSync(staging, { recursive: true });
 }
 
 export function ensureParent(path: string): void { mkdirSync(dirname(path), { recursive: true }); }
@@ -84,4 +89,9 @@ function writeJournal(path: string, value: ActivationJournal): void {
   try { writeSync(descriptor, JSON.stringify(value)); fsyncSync(descriptor); } finally { closeSync(descriptor); }
   renameSync(temp, path);
   const directory = openSync(dirname(path), "r"); try { fsyncSync(directory); } finally { closeSync(directory); }
+}
+
+function unsupportedArchiveEntry(line: string): boolean {
+  const match = /^([bcdlps-])[rwxStTs-]{9}\s/.exec(line);
+  return match !== null && match[1] !== "-" && match[1] !== "d";
 }

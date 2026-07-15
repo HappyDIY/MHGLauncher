@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { zstdCompressSync } from "node:zlib";
@@ -42,4 +42,40 @@ test("修复失败时保留原文件", async () => {
   vi.unstubAllGlobals();
 });
 
+test("同一资源内的重复分块只下载一次", async () => {
+  const root = mkdtempSync(join(tmpdir(), "sophon-duplicate-")), cache = join(root, "cache");
+  const content = Buffer.from("same"), packed = zstdCompressSync(content), name = `${await hash64(packed)}_duplicate`;
+  const chunks = [0, content.length].map((offset) => ({ name, decompressed_md5: md5(content), offset,
+    size: packed.length, decompressed_size: content.length, url: "https://fixture/duplicate" }));
+  const full = Buffer.concat([content, content]);
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(packed)));
+  await installSophon([{ name: "duplicate.bin", size: full.length, md5: md5(full), chunks }], root, cache,
+    new DownloadControl(), () => undefined, () => undefined, 2);
+  expect(readFileSync(join(root, "duplicate.bin"))).toEqual(full);
+  expect(fetch).toHaveBeenCalledTimes(1);
+  vi.unstubAllGlobals();
+});
+
+test("正式更新复用本地分块和预下载缓存", async () => {
+  const root = mkdtempSync(join(tmpdir(), "sophon-diff-")), cache = join(root, "cache"); mkdirSync(cache);
+  const shared = Buffer.from("shared"), old = Buffer.from("old"), next = Buffer.from("next");
+  const sharedChunk = await chunk(shared, 0, "shared"), oldChunk = await chunk(old, shared.length, "old");
+  const nextChunk = await chunk(next, shared.length, "next");
+  const localContent = Buffer.concat([shared, old]), remoteContent = Buffer.concat([shared, next]);
+  const base: GameAsset = { name: "game.bin", size: localContent.length, md5: md5(localContent), chunks: [sharedChunk, oldChunk] };
+  const remote: GameAsset = { name: "game.bin", size: remoteContent.length, md5: md5(remoteContent),
+    chunks: [sharedChunk, nextChunk], required_chunks: [nextChunk] };
+  writeFileSync(join(root, "game.bin"), localContent); writeFileSync(join(cache, nextChunk.name), zstdCompressSync(next));
+  vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("不应重新下载"); }));
+  await installSophon([remote], root, cache, new DownloadControl(), () => undefined, () => undefined, 2, undefined, [base]);
+  expect(readFileSync(join(root, "game.bin"))).toEqual(remoteContent);
+  expect(fetch).not.toHaveBeenCalled();
+  vi.unstubAllGlobals();
+});
+
 function md5(value: Buffer): string { return createHash("md5").update(value).digest("hex"); }
+async function hash64(value: Buffer): Promise<string> { return (await xxhash()).h64Raw(value).toString(16).padStart(16, "0"); }
+async function chunk(value: Buffer, offset: number, suffix: string) {
+  const packed = zstdCompressSync(value); return { name: `${await hash64(packed)}_${suffix}`,
+    decompressed_md5: md5(value), offset, size: packed.length, decompressed_size: value.length, url: `https://fixture/${suffix}` };
+}

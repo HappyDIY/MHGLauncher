@@ -5,6 +5,8 @@ import xxhash from "xxhash-wasm";
 import { AppError } from "../core/errors";
 import type { GameAsset, GameBuild, GamePatchAsset, SophonPatch } from "./provider";
 import { normalizeBuild } from "./provider";
+import { diffGameBuild } from "./build-diff";
+import { validateSophonAssets, validateSophonPatches, validateSophonPaths } from "./sophon-validation";
 
 type JSONValue = Record<string, any>;
 const proto = `syntax="proto3";
@@ -34,8 +36,15 @@ export class Sophon {
     const languages = [...new Set(audioLanguages)].sort(), key = `${version}:${languages.join(",")}`;
     if (this.cached?.key === key && Date.now() - this.cached.time < 300_000) return this.cached.build;
     const branch = await this.branch();
-    const build = (branch.diff_tags as string[] ?? []).includes(version)
-      ? await this.patchBuild(branch, version, languages) : await this.fullBuild(branch, languages);
+    const remote = await this.fullBuild(branch, languages);
+    let build = remote;
+    if ((branch.diff_tags as string[] ?? []).includes(version)) {
+      const patch = await this.patchBuild(branch, version, languages);
+      build = { ...patch, repair_assets: remote.assets };
+    } else if (version && version !== remote.version) {
+      try { build = diffGameBuild(await this.fullBuild(branch, languages, version), remote, "version_diff_chunks"); }
+      catch { build = remote; }
+    }
     this.cached = { time: Date.now(), key, build }; return build;
   }
 
@@ -43,23 +52,33 @@ export class Sophon {
     const languages = [...new Set(audioLanguages)].sort();
     const { pre } = await this.branches();
     if (!pre) return null;
-    const key = `pre:${languages.join(",")}`;
+    const key = `pre:${version}:${languages.join(",")}`;
     if (this.cached?.key === key && Date.now() - this.cached.time < 300_000) return this.cached.build;
+    const remote = await this.fullBuild(pre, languages);
     const build = (pre.diff_tags as string[] ?? []).includes(version)
-      ? await this.patchBuild(pre, version, languages) : await this.fullBuild(pre, languages);
+      ? { ...await this.patchBuild(pre, version, languages), repair_assets: remote.assets } : remote;
     const result = { ...build, is_predownload: true };
     this.cached = { time: Date.now(), key, build: result }; return result;
   }
 
-  private async fullBuild(branch: JSONValue, languages: string[]): Promise<GameBuild> {
+  async installedBuild(version: string, audioLanguages = ["zh-cn"]): Promise<GameBuild> {
+    const languages = [...new Set(audioLanguages)].sort(), key = `installed:${version}:${languages.join(",")}`;
+    if (this.cached?.key === key && Date.now() - this.cached.time < 300_000) return this.cached.build;
+    const build = await this.fullBuild(await this.branch(), languages, version);
+    this.cached = { time: Date.now(), key, build }; return build;
+  }
+
+  private async fullBuild(branch: JSONValue, languages: string[], tag?: string): Promise<GameBuild> {
     const query = new URLSearchParams({ branch: String(branch.branch), package_id: String(branch.package_id), password: String(branch.password) });
-    if (String(branch.branch).toLowerCase() !== "predownload") query.set("tag", String(branch.tag));
+    if (String(branch.branch).toLowerCase() !== "predownload") query.set("tag", tag ?? String(branch.tag));
     const data = await this.data(`https://downloader-api.mihoyo.com/downloader/sophon_chunk/api/getBuild?${query}`);
     const selected = this.selected(data, languages); if (!selected.length) throw new AppError("sophon_build_empty", "Sophon 构建未包含所需资源清单", 502);
     const assets: GameAsset[] = [];
     for (const item of selected) assets.push(...await this.assets(item));
     if (!assets.length) throw new AppError("sophon_build_empty", "Sophon 构建资源为空", 502);
-    return normalizeBuild({ version: String(data.tag), assets });
+    const build = normalizeBuild({ version: String(data.tag), assets: validateSophonAssets(assets) });
+    if (tag && build.version !== tag) throw new AppError("sophon_installed_build_missing", "未找到当前版本的完整资源清单", 409);
+    return build;
   }
 
   private async patchBuild(branch: JSONValue, version: string, languages: string[]): Promise<GameBuild> {
@@ -78,7 +97,10 @@ export class Sophon {
       deprecated_files.push(...(deleted ?? []).map((value) => String(value.name)));
     }
     if (!patch_assets.length && !deprecated_files.length) throw new AppError("sophon_build_empty", "Sophon 差分构建不包含任何变更", 502);
-    return normalizeBuild({ version: String(data.tag), kind: "version_diff", patch_assets, deprecated_files });
+    return normalizeBuild({
+      version: String(data.tag), kind: "version_diff",
+      patch_assets: validateSophonPatches(patch_assets), deprecated_files: validateSophonPaths(deprecated_files),
+    });
   }
 
   private async branch(): Promise<JSONValue> {

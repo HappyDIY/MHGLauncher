@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { managedPath, writeManagedFile } from "./managed-file";
 
 const DEFAULT_CONFIGURATION = `[general]
 uapc={"hk4e_cn":{"uapc":""},"hyp":{"uapc":""}}
@@ -10,9 +10,9 @@ game_version={version}
 `;
 
 export function ensureGameConfiguration(root: string, version: string): void {
-  const path = join(root, "config.ini");
+  const path = managedPath(root, "config.ini");
   if (!existsSync(path)) {
-    writeFileSync(path, DEFAULT_CONFIGURATION.replace("{version}", version));
+    writeManagedFile(root, "config.ini", DEFAULT_CONFIGURATION.replace("{version}", version));
     return;
   }
   const source = readFileSync(path, "utf8");
@@ -20,5 +20,5 @@ export function ensureGameConfiguration(root: string, version: string): void {
   const updated = /^game_version\s*=.*$/im.test(source)
     ? source.replace(/^game_version\s*=.*$/im, line)
     : `${source.trimEnd()}\n${line}\n`;
-  if (updated !== source) writeFileSync(path, updated);
+  if (updated !== source) writeManagedFile(root, "config.ini", updated);
 }

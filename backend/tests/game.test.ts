@@ -10,6 +10,7 @@ import { Store } from "../src/core/database";
 import { GameService } from "../src/services/games";
 import { FixtureProvider } from "../src/providers/fixture";
 import { ResourceCoordinator } from "../src/services/resource-coordinator";
+import { gameBuildSize, gameStorageSize } from "../src/services/game-detection";
 
 beforeEach(() => fixture());
 test("检测官方游戏目录版本", async () => {
@@ -50,6 +51,11 @@ test("常驻资源目录清单不视为待下载内容", () => {
   expect(prepareBuild(normalizeBuild({ version: "1" }), root, "1")).toMatchObject({ kind: "full", pending_bytes: 0 });
 });
 test("无热更新保持构建", () => expect(prepareBuild(normalizeBuild({ version: "1" }), "/tmp/missing", "1").kind).toBe("full"));
+test("空间估算同时包含下载缓存和安装后文件", () => {
+  const build = normalizeBuild({ version: "1", assets: [{ name: "game.bin", size: 100, md5: "0".repeat(32),
+    chunks: [{ name: "chunk", size: 5, decompressed_size: 100, offset: 0, decompressed_md5: "0".repeat(32), url: "" }] }] });
+  expect(gameBuildSize(build)).toBe(5); expect(gameStorageSize(build)).toBe(105);
+});
 test("忽略启动器托管的反作弊 DLL", () => {
   const build = prepareBuild(normalizeBuild({
     version: "2",
@@ -80,7 +86,7 @@ test("Sophon 更新通过暂存目录原子提交且取消终态任务幂等", a
     for (let i = 0; i < 20 && !["completed", "failed", "cancelled"].includes(job.status); i += 1) {
       await new Promise((resolve) => setTimeout(resolve, 10)); job = service.get(job.id);
     }
-    expect(job.status).toBe("completed"); expect(readdirSync(root).some((name) => name.includes("mhg-staging"))).toBe(false);
+    expect({ status: job.status, message: job.message }).toEqual({ status: "completed", message: "正在更新游戏资源" }); expect(readdirSync(root).some((name) => name.includes("mhg-staging"))).toBe(false);
     expect(service.control(job.id, "cancel").status).toBe("completed");
   } finally { store.close(); rmSync(root, { recursive: true, force: true }); }
 });

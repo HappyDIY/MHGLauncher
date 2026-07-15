@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -14,6 +14,13 @@ test("解压并验证 ZIP", () => {
   mkdirSync(source); writeFileSync(join(source, "file.txt"), "ok"); writeFileSync(join(source, "mhg-manifest.json"), JSON.stringify({ files: {} }));
   expect(spawnSync("/usr/bin/zip", ["-qr", archive, "."], { cwd: source }).status).toBe(0);
   extract([archive], staging); verify(staging); expect(readFileSync(join(staging, "file.txt"), "utf8")).toBe("ok");
+});
+
+test("解压前拒绝符号链接条目", () => {
+  const root = mkdtempSync(join(tmpdir(), "install-link-")), source = join(root, "source"), archive = join(root, "game.zip");
+  mkdirSync(source); symlinkSync("/tmp", join(source, "escape"));
+  expect(spawnSync("/usr/bin/zip", ["-y", "-q", archive, "escape"], { cwd: source }).status).toBe(0);
+  expect(() => extract([archive], join(root, "staging"))).toThrow("链接或特殊文件");
 });
 
 test("激活替换旧目录", () => {

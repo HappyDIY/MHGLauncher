@@ -1,15 +1,13 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { AppError } from "../core/errors";
 import type { GameJob, GameState, JobKind } from "../core/models";
 import type { Store } from "../core/database";
 import type { GameBuild, Provider } from "../providers/provider";
-import { DownloadControl, download } from "./download";
-import { activate, extract, stageExisting, verify } from "./installer";
-import { installSophon } from "./sophon-install";
-import { installPatches } from "./patch-install";
-import { prepareBuild, removeRetired, removeSafe } from "./game-build";
+import { DownloadControl } from "./download";
+import { activate, stageExisting } from "./installer";
+import { canonicalBuild, operationChunks, prepareBuild } from "./game-build";
 import { ensureGameConfiguration } from "./game-config";
 import { writeIntegrityIndex } from "./game-integrity";
 import { diskSpaceInfo } from "./disk-space";
@@ -18,18 +16,18 @@ import { makeProgress } from "./job-progress";
 import { downloadChunksOnly, downloadPatchesOnly } from "./predownload"; import { predownloadCachedBytes, predownloadDigest, readPredownloadStatus, writePredownloadStatus, clearPredownloadStatus } from "./predownload-status";
 import { checkedPredownloadBuild } from "./predownload-build";
 import { RevisionNotifier } from "./revision-notifier";
-import { audioLanguages, detectGame, gameBuildSize as size, gameStateOutput as output } from "./game-detection";
+import { audioLanguages, detectGame, gameBuildSize as size, gameStateOutput as output, gameStorageSize } from "./game-detection";
 import { ResourceCoordinator, type ResourceLease } from "./resource-coordinator";
 import { pruneTerminal } from "./task-retention";
+import { installGameResources } from "./game-resource-install";
+import { managedPath, writeManagedFile } from "./managed-file";
 export class GameService {
   private readonly jobs = new Map<string, GameJob>();
   private readonly controls = new Map<string, DownloadControl>();
   private readonly notifier = new RevisionNotifier<GameJob>();
   private mutableSpeedLimitKB = 0;
-  constructor(
-    private readonly store: Store, private readonly provider: Provider, private readonly dataDir: string,
-    private readonly downloadWorkers = 4, downloadSpeedLimitKB = 0, private readonly coordinator = new ResourceCoordinator(),
-  ) { this.mutableSpeedLimitKB = downloadSpeedLimitKB; }
+  constructor(private readonly store: Store, private readonly provider: Provider, private readonly dataDir: string,
+    private readonly downloadWorkers = 4, downloadSpeedLimitKB = 0, private readonly coordinator = new ResourceCoordinator()) { this.mutableSpeedLimitKB = downloadSpeedLimitKB; }
   setSpeedLimit(kb: number): void { this.mutableSpeedLimitKB = Math.max(0, kb); }
   getSpeedLimit(): number { return this.mutableSpeedLimitKB; }
   busy(): boolean { return [...this.jobs.values()].some(({ status }) => ["queued", "running", "pausing", "paused", "cancelling"].includes(status)); }
@@ -41,18 +39,27 @@ export class GameService {
     const build = detected ? prepareBuild(raw, detected.path, detected.version) : raw;
     if (!detected) return output(candidate, "", build, "not_installed");
     this.saveState(detected.path, detected.version);
-    const current = detected.version === build.version && !build.assets.length;
+    const current = detected.version === build.version && !build.assets.length && !build.patch_assets.length && !build.deprecated_files.length;
     const predownload = await this.predownloadInfo(detected.path);
     return output(detected.path, detected.version, build, current ? "ready" : "update_available", predownload);
   }
-  async spaceCheck(path: string, installBytes: number, kind: JobKind = "update"): Promise<{ available: number; required: number; sufficient: boolean }> {
-    if (kind !== "predownload") return diskSpaceInfo(path, installBytes);
+  async spaceCheck(path: string, _installBytes: number, kind: JobKind = "update"): Promise<{ available: number; required: number; sufficient: boolean }> {
     const detected = detectGame(path);
+    if (kind !== "install" && !detected) throw new AppError("game_not_installed", "资源操作需要已安装的游戏客户端");
+    if (kind !== "predownload") {
+      const root = detected?.path ?? resolve(path);
+      const source = kind === "verify" && detected ? await this.provider.getInstalledBuild(detected.version, audioLanguages(root))
+        : await this.provider.getBuild(detected?.version ?? "", audioLanguages(root));
+      const build = prepareBuild(source, detected?.path ?? "", detected?.version ?? "");
+      const cached = await predownloadCachedBytes(this.cacheFor(root, build.version), build);
+      return diskSpaceInfo(root, gameStorageSize(kind === "verify" ? canonicalBuild(build) : build) - cached);
+    }
     if (!detected) throw new AppError("game_not_installed", "预下载需要已安装的游戏客户端");
     const remote = await this.provider.getPredownloadBuild(detected.version, audioLanguages(detected.path));
     if (!remote) throw new AppError("predownload_unavailable", "当前没有可用的预下载版本");
     const build = checkedPredownloadBuild(detected.version, await this.provider.getBuild(detected.version, audioLanguages(detected.path)), remote);
-    return diskSpaceInfo(detected.path, size(build));
+    const cached = await predownloadCachedBytes(this.cacheFor(detected.path, build.version), build);
+    return diskSpaceInfo(detected.path, gameStorageSize(build, true) - cached);
   }
   private async predownloadInfo(gamePath: string): Promise<{ version: string | null; finished: boolean }> {
     try {
@@ -62,7 +69,7 @@ export class GameService {
       const main = await this.provider.getBuild(current, audioLanguages(gamePath));
       const checked = checkedPredownloadBuild(current, main, preBuild);
       const cache = this.cacheFor(gamePath, preBuild.version);
-      const status = readPredownloadStatus(cache, checked);
+      const status = await readPredownloadStatus(cache, checked, false);
       return { version: preBuild.version, finished: status?.finished ?? false };
     } catch { return { version: null, finished: false }; }
   }
@@ -79,8 +86,12 @@ export class GameService {
     if (kind === "predownload" && !remote) throw new AppError("predownload_unavailable", "当前没有可用的预下载版本");
     const build = kind === "predownload"
       ? checkedPredownloadBuild(detected?.version ?? "", await this.provider.getBuild(detected?.version ?? "", audioLanguages(root)), remote as GameBuild)
-      : prepareBuild(await this.provider.getBuild(detected?.version ?? "", audioLanguages(root)), detected?.path ?? "", detected?.version ?? "", kind === "verify");
-    const cache = this.cacheFor(root, build.version), spaceInfo = diskSpaceInfo(root, size(build), predownloadCachedBytes(cache, build));
+      : prepareBuild(kind === "verify" && detected
+        ? await this.provider.getInstalledBuild(detected.version, audioLanguages(root))
+        : await this.provider.getBuild(detected?.version ?? "", audioLanguages(root)),
+      detected?.path ?? "", detected?.version ?? "");
+    const cache = this.cacheFor(root, build.version), cached = await predownloadCachedBytes(cache, build);
+    const storageBuild = kind === "verify" ? canonicalBuild(build) : build, spaceInfo = diskSpaceInfo(root, gameStorageSize(storageBuild, kind === "predownload") - cached);
     if (!spaceInfo.sufficient) throw new AppError("disk_space_insufficient", `磁盘空间不足：需要 ${spaceInfo.required} 字节，可用 ${spaceInfo.available} 字节`, 422, { available: spaceInfo.available, required: spaceInfo.required, sufficient: spaceInfo.sufficient });
     if (kind === "update" && detected?.version === build.version && size(build) === 0) throw new AppError("game_already_current", "当前游戏版本已是最新", 409);
     const hasWork = build.assets.length > 0 || build.patch_assets.length > 0 || build.segments.length > 0 || build.deprecated_files.length > 0;
@@ -89,7 +100,7 @@ export class GameService {
     }
     const job: GameJob = {
       id: jobId, kind, status: "queued", completed_bytes: 0, total_bytes: size(build), message: kind === "predownload" ? "预下载任务已排队" : kind === "verify" ? "校验任务已排队" : kind === "install" ? "安装任务已排队" : "更新任务已排队",
-      download_speed: 0, chunks_completed: 0, chunks_total: new Set([...build.assets.flatMap(({ chunks }) => chunks.map(({ name }) => name)), ...build.patch_assets.map(({ patch }) => patch.id)]).size,
+      download_speed: 0, chunks_completed: 0, chunks_total: new Set([...build.assets.flatMap(operationChunks).map(({ name }) => name), ...build.patch_assets.map(({ patch }) => patch.id)]).size,
       active_chunks: [], last_update: "", revision: 0,
     };
     const control = new DownloadControl(); this.jobs.set(job.id, this.touch(job)); this.controls.set(job.id, control);
@@ -116,36 +127,34 @@ export class GameService {
     else throw new AppError("game_job_action_invalid", "任务操作与当前状态不匹配", 409);
     return job;
   }
-
   private async run(job: GameJob, control: DownloadControl, path: string, build: GameBuild, lease: ResourceLease): Promise<void> {
     job.status = "running"; job.message = job.kind === "predownload" ? "正在下载预下载资源" : job.kind === "verify" ? "正在校验游戏资源" : job.kind === "install" ? "正在安装游戏资源" : "正在更新游戏资源"; this.touch(job);
     if (job.kind === "predownload") return this.runPredownload(job, control, path, build, lease);
     const staging = `${path}.mhg-staging-${job.id}`;
     try {
       const cache = this.cacheFor(path, build.version);
-      const marker = join(staging, ".mhg-staging-version");
+      const marker = managedPath(staging, ".mhg-staging-version");
       await control.checkpoint();
-      stageExisting(job.kind === "install" ? "" : path, staging); writeFileSync(marker, build.version);
+      stageExisting(job.kind === "install" ? "" : path, staging);
+      writeManagedFile(staging, ".mhg-staging-version", build.version);
       mkdirSync(cache, { recursive: true });
       const limiter = maybeRateLimiter(this.mutableSpeedLimitKB);
       const { progress, chunk, flush } = makeProgress(job, () => this.touch(job));
-      if (build.patch_assets.length || build.deprecated_files.length) {
-        if (build.patch_assets.length) await installPatches(build.patch_assets, staging, cache, control, progress, chunk);
-        for (const name of build.deprecated_files) removeSafe(staging, name);
-      }
-      else if (build.assets.length) await installSophon(build.assets, staging, cache, control, progress, chunk, this.downloadWorkers, limiter);
-      else if (build.segments.length) {
-        const archives: string[] = [];
-        for (const segment of build.segments) archives.push(await download(segment, join(cache, segment.filename), control, progress));
-        extract(archives, staging); verify(staging);
-      } else throw new AppError("game_build_empty", "下载服务返回了不完整的空构建", 502);
-      if (job.kind === "update" && build.kind !== "package_repair" && build.kind !== "version_diff" && build.assets.length) removeRetired(staging, build);
-      if (!existsSync(join(staging, "YuanShen.exe"))) throw new AppError("game_install_incomplete", "资源安装完成后仍缺少 YuanShen.exe，未激活不完整目录");
+      const reserved = new Set([...build.assets.flatMap(operationChunks).map(({ name }) => name), ...build.patch_assets.map(({ patch }) => patch.id)]);
+      const canonical = await installGameResources({
+        build, kind: job.kind, staging, cache, control, progress, chunk,
+        workers: this.downloadWorkers, limiter, reserve: (chunks) => {
+          for (const value of chunks) if (!reserved.has(value.name)) {
+            reserved.add(value.name); job.total_bytes += value.size; job.chunks_total += 1; }
+          this.touch(job);
+        },
+      });
+      if (!existsSync(managedPath(staging, "YuanShen.exe"))) throw new AppError("game_install_incomplete", "资源安装完成后仍缺少 YuanShen.exe，未激活不完整目录");
       rmSync(marker, { force: true });
-      writeFileSync(join(staging, ".mhg-version"), build.version);
+      writeManagedFile(staging, ".mhg-version", build.version);
       ensureGameConfiguration(staging, build.version);
-      writeIntegrityIndex(staging, build);
-      if (build.assets.length && build.kind !== "package_repair") writeFileSync(join(staging, ".mhg-assets.json"), JSON.stringify(build.assets.map(({ name }) => name)));
+      writeIntegrityIndex(staging, canonical);
+      if (canonical.assets.length) writeManagedFile(staging, ".mhg-assets.json", JSON.stringify(canonical.assets.map(({ name }) => name)));
       await control.checkpoint();
       activate(staging, path);
       this.saveState(path, build.version); rmSync(cache, { recursive: true, force: true }); clearPredownloadStatus(cache);
@@ -158,14 +167,13 @@ export class GameService {
       this.coordinator.release(lease);
     }
   }
-
   private async runPredownload(job: GameJob, control: DownloadControl, path: string, build: GameBuild, lease: ResourceLease): Promise<void> {
     try {
       const cache = this.cacheFor(path, build.version);
       mkdirSync(cache, { recursive: true });
       const limiter = maybeRateLimiter(this.mutableSpeedLimitKB);
       const { progress, chunk, flush } = makeProgress(job, () => this.touch(job));
-      const totalChunks = build.assets.reduce((n, v) => n + v.chunks.length, 0) + build.patch_assets.length;
+      const totalChunks = new Set([...build.assets.flatMap(operationChunks).map(({ name }) => name), ...build.patch_assets.map(({ patch }) => patch.id)]).size;
       if (totalChunks === 0) throw new AppError("predownload_build_empty", "预下载构建不包含可缓存资源", 502);
       const manifestDigest = predownloadDigest(build);
       writePredownloadStatus(cache, { tag: build.version, manifest_digest: manifestDigest, finished: false, total_chunks: totalChunks });
@@ -179,9 +187,7 @@ export class GameService {
       job.message = error instanceof AppError ? error.message : "预下载失败，请稍后重试"; this.touch(job);
     } finally { this.coordinator.release(lease); }
   }
-
   private touch(job: GameJob): GameJob { job.last_update ||= new Date().toISOString(); return this.notifier.mark(job.id, job); }
-
   private saveState(path: string, version: string): void {
     this.store.db.prepare(`INSERT INTO game_state(id,install_path,version,status,updated_at) VALUES(1,?,?,?,?)
       ON CONFLICT(id) DO UPDATE SET install_path=excluded.install_path,version=excluded.version,status=excluded.status,updated_at=excluded.updated_at`)

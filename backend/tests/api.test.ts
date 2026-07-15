@@ -116,7 +116,7 @@ describe("本地 API 契约", () => {
   });
 
 	  test("空间检查返回必要字段", async () => {
-	    const response = await request("GET", "/v1/game/space-check?install_path=/tmp");
+	    const response = await request("GET", "/v1/game/space-check?kind=install&install_path=/tmp");
 	    const info = await response.json();
 	    expect(info).toHaveProperty("available");
 	    expect(info).toHaveProperty("required");

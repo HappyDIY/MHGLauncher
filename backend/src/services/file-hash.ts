@@ -5,9 +5,9 @@ import xxhash from "xxhash-wasm";
 
 type HashAlgorithm = "md5" | "sha256";
 
-export async function hashFile(path: string, algorithm: HashAlgorithm): Promise<string> {
+export async function hashFile(path: string, algorithm: HashAlgorithm, signal?: AbortSignal): Promise<string> {
   const hash = createHash(algorithm);
-  for await (const chunk of createReadStream(path)) hash.update(chunk as BinaryLike);
+  for await (const chunk of createReadStream(path, { signal })) hash.update(chunk as BinaryLike);
   return hash.digest("hex");
 }
 
@@ -45,5 +45,26 @@ export function copyRangeSync(source: string, target: string, start: number, len
       }
       if (remaining !== 0) throw new RangeError("short patch range");
     } finally { closeSync(output); }
+  } finally { closeSync(input); }
+}
+
+export function copyRangeToDescriptorSync(
+  source: string, output: number, sourceOffset: number, targetOffset: number, length: number,
+): void {
+  if (!Number.isSafeInteger(sourceOffset) || !Number.isSafeInteger(targetOffset)
+    || !Number.isSafeInteger(length) || sourceOffset < 0 || targetOffset < 0 || length < 0) {
+    throw new RangeError("invalid asset range");
+  }
+  const input = openSync(source, "r"), buffer = Buffer.allocUnsafe(1024 * 1024);
+  try {
+    if (sourceOffset + length > fstatSync(input).size) throw new RangeError("asset range exceeds source");
+    let readOffset = sourceOffset, writeOffset = targetOffset, remaining = length;
+    while (remaining > 0) {
+      const size = Math.min(buffer.length, remaining), count = readSync(input, buffer, 0, size, readOffset);
+      if (count !== size) throw new RangeError("short asset read");
+      let written = 0;
+      while (written < count) written += writeSync(output, buffer, written, count - written, writeOffset + written);
+      readOffset += count; writeOffset += count; remaining -= count;
+    }
   } finally { closeSync(input); }
 }
