@@ -48,12 +48,13 @@ export function activate(staging: string, destination: string, fault?: (phase: s
     if (hadDestination) renameSync(destination, backup);
     fault?.("after_backup"); journal.phase = "promoting"; writeJournal(journalPath, journal);
     renameSync(staging, destination); fault?.("after_promote");
-    rmSync(backup, { recursive: true, force: true }); rmSync(journalPath, { force: true });
   } catch (error) {
     if (existsSync(destination) && (existsSync(backup) || !hadDestination)) rmSync(destination, { recursive: true, force: true });
     if (existsSync(backup) && !existsSync(destination)) renameSync(backup, destination);
     rmSync(journalPath, { force: true }); throw error;
   }
+  fault?.("before_cleanup");
+  rmSync(backup, { recursive: true, force: true }); rmSync(journalPath, { force: true });
 }
 
 export function recoverActivation(destination: string): void {
@@ -72,7 +73,7 @@ export function recoverActivation(destination: string): void {
   if (promoted) rmSync(backup, { recursive: true, force: true });
   else if (existsSync(backup)) {
     rmSync(destination, { recursive: true, force: true }); renameSync(backup, destination);
-  }
+  } else if (!existsSync(destination) && existsSync(staging)) renameSync(staging, destination);
   rmSync(staging, { recursive: true, force: true }); rmSync(journalPath, { force: true });
 }
 

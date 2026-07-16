@@ -36,6 +36,22 @@ test("激活提交失败恢复旧目录", () => {
   expect(readFileSync(join(game, "old"), "utf8")).toBe("x"); expect(existsSync(join(game, "new"))).toBe(false);
 });
 
+test("新安装提升后的清理中断不会删除唯一客户端", () => {
+  const root = mkdtempSync(join(tmpdir(), "activate-")), game = join(root, "game"), staging = join(root, "game.mhg-staging-test");
+  mkdirSync(staging); writeFileSync(join(staging, "new"), "y");
+  expect(() => activate(staging, game, (phase) => { if (phase === "before_cleanup") throw new Error("fault"); })).toThrow("fault");
+  expect(readFileSync(join(game, "new"), "utf8")).toBe("y"); expect(existsSync(staging)).toBe(false);
+  recoverActivation(game); expect(readFileSync(join(game, "new"), "utf8")).toBe("y");
+});
+
+test("新安装在提升前崩溃时恢复完整暂存目录", () => {
+  const root = mkdtempSync(join(tmpdir(), "activate-")), game = join(root, "game"), staging = join(root, "game.mhg-staging-crash");
+  mkdirSync(staging); writeFileSync(join(staging, "new"), "y");
+  writeFileSync(`${game}.mhg-activation.json`, JSON.stringify({ schema: 1, staging_name: "game.mhg-staging-crash", backup_name: "game.mhg-backup-crash", phase: "backing_up" }));
+  recoverActivation(game);
+  expect(readFileSync(join(game, "new"), "utf8")).toBe("y"); expect(existsSync(staging)).toBe(false);
+});
+
 test("重启恢复备份完成前中断的提交", () => {
   const root = mkdtempSync(join(tmpdir(), "activate-")), game = join(root, "game"), staging = join(root, "game.mhg-staging-crash");
   const backup = join(root, "game.mhg-backup-crash"); mkdirSync(game); mkdirSync(staging); writeFileSync(join(game, "old"), "x");
