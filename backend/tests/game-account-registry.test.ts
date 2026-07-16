@@ -51,6 +51,26 @@ printf '%s\\n' "$@" > "$CAPTURE"
     expect(JSON.parse(result.stdout).data[0].mid).toBe("mid-1");
   });
 
+  test("未指定地址时使用 Wine 首个有效网卡生成解密密钥", async () => {
+    const root = mkdtempSync(join(tmpdir(), "mhg-registry-")); roots.push(root);
+    const wine = join(root, "wine"), capture = join(root, "args.txt");
+    writeFileSync(wine, `#!/bin/sh
+if [ "$1" = "ipconfig" ]; then
+  printf 'Ethernet adapter anpi0\\n    Physical address. . . . . . . . . : AE-C0-60-E5-94-AE\\n'
+  exit 0
+fi
+printf '%s\\n' "$@" > "$CAPTURE"
+`);
+    chmodSync(wine, 0o755);
+
+    await writeGameAccountRegistry(wine, { ...process.env, CAPTURE: capture }, account);
+    const args = readFileSync(capture, "utf8").trimEnd().split("\n");
+    const bytes = Buffer.from(args.at(args.indexOf("/d") + 1) ?? "", "hex");
+    const result = decrypt(bytes.subarray(0, -1).toString("utf8"), "AEC060E5");
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout).data[0].uid).toBe("10001");
+  });
+
   test("会话结束恢复原注册表值", async () => {
     const root = mkdtempSync(join(tmpdir(), "mhg-registry-")); roots.push(root);
     const wine = join(root, "wine"), capture = join(root, "calls.txt");

@@ -52,6 +52,10 @@ struct GameView: View {
                     GameLaunchControls(store: store)
                 }
                 .motionEntrance(order: 3)
+                if let launch = store.gameLaunch {
+                    GameLaunchProgressView(launch: launch)
+                        .motionTransition(.emphasis)
+                }
                 GlassCard("游戏运行时", icon: "shippingbox") {
                     RuntimeStatusView(store: store)
                 }
@@ -60,10 +64,6 @@ struct GameView: View {
                     downloadSettings
                 }
                 .motionEntrance(order: 5)
-                if let launch = store.gameLaunch {
-                    GameLaunchProgressView(launch: launch)
-                        .motionTransition(.emphasis)
-                }
                 if let job = store.gameJob {
                     GameJobCard(store: store, job: job)
                         .motionTransition(.emphasis)

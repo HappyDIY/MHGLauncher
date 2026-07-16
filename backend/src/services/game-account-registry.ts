@@ -16,8 +16,9 @@ export interface RegistrySnapshot { value: string | null }
 
 export async function writeGameAccountRegistry(wine: string, env: NodeJS.ProcessEnv, account: RegistryAccount): Promise<RegistrySnapshot> {
   const snapshot = await readGameAccountRegistry(wine, env);
-  const hostMac = cleanMac(env.MHG_GAME_ACCOUNT_MAC ?? "") || macAddress();
-  const raw = createGameAccountRegistryValue(account, hostMac || await wineMacAddress(wine, env));
+  const configuredMac = cleanMac(env.MHG_GAME_ACCOUNT_MAC ?? "");
+  const runtimeMac = configuredMac || await wineMacAddress(wine, env);
+  const raw = createGameAccountRegistryValue(account, runtimeMac || macAddress());
   const hex = Buffer.concat([Buffer.from(raw, "utf8"), Buffer.from([0])]).toString("hex");
   const result = await runCommand(wine, ["reg", "add", registryKey, "/v", registryValue, "/t", "REG_BINARY", "/d", hex, "/f"], { env });
   if (result.status !== 0) throw new AppError("game_account_registry_failed", "游戏账号写入 Wine 注册表失败", 500);
