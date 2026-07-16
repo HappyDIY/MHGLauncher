@@ -137,7 +137,8 @@ struct WishesView: View {
     }
 
     private var resultsPanel: some View {
-        WishResultsPanel(records: store.wishes)
+        WishResultsPanel(catalog: store.wishResultCatalog)
+            .equatable()
     }
 
     private var loadingPlaceholder: some View {

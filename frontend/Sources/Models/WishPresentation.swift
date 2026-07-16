@@ -36,8 +36,26 @@ struct WishResultItem: Identifiable, Equatable {
     var extraCopies: Int { max(count - 7, 0) }
 }
 
+struct WishResultCatalog: Equatable {
+    let characters: [WishResultItem]
+    let weapons: [WishResultItem]
+
+    init(records: [WishRecord]) {
+        characters = records.makeResultItems(for: .character)
+        weapons = records.makeResultItems(for: .weapon)
+    }
+
+    func items(for mode: WishResultMode) -> [WishResultItem] {
+        mode == .character ? characters : weapons
+    }
+}
+
 extension Array where Element == WishRecord {
     func resultItems(for mode: WishResultMode) -> [WishResultItem] {
+        makeResultItems(for: mode)
+    }
+
+    fileprivate func makeResultItems(for mode: WishResultMode) -> [WishResultItem] {
         let groups = Dictionary(grouping: filter {
             $0.itemType == mode.itemType && $0.rank >= 4
         }, by: \.itemId)

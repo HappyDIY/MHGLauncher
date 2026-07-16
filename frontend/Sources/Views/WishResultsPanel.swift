@@ -1,11 +1,15 @@
 import SwiftUI
 
-struct WishResultsPanel: View {
-    let records: [WishRecord]
+struct WishResultsPanel: View, Equatable {
+    let catalog: WishResultCatalog
     @State private var mode = WishResultMode.character
 
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.catalog == rhs.catalog
+    }
+
     var body: some View {
-        let items = records.resultItems(for: mode)
+        let items = catalog.items(for: mode)
         VStack(alignment: .leading, spacing: 14) {
             heading(count: items.count)
             if items.isEmpty {
@@ -25,7 +29,10 @@ struct WishResultsPanel: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .glassEffect(.regular, in: .rect(cornerRadius: 22))
+        .background {
+            // 将材质固定在面板背景，避免滚动时重复合成整棵网格内容。
+            Color.clear.glassEffect(.regular, in: .rect(cornerRadius: 22))
+        }
         .motionAnimation(.selection, value: mode)
     }
 
@@ -86,10 +93,13 @@ private struct WishResultCard: View {
             }
         }
         .padding(10)
-        .glassEffect(
-            .clear.tint(accent.opacity(0.1)),
-            in: .rect(cornerRadius: 16)
-        )
+        .background {
+            // 卡片内容与玻璃背景分层，滚动动画只需移动已经合成的内容。
+            Color.clear.glassEffect(
+                .clear.tint(accent.opacity(0.1)),
+                in: .rect(cornerRadius: 16)
+            )
+        }
         .motionAnimation(.content, value: amountText)
     }
 
@@ -102,7 +112,8 @@ private struct WishResultCard: View {
             .overlay {
                 CachedAsyncImage(
                     url: item.iconUrl,
-                    contentMode: .fit
+                    contentMode: .fit,
+                    maxPixelDimension: 512
                 ) {
                     Image(systemName: mode == .character ? "person.fill" : "sparkles")
                         .font(.system(size: 30, weight: .medium))

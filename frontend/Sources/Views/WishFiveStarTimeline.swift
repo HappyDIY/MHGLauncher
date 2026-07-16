@@ -85,7 +85,11 @@ private struct FiveStarPullRow: View {
 
     private var artwork: some View {
         // 普通方形图标等比显示，与源项目 ItemIcon 风格一致。
-        CachedAsyncImage(url: item.iconUrl, contentMode: .fit) {
+        CachedAsyncImage(
+            url: item.iconUrl,
+            contentMode: .fit,
+            maxPixelDimension: 128
+        ) {
             Image(systemName: item.itemType == "角色" ? "person.fill" : "sparkles")
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(.white.opacity(0.86))

@@ -66,6 +66,19 @@ struct WishPresentationTests {
         #expect(results[1].count == 2)
     }
 
+    @Test("祈愿记录变化时刷新成果目录")
+    @MainActor
+    func refreshesResultCatalog() {
+        let store = LauncherStore()
+        store.wishes = [
+            record(id: "1", itemId: "1001", name: "测试角色", type: "角色", rank: 5),
+            record(id: "2", itemId: "2001", name: "测试武器", type: "武器", rank: 4)
+        ]
+
+        #expect(store.wishResultCatalog.characters.map(\.name) == ["测试角色"])
+        #expect(store.wishResultCatalog.weapons.map(\.name) == ["测试武器"])
+    }
+
     @Test("五星筛选保留完整卡池保底计数")
     func pityIsCalculatedBeforeRankFiltering() throws {
         let records = [

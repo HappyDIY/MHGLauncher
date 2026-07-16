@@ -22,10 +22,13 @@ struct BannerDetailCard: View {
             .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .glassEffect(
-            .regular.tint(selectedDetail?.poolAccent.opacity(0.08) ?? Color.accentColor.opacity(0.08)),
-            in: .rect(cornerRadius: 22)
-        )
+        .background {
+            // 固定玻璃背景，时间线滚动时不重新合成整个内容层。
+            Color.clear.glassEffect(
+                .regular.tint(selectedDetail?.poolAccent.opacity(0.08) ?? Color.accentColor.opacity(0.08)),
+                in: .rect(cornerRadius: 22)
+            )
+        }
         .motionAnimation(.selection, value: selectedDetail?.id)
     }
 

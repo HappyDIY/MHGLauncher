@@ -27,6 +27,7 @@ struct CachedAsyncImage<Placeholder: View>: View {
     let url: URL?
     let contentMode: ContentMode
     let accessibilityLabel: String?
+    let maxPixelDimension: Int?
     @ViewBuilder let placeholder: () -> Placeholder
 
     @Environment(\.apiClient) private var client
@@ -37,11 +38,13 @@ struct CachedAsyncImage<Placeholder: View>: View {
         url: URL?,
         contentMode: ContentMode = .fit,
         accessibilityLabel: String? = nil,
+        maxPixelDimension: Int? = nil,
         @ViewBuilder placeholder: @escaping () -> Placeholder
     ) {
         self.url = url
         self.contentMode = contentMode
         self.accessibilityLabel = accessibilityLabel
+        self.maxPixelDimension = maxPixelDimension
         self.placeholder = placeholder
     }
 
@@ -73,7 +76,8 @@ struct CachedAsyncImage<Placeholder: View>: View {
             guard let url else { return }
             loading = true
             let key = cacheKey(for: url)
-            let result = await ImageMemoryCache.shared.load(forKey: key) { [client] () -> NSImage? in
+            let pixelDimension = maxPixelDimension
+            let result = await ImageMemoryCache.shared.load(forKey: key) { [client, pixelDimension] () -> NSImage? in
                 do {
                     let data: Data
                     if url.scheme == nil, let client {
@@ -81,7 +85,10 @@ struct CachedAsyncImage<Placeholder: View>: View {
                     } else {
                         data = try await URLSession.shared.data(from: url).0
                     }
-                    return NSImage(data: data)
+                    return CachedImageDecoder.decode(
+                        data,
+                        maxPixelDimension: pixelDimension
+                    )
                 } catch {
                     return nil
                 }
@@ -93,7 +100,8 @@ struct CachedAsyncImage<Placeholder: View>: View {
 
     // 统一缓存键：相对路径与绝对 URL 均稳定。
     private func cacheKey(for url: URL) -> String {
-        url.scheme == nil ? url.relativeString : url.absoluteString
+        let location = url.scheme == nil ? url.relativeString : url.absoluteString
+        return maxPixelDimension.map { "\(location)#max-pixels=\($0)" } ?? location
     }
 
     private var phase: Int {
