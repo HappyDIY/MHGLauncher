@@ -12,7 +12,7 @@ vi.mock("node:child_process", () => ({
 }));
 vi.mock("../src/services/process-command", () => ({ runCommand: runCommandMock }));
 
-const { WineLaunchRunner } = await import("../src/services/game-launch-process");
+const { WineLaunchRunner, gameArguments } = await import("../src/services/game-launch-process");
 
 const roots: string[] = [];
 
@@ -50,6 +50,17 @@ describe("Wine 游戏进程启动器", () => {
       "/v", "RetinaMode", "/t", "REG_SZ", "/d", "Y", "/f",
     ], expect.objectContaining({ env: expect.any(Object) }));
     expect(existsSync(join(fixture.prefix, "drive_c", "windows", "system32", "winemetal.dll"))).toBe(true);
+  });
+
+  test("米游社账号使用源项目兼容的登录票据参数", () => {
+    expect(gameArguments("/games/Genshin Impact Game", "ticket-value")).toEqual([
+      "/games/Genshin Impact Game/YuanShen.exe",
+      "-force-d3d11",
+      "login_auth_ticket=ticket-value",
+    ]);
+    expect(gameArguments("/games/Genshin Impact Game")).not.toContainEqual(
+      expect.stringContaining("login_auth_ticket="),
+    );
   });
 });
 

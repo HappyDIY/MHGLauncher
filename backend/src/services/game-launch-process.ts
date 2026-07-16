@@ -5,7 +5,6 @@ import { AppError } from "../core/errors";
 import type { GameLaunchStatus, GamePerformanceProfile } from "../core/models";
 import { launchEnvironment, runtimePaths } from "./game-launch-environment";
 import { configureChineseGameLanguage } from "./game-launch-language";
-import { restoreGameAccountRegistry, writeGameAccountRegistry, type RegistryAccount, type RegistrySnapshot } from "./game-account-registry";
 import { runCommand } from "./process-command";
 import { stopWineServer } from "./game-wine-server";
 
@@ -13,7 +12,7 @@ export interface LaunchRunInput {
   gameRoot: string; runtimeRoot: string; dataDir: string; sessionDir: string;
   profile: GamePerformanceProfile; metalHud: boolean; networkDebug: boolean; wineLog: boolean;
   framePacing: number; signal: AbortSignal;
-  account?: RegistryAccount;
+  authTicket?: string;
 }
 export type LaunchReporter = (status: GameLaunchStatus, message?: string, progress?: number) => void;
 export interface GameLaunchRunner { run(input: LaunchRunInput, report: LaunchReporter): Promise<number> }
@@ -30,11 +29,7 @@ export class WineLaunchRunner implements GameLaunchRunner {
       process.env, paths, prefix, input.sessionDir, input.profile,
       input.metalHud, input.networkDebug, input.wineLog, input.framePacing,
     );
-    let registrySnapshot: RegistrySnapshot | null = null;
-    if (input.account) {
-      registrySnapshot = await writeGameAccountRegistry(paths.wine, env, input.account);
-      report("starting", "已将启动器账号写入游戏登录状态", 0.62);
-    }
+    if (input.authTicket) report("starting", "已准备米游社账号登录票据", 0.62);
     report("starting", "正在创建游戏进程", 0.68);
     const snapshot = (await runCommand(paths.probe, ["--snapshot"], { timeout: 1_000 })).stdout
       .trim().split("\n").filter(Boolean).join(",");
@@ -43,15 +38,12 @@ export class WineLaunchRunner implements GameLaunchRunner {
       : join(input.dataDir, "logs", "game-launch.log");
     mkdirSync(dirname(logPath), { recursive: true, mode: 0o700 });
     const descriptor = openSync(logPath, "a", 0o600);
-    const exeArgs = [join(input.gameRoot, "YuanShen.exe"), "-force-d3d11"];
+    const exeArgs = gameArguments(input.gameRoot, input.authTicket);
     let child: ReturnType<typeof spawn>;
     try {
       child = spawn(paths.wine, exeArgs, {
         cwd: input.gameRoot, detached: true, env, stdio: ["ignore", descriptor, descriptor],
       });
-    } catch (error) {
-      if (registrySnapshot) await restoreGameAccountRegistry(paths.wine, env, registrySnapshot);
-      throw error;
     } finally {
       closeSync(descriptor);
     }
@@ -79,7 +71,6 @@ export class WineLaunchRunner implements GameLaunchRunner {
         if (cleaned || finishing) return; finishing = true; cleanup();
         try {
           await stopWineServer(paths.wineserver, prefix);
-          if (registrySnapshot) { await restoreGameAccountRegistry(paths.wine, env, registrySnapshot); registrySnapshot = null; }
           cleaned = true;
           if (!reported) { reported = true; if (error) reject(error); else resolve(code); }
         } catch (stopError) { if (!reported) { reported = true; reject(stopError); } }
@@ -147,4 +138,10 @@ export class WineLaunchRunner implements GameLaunchRunner {
     if (result.status !== 0) throw new AppError("wine_retina_failed", "Wine 高分辨率模式配置失败", 500);
   }
 
+}
+
+export function gameArguments(gameRoot: string, authTicket?: string): string[] {
+  const args = [join(gameRoot, "YuanShen.exe"), "-force-d3d11"];
+  if (authTicket) args.push(`login_auth_ticket=${authTicket}`);
+  return args;
 }

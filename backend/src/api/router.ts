@@ -4,7 +4,6 @@ import { container } from "../core/container";
 import { AppError, errorResponse } from "../core/errors";
 import type { JobKind } from "../core/models";
 import { exportUIGF } from "../services/uigf";
-import { launchAccount } from "../services/game-account-registry";
 import { longPollOptions } from "../services/revision-notifier";
 import { valueRoute } from "./value-routes";
 import { readJsonBody } from "../core/request-body";
@@ -96,14 +95,15 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   if (method === "POST" && gameControl) return json(app.games.control(gameControl, controlJob.parse(body).action));
   if (method === "POST" && path === "/game/launch") {
     const value = startLaunch.parse(body), account = app.accounts.get();
-    let registryAccount;
+    let authTicket: string | undefined;
     if (account && value.credential) {
       const identity = await app.provider.identifyCredential(value.credential);
       if (identity.aid !== account.aid || identity.mid !== account.mid) throw new AppError("credential_identity_mismatch", "凭据与当前账号不匹配", 403);
-      registryAccount = launchAccount(account, value.credential);
+      authTicket = await app.provider.createAuthTicket(value.credential);
+      if (!authTicket) throw new AppError("game_auth_ticket_missing", "米游社未返回游戏登录票据", 502);
     }
     const { credential: ignored, ...launch } = value; void ignored;
-    return json(app.launches.start({ ...launch, account: registryAccount }), 202);
+    return json(app.launches.start({ ...launch, auth_ticket: authTicket }), 202);
   }
   const launchStop = match(path, /^\/game\/launches\/([^/]+)\/stop$/);
   if (method === "POST" && launchStop) return json(app.launches.stop(launchStop), 202);
