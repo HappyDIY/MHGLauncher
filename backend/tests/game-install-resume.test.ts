@@ -1,11 +1,13 @@
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test } from "vitest";
 import { Store } from "../src/core/database";
 import { FixtureProvider } from "../src/providers/fixture";
 import { GameService } from "../src/services/games";
+import { cleanupStaleUpdateStaging, createGameStaging } from "../src/services/game-staging";
+import { gameOperationPaths } from "../src/services/game-install-resume";
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -73,13 +75,49 @@ test("全新安装失败时保留尚未生成可执行文件的续接目录", as
   } finally { store.close(); }
 });
 
+test("全新安装不会把已有用户目录当作可替换的游戏目录", async () => {
+  const root = mkdtempSync(join(tmpdir(), "install-target-")), selected = join(root, "Documents");
+  const fixtures = join(root, "fixtures"), data = join(root, "data");
+  roots.push(root); mkdirSync(selected); mkdirSync(fixtures); writeFileSync(join(selected, "user.txt"), "keep");
+  writeFileSync(join(fixtures, "build.json"), JSON.stringify({ version: "6.7.0" }));
+  expect(gameOperationPaths("install", selected).root).toBe(join(realpathSync(selected), "Genshin Impact Game"));
+  const store = new Store(join(data, "test.db")), service = new GameService(store, new FixtureProvider(fixtures), data);
+  try {
+    await expect(service.start("install", selected)).rejects.toMatchObject({ code: "game_build_empty" });
+    expect(readFileSync(join(selected, "user.txt"), "utf8")).toBe("keep");
+  } finally { store.close(); }
+});
+
+test("同名非空安装目录和无所有权旧标记都不会被覆盖", async () => {
+  const root = mkdtempSync(join(tmpdir(), "install-unowned-")), destination = join(root, "Genshin Impact Game");
+  const fixtures = join(root, "fixtures"), data = join(root, "data"); roots.push(root);
+  mkdirSync(destination); mkdirSync(fixtures); writeFileSync(join(destination, "user.txt"), "keep");
+  writeFileSync(join(destination, ".mhg-staging-version"), "6.7.0");
+  writeFileSync(join(fixtures, "build.json"), JSON.stringify({ version: "6.7.0" }));
+  const store = new Store(join(data, "test.db")), service = new GameService(store, new FixtureProvider(fixtures), data);
+  try {
+    await expect(service.start("install", destination)).rejects.toMatchObject({ code: "install_destination_not_empty" });
+    expect(readFileSync(join(destination, "user.txt"), "utf8")).toBe("keep");
+  } finally { store.close(); }
+});
+
+test("只清理已失去进程所有权的更新暂存副本", () => {
+  const root = mkdtempSync(join(tmpdir(), "stale-update-")), destination = join(root, "game");
+  const staging = `${destination}.mhg-staging-old`; roots.push(root);
+  const record = createGameStaging(staging, "old-update", "update", destination, "6.7.0");
+  writeFileSync(join(staging, "payload"), "copy"); cleanupStaleUpdateStaging(destination);
+  expect(existsSync(staging)).toBe(true);
+  writeFileSync(join(staging, ".mhg-staging.json"), JSON.stringify({ ...record, pid: 2_147_483_647 }));
+  cleanupStaleUpdateStaging(destination); expect(existsSync(staging)).toBe(false);
+});
+
 function installContext(stale: boolean, expectedContent = "complete-client"): {
   root: string; destination: string; source: string; store: Store; service: GameService;
 } {
   const root = mkdtempSync(join(tmpdir(), "install-resume-")), data = join(root, "data"), fixtures = join(root, "fixtures");
   const destination = join(root, "Genshin Impact Game"), source = stale ? `${destination}.mhg-staging-old` : destination;
   const content = "complete-client", md5 = createHash("md5").update(expectedContent).digest("hex");
-  roots.push(root); mkdirSync(fixtures); mkdirSync(source);
+  roots.push(root); mkdirSync(fixtures); createGameStaging(source, "resume-test", "install", destination, "6.7.0");
   writeFileSync(join(source, "YuanShen.exe"), content); writeFileSync(join(source, ".mhg-staging-version"), "6.7.0");
   writeFileSync(join(source, "pkg_version"), JSON.stringify({ remoteName: "YuanShen.exe", md5 }));
   writeFileSync(join(fixtures, "build.json"), JSON.stringify({

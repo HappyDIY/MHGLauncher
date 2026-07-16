@@ -16,29 +16,31 @@ printf '%s\n' \
 gate="$stage/enabled"
 dns_log="$stage/dns.log"
 touch "$gate"
-export DYLD_INSERT_LIBRARIES="$stage/gate.dylib"
-export MHG_DNS_GATE_FILE="$gate"
-export MHG_DNS_GATE_OWNER_PID="$$"
-export MHG_DNS_LOG_FILE="$dns_log"
-if "$stage/resolver" dispatchcnglobal.yuanshen.com; then
+run_resolver() {
+  env \
+    DYLD_INSERT_LIBRARIES="$stage/gate.dylib" \
+    MHG_DNS_GATE_FILE="$gate" \
+    MHG_DNS_GATE_OWNER_PID="$$" \
+    MHG_DNS_LOG_FILE="$dns_log" \
+    "$stage/resolver" "$@"
+}
+if run_resolver dispatchcnglobal.yuanshen.com; then
   printf '域名门控未屏蔽目标域名。\n' >&2
   exit 1
 fi
-"$stage/resolver" dispatchcnglobal.yuanshen.com
+run_resolver dispatchcnglobal.yuanshen.com
 touch "$gate"
-if "$stage/resolver" dispatchosglobal.yuanshen.com dns; then
+if run_resolver dispatchosglobal.yuanshen.com dns; then
   printf '域名门控未屏蔽 Wine DNS 查询路径。\n' >&2
   exit 1
 fi
-"$stage/resolver" localhost
+run_resolver localhost
 rm -f "$gate"
-"$stage/resolver" dispatchcnglobal.yuanshen.com
+run_resolver dispatchcnglobal.yuanshen.com
 grep -q $'getaddrinfo/ANY\tdispatchcnglobal.yuanshen.com\tblocked' "$dns_log"
 grep -q $'getaddrinfo/ANY\tdispatchcnglobal.yuanshen.com\tallowed\t0\t' "$dns_log"
 grep -q $'res_query\tdispatchosglobal.yuanshen.com\tblocked' "$dns_log"
 test ! -e "$gate"
-unset DYLD_INSERT_LIBRARIES MHG_DNS_GATE_FILE MHG_DNS_GATE_OWNER_PID MHG_DNS_LOG_FILE
-
 if "$stage/window-probe" invalid; then
   printf '窗口探针未拒绝无效进程组。\n' >&2
   exit 1

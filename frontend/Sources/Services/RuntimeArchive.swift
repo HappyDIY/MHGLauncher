@@ -7,6 +7,7 @@ enum RuntimeInstallError: LocalizedError, Equatable {
     case checksumMismatch(String)
     case archiveTraversal(String)
     case processFailed(String)
+    case unsafePromotion
 
     var errorDescription: String? {
         switch self {
@@ -16,6 +17,7 @@ enum RuntimeInstallError: LocalizedError, Equatable {
         case let .checksumMismatch(file): "\(file) 校验失败"
         case let .archiveTraversal(path): "运行时压缩包包含不安全路径：\(path)"
         case let .processFailed(command): "运行时命令执行失败：\(command)"
+        case .unsafePromotion: "运行时提升记录不安全，已拒绝删除文件"
         }
     }
 }

@@ -1,9 +1,8 @@
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { rmSync } from "node:fs";
 import { basename, normalize } from "node:path";
 import type { GameAsset, GameBuild, SophonChunk } from "../providers/provider";
 import { selectInvalidAssets } from "./game-integrity";
 import { containedPath } from "../core/safe-path";
-import { managedPath } from "./managed-file";
 
 export function prepareBuild(build: GameBuild, path: string, installed: string, strictVerify = false): GameBuild {
   const protectedBuild = withoutProtectedAssets(build);
@@ -23,12 +22,6 @@ export function operationChunks(asset: GameAsset): SophonChunk[] {
 
 export function canonicalBuild(build: GameBuild): GameBuild {
   return { ...build, assets: canonicalAssets(build), patch_assets: [], deprecated_files: [] };
-}
-
-export function removeRetired(staging: string, build: GameBuild): void {
-  const path = managedPath(staging, ".mhg-assets.json"); if (!existsSync(path)) return;
-  const current = new Set(build.assets.map(({ name }) => name));
-  for (const name of JSON.parse(readFileSync(path, "utf8")) as string[]) if (!current.has(name)) removeSafe(staging, name);
 }
 
 export function removeSafe(root: string, name: string): void {

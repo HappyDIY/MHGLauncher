@@ -8,7 +8,7 @@ import { installPatches } from "./patch-install";
 import { installSophon } from "./sophon-install";
 import type { TokenBucketRateLimiter } from "./rate-limiter";
 import {
-  canonicalAssets, canonicalBuild, removeRetired, removeSafe,
+  canonicalAssets, canonicalBuild, removeSafe,
 } from "./game-build";
 import { selectInvalidAssetsStrict } from "./game-integrity";
 import type { GameResourcePhase } from "./game-resource-progress";
@@ -47,9 +47,6 @@ export async function installGameResources(options: InstallOptions): Promise<Gam
     extract(archives, staging); verify(staging);
   } else if (!performed && kind !== "verify" && !(kind === "install" && build.repair_assets.length)) {
     throw new AppError("game_build_empty", "下载服务返回了不完整的空构建", 502);
-  }
-  if (kind === "update" && build.kind !== "package_repair" && build.kind !== "version_diff" && build.assets.length) {
-    removeRetired(staging, canonicalBuild(build));
   }
   const canonical = canonicalAssets(build);
   if (canonical.length) {

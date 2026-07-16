@@ -5,6 +5,12 @@ import Testing
 
 @Suite("运行时安装")
 struct RuntimeInstallerTests {
+    @Test("运行时标签拒绝目录穿越")
+    func runtimeTagRejectsTraversal() {
+        let installer = RuntimeInstaller(environment: ["MHG_RUNTIME_TAG": "../../victim"])
+        #expect(installer.tag() != "../../victim")
+    }
+
     @Test("后端启动环境指向已安装运行时")
     func backendEnvironment() {
         let runtime = InstalledRuntime(

@@ -1,10 +1,11 @@
-import { constants, cpSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeSync } from "node:fs";
+import { constants, cpSync, closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, writeSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { AppError } from "../core/errors";
 import { hash } from "./download";
 import { containedPath } from "../core/safe-path";
+import { ensureOwnedDirectory } from "../core/safe-path";
 
 export function safeTarget(root: string, name: string): string {
   return containedPath(root, name);
@@ -34,27 +35,52 @@ export function verify(staging: string): void {
   }
 }
 
-interface ActivationJournal { schema: 1; staging_name: string; backup_name: string; phase: "backing_up" | "promoting" }
+interface DirectoryIdentity { dev: string; ino: string }
+interface ActivationJournal {
+  schema: 2; staging_name: string; backup_name: string; phase: "backing_up" | "promoting";
+  staging: DirectoryIdentity; destination: DirectoryIdentity | null;
+}
+const stagingMarkers = new Set([".mhg-owner.json", ".mhg-staging.json", ".mhg-staging-version"]);
 
-export function activate(staging: string, destination: string, fault?: (phase: string) => void): void {
+export function activate(
+  staging: string, destination: string, fault?: (phase: string) => void, replaceExisting = true,
+): void {
   const parent = dirname(destination), journalPath = `${destination}.mhg-activation.json`;
   if (dirname(staging) !== parent) throw new AppError("activation_cross_volume", "暂存目录必须与游戏目录位于同一父目录");
   recoverActivation(destination);
-  const hadDestination = existsSync(destination);
+  const stagingIdentity = directoryIdentity(staging, "游戏暂存目录");
+  const destinationIdentity = existsSync(destination) ? directoryIdentity(destination, "游戏安装目录") : null;
+  if (!replaceExisting && destinationIdentity && readdirSync(destination).length > 0) {
+    throw new AppError("install_destination_not_empty", "所选安装目录不为空，已拒绝覆盖其中的文件", 409);
+  }
   const backup = join(parent, `${basename(destination)}.mhg-backup-${randomUUID()}`);
-  const journal: ActivationJournal = { schema: 1, staging_name: basename(staging), backup_name: basename(backup), phase: "backing_up" };
+  const journal: ActivationJournal = {
+    schema: 2, staging_name: basename(staging), backup_name: basename(backup), phase: "backing_up",
+    staging: stagingIdentity, destination: destinationIdentity,
+  };
   writeJournal(journalPath, journal); fault?.("before_backup");
+  let backedUp = false, promoted = false;
   try {
-    if (hadDestination) renameSync(destination, backup);
+    if (destinationIdentity) {
+      renameSync(destination, backup); backedUp = true;
+      if (!sameDirectory(backup, destinationIdentity) || !replaceExisting && readdirSync(backup).length > 0) {
+        throw new AppError("install_destination_changed", "安装期间目标目录发生变化，已停止提交", 409);
+      }
+    }
     fault?.("after_backup"); journal.phase = "promoting"; writeJournal(journalPath, journal);
-    renameSync(staging, destination); fault?.("after_promote");
+    renameSync(staging, destination); promoted = true; fault?.("after_promote");
   } catch (error) {
-    if (existsSync(destination) && (existsSync(backup) || !hadDestination)) rmSync(destination, { recursive: true, force: true });
-    if (existsSync(backup) && !existsSync(destination)) renameSync(backup, destination);
-    rmSync(journalPath, { force: true }); throw error;
+    if (promoted && sameDirectory(destination, stagingIdentity)) rmSync(destination, { recursive: true });
+    if (backedUp && sameDirectory(backup, destinationIdentity) && !existsSync(destination)) renameSync(backup, destination);
+    if (!existsSync(backup) && (!destinationIdentity || sameDirectory(destination, destinationIdentity))) rmSync(journalPath, { force: true });
+    throw error;
   }
   fault?.("before_cleanup");
-  rmSync(backup, { recursive: true, force: true }); rmSync(journalPath, { force: true });
+  if (destinationIdentity) {
+    if (!sameDirectory(backup, destinationIdentity)) throw new AppError("activation_backup_changed", "游戏备份目录身份异常，已停止清理", 409);
+    rmSync(backup, { recursive: true });
+  }
+  rmSync(journalPath, { force: true });
 }
 
 export function recoverActivation(destination: string): void {
@@ -64,23 +90,62 @@ export function recoverActivation(destination: string): void {
   let value: ActivationJournal;
   try { value = JSON.parse(readFileSync(journalPath, "utf8")) as ActivationJournal; }
   catch { throw new AppError("activation_journal_invalid", "游戏激活恢复记录损坏"); }
-  if (value.schema !== 1 || basename(value.backup_name) !== value.backup_name || basename(value.staging_name) !== value.staging_name
+  if (value.schema !== 2 || !["backing_up", "promoting"].includes(value.phase) || !validIdentity(value.staging)
+    || value.destination !== null && !validIdentity(value.destination)
+    || basename(value.backup_name) !== value.backup_name || basename(value.staging_name) !== value.staging_name
     || !value.backup_name.startsWith(`${base}.mhg-backup-`) || !value.staging_name.startsWith(`${base}.mhg-staging-`)) {
     throw new AppError("activation_journal_invalid", "游戏激活恢复记录无效");
   }
   const backup = join(parent, value.backup_name), staging = join(parent, value.staging_name);
-  const promoted = value.phase === "promoting" && existsSync(destination) && !existsSync(staging);
-  if (promoted) rmSync(backup, { recursive: true, force: true });
-  else if (existsSync(backup)) {
-    rmSync(destination, { recursive: true, force: true }); renameSync(backup, destination);
-  } else if (!existsSync(destination) && existsSync(staging)) renameSync(staging, destination);
-  rmSync(staging, { recursive: true, force: true }); rmSync(journalPath, { force: true });
+  const destinationIsStaging = sameDirectory(destination, value.staging);
+  const destinationIsOriginal = sameDirectory(destination, value.destination);
+  const stagingMatches = sameDirectory(staging, value.staging);
+  const backupMatches = sameDirectory(backup, value.destination);
+  if (existsSync(destination) && !destinationIsStaging && !destinationIsOriginal) invalidActivationState();
+  if (existsSync(staging) && !stagingMatches) invalidActivationState();
+  if (existsSync(backup) && !backupMatches) invalidActivationState();
+  if (value.phase === "promoting" && destinationIsStaging && !existsSync(staging)) {
+    if (backupMatches) rmSync(backup, { recursive: true });
+  } else if (backupMatches && !existsSync(destination)) {
+    renameSync(backup, destination);
+    if (stagingMatches) rmSync(staging, { recursive: true });
+  } else if (value.destination && destinationIsOriginal) {
+    if (stagingMatches) rmSync(staging, { recursive: true });
+  } else if (!value.destination && !existsSync(destination) && stagingMatches) {
+    renameSync(staging, destination);
+  } else if (!destinationIsStaging) {
+    invalidActivationState();
+  }
+  rmSync(journalPath, { force: true });
 }
 
-export function stageExisting(source: string, staging: string): void {
+function directoryIdentity(path: string, label: string): DirectoryIdentity {
+  const stat = lstatSync(path, { bigint: true });
+  if (!stat.isDirectory() || stat.isSymbolicLink()) throw new AppError("activation_path_invalid", `${label}不是普通目录`, 409);
+  return { dev: stat.dev.toString(), ino: stat.ino.toString() };
+}
+
+function sameDirectory(path: string, expected: DirectoryIdentity | null): boolean {
+  if (!expected || !existsSync(path)) return false;
+  try { const actual = directoryIdentity(path, "激活目录"); return actual.dev === expected.dev && actual.ino === expected.ino; }
+  catch { return false; }
+}
+
+function validIdentity(value: DirectoryIdentity | null | undefined): value is DirectoryIdentity {
+  return Boolean(value && /^\d+$/.test(value.dev) && /^\d+$/.test(value.ino));
+}
+
+function invalidActivationState(): never {
+  throw new AppError("activation_state_conflict", "游戏目录身份与恢复记录不一致，已拒绝自动删除", 409);
+}
+
+export function stageExisting(source: string, staging: string, owner: string, initialize: () => void): void {
   if (existsSync(staging)) throw new AppError("staging_exists", "游戏暂存目录已存在");
-  if (existsSync(source)) cpSync(source, staging, { recursive: true, mode: constants.COPYFILE_FICLONE });
-  else mkdirSync(staging, { recursive: true });
+  ensureOwnedDirectory(staging, owner); initialize();
+  if (existsSync(source)) cpSync(source, staging, {
+    recursive: true, mode: constants.COPYFILE_FICLONE,
+    filter: (entry) => !stagingMarkers.has(basename(entry)),
+  });
 }
 
 export function ensureParent(path: string): void { mkdirSync(dirname(path), { recursive: true }); }

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -44,10 +44,20 @@ test("新安装提升后的清理中断不会删除唯一客户端", () => {
   recoverActivation(game); expect(readFileSync(join(game, "new"), "utf8")).toBe("y");
 });
 
+test("新安装提交竞态不会删除后来出现的用户目录", () => {
+  const root = mkdtempSync(join(tmpdir(), "activate-race-")), game = join(root, "game"), staging = join(root, "game.mhg-staging-test");
+  mkdirSync(staging); writeFileSync(join(staging, "new"), "game");
+  expect(() => activate(staging, game, (phase) => {
+    if (phase === "after_backup") { mkdirSync(game); writeFileSync(join(game, "user.txt"), "keep"); }
+  }, false)).toThrow();
+  expect(readFileSync(join(game, "user.txt"), "utf8")).toBe("keep");
+  expect(readFileSync(join(staging, "new"), "utf8")).toBe("game");
+});
+
 test("新安装在提升前崩溃时恢复完整暂存目录", () => {
   const root = mkdtempSync(join(tmpdir(), "activate-")), game = join(root, "game"), staging = join(root, "game.mhg-staging-crash");
   mkdirSync(staging); writeFileSync(join(staging, "new"), "y");
-  writeFileSync(`${game}.mhg-activation.json`, JSON.stringify({ schema: 1, staging_name: "game.mhg-staging-crash", backup_name: "game.mhg-backup-crash", phase: "backing_up" }));
+  writeFileSync(`${game}.mhg-activation.json`, JSON.stringify({ schema: 2, staging_name: "game.mhg-staging-crash", backup_name: "game.mhg-backup-crash", phase: "backing_up", staging: identity(staging), destination: null }));
   recoverActivation(game);
   expect(readFileSync(join(game, "new"), "utf8")).toBe("y"); expect(existsSync(staging)).toBe(false);
 });
@@ -55,8 +65,9 @@ test("新安装在提升前崩溃时恢复完整暂存目录", () => {
 test("重启恢复备份完成前中断的提交", () => {
   const root = mkdtempSync(join(tmpdir(), "activate-")), game = join(root, "game"), staging = join(root, "game.mhg-staging-crash");
   const backup = join(root, "game.mhg-backup-crash"); mkdirSync(game); mkdirSync(staging); writeFileSync(join(game, "old"), "x");
+  const destination = identity(game), staged = identity(staging);
   renameSync(game, backup);
-  writeFileSync(`${game}.mhg-activation.json`, JSON.stringify({ schema: 1, staging_name: "game.mhg-staging-crash", backup_name: "game.mhg-backup-crash", phase: "promoting" }));
+  writeFileSync(`${game}.mhg-activation.json`, JSON.stringify({ schema: 2, staging_name: "game.mhg-staging-crash", backup_name: "game.mhg-backup-crash", phase: "promoting", staging: staged, destination }));
   recoverActivation(game);
   expect(readFileSync(join(game, "old"), "utf8")).toBe("x"); expect(existsSync(staging)).toBe(false);
 });
@@ -66,3 +77,20 @@ test("恢复记录拒绝逃逸的备份名称", () => {
   writeFileSync(`${game}.mhg-activation.json`, JSON.stringify({ schema: 1, staging_name: "game.mhg-staging-ok", backup_name: "game.mhg-backup-../../victim", phase: "promoting" }));
   expect(() => recoverActivation(game)).toThrow("恢复记录无效");
 });
+
+test("恢复记录目录身份不符时不删除任何目录", () => {
+  const root = mkdtempSync(join(tmpdir(), "activate-conflict-")), game = join(root, "game");
+  const staging = join(root, "game.mhg-staging-safe"), backup = join(root, "game.mhg-backup-safe");
+  mkdirSync(game); mkdirSync(staging); mkdirSync(backup); writeFileSync(join(game, "user.txt"), "keep");
+  writeFileSync(`${game}.mhg-activation.json`, JSON.stringify({
+    schema: 2, staging_name: "game.mhg-staging-safe", backup_name: "game.mhg-backup-safe", phase: "promoting",
+    staging: { dev: "0", ino: "0" }, destination: identity(backup),
+  }));
+  expect(() => recoverActivation(game)).toThrow("拒绝自动删除");
+  expect(readFileSync(join(game, "user.txt"), "utf8")).toBe("keep");
+  expect(existsSync(staging)).toBe(true); expect(existsSync(backup)).toBe(true);
+});
+
+function identity(path: string): { dev: string; ino: string } {
+  const stat = statSync(path, { bigint: true }); return { dev: stat.dev.toString(), ino: stat.ino.toString() };
+}

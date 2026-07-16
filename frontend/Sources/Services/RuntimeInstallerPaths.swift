@@ -2,7 +2,12 @@ import Foundation
 
 extension RuntimeInstaller {
     func tag() -> String {
-        environment["MHG_RUNTIME_TAG"] ?? RuntimeManifest.defaultTag(bundle: bundle)
+        let fallback = RuntimeManifest.defaultTag(bundle: bundle)
+        guard let value = environment["MHG_RUNTIME_TAG"],
+              value.range(of: #"^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$"#, options: .regularExpression) != nil else {
+            return fallback
+        }
+        return value
     }
 
     func dataDirectory() -> URL {

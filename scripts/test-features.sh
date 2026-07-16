@@ -46,12 +46,12 @@ session="$(request -X POST http://localhost/v1/auth/qr-sessions -d '{}')"
 ticket="$(jq -r '.id' <<<"$session")"
 request "http://localhost/v1/auth/qr-sessions/$ticket" >/dev/null
 confirmed="$(request "http://localhost/v1/auth/qr-sessions/$ticket")"
-identity="$(jq -c '.identity' <<<"$confirmed")"
-login="$(request -X POST http://localhost/v1/auth/complete \
-  -d "$(jq -nc --argjson identity "$identity" '{identity:$identity,credential_ref:"keychain:test"}')")"
+transaction="$(jq -r '.prepared_login.transaction_id' <<<"$confirmed")"
+login="$(request -X POST http://localhost/v1/auth/commit \
+  -d "$(jq -nc --arg transaction "$transaction" '{transaction_id:$transaction}')")"
 test "$(jq -r '.roles[0].uid' <<<"$login")" = "100000001"
 
-credential="$(jq -r '.identity.credential' <<<"$confirmed")"
+credential="$(jq -r '.prepared_login.identity.credential' <<<"$confirmed")"
 task="$(request -X POST http://localhost/v1/wishes/tasks/sync \
   -d "$(jq -nc --arg credential "$credential" '{credential:$credential}')")"
 task_id="$(jq -r '.id' <<<"$task")"
@@ -68,5 +68,8 @@ note="$(request -X POST http://localhost/v1/notes/refresh \
   -d "$(jq -nc --arg credential "$credential" '{credential:$credential}')")"
 test "$(jq -r '.current_resin' <<<"$note")" = "120"
 launch_body='{"install_path":"/tmp/mhg-missing-game"}'
-test "$(request -X POST http://localhost/v1/game/launch -d "$launch_body" --output /dev/null --write-out '%{http_code}' || true)" = "409"
+launch_status="$(curl --silent --unix-socket "$socket" -H "Authorization: Bearer $token" \
+  -H "Content-Type: application/json" -X POST http://localhost/v1/game/launch \
+  -d "$launch_body" --output /dev/null --write-out '%{http_code}')"
+test "$launch_status" = "409"
 printf 'Unix Socket 冻结后端功能矩阵测试通过。\n'

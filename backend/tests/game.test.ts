@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -117,6 +117,19 @@ test("仅含删除项的差分完成删除后才更新版本", async () => {
   try {
     const job = await waitJob(service, await service.start("update", game));
     expect(job.status).toBe("completed"); expect(existsSync(join(game, "old.dat"))).toBe(false);
+  } finally { store.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("本地旧资源清单损坏时不会据此删除用户文件", async () => {
+  const content = "game", md5 = createHash("md5").update(content).digest("hex");
+  const { root, game, service, store } = serviceFor({
+    version: "5.8.0", kind: "full", assets: [{ name: "YuanShen.exe", size: content.length, md5, chunks: [] }],
+  });
+  writeFileSync(join(game, "user-save.dat"), "keep");
+  writeFileSync(join(game, ".mhg-assets.json"), JSON.stringify(["user-save.dat"]));
+  try {
+    expect((await waitJob(service, await service.start("update", game))).status).toBe("completed");
+    expect(readFileSync(join(game, "user-save.dat"), "utf8")).toBe("keep");
   } finally { store.close(); rmSync(root, { recursive: true, force: true }); }
 });
 

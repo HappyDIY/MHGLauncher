@@ -119,6 +119,21 @@ describe("游戏启动会话", () => {
     expect(existsSync(join(session, "dll-journal.json"))).toBe(true);
   });
 
+  test("伪造的 DLL 恢复目标不会删除游戏目录外文件", () => {
+    const fixture = makeFixture(), session = join(fixture.data, "launches", "forged");
+    const outside = join(fixture.data, "outside"), target = join(outside, "mhypbase.dll"), journal = join(session, "dll-journal.json");
+    mkdirSync(session, { recursive: true }); mkdirSync(outside); writeFileSync(target, "keep");
+    writeFileSync(journal, JSON.stringify({
+      schema: 2, generation: "forged", phase: "installed", journal_path: journal,
+      target, backup: join(session, "mhypbase.original.dll"), original_exists: false,
+      original_sha256: "", original_mode: 0o644, original_dev: "", original_ino: "",
+      replacement_md5: createHash("md5").update("keep").digest("hex"),
+    }));
+    const result = recoverInterruptedDlls(fixture.data);
+    expect(result).toMatchObject({ pending: true });
+    expect(readFileSync(target, "utf8")).toBe("keep"); expect(existsSync(journal)).toBe(true);
+  });
+
   test("重启后重新加载持久会话并完成 DLL 恢复", async () => {
     const fixture = makeFixture(), first = new GameLaunchService(fixture.data, fixture.runtime, new BlockingRunner(), fixture.integrity);
     const launch = first.start({ install_path: fixture.game, performance_profile: "optimized", metal_hud: false, network_debug: false, wine_log: false, frame_pacing: 0 });
