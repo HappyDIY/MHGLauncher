@@ -69,14 +69,22 @@ extension LauncherStore {
 
     private func pollJob(_ id: String, intent: Int, client: APIClient) async throws {
         var revision = gameJob?.revision
+        let scheduler = DisplayLinkFrameScheduler()
+        let presenter = LatestDisplayFrameCoalescer<GameJob>(
+            scheduler: scheduler
+        ) { [weak self] job in
+            self?.applyGameJob(job)
+        }
+        defer { presenter.cancel() }
         while !Task.isCancelled {
             let job: GameJob = try await client.get(
                 "/v1/game/jobs/\(id)", query: LongPollQuery.items(after: revision)
             )
             guard gameJobIntent == intent, gameJob?.id == id else { return }
-            applyGameJob(job)
+            presenter.submit(job)
             revision = job.revision
             if [.completed, .cancelled, .failed].contains(job.status) {
+                presenter.flush()
                 await refreshGame()
                 return
             }
