@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { zstdCompressSync } from "node:zlib";
@@ -30,6 +30,23 @@ test("健康客户端校验成功而不是空构建失败", async () => {
   }));
   try { expect((await wait(context.service, await context.service.start("verify", context.game))).status).toBe("completed"); }
   finally { context.store.close(); }
+});
+
+test("校验直接修复正式目录且不复制完整客户端", async () => {
+  const context = serviceContext("6.6.0"), expected = Buffer.from("repaired");
+  writeFileSync(join(context.game, "YuanShen.exe"), "launcher");
+  writeFileSync(join(context.game, "data.bin"), "broken!");
+  const repaired = await asset("data.bin", expected, "https://fixture/data");
+  writeFileSync(join(context.fixtures, "installed.json"), JSON.stringify({ version: "6.6.0", assets: [repaired] }));
+  vi.stubGlobal("fetch", vi.fn(async () => {
+    expect(readdirSync(context.root).some((name) => name.includes(".mhg-staging-"))).toBe(false);
+    return new Response(new Uint8Array(zstdCompressSync(expected)));
+  }));
+  try {
+    const job = await wait(context.service, await context.service.start("verify", context.game));
+    expect(job.status).toBe("completed");
+    expect(readFileSync(join(context.game, "data.bin"))).toEqual(expected);
+  } finally { context.store.close(); }
 });
 
 test("差分补丁失败后使用完整清单修复并校验未变更文件", async () => {

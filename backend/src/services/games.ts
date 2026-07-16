@@ -7,7 +7,7 @@ import type { Store } from "../core/database";
 import type { GameBuild, Provider } from "../providers/provider";
 import { DownloadControl } from "./download";
 import { activate, stageExisting } from "./installer";
-import { canonicalBuild, operationChunks, prepareBuild } from "./game-build";
+import { operationChunks, prepareBuild } from "./game-build";
 import { ensureGameConfiguration } from "./game-config";
 import { writeIntegrityIndex } from "./game-integrity";
 import { diskSpaceInfo } from "./disk-space";
@@ -57,7 +57,7 @@ export class GameService {
         : await this.provider.getBuild(paths.version, audioLanguages(paths.source || root));
       const build = prepareBuild(source, paths.source, paths.version);
       const cached = await predownloadCachedBytes(this.cacheFor(root, build.version), build);
-      return diskSpaceInfo(root, gameStorageSize(kind === "verify" ? canonicalBuild(build) : build) - cached);
+      return diskSpaceInfo(root, gameStorageSize(build) - cached);
     }
     if (!detected) throw new AppError("game_not_installed", "预下载需要已安装的游戏客户端");
     const remote = await this.provider.getPredownloadBuild(detected.version, audioLanguages(detected.path));
@@ -96,7 +96,7 @@ export class GameService {
         : await this.provider.getBuild(paths.version, audioLanguages(paths.source || root)),
       paths.source, paths.version);
     const cache = this.cacheFor(root, build.version), cached = await predownloadCachedBytes(cache, build);
-    const storageBuild = kind === "verify" ? canonicalBuild(build) : build, spaceInfo = diskSpaceInfo(root, gameStorageSize(storageBuild, kind === "predownload") - cached);
+    const spaceInfo = diskSpaceInfo(root, gameStorageSize(build, kind === "predownload") - cached);
     if (!spaceInfo.sufficient) throw new AppError("disk_space_insufficient", `磁盘空间不足：需要 ${spaceInfo.required} 字节，可用 ${spaceInfo.available} 字节`, 422, { available: spaceInfo.available, required: spaceInfo.required, sufficient: spaceInfo.sufficient });
     if (kind === "update" && detected && compareGameVersions(detected.version, build.version) >= 0) throw new AppError("game_already_current", "当前游戏版本已是最新", 409);
     const hasWork = build.assets.length > 0 || build.patch_assets.length > 0 || build.segments.length > 0 || build.deprecated_files.length > 0;
@@ -137,11 +137,12 @@ export class GameService {
     job.status = "running"; job.message = job.kind === "predownload" ? "正在下载预下载资源" : job.kind === "verify" ? "正在校验游戏资源" : job.kind === "install" ? "正在安装游戏资源" : "正在更新游戏资源"; this.touch(job);
     if (job.kind === "predownload") return this.runPredownload(job, control, path, build, lease);
     const resume = job.kind === "install" ? paths.resume : null, inPlaceResume = resume?.source === path;
-    const staging = resume?.source ?? `${path}.mhg-staging-${job.id}`;
+    const inPlaceVerify = job.kind === "verify";
+    const staging = inPlaceVerify ? path : resume?.source ?? `${path}.mhg-staging-${job.id}`;
     try {
       const cache = this.cacheFor(path, build.version);
       await control.checkpoint();
-      if (!resume) { stageExisting(job.kind === "install" ? paths.source : path, staging); writeManagedFile(staging, ".mhg-staging-version", build.version); }
+      if (!resume && !inPlaceVerify) { stageExisting(job.kind === "install" ? paths.source : path, staging); writeManagedFile(staging, ".mhg-staging-version", build.version); }
       mkdirSync(cache, { recursive: true });
       const limiter = maybeRateLimiter(this.mutableSpeedLimitKB);
       const reporting = makeGameResourceProgress(job, build, () => this.touch(job));
@@ -155,7 +156,7 @@ export class GameService {
       ensureGameConfiguration(staging, build.version);
       writeIntegrityIndex(staging, canonical);
       if (canonical.assets.length) writeManagedFile(staging, ".mhg-assets.json", JSON.stringify(canonical.assets.map(({ name }) => name)));
-      if (!inPlaceResume) activate(staging, path);
+      if (!inPlaceResume && !inPlaceVerify) activate(staging, path);
       rmSync(managedPath(path, ".mhg-staging-version"), { force: true });
       if (paths.resume && paths.resume.source !== path) rmSync(paths.resume.source, { recursive: true, force: true });
       this.saveState(path, build.version); rmSync(job.kind === "verify" ? cache : this.cacheScopeFor(path), { recursive: true, force: true }); clearPredownloadStatus(cache);
@@ -165,7 +166,7 @@ export class GameService {
       const failure = localStorageError(error);
       job.download_speed = 0; job.status = error instanceof DOMException && error.name === "AbortError" ? "cancelled" : "failed";
       job.message = failure instanceof AppError ? failure.message : "游戏任务失败，请稍后重试"; this.touch(job);
-    } finally { if (!resume && (job.kind !== "install" || !existsSync(join(staging, ".mhg-staging-version")))) rmSync(staging, { recursive: true, force: true }); this.coordinator.release(lease); }
+    } finally { if (!resume && !inPlaceVerify && (job.kind !== "install" || !existsSync(join(staging, ".mhg-staging-version")))) rmSync(staging, { recursive: true, force: true }); this.coordinator.release(lease); }
   }
   private async runPredownload(job: GameJob, control: DownloadControl, path: string, build: GameBuild, lease: ResourceLease): Promise<void> {
     try {
