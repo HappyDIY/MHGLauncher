@@ -13,21 +13,23 @@ struct GameJobLiveProgress: View {
     ).autoconnect()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            GameProgressBar(progress: smoothProgress, label: "资源任务总进度")
-            HStack {
-                Text(job.status.title)
-                    .contentTransition(.opacity)
-                    .accessibilityLiveRegion(.polite)
-                Spacer()
-                Text(smoothSizeLabel)
-                    .foregroundStyle(.secondary)
-                    .contentTransition(.numericText())
+        ViewportRetainedContent {
+            VStack(alignment: .leading, spacing: 10) {
+                GameProgressBar(progress: smoothProgress, label: "资源任务总进度")
+                HStack {
+                    Text(job.status.title)
+                        .contentTransition(.opacity)
+                        .accessibilityLiveRegion(.polite)
+                    Spacer()
+                    Text(smoothSizeLabel)
+                        .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
+                }
+                .motionAnimation(.selection, value: job.status)
             }
-            .motionAnimation(.selection, value: job.status)
-        }
-        .onReceive(ticker) { _ in
-            if job.status == .running { tick &+= 1 }
+            .onReceive(ticker) { _ in
+                if job.status == .running { tick &+= 1 }
+            }
         }
         .onChange(of: job.completedBytes, initial: true) { _, value in
             anchorBytes = value
@@ -78,22 +80,26 @@ struct GameJobLiveChunks: View {
     ).autoconnect()
 
     var body: some View {
-        ForEach(job.activeChunks) { chunk in
-            VStack(alignment: .leading, spacing: 3) {
-                Text(chunk.name)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                GameProgressBar(
-                    progress: smoothProgress(chunk),
-                    tint: .blue,
-                    label: "\(chunk.name) 进度"
-                )
-                .motionAnimation(.content, value: chunk.bytesDone)
+        ViewportRetainedContent {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(job.activeChunks) { chunk in
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(chunk.name)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        GameProgressBar(
+                            progress: smoothProgress(chunk),
+                            tint: .blue,
+                            label: "\(chunk.name) 进度"
+                        )
+                        .motionAnimation(.content, value: chunk.bytesDone)
+                    }
+                }
             }
-        }
-        .onReceive(ticker) { _ in
-            if job.status == .running { tick &+= 1 }
+            .onReceive(ticker) { _ in
+                if job.status == .running { tick &+= 1 }
+            }
         }
         .onChange(of: job.completedBytes, initial: true) { _, _ in
             anchorTime = Date()
