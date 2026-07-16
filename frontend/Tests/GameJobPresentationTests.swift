@@ -15,7 +15,7 @@ struct GameJobPresentationTests {
         #expect(presentation.activeChunks[0] === original[0])
         #expect(presentation.activeChunks[1] === original[1])
         #expect(original[0].bytesDone == 8)
-        #expect(presentation.transfer.completedBytes == 20)
+        #expect(presentation.progress.completedBytes == 20)
     }
 
     @Test("结构更新仅替换变化的分块")

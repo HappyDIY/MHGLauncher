@@ -1,17 +1,13 @@
 import Foundation
 import Observation
 
-struct GameJobTransferPresentation: Equatable, Sendable {
+struct GameJobProgressPresentation: Equatable, Sendable {
     let completedBytes: Int64
     let totalBytes: Int64
-    let downloadSpeed: Int64
-    let sampleID: String?
 
-    static let empty = GameJobTransferPresentation(
+    static let empty = GameJobProgressPresentation(
         completedBytes: 0,
-        totalBytes: 0,
-        downloadSpeed: 0,
-        sampleID: nil
+        totalBytes: 0
     )
 }
 
@@ -51,7 +47,9 @@ final class GameJobChunkPresentation: Identifiable {
 final class GameJobPresentation {
     private(set) var id: String?
     private(set) var status: JobStatus = .queued
-    private(set) var transfer = GameJobTransferPresentation.empty
+    private(set) var progress = GameJobProgressPresentation.empty
+    private(set) var downloadSpeed: Int64 = 0
+    private(set) var sampleID: String?
     private(set) var counts = GameJobCountPresentation.empty
     private(set) var message = ""
     private(set) var activeChunks: [GameJobChunkPresentation] = []
@@ -62,18 +60,19 @@ final class GameJobPresentation {
             if !activeChunks.isEmpty { activeChunks = [] }
             return
         }
-        let nextTransfer = GameJobTransferPresentation(
+        let nextProgress = GameJobProgressPresentation(
             completedBytes: value.completedBytes,
-            totalBytes: value.totalBytes,
-            downloadSpeed: value.downloadSpeed,
-            sampleID: value.lastUpdate ?? value.revision.map(String.init)
+            totalBytes: value.totalBytes
         )
         let nextCounts = GameJobCountPresentation(
             completed: value.chunksCompleted,
             total: value.chunksTotal
         )
         if status != value.status { status = value.status }
-        if transfer != nextTransfer { transfer = nextTransfer }
+        if progress != nextProgress { progress = nextProgress }
+        if downloadSpeed != value.downloadSpeed { downloadSpeed = value.downloadSpeed }
+        let nextSampleID = value.lastUpdate ?? value.revision.map(String.init)
+        if sampleID != nextSampleID { sampleID = nextSampleID }
         if counts != nextCounts { counts = nextCounts }
         if message != value.message { message = value.message }
         applyChunks(value.activeChunks)

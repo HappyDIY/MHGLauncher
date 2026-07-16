@@ -2,41 +2,68 @@ import AppKit
 import SwiftUI
 
 struct GameJobCard: View {
-    @Bindable var store: LauncherStore
-    let job: GameJob
+    let store: LauncherStore
+    let job: GameJobPresentation
 
     var body: some View {
         GlassCard("资源任务", icon: "arrow.down.circle") {
             VStack(alignment: .leading, spacing: 10) {
                 GameJobLiveProgress(job: job)
-                DownloadSpeedChart(
-                    speed: job.downloadSpeed,
-                    isActive: job.status == .running,
-                    sampleID: job.lastUpdate ?? job.revision.map(String.init)
-                )
-                Text("分块 \(job.chunksCompleted) / \(job.chunksTotal)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .contentTransition(.numericText())
-                    .motionAnimation(.content, value: job.chunksCompleted)
-                if !job.message.isEmpty {
-                    Text(job.message)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .motionTransition(.emphasis)
-                }
-                if !job.activeChunks.isEmpty {
-                    Divider()
-                    GameJobLiveChunks(job: job)
-                }
-                controls
+                DownloadSpeedChart(job: job)
+                GameJobChunkCount(job: job)
+                GameJobMessage(job: job)
+                GameJobChunkSection(job: job)
+                GameJobControls(store: store, job: job)
             }
         }
         .motionAnimation(.content, value: job.message)
         .motionAnimation(.content, value: job.activeChunks.map(\.id))
     }
 
-    private var controls: some View {
+}
+
+private struct GameJobChunkCount: View {
+    let job: GameJobPresentation
+
+    var body: some View {
+        let counts = job.counts
+        Text("分块 \(counts.completed) / \(counts.total)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .contentTransition(.numericText())
+            .motionAnimation(.content, value: counts.completed)
+    }
+}
+
+private struct GameJobMessage: View {
+    let job: GameJobPresentation
+
+    var body: some View {
+        if !job.message.isEmpty {
+            Text(job.message)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .motionTransition(.emphasis)
+        }
+    }
+}
+
+private struct GameJobChunkSection: View {
+    let job: GameJobPresentation
+
+    var body: some View {
+        if !job.activeChunks.isEmpty {
+            Divider()
+            GameJobLiveChunks(job: job)
+        }
+    }
+}
+
+private struct GameJobControls: View {
+    let store: LauncherStore
+    let job: GameJobPresentation
+
+    var body: some View {
         HStack {
             if job.status == .running {
                 Button("暂停") {
@@ -64,7 +91,6 @@ struct GameJobCard: View {
         }
         .motionAnimation(.selection, value: job.status)
     }
-
 }
 
 struct GameProgressBar: View {
@@ -90,15 +116,15 @@ struct GameProgressBar: View {
 }
 
 struct GameJobSection: View {
-    @Bindable var store: LauncherStore
+    let store: LauncherStore
 
     var body: some View {
         Group {
-            if let job = store.gameJob {
-                GameJobCard(store: store, job: job)
+            if store.gameJobPresentation.id != nil {
+                GameJobCard(store: store, job: store.gameJobPresentation)
                     .motionTransition(.emphasis)
             }
         }
-        .motionAnimation(.emphasis, value: store.gameJob?.id)
+        .motionAnimation(.emphasis, value: store.gameJobPresentation.id)
     }
 }

@@ -2,13 +2,14 @@ import Charts
 import SwiftUI
 
 struct DownloadSpeedChart: View {
-    let speed: Int64
-    let isActive: Bool
-    let sampleID: String?
+    let job: GameJobPresentation
     @State private var samples = SpeedSampleBuffer(capacity: 60)
     @State private var updatePhase = 0
 
     var body: some View {
+        let speed = job.downloadSpeed
+        let isActive = job.status == .running
+        let sampleID = job.sampleID
         ViewportRetainedContent {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
