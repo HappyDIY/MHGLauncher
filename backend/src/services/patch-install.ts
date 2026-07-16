@@ -11,6 +11,7 @@ import { safeIdentifier } from "../core/safe-path";
 import { randomUUID } from "node:crypto";
 import type { TokenBucketRateLimiter } from "./rate-limiter";
 import { managedPath } from "./managed-file";
+import { localStorageError } from "./storage-error";
 
 export async function installPatches(
   assets: GamePatchAsset[], staging: string, cache: string, control: DownloadControl,
@@ -39,7 +40,11 @@ function apply(asset: GamePatchAsset, source: string, staging: string): void {
   const output = safeTarget(staging, `.mhg-patch-output-${id}`);
   try {
     try { copyRangeSync(source, segment, asset.patch.start, asset.patch.length); }
-    catch { throw new AppError("sophon_patch_range_invalid", `${asset.name} 增量补丁范围无效`); }
+    catch (error) {
+      const failure = localStorageError(error);
+      if (failure !== error) throw failure;
+      throw new AppError("sophon_patch_range_invalid", `${asset.name} 增量补丁范围无效`);
+    }
     let prepared = segment;
     if (asset.patch.original_name) {
       const original = safeTarget(staging, asset.patch.original_name);

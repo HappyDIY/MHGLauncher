@@ -23,6 +23,7 @@ import { installGameResources } from "./game-resource-install";
 import { managedPath, writeManagedFile } from "./managed-file";
 import { makeGameResourceProgress } from "./game-resource-progress";
 import { findInstallResume, gameOperationPaths, type GameOperationPaths } from "./game-install-resume";
+import { localStorageError } from "./storage-error";
 export class GameService {
   private readonly jobs = new Map<string, GameJob>();
   private readonly controls = new Map<string, DownloadControl>();
@@ -162,8 +163,9 @@ export class GameService {
       reporting.flush(); job.completed_bytes = job.total_bytes; job.download_speed = 0; job.status = "completed";
       job.message = job.kind === "install" ? "游戏资源安装完成" : job.kind === "verify" ? "游戏资源校验完成" : "游戏资源更新完成"; this.touch(job);
     } catch (error) {
+      const failure = localStorageError(error);
       job.download_speed = 0; job.status = error instanceof DOMException && error.name === "AbortError" ? "cancelled" : "failed";
-      job.message = error instanceof AppError ? error.message : "游戏任务失败，请稍后重试"; this.touch(job);
+      job.message = failure instanceof AppError ? failure.message : "游戏任务失败，请稍后重试"; this.touch(job);
     } finally { if (!resume) rmSync(staging, { recursive: true, force: true }); this.coordinator.release(lease); }
   }
   private async runPredownload(job: GameJob, control: DownloadControl, path: string, build: GameBuild, lease: ResourceLease): Promise<void> {

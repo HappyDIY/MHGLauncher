@@ -3,9 +3,9 @@ import { dirname } from "node:path";
 import { AppError } from "../core/errors";
 import type { DownloadControl } from "./download";
 import type { TokenBucketRateLimiter } from "./rate-limiter";
+import { localStorageError } from "./storage-error";
 
 const retryLimit = 5;
-const localWriteErrors = new Set(["EACCES", "EDQUOT", "ENOSPC", "EROFS"]);
 
 export async function streamDownload(
   url: string, partial: string, expectedSize: number, label: string, control: DownloadControl,
@@ -95,16 +95,11 @@ async function readWithStall(reader: ReadableStreamDefaultReader<Uint8Array>, la
 }
 
 function openFile(path: string, flags: "a" | "w"): number {
-  try { return openSync(path, flags); } catch (error) { throw localWriteError(error); }
+  try { return openSync(path, flags); } catch (error) { throw localStorageError(error); }
 }
 
 function writeFile(descriptor: number, value: Uint8Array): void {
-  try { writeSync(descriptor, value); } catch (error) { throw localWriteError(error); }
-}
-
-function localWriteError(error: unknown): unknown {
-  const code = (error as NodeJS.ErrnoException).code;
-  return code && localWriteErrors.has(code) ? new AppError("storage_write_failed", `本地存储写入失败：${code}`, 507) : error;
+  try { writeSync(descriptor, value); } catch (error) { throw localStorageError(error); }
 }
 
 async function acquireBytes(limiter: TokenBucketRateLimiter, bytes: number, control: DownloadControl): Promise<void> {

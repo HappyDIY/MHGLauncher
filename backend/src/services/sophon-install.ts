@@ -13,6 +13,7 @@ import { safeIdentifier } from "../core/safe-path";
 import { concurrentMap } from "./concurrent-map";
 import { operationChunks } from "./game-build";
 import { managedPath } from "./managed-file";
+import { localStorageError } from "./storage-error";
 
 export async function installSophon(
   assets: GameAsset[], staging: string, cache: string, control: DownloadControl,
@@ -81,7 +82,7 @@ async function buildAsset(
       throw new AppError("sophon_asset_invalid", `${asset.name} 文件校验失败`);
     }
     renameSync(temporary, target);
-  } catch (error) { rmSync(temporary, { force: true }); throw error; }
+  } catch (error) { rmSync(temporary, { force: true }); throw localStorageError(error); }
 }
 
 function reusable(asset: GameAsset, base: GameAsset | undefined, target: string): boolean {

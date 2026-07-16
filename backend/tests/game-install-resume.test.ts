@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test } from "vitest";
@@ -46,6 +46,15 @@ test.each([{ stale: false, label: "正式目录" }, { stale: true, label: "崩�
     expect(readFileSync(join(context.source, "YuanShen.exe"), "utf8")).toBe("complete-client");
     expect(readFileSync(join(context.source, ".mhg-staging-version"), "utf8")).toBe("6.7.0");
   } finally { context.store.close(); }
+});
+
+test("原地续接遇到本地写入错误时返回明确原因", async () => {
+  const context = installContext(false, "replacement-client");
+  try {
+    chmodSync(context.source, 0o500);
+    const job = await wait(context.service, await context.service.start("install", context.destination));
+    expect(job).toMatchObject({ status: "failed", message: "本地存储写入失败：EACCES" });
+  } finally { chmodSync(context.source, 0o700); context.store.close(); }
 });
 
 function installContext(stale: boolean, expectedContent = "complete-client"): {
