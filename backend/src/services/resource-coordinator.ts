@@ -1,5 +1,5 @@
 import { existsSync, realpathSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { AppError } from "../core/errors";
 
 export interface ResourceLease { key: string; owner: string }
@@ -8,7 +8,7 @@ export class ResourceCoordinator {
   private readonly owners = new Map<string, string>();
 
   claim(path: string, owner: string): ResourceLease {
-    const key = existsSync(path) ? realpathSync(path) : resolve(path);
+    const key = canonicalResourcePath(path);
     const current = this.owners.get(key);
     if (current && current !== owner) throw new AppError("game_resource_busy", "游戏目录正在被其他任务使用", 409);
     this.owners.set(key, owner);
@@ -20,7 +20,16 @@ export class ResourceCoordinator {
   }
 
   busy(path: string): boolean {
-    const key = existsSync(path) ? realpathSync(path) : resolve(path);
+    const key = canonicalResourcePath(path);
     return this.owners.has(key);
   }
+}
+
+function canonicalResourcePath(path: string): string {
+  let current = resolve(path); const suffix: string[] = [];
+  while (!existsSync(current)) {
+    const parent = dirname(current); if (parent === current) return current;
+    suffix.unshift(basename(current)); current = parent;
+  }
+  return resolve(realpathSync(current), ...suffix);
 }
