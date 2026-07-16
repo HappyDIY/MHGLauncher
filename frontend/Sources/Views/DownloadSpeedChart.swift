@@ -21,10 +21,11 @@ struct DownloadSpeedChart: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                Chart(samples) { sample in
-                    AreaMark(
-                        x: .value("时间", sample.time),
-                        y: .value("速度", sample.megabytesPerSecond)
+                Chart {
+                    AreaPlot(
+                        samples,
+                        x: .value("时间", \.time),
+                        y: .value("速度", \.megabytesPerSecond)
                     )
                     .foregroundStyle(
                         LinearGradient(
@@ -33,9 +34,10 @@ struct DownloadSpeedChart: View {
                             endPoint: .bottom
                         )
                     )
-                    LineMark(
-                        x: .value("时间", sample.time),
-                        y: .value("速度", sample.megabytesPerSecond)
+                    LinePlot(
+                        samples,
+                        x: .value("时间", \.time),
+                        y: .value("速度", \.megabytesPerSecond)
                     )
                     .foregroundStyle(.blue)
                     .interpolationMethod(.catmullRom)
