@@ -18,6 +18,25 @@ struct GameJobPresentationTests {
         #expect(presentation.progress.completedBytes == 20)
     }
 
+    @Test("二万次数值事件不增长展示拓扑")
+    func highFrequencyUpdatesKeepStableTopology() {
+        let presentation = GameJobPresentation()
+        presentation.apply(job(bytes: 0, chunks: [chunk("a", 0), chunk("b", 0)]))
+        let original = presentation.activeChunks
+
+        for value in 1...20_000 {
+            let bytes = Int64(value % 1_000)
+            presentation.apply(job(
+                bytes: bytes,
+                chunks: [chunk("a", bytes % 100), chunk("b", (bytes + 1) % 100)]
+            ))
+        }
+
+        #expect(presentation.activeChunks.count == 2)
+        #expect(presentation.activeChunks[0] === original[0])
+        #expect(presentation.activeChunks[1] === original[1])
+    }
+
     @Test("结构更新仅替换变化的分块")
     func topologyUpdatesReuseRemainingChunks() {
         let presentation = GameJobPresentation()
