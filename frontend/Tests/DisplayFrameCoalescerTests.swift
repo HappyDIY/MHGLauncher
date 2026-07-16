@@ -12,18 +12,20 @@ struct DisplayFrameCoalescerTests {
             presented.append($0)
         }
 
-        coalescer.submit(1)
-        coalescer.submit(2)
-        coalescer.submit(3)
+        for value in 0..<10_000 {
+            coalescer.submit(value)
+        }
 
         #expect(scheduler.pendingCount == 1)
+        #expect(scheduler.scheduleCount == 1)
         scheduler.fire()
-        #expect(presented == [3])
+        #expect(presented == [9_999])
 
-        coalescer.submit(4)
+        coalescer.submit(10_000)
         #expect(scheduler.pendingCount == 1)
+        #expect(scheduler.scheduleCount == 2)
         scheduler.fire()
-        #expect(presented == [3, 4])
+        #expect(presented == [9_999, 10_000])
     }
 
     @Test("终态刷新立即提交且不会重复")
@@ -65,8 +67,10 @@ struct DisplayFrameCoalescerTests {
 private final class TestDisplayFrameScheduler: DisplayFrameScheduling {
     private var action: DisplayFrameAction?
     var pendingCount: Int { action == nil ? 0 : 1 }
+    private(set) var scheduleCount = 0
 
     func schedule(_ action: @escaping DisplayFrameAction) {
+        scheduleCount += 1
         self.action = action
     }
 
