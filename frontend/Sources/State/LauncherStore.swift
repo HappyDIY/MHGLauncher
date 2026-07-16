@@ -24,7 +24,7 @@ final class LauncherStore {
     var accounts: [Account] = []
     var roles: [GameRole] = []
     var gameState: GameState?
-    var gameJob: GameJob?
+    let gameJobPresentation = GameJobPresentation(); var gameJob: GameJob? { didSet { gameJobPresentation.apply(gameJob) } }
     var pendingGameJobKind: JobKind?
     var gameLaunch: GameLaunch?
     @ObservationIgnored var gameStateIntent = 0
