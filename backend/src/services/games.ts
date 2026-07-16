@@ -140,7 +140,6 @@ export class GameService {
     const staging = resume?.source ?? `${path}.mhg-staging-${job.id}`;
     try {
       const cache = this.cacheFor(path, build.version);
-      const marker = managedPath(staging, ".mhg-staging-version");
       await control.checkpoint();
       if (!resume) { stageExisting(job.kind === "install" ? paths.source : path, staging); writeManagedFile(staging, ".mhg-staging-version", build.version); }
       mkdirSync(cache, { recursive: true });
@@ -156,8 +155,8 @@ export class GameService {
       ensureGameConfiguration(staging, build.version);
       writeIntegrityIndex(staging, canonical);
       if (canonical.assets.length) writeManagedFile(staging, ".mhg-assets.json", JSON.stringify(canonical.assets.map(({ name }) => name)));
-      rmSync(marker, { force: true });
       if (!inPlaceResume) activate(staging, path);
+      rmSync(managedPath(path, ".mhg-staging-version"), { force: true });
       if (paths.resume && paths.resume.source !== path) rmSync(paths.resume.source, { recursive: true, force: true });
       this.saveState(path, build.version); rmSync(job.kind === "verify" ? cache : this.cacheScopeFor(path), { recursive: true, force: true }); clearPredownloadStatus(cache);
       reporting.flush(); job.completed_bytes = job.total_bytes; job.download_speed = 0; job.status = "completed";
@@ -166,7 +165,7 @@ export class GameService {
       const failure = localStorageError(error);
       job.download_speed = 0; job.status = error instanceof DOMException && error.name === "AbortError" ? "cancelled" : "failed";
       job.message = failure instanceof AppError ? failure.message : "游戏任务失败，请稍后重试"; this.touch(job);
-    } finally { if (!resume) rmSync(staging, { recursive: true, force: true }); this.coordinator.release(lease); }
+    } finally { if (!resume && (job.kind !== "install" || !existsSync(join(staging, ".mhg-staging-version")))) rmSync(staging, { recursive: true, force: true }); this.coordinator.release(lease); }
   }
   private async runPredownload(job: GameJob, control: DownloadControl, path: string, build: GameBuild, lease: ResourceLease): Promise<void> {
     try {

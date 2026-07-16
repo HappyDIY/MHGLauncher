@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test } from "vitest";
@@ -55,6 +55,22 @@ test("原地续接遇到本地写入错误时返回明确原因", async () => {
     const job = await wait(context.service, await context.service.start("install", context.destination));
     expect(job).toMatchObject({ status: "failed", message: "本地存储写入失败：EACCES" });
   } finally { chmodSync(context.source, 0o700); context.store.close(); }
+});
+
+test("全新安装失败时保留尚未生成可执行文件的续接目录", async () => {
+  const root = mkdtempSync(join(tmpdir(), "install-failure-")), data = join(root, "data"), fixtures = join(root, "fixtures"), destination = join(root, "Genshin Impact Game");
+  roots.push(root); mkdirSync(fixtures);
+  writeFileSync(join(fixtures, "build.json"), JSON.stringify({
+    version: "6.7.0", assets: [{ name: "YuanShen.exe", size: 1, md5: createHash("md5").update("x").digest("hex"), chunks: [] }],
+  }));
+  const store = new Store(join(data, "test.db")), service = new GameService(store, new FixtureProvider(fixtures), data);
+  try {
+    expect((await wait(service, await service.start("install", destination))).status).toBe("failed");
+    const staging = join(root, readdirSync(root).find((name) => name.startsWith("Genshin Impact Game.mhg-staging-")) ?? "missing");
+    expect(existsSync(join(staging, ".mhg-staging-version"))).toBe(true);
+    expect(existsSync(join(staging, "YuanShen.exe"))).toBe(false);
+    expect(await service.state(destination)).toMatchObject({ status: "damaged", installed_version: "6.7.0" });
+  } finally { store.close(); }
 });
 
 function installContext(stale: boolean, expectedContent = "complete-client"): {

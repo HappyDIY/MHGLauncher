@@ -52,8 +52,8 @@ function readResume(source: string, destination: string): InstallResume | null {
   try {
     if (!existsSync(source)) return null;
     const directory = lstatSync(source); if (!directory.isDirectory() || directory.isSymbolicLink()) return null;
-    const marker = managedPath(source, ".mhg-staging-version"), executable = managedPath(source, "YuanShen.exe");
-    if (!existsSync(marker) || !lstatSync(marker).isFile() || !existsSync(executable) || !lstatSync(executable).isFile()) return null;
+    const marker = managedPath(source, ".mhg-staging-version");
+    if (!existsSync(marker) || !lstatSync(marker).isFile()) return null;
     const version = safeIdentifier(readFileSync(marker, "utf8").trim(), "暂存版本");
     return { destination, source, version };
   } catch { return null; }
