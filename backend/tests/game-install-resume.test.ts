@@ -29,20 +29,22 @@ test("正式目录中的未完成安装会预检复用并补齐客户端标记",
 test("崩溃残留的 staging 目录会被续接并提升为正式目录", async () => {
   const context = installContext(true);
   try {
+    const executableInode = statSync(join(context.source, "YuanShen.exe")).ino;
     expect((await context.service.state(context.destination)).download_bytes).toBe(0);
     expect((await wait(context.service, await context.service.start("install", context.destination))).status).toBe("completed");
     expect(existsSync(context.destination)).toBe(true); expect(existsSync(context.source)).toBe(false);
     expect(readFileSync(join(context.destination, "YuanShen.exe"), "utf8")).toBe("complete-client");
+    expect(statSync(join(context.destination, "YuanShen.exe")).ino).toBe(executableInode);
   } finally { context.store.close(); }
 });
 
-test("正式目录原地续接失败时保留客户端与续接标记", async () => {
-  const context = installContext(false, "replacement-client");
+test.each([{ stale: false, label: "正式目录" }, { stale: true, label: "崩溃暂存目录" }])("$label 原地续接失败时保留客户端与续接标记", async ({ stale }) => {
+  const context = installContext(stale, "replacement-client");
   try {
     const job = await wait(context.service, await context.service.start("install", context.destination));
     expect(job.status).toBe("failed");
-    expect(readFileSync(join(context.destination, "YuanShen.exe"), "utf8")).toBe("complete-client");
-    expect(readFileSync(join(context.destination, ".mhg-staging-version"), "utf8")).toBe("6.7.0");
+    expect(readFileSync(join(context.source, "YuanShen.exe"), "utf8")).toBe("complete-client");
+    expect(readFileSync(join(context.source, ".mhg-staging-version"), "utf8")).toBe("6.7.0");
   } finally { context.store.close(); }
 });
 

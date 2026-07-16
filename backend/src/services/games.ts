@@ -135,12 +135,13 @@ export class GameService {
     const path = paths.root;
     job.status = "running"; job.message = job.kind === "predownload" ? "正在下载预下载资源" : job.kind === "verify" ? "正在校验游戏资源" : job.kind === "install" ? "正在安装游戏资源" : "正在更新游戏资源"; this.touch(job);
     if (job.kind === "predownload") return this.runPredownload(job, control, path, build, lease);
-    const inPlaceResume = job.kind === "install" && paths.resume?.source === path, staging = inPlaceResume ? path : `${path}.mhg-staging-${job.id}`;
+    const resume = job.kind === "install" ? paths.resume : null, inPlaceResume = resume?.source === path;
+    const staging = resume?.source ?? `${path}.mhg-staging-${job.id}`;
     try {
       const cache = this.cacheFor(path, build.version);
       const marker = managedPath(staging, ".mhg-staging-version");
       await control.checkpoint();
-      if (!inPlaceResume) { stageExisting(job.kind === "install" ? paths.source : path, staging); writeManagedFile(staging, ".mhg-staging-version", build.version); }
+      if (!resume) { stageExisting(job.kind === "install" ? paths.source : path, staging); writeManagedFile(staging, ".mhg-staging-version", build.version); }
       mkdirSync(cache, { recursive: true });
       const limiter = maybeRateLimiter(this.mutableSpeedLimitKB);
       const reporting = makeGameResourceProgress(job, build, () => this.touch(job));
@@ -163,7 +164,7 @@ export class GameService {
     } catch (error) {
       job.download_speed = 0; job.status = error instanceof DOMException && error.name === "AbortError" ? "cancelled" : "failed";
       job.message = error instanceof AppError ? error.message : "游戏任务失败，请稍后重试"; this.touch(job);
-    } finally { if (!inPlaceResume) rmSync(staging, { recursive: true, force: true }); this.coordinator.release(lease); }
+    } finally { if (!resume) rmSync(staging, { recursive: true, force: true }); this.coordinator.release(lease); }
   }
   private async runPredownload(job: GameJob, control: DownloadControl, path: string, build: GameBuild, lease: ResourceLease): Promise<void> {
     try {
