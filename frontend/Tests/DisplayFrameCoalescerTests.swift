@@ -20,13 +20,15 @@ struct DisplayFrameCoalescerTests {
         scheduler.fire(at: 0)
         #expect(presented == [9_999])
 
-        coalescer.submit(10_000, at: 0.01)
+        for value in 10_000..<20_000 {
+            coalescer.submit(value, at: 0.01)
+        }
         #expect(scheduler.pendingCount == 1)
         #expect(scheduler.scheduleCount == 2)
         scheduler.fire(at: 0.19)
         #expect(presented == [9_999])
         scheduler.fire(at: 0.2)
-        #expect(presented == [9_999, 10_000])
+        #expect(presented == [9_999, 19_999])
     }
 
     @Test("终态刷新立即提交且不会重复")
