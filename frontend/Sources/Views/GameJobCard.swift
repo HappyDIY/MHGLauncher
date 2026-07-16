@@ -19,15 +19,12 @@ struct GameJobCard: View {
                     .foregroundStyle(.secondary)
                     .contentTransition(.numericText())
                     .motionAnimation(.content, value: job.chunksCompleted)
-                Group {
-                    if !job.message.isEmpty {
-                        Text(job.message)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                            .motionTransition(.emphasis)
-                    }
+                if !job.message.isEmpty {
+                    Text(job.message)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .motionTransition(.emphasis)
                 }
-                .motionAnimation(.content, value: job.message)
                 if !job.activeChunks.isEmpty {
                     Divider()
                     GameJobLiveChunks(job: job)
@@ -35,6 +32,8 @@ struct GameJobCard: View {
                 controls
             }
         }
+        .motionAnimation(.content, value: job.message)
+        .motionAnimation(.content, value: job.activeChunks.map(\.id))
     }
 
     private var controls: some View {
