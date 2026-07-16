@@ -1,4 +1,3 @@
-import Foundation
 import Testing
 @testable import MHGLauncher
 
@@ -9,33 +8,33 @@ struct DisplayFrameCoalescerTests {
     func presentsLatestValueOncePerFrame() {
         let scheduler = TestDisplayFrameScheduler()
         var presented: [Int] = []
-        let coalescer = makeCoalescer(scheduler, presented: { presented.append($0) })
+        let coalescer = LatestDisplayFrameCoalescer<Int>(scheduler: scheduler) {
+            presented.append($0)
+        }
 
         for value in 0..<10_000 {
-            coalescer.submit(value, at: 0)
+            coalescer.submit(value)
         }
 
         #expect(scheduler.pendingCount == 1)
         #expect(scheduler.scheduleCount == 1)
-        scheduler.fire(at: 0)
+        scheduler.fire()
         #expect(presented == [9_999])
 
-        for value in 10_000..<20_000 {
-            coalescer.submit(value, at: 0.01)
-        }
+        coalescer.submit(10_000)
         #expect(scheduler.pendingCount == 1)
         #expect(scheduler.scheduleCount == 2)
-        scheduler.fire(at: 0.19)
-        #expect(presented == [9_999])
-        scheduler.fire(at: 0.2)
-        #expect(presented == [9_999, 19_999])
+        scheduler.fire()
+        #expect(presented == [9_999, 10_000])
     }
 
     @Test("终态刷新立即提交且不会重复")
     func flushesPendingValueOnce() {
         let scheduler = TestDisplayFrameScheduler()
         var presented: [Int] = []
-        let coalescer = makeCoalescer(scheduler, presented: { presented.append($0) })
+        let coalescer = LatestDisplayFrameCoalescer<Int>(scheduler: scheduler) {
+            presented.append($0)
+        }
 
         coalescer.submit(1)
         coalescer.submit(2)
@@ -43,7 +42,7 @@ struct DisplayFrameCoalescerTests {
 
         #expect(presented == [2])
         #expect(scheduler.pendingCount == 0)
-        scheduler.fire(at: 1)
+        scheduler.fire()
         #expect(presented == [2])
     }
 
@@ -51,76 +50,37 @@ struct DisplayFrameCoalescerTests {
     func cancelsPendingValue() {
         let scheduler = TestDisplayFrameScheduler()
         var presented: [Int] = []
-        let coalescer = makeCoalescer(scheduler, presented: { presented.append($0) })
+        let coalescer = LatestDisplayFrameCoalescer<Int>(scheduler: scheduler) {
+            presented.append($0)
+        }
 
         coalescer.submit(1)
         coalescer.cancel()
-        scheduler.fire(at: 1)
+        scheduler.fire()
 
         #expect(presented.isEmpty)
         #expect(scheduler.pendingCount == 0)
-    }
-
-    @Test("语义变化提前到下一显示帧")
-    func advancesPriorityChanges() {
-        let scheduler = TestDisplayFrameScheduler()
-        var presented: [Int] = []
-        let coalescer = LatestDisplayFrameCoalescer(
-            scheduler: scheduler,
-            minimumInterval: 0.2,
-            priority: { $0 / 100 },
-            present: { presented.append($0) }
-        )
-
-        coalescer.submit(1, at: 0)
-        scheduler.fire(at: 0)
-        coalescer.submit(2, at: 0.01)
-        coalescer.submit(100, at: 0.02)
-
-        #expect(scheduler.deadline == 0.02)
-        scheduler.fire(at: 0.02)
-        #expect(presented == [1, 100])
-    }
-
-    private func makeCoalescer(
-        _ scheduler: TestDisplayFrameScheduler,
-        presented: @escaping (Int) -> Void
-    ) -> LatestDisplayFrameCoalescer<Int, Int> {
-        LatestDisplayFrameCoalescer(
-            scheduler: scheduler,
-            minimumInterval: 0.2,
-            priority: { _ in 0 },
-            present: presented
-        )
     }
 }
 
 @MainActor
 private final class TestDisplayFrameScheduler: DisplayFrameScheduling {
     private var action: DisplayFrameAction?
-    private(set) var deadline: CFTimeInterval?
     var pendingCount: Int { action == nil ? 0 : 1 }
     private(set) var scheduleCount = 0
 
-    func schedule(
-        notBefore deadline: CFTimeInterval,
-        _ action: @escaping DisplayFrameAction
-    ) {
+    func schedule(_ action: @escaping DisplayFrameAction) {
         scheduleCount += 1
-        self.deadline = min(self.deadline ?? deadline, deadline)
         self.action = action
     }
 
     func cancel() {
         action = nil
-        deadline = nil
     }
 
-    func fire(at timestamp: CFTimeInterval) {
-        guard timestamp >= (deadline ?? timestamp) else { return }
+    func fire() {
         let current = action
         action = nil
-        deadline = nil
-        current?(timestamp)
+        current?()
     }
 }

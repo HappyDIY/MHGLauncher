@@ -70,10 +70,8 @@ extension LauncherStore {
     private func pollJob(_ id: String, intent: Int, client: APIClient) async throws {
         var revision = gameJob?.revision
         let scheduler = DisplayLinkFrameScheduler()
-        let presenter = LatestDisplayFrameCoalescer(
-            scheduler: scheduler,
-            minimumInterval: 0.2,
-            priority: GameJobRenderPriority.init
+        let presenter = LatestDisplayFrameCoalescer<GameJob>(
+            scheduler: scheduler
         ) { [weak self] job in
             self?.applyGameJob(job)
         }
@@ -97,21 +95,5 @@ extension LauncherStore {
         let currentRevision = gameJob?.revision ?? 0
         guard gameJob?.id != value.id || (value.revision ?? 0) >= currentRevision else { return }
         gameJob = value
-    }
-}
-
-private struct GameJobRenderPriority: Equatable {
-    let status: JobStatus
-    let message: String
-    let totalBytes: Int64
-    let chunksTotal: Int64
-    let hasActiveChunks: Bool
-
-    init(_ job: GameJob) {
-        status = job.status
-        message = job.message
-        totalBytes = job.totalBytes
-        chunksTotal = job.chunksTotal
-        hasActiveChunks = !job.activeChunks.isEmpty
     }
 }

@@ -1,54 +1,35 @@
 import AppKit
 import QuartzCore
 
-typealias DisplayFrameAction = @MainActor (CFTimeInterval) -> Void
+typealias DisplayFrameAction = @MainActor () -> Void
 
 @MainActor
 protocol DisplayFrameScheduling: AnyObject {
-    func schedule(
-        notBefore deadline: CFTimeInterval,
-        _ action: @escaping DisplayFrameAction
-    )
+    func schedule(_ action: @escaping DisplayFrameAction)
     func cancel()
 }
 
 @MainActor
-final class LatestDisplayFrameCoalescer<Value, Priority: Equatable> {
+final class LatestDisplayFrameCoalescer<Value> {
     private let scheduler: any DisplayFrameScheduling
-    private let minimumInterval: CFTimeInterval
-    private let priority: (Value) -> Priority
     private let present: (Value) -> Void
     private var pendingValue: Value?
-    private var pendingPriority: Priority?
-    private var lastPriority: Priority?
-    private var lastPresentationTime: CFTimeInterval?
     private var frameScheduled = false
 
     init(
         scheduler: any DisplayFrameScheduling,
-        minimumInterval: CFTimeInterval,
-        priority: @escaping (Value) -> Priority,
         present: @escaping (Value) -> Void
     ) {
         self.scheduler = scheduler
-        self.minimumInterval = minimumInterval
-        self.priority = priority
         self.present = present
     }
 
-    func submit(_ value: Value, at time: CFTimeInterval = CACurrentMediaTime()) {
-        let nextPriority = priority(value)
-        let previousPriority = pendingPriority ?? lastPriority
-        let needsImmediateFrame = previousPriority != nextPriority
+    func submit(_ value: Value) {
         pendingValue = value
-        pendingPriority = nextPriority
-        if frameScheduled, !needsImmediateFrame { return }
-        let deadline = needsImmediateFrame
-            ? time
-            : max(time, (lastPresentationTime ?? time) + minimumInterval)
+        guard !frameScheduled else { return }
         frameScheduled = true
-        scheduler.schedule(notBefore: deadline) { [weak self] timestamp in
-            self?.presentFrame(at: timestamp)
+        scheduler.schedule { [weak self] in
+            self?.presentFrame()
         }
     }
 
@@ -57,7 +38,6 @@ final class LatestDisplayFrameCoalescer<Value, Priority: Equatable> {
         frameScheduled = false
         guard let value = pendingValue else { return }
         pendingValue = nil
-        pendingPriority = nil
         present(value)
     }
 
@@ -65,16 +45,12 @@ final class LatestDisplayFrameCoalescer<Value, Priority: Equatable> {
         scheduler.cancel()
         frameScheduled = false
         pendingValue = nil
-        pendingPriority = nil
     }
 
-    private func presentFrame(at timestamp: CFTimeInterval) {
+    private func presentFrame() {
         frameScheduled = false
         guard let value = pendingValue else { return }
         pendingValue = nil
-        lastPriority = pendingPriority
-        pendingPriority = nil
-        lastPresentationTime = timestamp
         present(value)
     }
 }
@@ -83,19 +59,13 @@ final class LatestDisplayFrameCoalescer<Value, Priority: Equatable> {
 final class DisplayLinkFrameScheduler: NSObject, DisplayFrameScheduling {
     private var displayLink: CADisplayLink?
     private var action: DisplayFrameAction?
-    private var deadline: CFTimeInterval?
 
-    func schedule(
-        notBefore deadline: CFTimeInterval,
-        _ action: @escaping DisplayFrameAction
-    ) {
+    func schedule(_ action: @escaping DisplayFrameAction) {
         self.action = action
-        self.deadline = min(self.deadline ?? deadline, deadline)
         let link = displayLink ?? makeDisplayLink()
         guard let link else {
             self.action = nil
-            self.deadline = nil
-            action(CACurrentMediaTime())
+            action()
             return
         }
         displayLink = link
@@ -104,19 +74,15 @@ final class DisplayLinkFrameScheduler: NSObject, DisplayFrameScheduling {
 
     func cancel() {
         action = nil
-        deadline = nil
         displayLink?.invalidate()
         displayLink = nil
     }
 
     @objc private func handleFrame(_ link: CADisplayLink) {
-        let timestamp = link.targetTimestamp
-        guard timestamp >= (deadline ?? timestamp) else { return }
         link.isPaused = true
         let current = action
         action = nil
-        deadline = nil
-        current?(timestamp)
+        current?()
     }
 
     private func makeDisplayLink() -> CADisplayLink? {
