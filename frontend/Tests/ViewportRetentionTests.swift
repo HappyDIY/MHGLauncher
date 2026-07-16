@@ -65,4 +65,23 @@ struct ViewportRetentionTests {
 
         #expect(buffer.map(\.bytesPerSecond) == [3, 4, 5])
     }
+
+    @Test("速度动画向量使用固定内存")
+    func speedPlotVectorHasFixedCapacity() {
+        var buffer = SpeedSampleBuffer(capacity: 60)
+        let start = Date(timeIntervalSinceReferenceDate: 1_000)
+        for value in 1...100 {
+            buffer.append(SpeedSample(
+                time: start.addingTimeInterval(Double(value)),
+                bytesPerSecond: Int64(value)
+            ))
+        }
+
+        let vector = SpeedPlotVector(samples: buffer)
+
+        #expect(vector.times.scalarCount == 64)
+        #expect(vector.speeds.scalarCount == 64)
+        #expect(vector.speeds[0] == 41)
+        #expect(vector.speeds[59] == 100)
+    }
 }

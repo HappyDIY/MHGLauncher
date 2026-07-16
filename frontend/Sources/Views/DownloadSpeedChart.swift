@@ -1,4 +1,3 @@
-import Charts
 import SwiftUI
 
 struct DownloadSpeedChart: View {
@@ -21,43 +20,11 @@ struct DownloadSpeedChart: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                Chart {
-                    AreaPlot(
-                        samples,
-                        x: .value("时间", \.time),
-                        y: .value("速度", \.megabytesPerSecond)
-                    )
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.blue.opacity(0.18), .blue.opacity(0.02)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    LinePlot(
-                        samples,
-                        x: .value("时间", \.time),
-                        y: .value("速度", \.megabytesPerSecond)
-                    )
-                    .foregroundStyle(.blue)
-                    .interpolationMethod(.catmullRom)
-                }
-                .chartXAxis(.hidden)
-                .chartYAxis {
-                    AxisMarks(position: .leading) { value in
-                        AxisGridLine().foregroundStyle(.secondary.opacity(0.15))
-                        AxisValueLabel {
-                            if let number = value.as(Double.self) {
-                                Text(String(format: "%.0f MB/s", number))
-                            }
-                        }
-                    }
-                }
-                .frame(height: 92)
+                .motionAnimation(.progress, value: sampleID)
+                DownloadSpeedPlot(samples: samples)
                 .motionAnimation(.progress, value: updatePhase)
             }
         }
-        .motionAnimation(.progress, value: sampleID)
         .onChange(of: sampleID, initial: true) { _, _ in
             guard isActive || speed > 0 else { return }
             samples.append(SpeedSample(time: Date(), bytesPerSecond: speed))
