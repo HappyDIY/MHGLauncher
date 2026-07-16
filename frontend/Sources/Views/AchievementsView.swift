@@ -10,8 +10,9 @@ struct AchievementsView: View {
     @State var confirmsRemoval = false
 
     var body: some View {
+        let presentation = achievementPresentation
         VStack(alignment: .leading, spacing: 16) {
-            header.motionEntrance(order: 0)
+            header(presentation).motionEntrance(order: 0)
             if store.selectedRole == nil {
                 ContentUnavailableView(
                     "需要选择角色", systemImage: "person.crop.circle.badge.questionmark",
@@ -30,8 +31,8 @@ struct AchievementsView: View {
             } else if store.selectedAchievementArchive == nil {
                 emptyArchive.motionTransition(.content)
             } else {
-                toolbar.motionEntrance(order: 1)
-                content.motionEntrance(order: 2)
+                toolbar(presentation).motionEntrance(order: 1)
+                content(presentation).motionEntrance(order: 2)
             }
         }
         .confirmationDialog("删除当前成就档案？", isPresented: $confirmsRemoval) {
@@ -43,12 +44,12 @@ struct AchievementsView: View {
             Text("档案内的成就记录会一并删除，此操作无法撤销。")
         }
         .task { await store.loadValueData() }
-        .motionAnimation(.content, value: store.value.achievementEntries)
+        .motionAnimation(.content, value: achievementAnimationID)
     }
 
-    private var header: some View {
+    private func header(_ presentation: AchievementPresentation) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            PageHeader(title: "成就管理", subtitle: headerSubtitle)
+            PageHeader(title: "成就管理", subtitle: headerSubtitle(presentation))
             HStack(spacing: 10) {
                 Button("新建档案", systemImage: "plus") {
                     Task { await store.createAchievementArchive() }
@@ -68,7 +69,7 @@ struct AchievementsView: View {
         }
     }
 
-    private var toolbar: some View {
+    private func toolbar(_ presentation: AchievementPresentation) -> some View {
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
             GridRow {
                 Picker("布局", selection: $layoutMode) {
@@ -89,57 +90,59 @@ struct AchievementsView: View {
             GridRow {
                 Toggle("未完成优先", isOn: $uncompletedFirst).toggleStyle(.checkbox)
                 Toggle("每日委托", isOn: $dailyOnly).toggleStyle(.checkbox)
-                Text("\(filteredEntries.count) / \(store.value.achievementEntries.count)")
+                Text("\(presentation.entries.count) / \(store.value.achievementEntries.count)")
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }
         }
         .padding(14)
-        .glassEffect(.regular, in: .rect(cornerRadius: 12))
+        .background {
+            Color.clear.glassEffect(.regular, in: .rect(cornerRadius: 12))
+        }
     }
 
-    private var content: some View {
+    private func content(_ presentation: AchievementPresentation) -> some View {
         GeometryReader { geometry in
             if layoutMode == .list {
                 HStack(alignment: .top, spacing: 14) {
-                    goalList.frame(width: min(330, geometry.size.width * 0.34))
-                    achievementList
+                    goalList(presentation).frame(width: min(330, geometry.size.width * 0.34))
+                    achievementList(presentation)
                 }
             } else {
                 VStack(spacing: 14) {
-                    goalGrid.frame(height: min(260, max(180, geometry.size.height * 0.34)))
-                    achievementList
+                    goalGrid(presentation).frame(height: min(260, max(180, geometry.size.height * 0.34)))
+                    achievementList(presentation)
                 }
             }
         }
     }
 
-    private var goalList: some View {
+    private func goalList(_ presentation: AchievementPresentation) -> some View {
         ScrollView {
             LazyVStack(spacing: 6) {
-                goalButtons
+                goalButtons(presentation)
             }
             .padding(8)
         }
-        .glassEffect(.regular, in: .rect(cornerRadius: 12))
+        .background { Color.clear.glassEffect(.regular, in: .rect(cornerRadius: 12)) }
     }
 
-    private var goalGrid: some View {
+    private func goalGrid(_ presentation: AchievementPresentation) -> some View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 8)], spacing: 8) {
-                goalButtons
+                goalButtons(presentation)
             }
             .padding(8)
         }
-        .glassEffect(.regular, in: .rect(cornerRadius: 12))
+        .background { Color.clear.glassEffect(.regular, in: .rect(cornerRadius: 12)) }
     }
 
-    private var goalButtons: some View {
-        ForEach(visibleGoals) { goal in
+    private func goalButtons(_ presentation: AchievementPresentation) -> some View {
+        ForEach(presentation.goals) { goal in
             Button {
                 selectedGoal = selectedGoal == goal.id ? nil : goal.id
             } label: {
-                let stats = goalStats[goal.id] ?? (0, 0)
+                let stats = presentation.stats[goal.id] ?? (0, 0)
                 AchievementGoalCell(
                     goal: goal,
                     finished: stats.0,
@@ -153,10 +156,10 @@ struct AchievementsView: View {
         }
     }
 
-    private var achievementList: some View {
+    private func achievementList(_ presentation: AchievementPresentation) -> some View {
         ScrollView {
             LazyVStack(spacing: 8) {
-                ForEach(filteredEntries) { entry in
+                ForEach(presentation.entries) { entry in
                     AchievementEntryRow(
                         entry: entry,
                         checked: isChecked(entry)
@@ -168,7 +171,7 @@ struct AchievementsView: View {
             }
             .padding(8)
         }
-        .glassEffect(.regular, in: .rect(cornerRadius: 12))
+        .background { Color.clear.glassEffect(.regular, in: .rect(cornerRadius: 12)) }
     }
 
     private var emptyArchive: some View {
@@ -194,7 +197,4 @@ struct AchievementsView: View {
         }
     }
 
-    private var headerSubtitle: String {
-        "\(store.selectedAchievementArchive?.name ?? "未选择档案") · \(finishDescription)"
-    }
 }

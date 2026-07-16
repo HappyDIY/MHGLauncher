@@ -10,6 +10,14 @@ struct WishPityEntry: Identifiable {
 
 enum WishHistoryPresentation {
     static let timeZone = TimeZone(identifier: "Asia/Shanghai")!
+    private static let formatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.timeZone = timeZone
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter
+    }()
 
     static func entries(
         records: [WishRecord],
@@ -30,11 +38,6 @@ enum WishHistoryPresentation {
     }
 
     static func dateTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = .current
-        formatter.timeZone = timeZone
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
         return formatter.string(from: date)
     }
 }

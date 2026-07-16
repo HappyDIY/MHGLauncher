@@ -13,7 +13,7 @@ struct WishItemCell: View {
     }
 
     private var artwork: some View {
-        CachedAsyncImage(url: item.iconUrl) {
+        CachedAsyncImage(url: item.iconUrl, maxPixelDimension: 96) {
             placeholder
         }
         .frame(width: 38, height: 38)

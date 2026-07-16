@@ -33,7 +33,7 @@ struct AchievementGoalCell: View {
     }
 
     private var icon: some View {
-        CachedAsyncImage(url: goal.iconUrl) {
+        CachedAsyncImage(url: goal.iconUrl, maxPixelDimension: 96) {
             Image(systemName: "trophy.fill").foregroundStyle(.secondary)
         }
         .padding(5)

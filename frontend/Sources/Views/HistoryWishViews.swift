@@ -82,7 +82,11 @@ struct HistoryWishDetail: View {
 
     private var banner: some View {
         ZStack {
-            CachedAsyncImage(url: wish.bannerUrl, contentMode: .fill) {
+            CachedAsyncImage(
+                url: wish.bannerUrl,
+                contentMode: .fill,
+                maxPixelDimension: 1536
+            ) {
                 LinearGradient(
                     colors: [.cyan.opacity(0.35), .purple.opacity(0.2)],
                     startPoint: .topLeading,
@@ -132,7 +136,7 @@ struct HistoryWishIcon: View {
     let showsBadge: Bool
 
     var body: some View {
-        CachedAsyncImage(url: item.iconUrl) {
+        CachedAsyncImage(url: item.iconUrl, maxPixelDimension: 128) {
             Image(systemName: item.itemType == "角色" ? "person.fill" : "sparkles")
                 .font(.system(size: size * 0.38, weight: .medium))
                 .foregroundStyle(.white.opacity(0.86))

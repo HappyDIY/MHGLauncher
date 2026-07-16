@@ -48,9 +48,18 @@ final class LauncherStore {
         didSet { UserDefaults.standard.set(wineLogEnabled, forKey: "wineLogEnabled") }
     }
     var wishes: [WishRecord] = [] {
-        didSet { wishResultCatalog = WishResultCatalog(records: wishes) }
+        didSet {
+            wishResultCatalog = WishResultCatalog(records: wishes)
+            wishPityEntries = WishHistoryPresentation.entries(
+                records: wishes,
+                selectedGachaType: nil
+            )
+            refreshGachaHistoryPresentation()
+        }
     }
     var wishResultCatalog = WishResultCatalog(records: [])
+    var wishPityEntries: [WishPityEntry] = []
+    var gachaHistory: [HistoryWishEvent] = []
     var wishStatistics: [WishStatistics] = []
     var bannerDetails: [WishBannerDetail] = []
     var characters: [GameCharacter] = []; var selectedCharacterId: String?; var characterSearchText = ""

@@ -26,6 +26,7 @@ extension LauncherStore {
                 let loaded = try await events
                 guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
                 value.gachaEvents = loaded
+                refreshGachaHistoryPresentation()
             } catch {
                 guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
                 message = Self.presentableMessage(error)
@@ -61,6 +62,7 @@ extension LauncherStore {
                 "/v1/gacha-events/refresh",
                 body: CredentialRequest(credential: try requireCredential())
             )
+            refreshGachaHistoryPresentation()
         }
     }
 
@@ -137,6 +139,14 @@ extension LauncherStore {
     }
 
     func cloudKeychainAccount(uid: String) -> String { "cloud:\(uid)" }
+
+    func refreshGachaHistoryPresentation() {
+        gachaHistory = HistoryWishEvent.make(
+            events: value.gachaEvents,
+            records: wishes
+        )
+    }
+
     func cloudToken(uid: String) throws -> String {
         guard let token = try keychain.read(account: cloudKeychainAccount(uid: uid)) else {
             throw LauncherError.credentialMissing

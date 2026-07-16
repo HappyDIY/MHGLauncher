@@ -1,8 +1,24 @@
 import AppKit
 import UniformTypeIdentifiers
 
+struct AchievementPresentation {
+    let entries: [AchievementEntry]
+    let goals: [AchievementGoal]
+    let stats: [Int: (finished: Int, total: Int)]
+    let finishDescription: String
+}
+
 extension AchievementsView {
-    var filteredEntries: [AchievementEntry] {
+    var achievementAnimationID: String {
+        let archive = store.selectedAchievementArchive?.id ?? ""
+        return "\(archive):\(store.value.achievementRevision):\(store.value.achievementEntries.count)"
+    }
+
+    func headerSubtitle(_ presentation: AchievementPresentation) -> String {
+        "\(store.selectedAchievementArchive?.name ?? "未选择档案") · \(presentation.finishDescription)"
+    }
+
+    var achievementPresentation: AchievementPresentation {
         var entries = store.value.achievementEntries.filter(matchesFilters)
         if uncompletedFirst {
             entries.sort {
@@ -15,30 +31,26 @@ extension AchievementsView {
         } else {
             entries.sort { $0.order < $1.order }
         }
-        return entries
-    }
-
-    var visibleGoals: [AchievementGoal] {
-        let included = Set(filteredEntries.map(\.goal))
-        return store.value.achievementGoals
+        let included = Set(entries.map(\.goal))
+        let goals = store.value.achievementGoals
             .filter { included.contains($0.id) || selectedGoal == $0.id }
             .sorted { $0.order < $1.order }
-    }
-
-    var goalStats: [Int: (Int, Int)] {
-        store.value.achievementEntries.reduce(into: [:]) { result, entry in
+        let stats = store.value.achievementEntries.reduce(into: [Int: (Int, Int)]()) { result, entry in
             var value = result[entry.goal] ?? (0, 0)
             value.1 += 1
             if isChecked(entry) { value.0 += 1 }
             result[entry.goal] = value
         }
-    }
-
-    var finishDescription: String {
         let total = store.value.achievementEntries.count
-        let finished = store.value.achievementEntries.filter(isChecked).count
+        let finished = stats.values.reduce(0) { $0 + $1.0 }
         let percent = total == 0 ? 0 : Double(finished) / Double(total)
-        return "\(finished)/\(total) - \(percent.formatted(.percent.precision(.fractionLength(2))))"
+        let description = "\(finished)/\(total) - \(percent.formatted(.percent.precision(.fractionLength(2))))"
+        return AchievementPresentation(
+            entries: entries,
+            goals: goals,
+            stats: stats,
+            finishDescription: description
+        )
     }
 
     func isChecked(_ entry: AchievementEntry) -> Bool {

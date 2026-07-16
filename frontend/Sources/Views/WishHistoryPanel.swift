@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct WishHistoryPanel: View {
-    let records: [WishRecord]
+    let entries: [WishPityEntry]
     let selectedGachaType: String?
     @State private var searchText = ""
     @State private var rankFilter = WishRankFilter.all
@@ -81,14 +81,14 @@ struct WishHistoryPanel: View {
                 "从",
                 isOn: dateEnabled(
                     $dateFrom,
-                    fallback: calendar.startOfDay(for: records.last?.time ?? Date())
+                    fallback: calendar.startOfDay(for: entries.last?.record.time ?? Date())
                 )
             )
                 .toggleStyle(.checkbox)
             DatePicker(
                 "从",
                 selection: Binding(
-                    get: { dateFrom ?? records.last?.time ?? Date() },
+                    get: { dateFrom ?? entries.last?.record.time ?? Date() },
                     set: { dateFrom = calendar.startOfDay(for: $0) }
                 ),
                 displayedComponents: .date
@@ -144,10 +144,10 @@ struct WishHistoryPanel: View {
 
     private var filteredRecords: [WishPityEntry] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return WishHistoryPresentation.entries(
-            records: records, selectedGachaType: selectedGachaType
-        ).filter { entry in
+        return entries.filter { entry in
             let item = entry.record
+            let matchesPool = selectedGachaType == nil
+                || item.normalizedGachaType == selectedGachaType
             let matchesRank = rankFilter.rank.map { item.rank == $0 } ?? true
             let matchesSearch = query.isEmpty
                 || item.name.localizedCaseInsensitiveContains(query)
@@ -158,7 +158,7 @@ struct WishHistoryPanel: View {
             if let to = dateTo {
                 matchesDate = matchesDate && item.time <= to
             }
-            return matchesRank && matchesSearch && matchesDate
+            return matchesPool && matchesRank && matchesSearch && matchesDate
         }
     }
 }

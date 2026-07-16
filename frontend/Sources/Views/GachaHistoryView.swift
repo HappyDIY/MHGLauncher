@@ -4,18 +4,14 @@ struct GachaHistoryView: View {
     @Bindable var store: LauncherStore
     @State private var selectedID: String?
 
-    private var history: [HistoryWishEvent] {
-        HistoryWishEvent.make(events: store.value.gachaEvents, records: store.wishes)
-    }
-
     private var selection: HistoryWishEvent? {
-        history.first { $0.id == selectedID } ?? history.first
+        store.gachaHistory.first { $0.id == selectedID } ?? store.gachaHistory.first
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header.motionEntrance(order: 0)
-            if history.isEmpty {
+            if store.gachaHistory.isEmpty {
                 emptyState.motionTransition(.content)
             } else {
                 GeometryReader { geometry in
@@ -40,9 +36,9 @@ struct GachaHistoryView: View {
             await store.loadValueData()
             if store.wishes.isEmpty { await store.loadCompanionData() }
         }
-        .onChange(of: history.map(\.id)) {
-            if !(selectedID.map { id in history.contains { $0.id == id } } ?? false) {
-                selectedID = history.first?.id
+        .onChange(of: store.gachaHistory.map(\.id)) {
+            if !(selectedID.map { id in store.gachaHistory.contains { $0.id == id } } ?? false) {
+                selectedID = store.gachaHistory.first?.id
             }
         }
     }
@@ -66,8 +62,8 @@ struct GachaHistoryView: View {
 
     private var subtitle: String {
         guard let role = store.selectedRole else { return "请先登录账号并同步祈愿记录" }
-        let count = history.reduce(0) { $0 + $1.total }
-        return "\(role.nickname) · UID \(role.uid) · 已匹配 \(history.count) 个卡池、\(count) 抽"
+        let count = store.gachaHistory.reduce(0) { $0 + $1.total }
+        return "\(role.nickname) · UID \(role.uid) · 已匹配 \(store.gachaHistory.count) 个卡池、\(count) 抽"
     }
 
     private var emptyState: some View {
@@ -91,7 +87,7 @@ struct GachaHistoryView: View {
     private var listPane: some View {
         ScrollView {
             LazyVStack(spacing: 8) {
-                ForEach(history) { wish in
+                ForEach(store.gachaHistory) { wish in
                     HistoryWishRow(
                         wish: wish,
                         selected: selection?.id == wish.id

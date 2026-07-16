@@ -66,10 +66,17 @@ struct WishPresentationTests {
         #expect(results[1].count == 2)
     }
 
-    @Test("祈愿记录变化时刷新成果目录")
+    @Test("祈愿记录变化时刷新派生展示数据")
     @MainActor
     func refreshesResultCatalog() {
         let store = LauncherStore()
+        store.value.gachaEvents = [GachaEvent(
+            id: "event", version: "5.7", gachaType: "301", name: "角色活动祈愿",
+            startedAt: date("2026-06-18T00:00:00Z"),
+            endedAt: date("2026-06-22T00:00:00Z"),
+            orangeUp: ["测试角色"], purpleUp: [], bannerUrl: nil,
+            updatedAt: date("2026-06-18T00:00:00Z")
+        )]
         store.wishes = [
             record(id: "1", itemId: "1001", name: "测试角色", type: "角色", rank: 5),
             record(id: "2", itemId: "2001", name: "测试武器", type: "武器", rank: 4)
@@ -77,6 +84,8 @@ struct WishPresentationTests {
 
         #expect(store.wishResultCatalog.characters.map(\.name) == ["测试角色"])
         #expect(store.wishResultCatalog.weapons.map(\.name) == ["测试武器"])
+        #expect(store.wishPityEntries.count == 2)
+        #expect(store.gachaHistory.first?.total == 2)
     }
 
     @Test("五星筛选保留完整卡池保底计数")

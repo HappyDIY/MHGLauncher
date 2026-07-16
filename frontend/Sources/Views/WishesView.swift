@@ -53,7 +53,7 @@ struct WishesView: View {
         }
         .sheet(isPresented: $showsHistory) {
             WishHistoryPanel(
-                records: store.wishes,
+                entries: store.wishPityEntries,
                 selectedGachaType: selectedDetail?.gachaType
             )
             .frame(minWidth: 760, minHeight: 520)

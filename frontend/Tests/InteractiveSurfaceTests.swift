@@ -18,7 +18,13 @@ struct InteractiveSurfaceTests {
             name: "运行时准备"
         )
         render(
-            AnyView(WishHistoryPanel(records: InteractiveFixtures.wishRecords, selectedGachaType: "301")),
+            AnyView(WishHistoryPanel(
+                entries: WishHistoryPresentation.entries(
+                    records: InteractiveFixtures.wishRecords,
+                    selectedGachaType: nil
+                ),
+                selectedGachaType: "301"
+            )),
             name: "祈愿历史"
         )
     }

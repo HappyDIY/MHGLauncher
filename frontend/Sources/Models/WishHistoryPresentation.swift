@@ -31,10 +31,15 @@ struct HistoryWishEvent: Identifiable, Equatable {
     var totalText: String { "总计 \(total) 抽" }
 
     static func make(events: [GachaEvent], records: [WishRecord]) -> [HistoryWishEvent] {
-        events.compactMap { event in
+        let recordsByType = Dictionary(grouping: records, by: \.normalizedGachaType)
+        let samples = records.reduce(into: [Int: [String: WishRecord]]()) { result, record in
+            if result[record.rank]?[record.name] == nil {
+                result[record.rank, default: [:]][record.name] = record
+            }
+        }
+        return events.compactMap { event -> HistoryWishEvent? in
             guard let startedAt = event.startedAt, let endedAt = event.endedAt else { return nil }
-            let eventRecords = records
-                .filter { $0.normalizedGachaType == event.gachaType.normalizedGachaType }
+            let eventRecords = (recordsByType[event.gachaType.normalizedGachaType] ?? [])
                 .filter { startedAt <= $0.time && $0.time <= endedAt }
             return HistoryWishEvent(
                 id: event.id,
@@ -45,8 +50,8 @@ struct HistoryWishEvent: Identifiable, Equatable {
                 startedAt: startedAt,
                 endedAt: endedAt,
                 total: eventRecords.count,
-                orangeUp: upItems(names: event.orangeUp, rank: 5, eventRecords: eventRecords, records: records),
-                purpleUp: upItems(names: event.purpleUp, rank: 4, eventRecords: eventRecords, records: records),
+                orangeUp: upItems(names: event.orangeUp, rank: 5, eventRecords: eventRecords, samples: samples),
+                purpleUp: upItems(names: event.purpleUp, rank: 4, eventRecords: eventRecords, samples: samples),
                 summary: aggregate(eventRecords, rank: 5),
                 purple: aggregate(eventRecords, rank: 4),
                 blue: aggregate(eventRecords, rank: 3)
@@ -63,13 +68,12 @@ struct HistoryWishEvent: Identifiable, Equatable {
         names: [String],
         rank: Int,
         eventRecords: [WishRecord],
-        records: [WishRecord]
+        samples: [Int: [String: WishRecord]]
     ) -> [HistoryWishItem] {
         let counts = Dictionary(grouping: eventRecords.filter { $0.rank == rank }, by: \.name)
-        let samples = Dictionary(grouping: records.filter { $0.rank == rank }, by: \.name)
         return names.enumerated().map { index, name in
             let matches = counts[name] ?? []
-            let sample = matches.first ?? samples[name]?.first
+            let sample = matches.first ?? samples[rank]?[name]
             return (
                 index,
                 HistoryWishItem(
@@ -120,13 +124,17 @@ struct HistoryWishEvent: Identifiable, Equatable {
         }
     }
 
-    private static func dayString(_ date: Date) -> String {
+    private static let dayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "zh_Hans_CN")
         formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
         formatter.dateFormat = "yyyy.MM.dd"
-        return formatter.string(from: date)
+        return formatter
+    }()
+
+    private static func dayString(_ date: Date) -> String {
+        dayFormatter.string(from: date)
     }
 }
 
