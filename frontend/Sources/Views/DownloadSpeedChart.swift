@@ -20,7 +20,7 @@ struct DownloadSpeedChart: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                Chart(samples.values) { sample in
+                Chart(samples) { sample in
                     AreaMark(
                         x: .value("时间", sample.time),
                         y: .value("速度", sample.megabytesPerSecond)
@@ -76,19 +76,25 @@ struct SpeedSample: Identifiable {
     var megabytesPerSecond: Double { Double(bytesPerSecond) / 1_048_576 }
 }
 
-struct SpeedSampleBuffer {
+struct SpeedSampleBuffer: RandomAccessCollection {
+    typealias Index = Int
+
     private let capacity: Int
     private var storage: [SpeedSample] = []
     private var writeIndex = 0
 
     init(capacity: Int) {
-        self.capacity = max(capacity, 1)
+        self.capacity = Swift.max(capacity, 1)
         storage.reserveCapacity(self.capacity)
     }
 
-    var values: [SpeedSample] {
-        guard storage.count == capacity, writeIndex > 0 else { return storage }
-        return Array(storage[writeIndex...]) + storage[..<writeIndex]
+    var startIndex: Int { 0 }
+    var endIndex: Int { storage.count }
+
+    subscript(position: Int) -> SpeedSample {
+        precondition(indices.contains(position))
+        guard storage.count == capacity else { return storage[position] }
+        return storage[(writeIndex + position) % capacity]
     }
 
     mutating func append(_ sample: SpeedSample) {

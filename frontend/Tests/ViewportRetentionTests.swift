@@ -49,6 +49,6 @@ struct ViewportRetentionTests {
             ))
         }
 
-        #expect(buffer.values.map(\.bytesPerSecond) == [3, 4, 5])
+        #expect(buffer.map(\.bytesPerSecond) == [3, 4, 5])
     }
 }
