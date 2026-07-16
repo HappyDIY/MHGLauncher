@@ -7,6 +7,7 @@ import { launchEnvironment, runtimePaths } from "./game-launch-environment";
 import { configureChineseGameLanguage } from "./game-launch-language";
 import { restoreGameAccountRegistry, writeGameAccountRegistry, type RegistryAccount, type RegistrySnapshot } from "./game-account-registry";
 import { runCommand } from "./process-command";
+import { stopWineServer } from "./game-wine-server";
 
 export interface LaunchRunInput {
   gameRoot: string; runtimeRoot: string; dataDir: string; sessionDir: string;
@@ -77,7 +78,7 @@ export class WineLaunchRunner implements GameLaunchRunner {
       const finish = async (code: number, error?: unknown): Promise<void> => {
         if (cleaned || finishing) return; finishing = true; cleanup();
         try {
-          await this.stopServer(paths.wineserver, prefix);
+          await stopWineServer(paths.wineserver, prefix);
           if (registrySnapshot) { await restoreGameAccountRegistry(paths.wine, env, registrySnapshot); registrySnapshot = null; }
           cleaned = true;
           if (!reported) { reported = true; if (error) reject(error); else resolve(code); }
@@ -102,7 +103,7 @@ export class WineLaunchRunner implements GameLaunchRunner {
       throw new AppError("rosetta_missing", "请先安装 Rosetta 2 后再启动游戏", 409);
     }
     mkdirSync(prefix, { recursive: true, mode: 0o700 });
-    await this.stopServer(wineserver, prefix);
+    await stopWineServer(wineserver, prefix);
     const localeEnv = {
       ...process.env, LANG: "zh_CN.UTF-8", LANGUAGE: "zh_CN:zh",
       LC_ALL: "zh_CN.UTF-8", LC_MESSAGES: "zh_CN.UTF-8",
@@ -116,7 +117,7 @@ export class WineLaunchRunner implements GameLaunchRunner {
     await this.configureChineseLocale(wine, localeEnv);
     await this.configureRetinaMode(wine, localeEnv);
     await configureChineseGameLanguage(wine, localeEnv);
-    await this.stopServer(wineserver, prefix);
+    await stopWineServer(wineserver, prefix);
     const system32 = join(prefix, "drive_c", "windows", "system32"); mkdirSync(system32, { recursive: true });
     copyFileSync(winemetal, join(system32, "winemetal.dll"));
   }
@@ -146,12 +147,4 @@ export class WineLaunchRunner implements GameLaunchRunner {
     if (result.status !== 0) throw new AppError("wine_retina_failed", "Wine 高分辨率模式配置失败", 500);
   }
 
-  private async stopServer(wineserver: string, prefix: string): Promise<void> {
-    const env = { ...process.env, WINEPREFIX: prefix, WINEDEBUG: "-all" };
-    const stop = await runCommand(wineserver, ["-k"], { env });
-    const wait = stop.status === 0 ? await runCommand(wineserver, ["-w"], { env }) : null;
-    if (stop.error || stop.status !== 0 || wait?.error || wait?.status !== 0) {
-      throw new AppError("wine_server_stop_failed", "Wine 服务未能在期限内确认退出", 500);
-    }
-  }
 }
