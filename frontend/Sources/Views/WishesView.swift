@@ -29,15 +29,16 @@ struct WishesView: View {
                     .motionTransition(.content)
             } else {
                 WishOverviewHero(
-                    records: store.wishes,
-                    details: store.bannerDetails,
+                    summary: store.wishOverviewSummary,
+                    bannerCount: store.bannerDetails.count,
                     uid: store.selectedRole?.uid
                 )
+                .equatable()
                 .motionEntrance(order: 1)
                 workspace.motionEntrance(order: 2)
             }
         }
-        .motionAnimation(.emphasis, value: store.wishOperation?.id)
+        .motionAnimation(.emphasis, value: store.isWishOperationActive)
         .motionAnimation(.content, value: store.companionLoaded)
         .confirmationDialog(
             "永久清空全部祈愿记录？",
@@ -87,12 +88,12 @@ struct WishesView: View {
             }
             .buttonStyle(.glassProminent)
             .motionHover(.prominent)
-            .disabled(store.wishOperation != nil)
+            .disabled(store.isWishOperationActive)
 
             Button("详细记录", systemImage: "tablecells") { showsHistory = true }
                 .buttonStyle(.glass)
                 .motionHover()
-                .disabled(store.wishes.isEmpty || store.wishOperation != nil)
+                .disabled(store.wishes.isEmpty || store.isWishOperationActive)
 
             Menu {
                 Button("导入 UIGF", systemImage: "square.and.arrow.down") { importFile() }
@@ -109,7 +110,7 @@ struct WishesView: View {
             .menuStyle(.button)
             .buttonStyle(.glass)
             .motionHover()
-            .disabled(store.wishOperation != nil)
+            .disabled(store.isWishOperationActive)
         }
     }
     private var workspace: some View {

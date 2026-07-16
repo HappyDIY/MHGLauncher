@@ -1,6 +1,6 @@
 import Foundation
 
-struct HistoryWishItem: Identifiable, Equatable {
+struct HistoryWishItem: Identifiable, Equatable, Sendable {
     let id: String
     let name: String
     let itemType: String
@@ -9,7 +9,7 @@ struct HistoryWishItem: Identifiable, Equatable {
     let count: Int
 }
 
-struct HistoryWishEvent: Identifiable, Equatable {
+struct HistoryWishEvent: Identifiable, Equatable, Sendable {
     let id: String
     let version: String
     let name: String

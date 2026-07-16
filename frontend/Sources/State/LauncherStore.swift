@@ -47,17 +47,9 @@ final class LauncherStore {
     var wineLogEnabled = UserDefaults.standard.bool(forKey: "wineLogEnabled") {
         didSet { UserDefaults.standard.set(wineLogEnabled, forKey: "wineLogEnabled") }
     }
-    var wishes: [WishRecord] = [] {
-        didSet {
-            wishResultCatalog = WishResultCatalog(records: wishes)
-            wishPityEntries = WishHistoryPresentation.entries(
-                records: wishes,
-                selectedGachaType: nil
-            )
-            refreshGachaHistoryPresentation()
-        }
-    }
+    var wishes: [WishRecord] = []
     var wishResultCatalog = WishResultCatalog(records: [])
+    var wishOverviewSummary = WishOverviewSummary(records: [])
     var wishPityEntries: [WishPityEntry] = []
     var gachaHistory: [HistoryWishEvent] = []
     var wishStatistics: [WishStatistics] = []
@@ -78,10 +70,18 @@ final class LauncherStore {
     var companionLoaded = false
     @ObservationIgnored var companionSelectionIntent = 0
     @ObservationIgnored var companionDataGeneration = 0
+    @ObservationIgnored var wishPresentationIntent = 0
+    @ObservationIgnored var gachaHistoryPresentationIntent = 0
     @ObservationIgnored let achievementSelectionGate = AsyncSerialGate()
     var message: String?
     var statusMessage: String?; var statusMessageRevision = 0
-    var wishOperation: WishOperationState?
+    var isWishOperationActive = false
+    var wishOperation: WishOperationState? {
+        didSet {
+            let active = wishOperation != nil
+            if isWishOperationActive != active { isWishOperationActive = active }
+        }
+    }
     var triggerWishImport = false
     var triggerWishExport = false
     var triggerWishClear = false

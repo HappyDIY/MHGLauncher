@@ -1,8 +1,8 @@
 import SwiftUI
 
-struct WishOverviewHero: View {
-    let records: [WishRecord]
-    let details: [WishBannerDetail]
+struct WishOverviewHero: View, Equatable {
+    let summary: WishOverviewSummary
+    let bannerCount: Int
     let uid: String?
 
     var body: some View {
@@ -15,26 +15,18 @@ struct WishOverviewHero: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            heroMetric("\(records.count)", "总祈愿", color: .primary)
-            heroMetric("\(fiveStarCount)", "五星", color: .orange)
-            heroMetric("\(fourStarCount)", "四星", color: .purple)
-            heroMetric("\(details.count)", "卡池", color: .cyan)
+            heroMetric("\(summary.total)", "总祈愿", color: .primary)
+            heroMetric("\(summary.fiveStarCount)", "五星", color: .orange)
+            heroMetric("\(summary.fourStarCount)", "四星", color: .purple)
+            heroMetric("\(bannerCount)", "卡池", color: .cyan)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 15)
         .glassEffect(.regular.tint(.cyan.opacity(0.05)), in: .rect(cornerRadius: 22))
     }
 
-    private var fiveStarCount: Int {
-        records.count { $0.rank == 5 }
-    }
-
-    private var fourStarCount: Int {
-        records.count { $0.rank == 4 }
-    }
-
     private var dateRange: String {
-        guard let oldest = records.last?.time, let newest = records.first?.time else {
+        guard let oldest = summary.oldestTime, let newest = summary.newestTime else {
             return uid.map { "UID \($0)" } ?? "暂无记录"
         }
         let range = "\(oldest.formatted(date: .abbreviated, time: .omitted)) 至 "

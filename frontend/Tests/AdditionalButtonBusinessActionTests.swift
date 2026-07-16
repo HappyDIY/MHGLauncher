@@ -26,11 +26,15 @@ struct AdditionalButtonBusinessActionTests {
         let backend = ValueFakeBackend()
         let store = LauncherStore(deviceOwnerAuthenticator: ValueAuthenticator())
         store.backend.useClient(APIClient(token: "fixture") { try await backend.respond($0) })
-        store.account = InteractiveFixtures.account
+        let account = Account(
+            aid: "value-buttons", mid: "value-buttons", nickname: "旅行者",
+            credentialRef: "keychain:account:value-buttons", selected: true, updatedAt: .now
+        )
+        store.account = account
         store.roles = [InteractiveFixtures.role]
-        try store.keychain.save("stoken=fixture", account: store.keychainAccount(for: InteractiveFixtures.account.aid))
+        try store.keychain.save("stoken=fixture", account: store.keychainAccount(for: account.aid))
         defer {
-            try? store.keychain.delete(account: store.keychainAccount(for: InteractiveFixtures.account.aid))
+            try? store.keychain.delete(account: store.keychainAccount(for: account.aid))
             try? store.keychain.delete(account: store.cloudKeychainAccount(uid: InteractiveFixtures.role.uid))
         }
 

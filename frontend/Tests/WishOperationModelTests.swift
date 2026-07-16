@@ -51,4 +51,18 @@ struct WishOperationModelTests {
         #expect(operation.status == .failed)
         #expect(operation.progress == 0.4)
     }
+
+    @Test("操作进度更新不改变页面忙碌状态")
+    @MainActor
+    func stableActiveState() {
+        let store = LauncherStore()
+        store.wishOperation = WishOperationState(kind: .sync)
+        #expect(store.isWishOperationActive)
+
+        store.updateWishOperation(0.5, "同步中")
+        #expect(store.isWishOperationActive)
+
+        store.wishOperation = nil
+        #expect(!store.isWishOperationActive)
+    }
 }

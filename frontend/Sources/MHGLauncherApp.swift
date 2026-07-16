@@ -37,7 +37,7 @@ struct AppCommands: Commands {
             Button("同步记录") {
                 Task { await store?.syncWishes() }
             }
-            .disabled(store.map { $0.wishOperation != nil || $0.selectedRole == nil } ?? true)
+            .disabled(store.map { $0.isWishOperationActive || $0.selectedRole == nil } ?? true)
 
             Divider()
 
@@ -45,13 +45,13 @@ struct AppCommands: Commands {
                 store?.selectedDestination = .wishes
                 store?.triggerWishImport = true
             }
-            .disabled(store.map { $0.wishOperation != nil || $0.selectedRole == nil } ?? true)
+            .disabled(store.map { $0.isWishOperationActive || $0.selectedRole == nil } ?? true)
 
             Button("导出 UIGF 数据") {
                 store?.selectedDestination = .wishes
                 store?.triggerWishExport = true
             }
-            .disabled(store.map { $0.wishOperation != nil || $0.wishes.isEmpty } ?? true)
+            .disabled(store.map { $0.isWishOperationActive || $0.wishes.isEmpty } ?? true)
 
             Divider()
 
@@ -59,7 +59,7 @@ struct AppCommands: Commands {
                 store?.selectedDestination = .wishes
                 store?.triggerWishClear = true
             }
-            .disabled(store.map { $0.wishOperation != nil || $0.wishes.isEmpty } ?? true)
+            .disabled(store.map { $0.isWishOperationActive || $0.wishes.isEmpty } ?? true)
         }
 
         CommandMenu("账号") {

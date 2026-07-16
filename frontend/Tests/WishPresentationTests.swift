@@ -68,7 +68,7 @@ struct WishPresentationTests {
 
     @Test("祈愿记录变化时刷新派生展示数据")
     @MainActor
-    func refreshesResultCatalog() {
+    func refreshesResultCatalog() async {
         let store = LauncherStore()
         store.value.gachaEvents = [GachaEvent(
             id: "event", version: "5.7", gachaType: "301", name: "角色活动祈愿",
@@ -77,10 +77,10 @@ struct WishPresentationTests {
             orangeUp: ["测试角色"], purpleUp: [], bannerUrl: nil,
             updatedAt: date("2026-06-18T00:00:00Z")
         )]
-        store.wishes = [
+        await store.installWishRecords([
             record(id: "1", itemId: "1001", name: "测试角色", type: "角色", rank: 5),
             record(id: "2", itemId: "2001", name: "测试武器", type: "武器", rank: 4)
-        ]
+        ])
 
         #expect(store.wishResultCatalog.characters.map(\.name) == ["测试角色"])
         #expect(store.wishResultCatalog.weapons.map(\.name) == ["测试武器"])

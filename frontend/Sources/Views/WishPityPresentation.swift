@@ -2,7 +2,7 @@ import Foundation
 
 // 保底计数必须在显示筛选之前按卡池计算。
 
-struct WishPityEntry: Identifiable {
+struct WishPityEntry: Identifiable, Sendable {
     var id: String { record.id }
     let record: WishRecord
     let pity: Int

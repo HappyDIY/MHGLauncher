@@ -18,7 +18,7 @@ extension LauncherStore {
             updateWishOperation(nil, "正在请求后端删除全部祈愿记录")
             let client = try requireClient()
             let result: CountResponse = try await client.deleteResponse("/v1/wishes")
-            wishes = []
+            clearWishPresentation()
             wishStatistics = []
             bannerDetails = []
             finishWishOperation("已永久删除 \(result.deleted ?? 0) 条记录")
@@ -100,14 +100,7 @@ extension LauncherStore {
             "/v1/companion/snapshot",
             query: [URLQueryItem(name: "uid", value: uid)]
         )
-        guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
-        (wishes, wishStatistics, bannerDetails, dailyNote) = (
-            snapshot.wishes,
-            snapshot.statistics,
-            snapshot.bannerStatistics,
-            snapshot.note
-        )
-        companionLoaded = true
+        await applyCompanionSnapshot(snapshot, uid: uid, generation: generation)
     }
 }
 

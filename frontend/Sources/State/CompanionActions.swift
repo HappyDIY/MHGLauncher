@@ -159,13 +159,6 @@ extension LauncherStore {
             "/v1/companion/snapshot",
             query: [URLQueryItem(name: "uid", value: uid)]
         )
-        guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
-        (wishes, wishStatistics, bannerDetails, dailyNote) = (
-            snapshot.wishes,
-            snapshot.statistics,
-            snapshot.bannerStatistics,
-            snapshot.note
-        )
-        companionLoaded = true
+        await applyCompanionSnapshot(snapshot, uid: uid, generation: generation)
     }
 }

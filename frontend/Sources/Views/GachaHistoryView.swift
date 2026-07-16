@@ -56,7 +56,7 @@ struct GachaHistoryView: View {
             }
             .buttonStyle(.glass)
             .motionHover()
-            .disabled(store.wishOperation != nil)
+            .disabled(store.isWishOperationActive)
         }
     }
 
@@ -78,7 +78,7 @@ struct GachaHistoryView: View {
             Button("同步记录") { Task { await store.syncWishes() } }
                 .buttonStyle(.glass)
                 .motionHover()
-                .disabled(store.wishOperation != nil)
+                .disabled(store.isWishOperationActive)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .glassEffect(.regular, in: .rect(cornerRadius: 22))

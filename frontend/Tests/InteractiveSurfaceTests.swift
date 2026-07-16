@@ -7,9 +7,9 @@ import Testing
 struct InteractiveSurfaceTests {
     @Test("所有主入口可实例化且布局无崩溃")
     @MainActor
-    func destinationSurfacesRender() {
+    func destinationSurfacesRender() async {
         for destination in Destination.allCases {
-            let store = fixtureStore()
+            let store = await fixtureStore()
             store.selectedDestination = destination
             render(AnyView(RootView(store: store)), name: destination.rawValue)
         }
@@ -69,7 +69,7 @@ struct InteractiveSurfaceTests {
     }
 
     @MainActor
-    private func fixtureStore() -> LauncherStore {
+    private func fixtureStore() async -> LauncherStore {
         let store = LauncherStore()
         store.backend.useClient(APIClient(token: "fixture") { _ in
             APIResponse(status: 200, body: Data("{}".utf8))
@@ -84,7 +84,7 @@ struct InteractiveSurfaceTests {
         store.gameRuntimeReady = true
         store.companionLoaded = true
         store.dailyNote = InteractiveFixtures.dailyNote
-        store.wishes = InteractiveFixtures.wishRecords
+        await store.installWishRecords(InteractiveFixtures.wishRecords)
         store.wishStatistics = [InteractiveFixtures.wishStatistics]
         store.bannerDetails = [InteractiveFixtures.bannerDetail]
         store.speedLimitKB = 1024

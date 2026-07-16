@@ -22,7 +22,7 @@ enum WishResultMode: String, CaseIterable, Identifiable {
     var itemType: String { title }
 }
 
-struct WishResultItem: Identifiable, Equatable {
+struct WishResultItem: Identifiable, Equatable, Sendable {
     let id: String
     let name: String
     let rank: Int
@@ -36,7 +36,7 @@ struct WishResultItem: Identifiable, Equatable {
     var extraCopies: Int { max(count - 7, 0) }
 }
 
-struct WishResultCatalog: Equatable {
+struct WishResultCatalog: Equatable, Sendable {
     let characters: [WishResultItem]
     let weapons: [WishResultItem]
 

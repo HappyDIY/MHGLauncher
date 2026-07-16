@@ -36,8 +36,8 @@ struct RootView: View {
                 }
             }
         }
-        .disabled(store.wishOperation != nil)
-        .accessibilityHidden(store.wishOperation != nil)
+        .disabled(store.isWishOperationActive)
+        .accessibilityHidden(store.isWishOperationActive)
         .overlay(alignment: .top) {
             if let status = store.statusMessage {
                 Label(status, systemImage: "checkmark.circle.fill")
@@ -54,13 +54,9 @@ struct RootView: View {
         }
         .motionAnimation(.content, value: store.statusMessage)
         .overlay {
-            if let operation = store.wishOperation {
-                WishOperationOverlay(operation: operation) {
-                    store.wishOperation = nil
-                }
-            }
+            WishOperationHost(store: store)
         }
-        .motionAnimation(.emphasis, value: store.wishOperation?.id)
+        .motionAnimation(.emphasis, value: store.isWishOperationActive)
         .alert(
             "提示",
             isPresented: Binding(

@@ -12,7 +12,7 @@ extension LauncherStore {
 
     func resetCompanionData() -> Int {
         companionDataGeneration &+= 1
-        wishes = []
+        clearWishPresentation()
         wishStatistics = []
         bannerDetails = []
         dailyNote = nil
