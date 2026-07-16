@@ -135,13 +135,12 @@ export class GameService {
     const path = paths.root;
     job.status = "running"; job.message = job.kind === "predownload" ? "正在下载预下载资源" : job.kind === "verify" ? "正在校验游戏资源" : job.kind === "install" ? "正在安装游戏资源" : "正在更新游戏资源"; this.touch(job);
     if (job.kind === "predownload") return this.runPredownload(job, control, path, build, lease);
-    const staging = `${path}.mhg-staging-${job.id}`;
+    const inPlaceResume = job.kind === "install" && paths.resume?.source === path, staging = inPlaceResume ? path : `${path}.mhg-staging-${job.id}`;
     try {
       const cache = this.cacheFor(path, build.version);
       const marker = managedPath(staging, ".mhg-staging-version");
       await control.checkpoint();
-      stageExisting(job.kind === "install" ? paths.source : path, staging);
-      writeManagedFile(staging, ".mhg-staging-version", build.version);
+      if (!inPlaceResume) { stageExisting(job.kind === "install" ? paths.source : path, staging); writeManagedFile(staging, ".mhg-staging-version", build.version); }
       mkdirSync(cache, { recursive: true });
       const limiter = maybeRateLimiter(this.mutableSpeedLimitKB);
       const reporting = makeGameResourceProgress(job, build, () => this.touch(job));
@@ -151,12 +150,12 @@ export class GameService {
       });
       await control.checkpoint(); job.message = "正在提交游戏目录"; job.download_speed = 0; this.touch(job);
       if (!existsSync(managedPath(staging, "YuanShen.exe"))) throw new AppError("game_install_incomplete", "资源安装完成后仍缺少 YuanShen.exe，未激活不完整目录");
-      rmSync(marker, { force: true });
       writeManagedFile(staging, ".mhg-version", build.version);
       ensureGameConfiguration(staging, build.version);
       writeIntegrityIndex(staging, canonical);
       if (canonical.assets.length) writeManagedFile(staging, ".mhg-assets.json", JSON.stringify(canonical.assets.map(({ name }) => name)));
-      activate(staging, path);
+      rmSync(marker, { force: true });
+      if (!inPlaceResume) activate(staging, path);
       if (paths.resume && paths.resume.source !== path) rmSync(paths.resume.source, { recursive: true, force: true });
       this.saveState(path, build.version); rmSync(job.kind === "verify" ? cache : this.cacheScopeFor(path), { recursive: true, force: true }); clearPredownloadStatus(cache);
       reporting.flush(); job.completed_bytes = job.total_bytes; job.download_speed = 0; job.status = "completed";
@@ -164,10 +163,7 @@ export class GameService {
     } catch (error) {
       job.download_speed = 0; job.status = error instanceof DOMException && error.name === "AbortError" ? "cancelled" : "failed";
       job.message = error instanceof AppError ? error.message : "游戏任务失败，请稍后重试"; this.touch(job);
-    } finally {
-      rmSync(staging, { recursive: true, force: true });
-      this.coordinator.release(lease);
-    }
+    } finally { if (!inPlaceResume) rmSync(staging, { recursive: true, force: true }); this.coordinator.release(lease); }
   }
   private async runPredownload(job: GameJob, control: DownloadControl, path: string, build: GameBuild, lease: ResourceLease): Promise<void> {
     try {
