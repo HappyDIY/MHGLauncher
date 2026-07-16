@@ -16,13 +16,22 @@ struct ViewportRetentionState: Equatable {
         guard height > 0 else { return }
         retainedHeight = height
     }
+
+    mutating func invalidateMeasurement() {
+        retainedHeight = 0
+    }
 }
 
 struct ViewportRetainedContent<Content: View>: View {
     @State private var retention = ViewportRetentionState()
+    private let geometryID: AnyHashable?
     private let content: () -> Content
 
-    init(@ViewBuilder content: @escaping () -> Content) {
+    init(
+        geometryID: AnyHashable? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.geometryID = geometryID
         self.content = content
     }
 
@@ -47,6 +56,9 @@ struct ViewportRetainedContent<Content: View>: View {
         }
         .onPreferenceChange(RetainedHeightKey.self) { height in
             retention.updateHeight(height)
+        }
+        .onChange(of: geometryID) {
+            retention.invalidateMeasurement()
         }
         .onScrollVisibilityChange(threshold: 0.01) { isVisible in
             retention.updateVisibility(isVisible)

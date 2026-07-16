@@ -37,6 +37,20 @@ struct ViewportRetentionTests {
         #expect(state.retainedHeight == 148)
     }
 
+    @Test("隐藏期间结构变化仅重新测量一次")
+    func invalidatesHeightForStructuralChange() {
+        var state = ViewportRetentionState()
+        state.updateHeight(148)
+        state.updateVisibility(false)
+
+        state.invalidateMeasurement()
+
+        #expect(state.shouldRender)
+        state.updateHeight(196)
+        #expect(!state.shouldRender)
+        #expect(state.retainedHeight == 196)
+    }
+
     @Test("速度样本环形缓冲区保留最新项与时间顺序")
     func speedBufferRetainsNewestSamples() {
         var buffer = SpeedSampleBuffer(capacity: 3)

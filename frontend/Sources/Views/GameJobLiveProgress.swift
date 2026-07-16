@@ -80,7 +80,9 @@ struct GameJobLiveChunks: View {
     ).autoconnect()
 
     var body: some View {
-        ViewportRetainedContent {
+        ViewportRetainedContent(
+            geometryID: AnyHashable(job.activeChunks.map(\.id))
+        ) {
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(job.activeChunks) { chunk in
                     VStack(alignment: .leading, spacing: 3) {
