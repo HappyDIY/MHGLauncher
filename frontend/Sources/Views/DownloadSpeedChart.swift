@@ -5,8 +5,7 @@ struct DownloadSpeedChart: View {
     let speed: Int64
     let isActive: Bool
     let sampleID: String?
-    @State private var samples: [SpeedSample] = []
-    @State private var updatePhase = 0
+    @State private var history = DownloadSpeedHistory()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -16,10 +15,11 @@ struct DownloadSpeedChart: View {
                 Text(formatSpeed(speed))
                     .monospacedDigit()
                     .contentTransition(.numericText())
+                    .motionAnimation(.progress, value: speed)
             }
             .font(.caption)
             .foregroundStyle(.secondary)
-            Chart(samples) { sample in
+            Chart(history.samples) { sample in
                 AreaMark(
                     x: .value("时间", sample.time),
                     y: .value("速度", sample.megabytesPerSecond)
@@ -50,14 +50,11 @@ struct DownloadSpeedChart: View {
                 }
             }
             .frame(height: 92)
-            .motionAnimation(.progress, value: updatePhase)
+            .motionAnimation(.progress, value: history.revision)
         }
-        .motionAnimation(.progress, value: sampleID)
         .onChange(of: sampleID, initial: true) { _, _ in
             guard isActive || speed > 0 else { return }
-            samples.append(SpeedSample(time: Date(), bytesPerSecond: speed))
-            samples = Array(samples.suffix(60))
-            updatePhase &+= 1
+            history.append(speed: speed, at: Date())
         }
     }
 
@@ -65,6 +62,19 @@ struct DownloadSpeedChart: View {
         if value >= 1_048_576 { return String(format: "%.1f MB/s", Double(value) / 1_048_576) }
         if value >= 1_024 { return String(format: "%.0f KB/s", Double(value) / 1_024) }
         return "0 KB/s"
+    }
+}
+
+private struct DownloadSpeedHistory {
+    private(set) var samples: [SpeedSample] = []
+    private(set) var revision = 0
+
+    mutating func append(speed: Int64, at date: Date) {
+        samples.append(SpeedSample(time: date, bytesPerSecond: speed))
+        if samples.count > 60 {
+            samples.removeFirst(samples.count - 60)
+        }
+        revision &+= 1
     }
 }
 
