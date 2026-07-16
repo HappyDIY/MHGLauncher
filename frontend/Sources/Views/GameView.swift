@@ -64,16 +64,12 @@ struct GameView: View {
                     downloadSettings
                 }
                 .motionEntrance(order: 5)
-                if let job = store.gameJob {
-                    GameJobCard(store: store, job: job)
-                        .motionTransition(.emphasis)
-                }
+                GameJobSection(store: store)
                 GameResourceActionButtons(store: store)
                     .motionEntrance(order: 6)
                 Spacer()
             }
             .motionAnimation(.emphasis, value: store.gameLaunch?.id)
-            .motionAnimation(.emphasis, value: store.gameJob?.id)
             .task(id: store.installPath) {
                 store.checkGameRuntime()
                 try? await Task.sleep(for: .milliseconds(400))

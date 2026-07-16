@@ -4,30 +4,11 @@ import SwiftUI
 struct GameJobCard: View {
     @Bindable var store: LauncherStore
     let job: GameJob
-    @State private var tick = 0
-    @State private var anchorBytes: Int64 = 0
-    @State private var anchorTime = Date()
-
-    private let ticker = Timer.publish(
-        every: 0.2,
-        on: .main,
-        in: .common
-    ).autoconnect()
 
     var body: some View {
         GlassCard("资源任务", icon: "arrow.down.circle") {
             VStack(alignment: .leading, spacing: 10) {
-                progressBar(smoothProgress, label: "资源任务总进度")
-                HStack {
-                    Text(job.status.title)
-                        .contentTransition(.opacity)
-                        .accessibilityLiveRegion(.polite)
-                    Spacer()
-                    Text(smoothSizeLabel)
-                        .foregroundStyle(.secondary)
-                        .contentTransition(.numericText())
-                }
-                .motionAnimation(.selection, value: job.status)
+                GameJobLiveProgress(job: job)
                 DownloadSpeedChart(
                     speed: job.downloadSpeed,
                     isActive: job.status == .running,
@@ -46,33 +27,13 @@ struct GameJobCard: View {
                 }
                 if !job.activeChunks.isEmpty {
                     Divider()
-                    ForEach(job.activeChunks) { chunk in
-                        chunkProgress(chunk)
-                    }
+                    GameJobLiveChunks(job: job)
                 }
                 controls
             }
         }
-        .onReceive(ticker) { _ in
-            if job.status == .running { tick &+= 1 }
-        }
-        .onChange(of: job.completedBytes, initial: true) { _, value in
-            anchorBytes = value
-            anchorTime = Date()
-        }
         .motionAnimation(.content, value: job.message)
         .motionAnimation(.content, value: job.activeChunks.map(\.id))
-    }
-
-    private func chunkProgress(_ chunk: ChunkProgress) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(chunk.name)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            progressBar(smoothChunkProgress(chunk), tint: .blue, label: "\(chunk.name) 进度")
-                    .motionAnimation(.content, value: chunk.bytesDone)
-        }
     }
 
     private var controls: some View {
@@ -104,55 +65,14 @@ struct GameJobCard: View {
         .motionAnimation(.selection, value: job.status)
     }
 
-    private var smoothProgress: Double {
-        guard job.totalBytes > 0 else { return 0 }
-        guard job.status == .running, job.downloadSpeed > 0 else {
-            return job.progress
-        }
-        let predicted = Double(anchorBytes)
-            + Double(job.downloadSpeed) * Date().timeIntervalSince(anchorTime)
-        return min(predicted / Double(job.totalBytes), 1)
-    }
+}
 
-    private var smoothSizeLabel: String {
-        let current: Int64
-        if job.status == .running, job.downloadSpeed > 0 {
-            let predicted = Double(anchorBytes)
-                + Double(job.downloadSpeed) * Date().timeIntervalSince(anchorTime)
-            current = min(Int64(predicted), job.totalBytes)
-        } else {
-            current = job.completedBytes
-        }
-        let value = ByteCountFormatter.string(
-            fromByteCount: current,
-            countStyle: .file
-        )
-        let total = ByteCountFormatter.string(
-            fromByteCount: job.totalBytes,
-            countStyle: .file
-        )
-        return "\(value) / \(total)"
-    }
+struct GameProgressBar: View {
+    let progress: Double
+    var tint: Color = .accentColor
+    let label: String
 
-    private func smoothChunkProgress(_ chunk: ChunkProgress) -> Double {
-        guard chunk.total > 0 else { return 0 }
-        if job.status == .running,
-           job.downloadSpeed > 0,
-           chunk.bytesDone < chunk.total {
-            let slots = max(Double(job.activeChunks.count), 1)
-            let predicted = Double(chunk.bytesDone)
-                + Double(job.downloadSpeed) / slots
-                * Date().timeIntervalSince(anchorTime)
-            return min(predicted / Double(chunk.total), 1)
-        }
-        return chunk.progress
-    }
-
-    private func progressBar(
-        _ progress: Double,
-        tint: Color = .accentColor,
-        label: String
-    ) -> some View {
+    var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 3)
@@ -166,5 +86,19 @@ struct GameJobCard: View {
         .accessibilityElement()
         .accessibilityLabel(label)
         .accessibilityValue("\(Int(progress * 100))%")
+    }
+}
+
+struct GameJobSection: View {
+    @Bindable var store: LauncherStore
+
+    var body: some View {
+        Group {
+            if let job = store.gameJob {
+                GameJobCard(store: store, job: job)
+                    .motionTransition(.emphasis)
+            }
+        }
+        .motionAnimation(.emphasis, value: store.gameJob?.id)
     }
 }
