@@ -25,6 +25,8 @@ describe("云端认证工具", () => {
     const result = await verifyGachaUrl("https://public-operation-hk4e.mihoyo.com/gacha?authkey=x&uid=100000001");
     expect(result.uid).toBe("100000002");
     expect(fetch.mock.calls[0]?.[1]).toMatchObject({ redirect: "error" });
+	    const request = new URL(String(fetch.mock.calls[0]?.[0]));
+	    expect(Object.fromEntries(request.searchParams)).toMatchObject({ gacha_type: "301", size: "20", end_id: "0" });
   });
 
   test("内部异常不会把原文返回客户端", async () => {

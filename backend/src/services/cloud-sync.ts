@@ -14,6 +14,11 @@ const cloudWish = z.object({
   time: z.string().datetime(),
 }).strict();
 
+const forwardedCloudErrors = new Set([
+  "gacha_url_invalid", "gacha_url_expired", "gacha_url_unverified", "gacha_item_invalid",
+  "identity_mismatch", "reverify_required", "unauthorized",
+]);
+
 export class CloudSyncService {
   constructor(
     private readonly settings: Settings,
@@ -90,8 +95,12 @@ export class CloudSyncService {
     } catch {
       throw new AppError("cloud_error", "云同步服务暂不可用", 503);
     }
-    const payload = response.status === 204 ? {} as T & { message?: string } : await response.json() as T & { message?: string };
-    if (!response.ok) throw new AppError("cloud_error", payload.message ?? "云端服务请求失败", response.status);
+    const payload = response.status === 204 ? {} as T & { code?: string; message?: string }
+      : await response.json() as T & { code?: string; message?: string };
+    if (!response.ok) {
+      const code = payload.code && forwardedCloudErrors.has(payload.code) ? payload.code : "cloud_error";
+      throw new AppError(code, payload.message ?? "云端服务请求失败", response.status);
+    }
     return payload;
   }
 
