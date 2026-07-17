@@ -73,12 +73,23 @@ extension LauncherStore {
             installedAt: previous?.installedAt
         )
         await perform {
-            value.gachaResourceStatus = try await requireClient().post(
+            let client = try requireClient()
+            value.gachaResourceStatus = try await client.post(
                 "/v1/gacha-resources/install",
                 body: GachaResourceInstallRequest(),
                 timeout: 3_600
             )
-            value.gachaEvents = try await requireClient().get("/v1/gacha-events")
+            value.gachaEvents = try await client.get("/v1/gacha-events")
+            if activeWishUID != nil { try await reloadWishes(client: client) }
+            if let uid = selectedRole?.uid {
+                let generation = companionDataGeneration
+                let loaded: [GameCharacter] = try await client.get(
+                    "/v1/characters", query: [URLQueryItem(name: "uid", value: uid)]
+                )
+                if isCurrentCompanionData(uid: uid, generation: generation) {
+                    characters = loaded
+                }
+            }
             await refreshGachaHistoryPresentation()
         }
         if value.gachaResourceStatus?.state == "installing" {
