@@ -167,13 +167,12 @@ async function loginCookie(credential: string): Promise<void> {
 	    expect(exported.list[0].id).toBe(84501);
 	  });
 
-	  test("云同步和通知设置提供本地代理", async () => {
+	  test("未配置时拒绝云同步且通知设置仍提供本地代理", async () => {
 	    const credential = "stuid=10001; stoken=fixture; mid=fixture-mid";
 	    await loginCookie(credential);
-	    const login = await (await request("POST", "/v1/cloud/login/account", { credential })).json();
-	    expect(login.uid).toBe("100000001");
-	    const upload = await (await request("POST", "/v1/cloud/wishes/upload", { uid: login.uid, token: login.token })).json();
-	    expect(upload.uploaded).toBeGreaterThanOrEqual(0);
+	    const cloudLogin = await request("POST", "/v1/cloud/login/account", { credential });
+	    expect(cloudLogin.status).toBe(503);
+	    expect(await cloudLogin.json()).toMatchObject({ code: "cloud_not_configured" });
 	    const settings = await (await request("PUT", "/v1/notifications/settings", { daily_commission_enabled: true, daily_commission_time: "00:00" })).json();
 	    expect(settings.daily_commission_enabled).toBe(true);
 	    expect(settings).not.toHaveProperty("abyss_refresh_enabled");
