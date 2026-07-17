@@ -60,6 +60,7 @@ struct AdditionalButtonBusinessActionTests {
         #expect(store.message == nil)
         #expect(store.value.cloudMessage == "已取回 2 条记录")
         #expect(await backend.saw("POST", "/v1/gacha-resources/install"))
+        #expect(await backend.saw("GET", "/v1/companion/snapshot"))
         #expect(await backend.saw("POST", "/v1/characters/1001/refresh"))
         #expect(await backend.savedAchievementRevision == 0)
         #expect(await backend.saw("POST", "/v1/cloud/login/account"))

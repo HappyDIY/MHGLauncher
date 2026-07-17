@@ -58,7 +58,7 @@ struct GachaHistoryView: View {
 
     private var subtitle: String {
         guard store.value.gachaResourceStatus?.isReady == true else {
-            return "卡池数据与插图作为独立资源按需下载"
+            return "历史、祈愿与角色素材一次下载后全部本地复用"
         }
         guard let role = store.selectedRole else { return "请先登录账号并同步祈愿记录" }
         let count = visibleWishes.reduce(0) { $0 + $1.total }
@@ -158,24 +158,24 @@ struct GachaHistoryView: View {
     }
 
     private var emptyTitle: String {
-        if store.value.gachaResourceStatus?.state == "installing" { return "正在下载历史卡池资源" }
-        if store.value.gachaResourceStatus?.isReady != true { return "历史卡池资源尚未下载" }
+        if store.value.gachaResourceStatus?.state == "installing" { return "正在下载完整素材资源" }
+        if store.value.gachaResourceStatus?.isReady != true { return "完整素材资源尚未下载" }
         return store.wishes.isEmpty ? "还没有祈愿记录" : "没有匹配的历史卡池"
     }
 
     private var emptyDescription: String {
         guard store.value.gachaResourceStatus?.isReady == true else {
             return store.value.gachaResourceStatus?.state == "installing"
-                ? "正在校验并安装卡池数据与插图，请保持应用运行。"
-                : "下载独立资源包后即可查看历史卡池数据与全部插图；资源不会写入主应用包。"
+                ? "正在校验并安装卡池、祈愿与角色全部素材，请保持应用运行。"
+                : "一次下载后，历史卡池、祈愿和我的角色页面将统一读取本地素材；资源不会写入主应用包。"
         }
         return store.wishes.isEmpty
             ? "同步祈愿记录后，这里会自动还原活动卡池、UP 与抽取结果。"
-            : "更新历史卡池资源后重试，未落在活动时段内的记录仍可在祈愿记录页查看。"
+            : "更新完整素材资源后重试，未落在活动时段内的记录仍可在祈愿记录页查看。"
     }
 
     private var resourceActionTitle: String {
         if store.value.gachaResourceStatus?.state == "installing" { return "正在下载" }
-        return store.value.gachaResourceStatus?.isReady == true ? "更新资源" : "下载资源"
+        return store.value.gachaResourceStatus?.isReady == true ? "更新完整素材" : "下载完整素材"
     }
 }
