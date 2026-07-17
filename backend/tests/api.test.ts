@@ -129,8 +129,12 @@ describe("本地 API 契约", () => {
 	    const body = { credential };
 	    const characters = await (await request("POST", "/v1/characters/refresh", body)).json();
 	    expect(characters[0].name).toBe("芙宁娜");
+	    const bundled = await (await request("GET", "/v1/gacha-events")).json();
+	    expect(bundled.length).toBeGreaterThan(200);
+	    expect(bundled.some((value: { version: string }) => value.version === "1.0")).toBe(true);
 	    const events = await (await request("POST", "/v1/gacha-events/refresh", body)).json();
-	    expect(events[0].orange_up.length).toBeGreaterThan(0);
+	    expect(events.length).toBeGreaterThan(200);
+	    expect(events.some((value: { id: string }) => value.id === "fixture-301")).toBe(true);
 });
 
 async function loginCookie(credential: string): Promise<void> {

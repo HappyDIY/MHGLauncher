@@ -1,6 +1,7 @@
 import type { Store } from "../core/database";
 import type { GameRole, GachaEvent } from "../core/models";
 import type { GameRecordSource } from "../providers/game-record";
+import { bundledGachaEvents } from "./gacha-event-metadata";
 
 const event = (row: Record<string, unknown>): GachaEvent => ({
   id: String(row.id), version: String(row.version), gacha_type: String(row.gacha_type),
@@ -14,13 +15,17 @@ export class GachaEventService {
   constructor(private readonly store: Store, private readonly records: GameRecordSource) {}
 
   list(): GachaEvent[] {
-    return this.store.all("SELECT * FROM gacha_events ORDER BY started_at DESC,name").map(event);
+    const persisted = this.store.all("SELECT * FROM gacha_events").map(event);
+    const merged = new Map(bundledGachaEvents().map((value) => [key(value), value]));
+    for (const value of persisted) merged.set(key(value), value);
+    return [...merged.values()].sort((left, right) =>
+      String(right.started_at).localeCompare(String(left.started_at)) || left.name.localeCompare(right.name));
   }
 
   async refresh(credential: string, role: GameRole): Promise<GachaEvent[]> {
     const values = await this.records.gachaEvents(credential, role);
     this.save(values);
-    return values;
+    return this.list();
   }
 
   private save(values: GachaEvent[]): void {
@@ -33,4 +38,8 @@ export class GachaEventService {
       JSON.stringify(value.orange_up), JSON.stringify(value.purple_up), value.banner_url ?? null, value.updated_at,
     )))();
   }
+}
+
+function key(value: GachaEvent): string {
+  return `${value.gacha_type}:${value.started_at ?? ""}:${value.name}`;
 }

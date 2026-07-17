@@ -563,6 +563,12 @@
     5,
     "UI_EquipIcon_Claymore_EnsisAquilonis"
   ],
+  "12516": [
+    "超越之匙",
+    "武器",
+    5,
+    "UI_EquipIcon_Claymore_CrystallineSword"
+  ],
   "13101": [
     "新手长枪",
     "武器",
@@ -2086,5 +2092,11 @@
     "角色",
     4,
     "UI_AvatarIcon_Prune"
+  ],
+  "10000133": [
+    "桑多涅",
+    "角色",
+    5,
+    "UI_AvatarIcon_MarionetteNew"
   ]
 }

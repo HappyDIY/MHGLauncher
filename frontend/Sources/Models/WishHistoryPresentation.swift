@@ -31,7 +31,7 @@ struct HistoryWishEvent: Identifiable, Equatable, Sendable {
     var totalText: String { "总计 \(total) 抽" }
 
     static func make(events: [GachaEvent], records: [WishRecord]) -> [HistoryWishEvent] {
-        let recordsByType = Dictionary(grouping: records, by: \.normalizedGachaType)
+        let recordsByType = Dictionary(grouping: records, by: \.gachaType)
         let samples = records.reduce(into: [Int: [String: WishRecord]]()) { result, record in
             if result[record.rank]?[record.name] == nil {
                 result[record.rank, default: [:]][record.name] = record
@@ -39,7 +39,7 @@ struct HistoryWishEvent: Identifiable, Equatable, Sendable {
         }
         return events.compactMap { event -> HistoryWishEvent? in
             guard let startedAt = event.startedAt, let endedAt = event.endedAt else { return nil }
-            let eventRecords = (recordsByType[event.gachaType.normalizedGachaType] ?? [])
+            let eventRecords = (recordsByType[event.gachaType] ?? [])
                 .filter { startedAt <= $0.time && $0.time <= endedAt }
             return HistoryWishEvent(
                 id: event.id,
