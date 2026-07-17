@@ -24,7 +24,7 @@ struct GachaHistoryView: View {
         }
         .toolbar { toolbarActions }
         .task {
-            await store.loadValueData()
+            await store.loadGachaResources()
             if store.wishes.isEmpty { await store.loadCompanionData() }
         }
         .onChange(of: visibleWishes.map(\.id)) {
@@ -41,12 +41,12 @@ struct GachaHistoryView: View {
     @ToolbarContentBuilder
     private var toolbarActions: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            Button("刷新卡池", systemImage: "arrow.clockwise") {
-                Task { await store.refreshGachaEvents() }
+            Button(resourceActionTitle, systemImage: "arrow.down.circle") {
+                Task { await store.installGachaResources() }
             }
             .buttonStyle(.glass)
             .motionHover()
-            .disabled(store.isBusy || store.selectedRole == nil)
+            .disabled(store.isBusy)
             Button("同步记录", systemImage: "arrow.trianglehead.2.clockwise.rotate.90") {
                 Task { await store.syncWishes() }
             }
@@ -57,6 +57,9 @@ struct GachaHistoryView: View {
     }
 
     private var subtitle: String {
+        guard store.value.gachaResourceStatus?.isReady == true else {
+            return "卡池数据与插图作为独立资源按需下载"
+        }
         guard let role = store.selectedRole else { return "请先登录账号并同步祈愿记录" }
         let count = visibleWishes.reduce(0) { $0 + $1.total }
         return "\(role.nickname) · UID \(role.uid) · \(category.rawValue)祈愿 \(visibleWishes.count) 个时段、\(count) 抽"
@@ -68,14 +71,16 @@ struct GachaHistoryView: View {
         } description: {
             Text(emptyDescription)
         } actions: {
-            Button("同步记录") { Task { await store.syncWishes() } }
-                .buttonStyle(.glassProminent)
-                .motionHover(.prominent)
-                .disabled(store.isWishOperationActive || store.selectedRole == nil)
-            Button("刷新卡池") { Task { await store.refreshGachaEvents() } }
+            if store.value.gachaResourceStatus?.isReady == true {
+                Button("同步记录") { Task { await store.syncWishes() } }
+                    .buttonStyle(.glassProminent)
+                    .motionHover(.prominent)
+                    .disabled(store.isWishOperationActive || store.selectedRole == nil)
+            }
+            Button(resourceActionTitle) { Task { await store.installGachaResources() } }
                 .buttonStyle(.glass)
                 .motionHover()
-                .disabled(store.isBusy || store.selectedRole == nil)
+                .disabled(store.isBusy)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .glassEffect(
@@ -153,12 +158,24 @@ struct GachaHistoryView: View {
     }
 
     private var emptyTitle: String {
-        store.wishes.isEmpty ? "还没有祈愿记录" : "没有匹配的历史卡池"
+        if store.value.gachaResourceStatus?.state == "installing" { return "正在下载历史卡池资源" }
+        if store.value.gachaResourceStatus?.isReady != true { return "历史卡池资源尚未下载" }
+        return store.wishes.isEmpty ? "还没有祈愿记录" : "没有匹配的历史卡池"
     }
 
     private var emptyDescription: String {
-        store.wishes.isEmpty
+        guard store.value.gachaResourceStatus?.isReady == true else {
+            return store.value.gachaResourceStatus?.state == "installing"
+                ? "正在校验并安装卡池数据与插图，请保持应用运行。"
+                : "下载独立资源包后即可查看历史卡池数据与全部插图；资源不会写入主应用包。"
+        }
+        return store.wishes.isEmpty
             ? "同步祈愿记录后，这里会自动还原活动卡池、UP 与抽取结果。"
-            : "刷新卡池元数据后重试，未落在活动时段内的记录仍可在祈愿记录页查看。"
+            : "更新历史卡池资源后重试，未落在活动时段内的记录仍可在祈愿记录页查看。"
+    }
+
+    private var resourceActionTitle: String {
+        if store.value.gachaResourceStatus?.state == "installing" { return "正在下载" }
+        return store.value.gachaResourceStatus?.isReady == true ? "更新资源" : "下载资源"
     }
 }

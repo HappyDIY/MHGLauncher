@@ -18,7 +18,7 @@ struct GachaEventIconModelTests {
               "orange_up": ["阿蕾奇诺"],
               "purple_up": [],
               "orange_up_icons": {
-                "阿蕾奇诺": "/v1/images/gacha/arlecchino.png"
+                "阿蕾奇诺": "/v1/gacha-resources/files/images/arlecchino.img"
               },
               "purple_up_icons": {},
               "banner_url": null,
@@ -31,7 +31,7 @@ struct GachaEventIconModelTests {
 
         #expect(
             event.orangeUpIcons?["阿蕾奇诺"]?.relativeString
-                == "/v1/images/gacha/arlecchino.png"
+                == "/v1/gacha-resources/files/images/arlecchino.img"
         )
     }
 }
