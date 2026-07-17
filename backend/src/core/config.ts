@@ -13,6 +13,7 @@ export interface Settings {
   downloadSpeedLimitKB: number;
 	  socketPath: string;
 	  cloudBaseUrl?: string;
+	  gachaResourceManifestUrl?: string;
 }
 
 function integer(value: string | undefined, fallback: number): number {
@@ -33,6 +34,8 @@ export function settings(env: NodeJS.ProcessEnv = process.env): Settings {
     downloadSpeedLimitKB: integer(env.MHG_DOWNLOAD_SPEED_LIMIT, 0),
 	    socketPath: resolve(env.MHG_SOCKET_PATH ?? join(tmpdir(), `mhg-${process.pid}.sock`)),
 	    cloudBaseUrl: (env.MHG_CLOUD_BASE_URL ?? "http://127.0.0.1:3333").replace(/\/+$/, ""),
+	    gachaResourceManifestUrl: env.MHG_GACHA_RESOURCE_MANIFEST_URL
+	      ?? "https://github.com/HappyDIY/MHGLauncher/releases/latest/download/gacha-history-manifest.json",
 	  };
 		}
 
@@ -48,5 +51,11 @@ export function validateServerSettings(value: Settings): void {
   catch { throw new AppError("cloud_url_invalid", "MHG_CLOUD_BASE_URL 必须是有效 URL", 500); }
   if (!["http:", "https:"].includes(cloudUrl.protocol) || cloudUrl.username || cloudUrl.password) {
     throw new AppError("cloud_url_invalid", "MHG_CLOUD_BASE_URL 必须是无凭据的 HTTP 或 HTTPS URL", 500);
+  }
+  let resourceUrl: URL;
+  try { resourceUrl = new URL(value.gachaResourceManifestUrl ?? ""); }
+  catch { throw new AppError("gacha_resource_url_invalid", "历史卡池资源地址无效", 500); }
+  if (resourceUrl.protocol !== "https:" || resourceUrl.username || resourceUrl.password) {
+    throw new AppError("gacha_resource_url_invalid", "历史卡池资源必须使用无凭据的 HTTPS 地址", 500);
   }
 }

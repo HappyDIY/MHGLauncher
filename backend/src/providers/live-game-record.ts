@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import type { Settings } from "../core/config";
 import { AppError } from "../core/errors";
-import type { GameCharacter, GameRole, GachaEvent, WishRecord } from "../core/models";
+import type { GameCharacter, GameRole, WishRecord } from "../core/models";
 import { Device } from "./device";
 import type { GachaUrlProof, GameRecordSource } from "./game-record";
 import { sign } from "./signing";
@@ -30,17 +30,6 @@ export class LiveGameRecordSource implements GameRecordSource {
     const item = (data.list as JSONValue[] | undefined)?.[0] ?? (data.avatars as JSONValue[] | undefined)?.[0];
     if (!item) throw new AppError("character_missing", "角色详情不存在", 404);
     return this.character(role.uid, item.base ?? item, new Date().toISOString(), item);
-  }
-
-  async gachaEvents(credential: string, role: GameRole): Promise<GachaEvent[]> {
-    const body = JSON.stringify({ role_id: role.uid, server: role.region });
-    const data = await this.api(`${recordRoot}/act_calendar`, credential, sign("x4", body), { method: "POST", body });
-    const now = new Date().toISOString();
-    return (data.card_pool_list as JSONValue[] ?? []).map((item, index) => ({
-      id: String(item.id ?? `card-${index}`), version: String(item.version ?? ""), gacha_type: String(item.gacha_type ?? ""),
-      name: String(item.title ?? item.name ?? "卡池"), started_at: this.time(item.start_timestamp), ended_at: this.time(item.end_timestamp),
-      orange_up: this.names(item.r5_up_items), purple_up: this.names(item.r4_up_items), banner_url: String(item.banner ?? "") || null, updated_at: now,
-    }));
   }
 
   async verifyGachaUrl(url: string): Promise<GachaUrlProof> {
@@ -106,8 +95,6 @@ export class LiveGameRecordSource implements GameRecordSource {
       weapon_name: String(weapon?.name ?? ""), weapon_level: Number(weapon?.level ?? 0), icon_url: String(value.icon ?? "") || null, payload, updated_at: updatedAt };
   }
 
-  private names(values: JSONValue[] | undefined): string[] { return (values ?? []).map((item) => String(item.name ?? item.item_name ?? "")).filter(Boolean); }
-  private time(value: unknown): string | null { const seconds = Number(value ?? 0); return seconds > 0 ? new Date(seconds * 1000).toISOString() : null; }
   private wish(uid: string, v: JSONValue): WishRecord { const type = String(v.gacha_type); return { id: String(v.id), uid, gacha_type: type, uigf_gacha_type: type === "400" ? "301" : type, item_id: String(v.item_id), name: String(v.name), item_type: String(v.item_type), rank: Number(v.rank_type), time: String(v.time).replace(" ", "T") }; }
   private headers(cookie: string, ds: string): Record<string, string> { return { Cookie: cookie, DS: ds, "User-Agent": agent, "x-rpc-app_version": "2.95.1", "x-rpc-client_type": "5", "x-rpc-device_id": this.device.deviceId, "x-rpc-device_fp": this.device.deviceFP, "Content-Type": "application/json", Referer: "https://app.mihoyo.com" }; }
   private api(url: string, cookie: string, ds: string, init: RequestInit = {}): Promise<JSONValue> { return this.request(url, { ...init, headers: { ...this.headers(cookie, ds), ...init.headers } }); }

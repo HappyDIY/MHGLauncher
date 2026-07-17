@@ -57,6 +57,11 @@ export interface GachaEvent {
   orange_up_icons?: Record<string, string>; purple_up_icons?: Record<string, string>;
   banner_url?: string | null; updated_at: string;
 }
+export interface GachaResourceStatus {
+  state: "missing" | "installing" | "ready";
+  version: string | null; event_count: number; image_count: number;
+  installed_bytes: number; installed_at: string | null;
+}
 export interface NotificationSettings {
   daily_commission_enabled: boolean; daily_commission_time: string; resin_full_enabled: boolean;
   gacha_refresh_enabled: boolean; version_update_enabled: boolean;

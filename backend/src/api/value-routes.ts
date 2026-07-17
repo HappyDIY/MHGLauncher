@@ -25,7 +25,8 @@ export async function valueRoute(app: Container, method: string, path: string, q
   const character = match(path, /^\/characters\/([^/]+)\/refresh$/);
   if (method === "POST" && character) return json(await app.characters.refreshDetail(credential.parse(body).credential, role(), characterId.parse(character)));
   if (method === "GET" && path === "/gacha-events") return json(app.gachaEvents.list());
-  if (method === "POST" && path === "/gacha-events/refresh") return json(await app.gachaEvents.refresh(credential.parse(body).credential, role()));
+  if (method === "GET" && path === "/gacha-resources/status") return json(app.gachaResources.status());
+  if (method === "POST" && path === "/gacha-resources/install") return json(await app.gachaResources.install());
   if (method === "GET" && path === "/achievements/archives") return json(app.achievements.archives());
   if (method === "POST" && path === "/achievements/archives") return json(app.achievements.createArchive(archive.parse(body).name), 201);
   const archiveSelect = match(path, /^\/achievements\/archives\/([^/]+)\/select$/);

@@ -1,6 +1,5 @@
 import type { WishRecord } from "../core/models";
-import type { ImageCache } from "./images";
-import { enrich } from "./metadata";
+import type { GachaResourceService } from "./gacha-resources";
 import { isStandardFiveStar } from "./wish-standard-items";
 
 interface BannerItem {
@@ -22,7 +21,7 @@ export interface BannerDetail {
 const rounded = (value: number, digits: number): number => Number(value.toFixed(digits));
 const LIMITED_TYPES = new Set(["301", "302"]);
 
-export function banner(uid: string, type: string, records: WishRecord[], images: ImageCache): BannerDetail {
+export function banner(uid: string, type: string, records: WishRecord[], resources: Pick<GachaResourceService, "enrich">): BannerDetail {
   let orange = 0, purple = 0, three = 0, four = 0, five = 0, max = 0, min = 0;
   let lastUpOrange = 0, smallWin = 0, smallLose = 0;
   let prevIsUp = true; // 第一颗五星之前视为已中，避免首颗即限定被误判为大保底
@@ -30,7 +29,7 @@ export function banner(uid: string, type: string, records: WishRecord[], images:
   const limited = LIMITED_TYPES.has(type);
   records.forEach((raw, index) => {
     orange += 1; purple += 1; lastUpOrange += 1;
-    const item = enrich(raw, images);
+    const item = resources.enrich(raw);
     if (item.rank === 5) {
       five += 1; distances.push(orange); max = Math.max(max, orange); min = min ? Math.min(min, orange) : orange;
       const isUp = limited && !isStandardFiveStar(item.item_id);

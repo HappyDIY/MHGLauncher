@@ -143,8 +143,8 @@ async function route(method: string, path: string, query: URLSearchParams, body:
     return json(await app.notes.refresh(value.credential, role, value.xrpc_challenge, value.xrpc_challenge_path));
   }
   if (method === "POST" && path === "/notes/verification") { const value = verification.parse(body); return json({ xrpc_challenge: await app.notes.verify(value.credential, value.challenge, value.validate, value.xrpc_challenge_path) }); }
-	  const image = match(path, /^\/images\/gacha\/([^/]+)$/);
-	  if (method === "GET" && image) { const data = await app.images.get(image); if (!data) throw new AppError("image_missing", "图片未缓存", 404); return new Response(new Uint8Array(data), { headers: { "Content-Type": "image/png" } }); }
+	  const resourceFile = match(path, /^\/gacha-resources\/files\/(.+)$/);
+	  if (method === "GET" && resourceFile) { const data = app.gachaResources.file(resourceFile); if (!data) throw new AppError("image_missing", "历史卡池插图不存在", 404); return new Response(new Uint8Array(data), { headers: { "Content-Type": "application/octet-stream", "Cache-Control": "private, max-age=31536000, immutable" } }); }
 	  const value = await valueRoute(app, method, path, query, body);
 	  if (value) return value;
 	  throw new AppError("not_found", "接口不存在", 404);
