@@ -1,3 +1,5 @@
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Settings } from "../core/config";
 import type { Store } from "../core/database";
 import { AppError } from "../core/errors";
@@ -93,12 +95,14 @@ export class CloudSyncService {
         body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(30_000),
       });
     } catch {
+	    this.recordFailure(path, 503, "cloud_error");
       throw new AppError("cloud_error", "云同步服务暂不可用", 503);
     }
     const payload = response.status === 204 ? {} as T & { code?: string; message?: string }
       : await response.json() as T & { code?: string; message?: string };
     if (!response.ok) {
       const code = payload.code && forwardedCloudErrors.has(payload.code) ? payload.code : "cloud_error";
+	    this.recordFailure(path, response.status, code);
       throw new AppError(code, payload.message ?? "云端服务请求失败", response.status);
     }
     return payload;
@@ -112,4 +116,12 @@ export class CloudSyncService {
   private assertExpectedUid(uid: string, expectedUid: string): void {
     if (expectedUid && uid !== expectedUid) throw new AppError("cloud_identity_mismatch", "云端鉴权 UID 与当前角色不匹配", 403);
   }
+
+	private recordFailure(path: string, status: number, code: string): void {
+	  try {
+	    writeFileSync(join(this.settings.dataDir, "cloud-sync-diagnostic.json"), JSON.stringify({
+	      timestamp: new Date().toISOString(), path, status, code,
+	    }), { encoding: "utf8", mode: 0o600 });
+	  } catch { /* 诊断写入失败不能覆盖原始云端错误。 */ }
+	}
 }
