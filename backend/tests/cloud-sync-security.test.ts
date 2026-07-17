@@ -28,7 +28,7 @@ test("云端鉴权错误保留可行动原因", async () => {
     code: "gacha_url_expired", message: "抽卡 URL 已过期", status: 422,
   });
 	  expect(JSON.parse(readFileSync(join(app.settings.dataDir, "cloud-sync-diagnostic.json"), "utf8"))).toMatchObject({
-	    path: "/api/v1/auth/gacha-url", status: 422, code: "gacha_url_expired",
+	    path: "/api/v1/auth/gacha-url", status: 422, code: "gacha_url_expired", upstream_code: "gacha_url_expired",
 	  });
 });
 
