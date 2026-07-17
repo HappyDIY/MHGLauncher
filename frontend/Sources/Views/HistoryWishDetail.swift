@@ -7,6 +7,13 @@ struct HistoryWishDetail: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
+                if bannerPaging.count > 1 {
+                    HistoryWishBannerNavigation(
+                        paging: bannerPaging,
+                        previous: { moveBanner(by: -1) },
+                        next: { moveBanner(by: 1) }
+                    )
+                }
                 banner
                 statisticsHeader
                 itemSection("五星 UP", icon: "star.fill", items: wish.orangeUp, color: .orange)
@@ -44,28 +51,6 @@ struct HistoryWishDetail: View {
             )
     }
 
-    private var bannerPager: some View {
-        HStack(spacing: 7) {
-            Button("上一张", systemImage: "chevron.left") { moveBanner(by: -1) }
-                .labelStyle(.iconOnly)
-                .keyboardShortcut(.leftArrow, modifiers: [])
-                .disabled(!bannerPaging.canGoPrevious)
-                .motionHover()
-            Text("\(bannerPaging.page) / \(bannerPaging.count)")
-                .font(.caption.weight(.semibold).monospacedDigit())
-                .foregroundStyle(.white)
-                .contentTransition(.numericText())
-                .accessibilityLabel("第 \(bannerPaging.page) 张，共 \(bannerPaging.count) 张")
-            Button("下一张", systemImage: "chevron.right") { moveBanner(by: 1) }
-                .labelStyle(.iconOnly)
-                .keyboardShortcut(.rightArrow, modifiers: [])
-                .disabled(!bannerPaging.canGoNext)
-                .motionHover()
-        }
-        .buttonStyle(.glass)
-        .padding(8)
-    }
-
     private func moveBanner(by offset: Int) {
         guard let id = bannerPaging.adjacentID(offset: offset) else { return }
         bannerID = id
@@ -96,11 +81,6 @@ struct HistoryWishDetail: View {
                 endPoint: .bottom
             )
             bannerLabel
-            if bannerPaging.count > 1 {
-                bannerPager
-                    .padding(6)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-            }
         }
         .clipShape(.rect(cornerRadius: 16))
         .overlay {
