@@ -83,8 +83,10 @@ extension LauncherStore {
             if activeWishUID != nil { try await reloadWishes(client: client) }
             if let uid = selectedRole?.uid {
                 let generation = companionDataGeneration
-                let loaded: [GameCharacter] = try await client.get(
-                    "/v1/characters", query: [URLQueryItem(name: "uid", value: uid)]
+                let loaded: [GameCharacter] = try await client.post(
+                    "/v1/characters/cache-assets",
+                    body: GachaResourceInstallRequest(),
+                    timeout: 3_600
                 )
                 if isCurrentCompanionData(uid: uid, generation: generation) {
                     characters = loaded

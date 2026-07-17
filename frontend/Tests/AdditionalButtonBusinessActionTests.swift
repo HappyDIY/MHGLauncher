@@ -60,6 +60,7 @@ struct AdditionalButtonBusinessActionTests {
         #expect(store.message == nil)
         #expect(store.value.cloudMessage == "已取回 2 条记录")
         #expect(await backend.saw("POST", "/v1/gacha-resources/install"))
+        #expect(await backend.saw("POST", "/v1/characters/cache-assets"))
         #expect(await backend.saw("GET", "/v1/companion/snapshot"))
         #expect(await backend.saw("POST", "/v1/characters/1001/refresh"))
         #expect(await backend.savedAchievementRevision == 0)
@@ -110,7 +111,8 @@ private actor ValueFakeBackend {
         case ("GET", "/v1/gacha-events"): return try json([event])
         case ("GET", "/v1/gacha-resources/status"), ("POST", "/v1/gacha-resources/install"):
             return try json(resourceStatus)
-        case ("GET", "/v1/characters"), ("POST", "/v1/characters/refresh"): return try json([character])
+        case ("GET", "/v1/characters"), ("POST", "/v1/characters/refresh"),
+            ("POST", "/v1/characters/cache-assets"): return try json([character])
         case ("POST", "/v1/characters/1001/refresh"): return try json(character)
         case ("GET", "/v1/notifications/settings"), ("PUT", "/v1/notifications/settings"): return try json(settings)
         case ("POST", "/v1/notifications/evaluate"): return try json([NotificationEvent]())
