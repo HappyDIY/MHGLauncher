@@ -58,7 +58,7 @@ export class Container {
     this.notes = new NoteService(this.store, this.provider);
 	    this.wishes = new WishService(this.store, this.provider, this.gachaResources, this.records);
 	    this.wishTasks = new WishTasks(this.accounts, this.wishes);
-	    this.characters = new CharacterService(this.store, this.records);
+	    this.characters = new CharacterService(this.store, this.records, this.gachaResources);
 	    this.achievements = new AchievementService(this.store);
 	    this.gachaEvents = new GachaEventService(this.gachaResources);
 	    this.notifications = new NotificationService(this.store, this.gachaResources);

@@ -1,6 +1,7 @@
 import type { Store } from "../core/database";
 import type { GameCharacter, GameRole } from "../core/models";
 import type { GameRecordSource } from "../providers/game-record";
+import type { GachaResourceService } from "./gacha-resources";
 
 const row = (value: Record<string, unknown>): GameCharacter => ({
   uid: String(value.uid), avatar_id: String(value.avatar_id), name: String(value.name),
@@ -12,22 +13,27 @@ const row = (value: Record<string, unknown>): GameCharacter => ({
 });
 
 export class CharacterService {
-  constructor(private readonly store: Store, private readonly records: GameRecordSource) {}
+  constructor(
+    private readonly store: Store,
+    private readonly records: GameRecordSource,
+    private readonly resources: Pick<GachaResourceService, "enrichCharacter">,
+  ) {}
 
   list(uid: string): GameCharacter[] {
-    return this.store.all("SELECT * FROM characters WHERE uid=? ORDER BY rarity DESC,level DESC,name", uid).map(row);
+    return this.store.all("SELECT * FROM characters WHERE uid=? ORDER BY rarity DESC,level DESC,name", uid)
+      .map(row).map((value) => this.resources.enrichCharacter(value));
   }
 
   async refresh(credential: string, role: GameRole): Promise<GameCharacter[]> {
     const values = await this.records.characters(credential, role);
     this.save(values);
-    return values;
+    return values.map((value) => this.resources.enrichCharacter(value));
   }
 
   async refreshDetail(credential: string, role: GameRole, avatarId: string): Promise<GameCharacter> {
     const value = await this.records.characterDetail(credential, role, avatarId);
     this.save([value]);
-    return value;
+    return this.resources.enrichCharacter(value);
   }
 
   private save(values: GameCharacter[]): void {

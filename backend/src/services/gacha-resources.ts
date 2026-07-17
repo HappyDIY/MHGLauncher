@@ -5,23 +5,12 @@ import {
 import { basename, join } from "node:path";
 import { z } from "zod";
 import { AppError } from "../core/errors";
-import type { GachaEvent, GachaResourceStatus, WishRecord } from "../core/models";
+import type { GameCharacter, GachaEvent, GachaResourceStatus, WishRecord } from "../core/models";
+import { localizeCharacter } from "./character-resource-enrichment";
 import { DownloadControl, hash } from "./download";
 import { streamDownload } from "./download-transfer";
 import { activate, extract, safeTarget, verify } from "./installer";
-
-const resourceFile = z.string().regex(/^images\/[a-f0-9]{64}\.img$/);
-const item = z.tuple([z.string(), z.string(), z.number().int(), resourceFile.optional()]);
-const event = z.object({
-  id: z.string(), version: z.string(), gacha_type: z.string(), name: z.string(),
-  started_at: z.string().nullable(), ended_at: z.string().nullable(),
-  orange_up: z.array(z.string()), purple_up: z.array(z.string()),
-  banner_file: resourceFile.nullable(), updated_at: z.string(),
-}).strict();
-const catalogSchema = z.object({
-  schema_version: z.literal(1), version: z.string().min(1).max(64),
-  events: z.array(event).max(10_000), items: z.record(z.string(), item),
-}).strict();
+import { catalogFiles, readCatalog, resourceFile, type Catalog, type Metadata } from "./gacha-resource-catalog";
 const remoteManifestSchema = z.object({
   schema_version: z.literal(1), version: z.string().min(1).max(64),
   archive: z.object({
@@ -29,9 +18,6 @@ const remoteManifestSchema = z.object({
     sha256: z.string().regex(/^[a-f0-9]{64}$/),
   }).strict(),
 }).strict();
-
-type Catalog = z.infer<typeof catalogSchema>;
-type Metadata = z.infer<typeof item>;
 
 export class GachaResourceService {
   private readonly destination: string;
@@ -64,17 +50,22 @@ export class GachaResourceService {
 
   enrich(record: WishRecord): WishRecord {
     const catalog = this.catalog(false);
-    if (!catalog) return { ...record, icon_url: record.icon_url ?? null };
+    if (!catalog) return { ...record, icon_url: null };
     let id = record.item_id, metadata = catalog.items[id];
     if (!metadata && record.name) {
       const match = Object.entries(catalog.items).find(([, value]) => value[0] === record.name);
       if (match) [id, metadata] = match;
     }
-    if (!metadata) return { ...record, icon_url: record.icon_url ?? null };
+    if (!metadata) return { ...record, icon_url: null };
     return {
       ...record, item_id: id, name: record.name || metadata[0], item_type: record.item_type || metadata[1],
       rank: record.rank || metadata[2], icon_url: metadata[3] ? this.endpoint(metadata[3], catalog.version) : null,
     };
+  }
+
+  enrichCharacter(character: GameCharacter): GameCharacter {
+    const catalog = this.catalog(false);
+    return localizeCharacter(character, catalog, (name) => this.endpoint(name, catalog?.version ?? "missing"));
   }
 
   file(name: string): Buffer | null {
@@ -105,7 +96,7 @@ export class GachaResourceService {
         throw new AppError("gacha_resource_hash_mismatch", "历史卡池资源校验失败", 502);
       }
       renameSync(`${archive}.part`, archive); extract([archive], staging); verify(staging);
-      const catalog = this.readCatalog(staging);
+      const catalog = readCatalog(staging);
       if (catalog.version !== manifest.version) throw new AppError("gacha_resource_version_mismatch", "历史卡池资源版本不一致", 502);
       writeFileSync(join(staging, ".resource.json"), JSON.stringify({
         installed_bytes: manifest.archive.size, installed_at: new Date().toISOString(),
@@ -128,23 +119,15 @@ export class GachaResourceService {
 
   private catalog(required: boolean): Catalog | undefined {
     if (!this.catalogCache && existsSync(join(this.destination, "catalog.json"))) {
-      this.catalogCache = this.readCatalog(this.destination);
+      try { this.catalogCache = readCatalog(this.destination); }
+      catch (error) { if (required) throw error; }
     }
     if (required && !this.catalogCache) throw new AppError("gacha_resource_missing", "请先下载历史卡池资源", 409);
     return this.catalogCache;
   }
 
-  private readCatalog(root: string): Catalog {
-    try {
-      const value = catalogSchema.parse(JSON.parse(readFileSync(join(root, "catalog.json"), "utf8")));
-      for (const name of this.files(value)) if (!existsSync(safeTarget(root, name))) throw new Error(name);
-      return value;
-    } catch { throw new AppError("gacha_resource_invalid", "历史卡池资源已损坏，请重新下载", 409); }
-  }
-
   private files(catalog: Catalog): string[] {
-    return [...catalog.events.flatMap(({ banner_file }) => banner_file ? [banner_file] : []),
-      ...Object.values(catalog.items).flatMap((value) => value[3] ? [value[3]] : [])];
+    return catalogFiles(catalog);
   }
 
   private iconURLs(names: string[], catalog: Catalog): Record<string, string> {

@@ -11,7 +11,12 @@ export function installGachaResourceFixture(): void {
     installed_bytes: 13, installed_at: "2026-07-18T00:00:00Z",
   }));
   writeFileSync(join(root, "catalog.json"), JSON.stringify({
-    schema_version: 1, version: "fixture", items: { "10000096": ["阿蕾奇诺", "角色", 5, file] },
+    schema_version: 2, version: "fixture", metadata_revision: "fixture-revision",
+    items: { "10000096": ["阿蕾奇诺", "角色", 5, file] },
+    character_assets: {
+      avatars: { "10000089": file }, weapons: { "11513": file },
+      reliquaries: { "95533": file }, skills: { "10892": file }, talents: { "891": file },
+    },
     events: [{
       id: "fixture-event", version: "4.6", gacha_type: "301", name: "炉边烬影",
       started_at: "2024-04-24T06:00:00+08:00", ended_at: "2024-05-14T17:59:00+08:00",

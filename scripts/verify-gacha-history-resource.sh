@@ -14,7 +14,12 @@ stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 /usr/bin/unzip -q "$archive" -d "$stage"
 jq -e --arg version "$(jq -r '.version' "$manifest")" \
-  '.schema_version == 1 and .version == $version and (.events | length) > 200 and (.items | length) > 300' \
+  '.schema_version == 2 and .version == $version and (.events | length) > 200
+  and (.items | length) > 300 and (.character_assets.avatars | length) > 100
+  and (.character_assets.weapons | length) > 200
+  and (.character_assets.reliquaries | length) > 800
+  and (.character_assets.skills | length) > 300
+  and (.character_assets.talents | length) > 600' \
   "$stage/catalog.json" >/dev/null
 jq -r '.files | to_entries[] | [.key,.value] | @tsv' "$stage/mhg-manifest.json" |
 while IFS=$'\t' read -r name expected; do
