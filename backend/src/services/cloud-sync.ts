@@ -102,7 +102,7 @@ export class CloudSyncService {
       : await response.json() as T & { code?: string; message?: string };
     if (!response.ok) {
       const code = payload.code && forwardedCloudErrors.has(payload.code) ? payload.code : "cloud_error";
-	    this.recordFailure(path, response.status, code);
+	    this.recordFailure(path, response.status, code, payload.code);
       throw new AppError(code, payload.message ?? "云端服务请求失败", response.status);
     }
     return payload;
@@ -117,10 +117,10 @@ export class CloudSyncService {
     if (expectedUid && uid !== expectedUid) throw new AppError("cloud_identity_mismatch", "云端鉴权 UID 与当前角色不匹配", 403);
   }
 
-	private recordFailure(path: string, status: number, code: string): void {
+	private recordFailure(path: string, status: number, code: string, upstreamCode?: string): void {
 	  try {
 	    writeFileSync(join(this.settings.dataDir, "cloud-sync-diagnostic.json"), JSON.stringify({
-	      timestamp: new Date().toISOString(), path, status, code,
+	      timestamp: new Date().toISOString(), path, status, code, upstream_code: upstreamCode ?? null,
 	    }), { encoding: "utf8", mode: 0o600 });
 	  } catch { /* 诊断写入失败不能覆盖原始云端错误。 */ }
 	}
