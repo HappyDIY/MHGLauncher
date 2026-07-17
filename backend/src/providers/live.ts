@@ -105,6 +105,12 @@ export class LiveProvider implements Provider {
   getInstalledBuild(version: string, audioLanguages?: string[]): Promise<GameBuild> { return this.sophon.installedBuild(version, audioLanguages); }
   getPredownloadBuild(installedVersion?: string, audioLanguages?: string[]): Promise<GameBuild | null> { return this.sophon.predownloadBuild(installedVersion, audioLanguages); }
 
+  async gachaUrl(credential: string, role: GameRole): Promise<string> {
+    const authkey = await this.authkey(credential, role);
+    const query = new URLSearchParams({ lang: "zh-cn", auth_appid: "webview_gacha", authkey, authkey_ver: "1", sign_type: "2" });
+    return `https://public-operation-hk4e.mihoyo.com/gacha_info/api/getGachaLog?${query}`;
+  }
+
   async *wishes(credential: string, role: GameRole, newest: Record<string, string>): AsyncIterable<WishRecord[]> {
     let authkey = "";
     try { authkey = await this.authkey(credential, role); } catch (error) { normalizeWishSyncError(error); }

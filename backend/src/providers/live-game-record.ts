@@ -5,12 +5,13 @@ import type { GameCharacter, GameRole, GachaEvent, WishRecord } from "../core/mo
 import { Device } from "./device";
 import type { GachaUrlProof, GameRecordSource } from "./game-record";
 import { sign } from "./signing";
-import { normalizeWishSyncError } from "./wish-sync";
+import { defaultWishSyncSleeper, normalizeWishSyncError } from "./wish-sync";
 
 type JSONValue = Record<string, any>;
 const agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) miHoYoBBS/2.95.1";
 const recordRoot = "https://api-takumi-record.mihoyo.com/game_record/app/genshin/api";
-const gachaHosts = new Set(["public-operation-hk4e.mihoyo.com"]);
+const gachaHosts = new Set(["public-operation-hk4e.mihoyo.com", "webstatic.mihoyo.com"]);
+const gachaEndpoint = "https://public-operation-hk4e.mihoyo.com/gacha_info/api/getGachaLog";
 
 export class LiveGameRecordSource implements GameRecordSource {
   private readonly device: Device;
@@ -43,9 +44,10 @@ export class LiveGameRecordSource implements GameRecordSource {
   }
 
   async verifyGachaUrl(url: string): Promise<GachaUrlProof> {
-    const parsed = new URL(url);
-    if (!gachaHosts.has(parsed.hostname) || !parsed.searchParams.get("authkey")) throw new AppError("gacha_url_invalid", "抽卡 URL 无效", 422);
+    const parsed = this.gachaRequest(url);
+    parsed.searchParams.set("gacha_type", "301");
     parsed.searchParams.set("size", "20");
+    parsed.searchParams.set("end_id", "0");
     const uid = parsed.searchParams.get("uid") ?? parsed.searchParams.get("game_uid") ?? parsed.searchParams.get("role_id") ?? "";
     let data: JSONValue = {};
     try { data = await this.request(parsed.toString()); } catch (error) { normalizeWishSyncError(error); }
@@ -53,6 +55,48 @@ export class LiveGameRecordSource implements GameRecordSource {
     const provenUid = uid || records.find((item) => item.uid)?.uid;
     if (!provenUid || records.length === 0) throw new AppError("gacha_url_unverified", "抽卡 URL 可用，但无法确认 UID", 422);
     return { uid: provenUid, records: records.map((item) => ({ ...item, uid: provenUid })) };
+  }
+
+  async *wishesFromGachaUrl(url: string): AsyncIterable<WishRecord[]> {
+    const base = this.gachaRequest(url), hintedUid = this.queryUid(base);
+    let provenUid = hintedUid, total = 0;
+    for (const type of ["100", "200", "301", "302", "500"]) {
+      const collected: WishRecord[] = [];
+      let end = "0";
+      while (true) {
+        const request = new URL(base);
+        request.searchParams.set("gacha_type", type); request.searchParams.set("size", "20"); request.searchParams.set("end_id", end);
+        let data: JSONValue = {};
+        try { data = await this.request(request.toString()); } catch (error) { normalizeWishSyncError(error); }
+        const values = data.list as JSONValue[] ?? [];
+        const records = values.map((item) => this.wish(hintedUid || String(item.uid ?? ""), item));
+        const pageUid = records.find((item) => item.uid)?.uid ?? "";
+        if (pageUid && provenUid && pageUid !== provenUid) throw new AppError("gacha_uid_mismatch", "抽卡 URL 返回了不一致的 UID", 422);
+        provenUid ||= pageUid;
+        collected.push(...records.map((item) => ({ ...item, uid: provenUid || item.uid })));
+        total += records.length;
+        if (total > 50_000) throw new AppError("gacha_record_limit", "抽卡 URL 返回的记录过多", 422);
+        await defaultWishSyncSleeper();
+        if (records.length < 20) break;
+        end = records.at(-1)?.id ?? "0";
+      }
+      if (collected.length) yield collected;
+    }
+    if (!provenUid || total === 0) throw new AppError("gacha_url_unverified", "抽卡 URL 可用，但无法确认 UID", 422);
+  }
+
+  private gachaRequest(value: string): URL {
+    let input: URL;
+    try { input = new URL(value); } catch { throw new AppError("gacha_url_invalid", "抽卡 URL 无效", 422); }
+    const appId = input.searchParams.get("auth_appid");
+    if (!gachaHosts.has(input.hostname) || !input.searchParams.get("authkey") || (appId && appId !== "webview_gacha")) {
+      throw new AppError("gacha_url_invalid", "抽卡 URL 无效", 422);
+    }
+    return new URL(`${gachaEndpoint}?${input.searchParams}`);
+  }
+
+  private queryUid(value: URL): string {
+    return value.searchParams.get("uid") ?? value.searchParams.get("game_uid") ?? value.searchParams.get("role_id") ?? "";
   }
 
   private character(uid: string, value: JSONValue, updatedAt: string, payload: unknown = value): GameCharacter {

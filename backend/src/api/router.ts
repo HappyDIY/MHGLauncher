@@ -9,6 +9,7 @@ import { valueRoute } from "./value-routes";
 import { readJsonBody } from "../core/request-body";
 
 const credential = z.object({ credential: z.string().min(1).max(16_384) }).strict();
+const gachaUrl = z.object({ gacha_url: z.string().url().max(16_384) }).strict();
 const roleSync = z.object({ aid: z.string().min(1).max(32), credential: z.string().min(1).max(16_384) }).strict();
 const selectAccount = z.object({ aid: z.string().min(1).max(32) }).strict();
 const selectRole = z.object({ uid: z.string().regex(/^\d{9,10}$/) }).strict();
@@ -112,6 +113,7 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   if (method === "GET" && launch) { const wait = longPollOptions(query); return json(await app.launches.wait(launch, wait.after, wait.waitMs, signal)); }
   if (method === "POST" && path === "/wishes/tasks/sync") return json(app.wishTasks.startSync(credential.parse(body).credential), 202);
   if (method === "POST" && path === "/wishes/tasks/import") return json(app.wishTasks.startImport(body), 202);
+  if (method === "POST" && path === "/wishes/tasks/import-url") return json(app.wishTasks.startGachaUrl(gachaUrl.parse(body).gacha_url), 202);
   const task = match(path, /^\/wishes\/tasks\/([^/]+)$/);
   if (method === "GET" && task) { const wait = longPollOptions(query); return json(await app.wishTasks.wait(task, wait.after, wait.waitMs, signal)); }
   if (method === "GET" && path === "/companion/snapshot") {

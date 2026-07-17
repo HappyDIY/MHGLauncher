@@ -33,6 +33,13 @@ export class FixtureGameRecordSource implements GameRecordSource {
     return { uid, records: records.slice(0, 20) };
   }
 
+  async *wishesFromGachaUrl(url: string): AsyncIterable<WishRecord[]> {
+    const uid = new URL(url).searchParams.get("uid") ?? "100000001";
+    yield this.json<WishRecord[]>("wishes.json").map((value) => ({
+      ...value, uid, uigf_gacha_type: value.uigf_gacha_type || (value.gacha_type === "400" ? "301" : value.gacha_type),
+    }));
+  }
+
   private character(uid: string, avatarId: string, name: string, element: string, level: number, rarity: number, constellation: number, weapon: string, updatedAt: string): GameCharacter {
     return { uid, avatar_id: avatarId, name, element, level, rarity, constellation, fetter: 10, weapon_name: weapon, weapon_level: 90, icon_url: null, updated_at: updatedAt, payload: { avatar_id: avatarId, weapon: { name: weapon, level: 90 } } };
   }

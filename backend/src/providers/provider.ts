@@ -27,6 +27,7 @@ export interface Provider {
   getBuild(installedVersion?: string, audioLanguages?: string[]): Promise<GameBuild>;
   getInstalledBuild(installedVersion: string, audioLanguages?: string[]): Promise<GameBuild>;
   getPredownloadBuild(installedVersion?: string, audioLanguages?: string[]): Promise<GameBuild | null>;
+  gachaUrl(credential: string, role: GameRole): Promise<string>;
   wishes(credential: string, role: GameRole, newest: Record<string, string>): AsyncIterable<WishRecord[]>;
   getDailyNote(credential: string, role: GameRole, challenge?: string, challengePath?: string): Promise<DailyNote>;
   verifyNoteChallenge(credential: string, challenge: string, validate: string, challengePath?: string): Promise<string>;

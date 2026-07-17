@@ -61,6 +61,11 @@ export class FixtureProvider implements Provider {
     catch { return null; }
   }
 
+  async gachaUrl(_credential: string, role: GameRole): Promise<string> {
+    const query = new URLSearchParams({ auth_appid: "webview_gacha", authkey: "fixture", authkey_ver: "1", sign_type: "2", lang: "zh-cn", uid: role.uid });
+    return `https://public-operation-hk4e.mihoyo.com/gacha_info/api/getGachaLog?${query}`;
+  }
+
   async *wishes(_credential: string, _role: GameRole, _newest: Record<string, string>): AsyncIterable<WishRecord[]> {
     yield this.json<WishRecord[]>("wishes.json").map((value) => ({
       ...value, uigf_gacha_type: value.uigf_gacha_type || (value.gacha_type === "400" ? "301" : value.gacha_type),

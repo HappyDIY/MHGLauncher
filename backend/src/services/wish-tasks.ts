@@ -37,6 +37,17 @@ export class WishTasks {
     return job;
   }
 
+  startGachaUrl(gachaUrl: string): WishTask {
+    const job = this.create("import_gacha_url");
+    void this.run(job, async () => {
+      this.append(job, "正在校验抽卡 URL 并读取祈愿记录", null);
+      const result = await this.wishes.importFromGachaUrl(gachaUrl, (value) => this.append(job, value));
+      job.target_uids = result.uids;
+      return { result: { inserted: result.inserted, uid_count: result.uids.length }, message: `成功导入 ${result.inserted} 条新记录` };
+    });
+    return job;
+  }
+
   get(id: string): WishTask {
     const value = this.jobs.get(id);
     if (!value) throw new AppError("wish_task_missing", "祈愿任务不存在", 404);

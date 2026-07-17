@@ -168,7 +168,9 @@ async function loginCookie(credential: string): Promise<void> {
 	  });
 
 	  test("云同步和通知设置提供本地代理", async () => {
-	    const login = await (await request("POST", "/v1/cloud/login", { gacha_url: "https://public-operation-hk4e.mihoyo.com/gacha_info/api/getGachaLog?authkey=fixture&uid=100000001" })).json();
+	    const credential = "stuid=10001; stoken=fixture; mid=fixture-mid";
+	    await loginCookie(credential);
+	    const login = await (await request("POST", "/v1/cloud/login/account", { credential })).json();
 	    expect(login.uid).toBe("100000001");
 	    const upload = await (await request("POST", "/v1/cloud/wishes/upload", { uid: login.uid, token: login.token })).json();
 	    expect(upload.uploaded).toBeGreaterThanOrEqual(0);
@@ -191,7 +193,7 @@ async function loginCookie(credential: string): Promise<void> {
 async function waitForTask(id: string): Promise<void> {
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const task = await (await request("GET", `/v1/wishes/tasks/${id}`)).json();
-    if (task.status === "completed") return;
+    if (task.status === "completed") return; if (task.status === "failed") throw new Error(`祈愿任务失败：${task.error_code} ${task.error}`);
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
   throw new Error("等待祈愿任务完成超时");

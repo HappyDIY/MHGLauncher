@@ -2,8 +2,9 @@ import { randomBytes } from "node:crypto";
 import type { Settings } from "../core/config";
 import type { Store } from "../core/database";
 import { AppError } from "../core/errors";
-import type { CloudLoginResult } from "../core/models";
+import type { CloudLoginResult, GameRole } from "../core/models";
 import type { GameRecordSource } from "../providers/game-record";
+import type { Provider } from "../providers/provider";
 import type { WishService } from "./wishes";
 import { z } from "zod";
 
@@ -20,16 +21,23 @@ export class CloudSyncService {
     private readonly settings: Settings,
     private readonly store: Store,
     private readonly records: GameRecordSource,
+    private readonly provider: Provider,
     private readonly wishes: WishService,
   ) {}
 
-  async login(gachaUrl: string): Promise<CloudLoginResult> {
+  async loginWithCredential(credential: string, role: GameRole): Promise<CloudLoginResult> {
+    return this.login(await this.provider.gachaUrl(credential, role), role.uid);
+  }
+
+  async login(gachaUrl: string, expectedUid = ""): Promise<CloudLoginResult> {
     if (this.settings.cloudBaseUrl) {
       const value = await this.remote<CloudLoginResult>("/api/v1/auth/gacha-url", "", { gacha_url: gachaUrl });
+      this.assertExpectedUid(value.uid, expectedUid);
       this.save(value.uid, value.token_ref, value.reverified_at);
       return value;
     }
     const proof = await this.records.verifyGachaUrl(gachaUrl);
+    this.assertExpectedUid(proof.uid, expectedUid);
     const result = { uid: proof.uid, token: this.token(), token_ref: `keychain:cloud:${proof.uid}`, reverified_at: new Date().toISOString() };
     this.save(result.uid, result.token_ref, result.reverified_at);
     return result;
@@ -104,6 +112,10 @@ export class CloudSyncService {
   private async assertRemoteIdentity(uid: string, token: string): Promise<void> {
     const session = await this.remote<{ uid: string }>("/api/v1/me", token, undefined, "GET");
     if (session.uid !== uid) throw new AppError("cloud_identity_mismatch", "云端会话与角色 UID 不匹配", 403);
+  }
+
+  private assertExpectedUid(uid: string, expectedUid: string): void {
+    if (expectedUid && uid !== expectedUid) throw new AppError("cloud_identity_mismatch", "云端鉴权 UID 与当前角色不匹配", 403);
   }
 
   private token(): string { return randomBytes(32).toString("base64url"); }
