@@ -3,9 +3,14 @@ import SwiftUI
 struct GachaHistoryView: View {
     @Bindable var store: LauncherStore
     @State private var selectedID: String?
+    @State private var category = HistoryWishCategory.character
+
+    private var visibleWishes: [HistoryWishEvent] {
+        category.wishes(in: store.gachaHistory)
+    }
 
     private var selection: HistoryWishEvent? {
-        store.gachaHistory.first { $0.id == selectedID } ?? store.gachaHistory.first
+        visibleWishes.first { $0.id == selectedID } ?? visibleWishes.first
     }
 
     var body: some View {
@@ -22,9 +27,9 @@ struct GachaHistoryView: View {
             await store.loadValueData()
             if store.wishes.isEmpty { await store.loadCompanionData() }
         }
-        .onChange(of: store.gachaHistory.map(\.id)) {
-            if !(selectedID.map { id in store.gachaHistory.contains { $0.id == id } } ?? false) {
-                selectedID = store.gachaHistory.first?.id
+        .onChange(of: visibleWishes.map(\.id)) {
+            if !(selectedID.map { id in visibleWishes.contains { $0.id == id } } ?? false) {
+                selectedID = visibleWishes.first?.id
             }
         }
     }
@@ -53,8 +58,8 @@ struct GachaHistoryView: View {
 
     private var subtitle: String {
         guard let role = store.selectedRole else { return "请先登录账号并同步祈愿记录" }
-        let count = store.gachaHistory.reduce(0) { $0 + $1.total }
-        return "\(role.nickname) · UID \(role.uid) · 已匹配 \(store.gachaHistory.count) 个祈愿时段、\(count) 抽"
+        let count = visibleWishes.reduce(0) { $0 + $1.total }
+        return "\(role.nickname) · UID \(role.uid) · \(category.rawValue)祈愿 \(visibleWishes.count) 个时段、\(count) 抽"
     }
 
     private var emptyState: some View {
@@ -96,11 +101,21 @@ struct GachaHistoryView: View {
 
     private var listPane: some View {
         VStack(spacing: 0) {
+            Picker("祈愿分类", selection: $category) {
+                ForEach(HistoryWishCategory.allCases) { value in
+                    Label(value.rawValue, systemImage: value.icon)
+                        .tag(value)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(12)
+            Divider().padding(.horizontal, 12)
             HStack(spacing: 8) {
                 Label("祈愿时段", systemImage: "rectangle.stack.fill")
                     .font(.headline)
                 Spacer()
-                Text("\(store.gachaHistory.count) 个")
+                Text("\(visibleWishes.count) 个")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
@@ -108,7 +123,7 @@ struct GachaHistoryView: View {
             Divider().padding(.horizontal, 12)
             ScrollView {
                 LazyVStack(spacing: 8) {
-                    ForEach(store.gachaHistory) { wish in
+                    ForEach(visibleWishes) { wish in
                         HistoryWishRow(
                             wish: wish,
                             selected: selection?.id == wish.id
@@ -125,7 +140,15 @@ struct GachaHistoryView: View {
     @ViewBuilder
     private var detailPane: some View {
         if let selection {
-            HistoryWishDetail(wish: selection)
+            HistoryWishDetail(wish: selection, category: category)
+        } else {
+            ContentUnavailableView(
+                "暂无\(category.rawValue)祈愿记录",
+                systemImage: category.icon,
+                description: Text("同步记录或切换分类后重试。")
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .glassEffect(.regular, in: .rect(cornerRadius: 22))
         }
     }
 

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HistoryWishDetail: View {
     let wish: HistoryWishEvent
+    let category: HistoryWishCategory
     @State private var bannerID: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -15,7 +16,11 @@ struct HistoryWishDetail: View {
                         next: { moveBanner(by: 1) }
                     )
                 }
-                HistoryWishBannerCarousel(wish: wish, selectedID: $bannerID)
+                HistoryWishBannerCarousel(
+                    wish: wish,
+                    banners: visibleBanners,
+                    selectedID: $bannerID
+                )
                 statisticsHeader
                 itemSection("五星 UP", icon: "star.fill", items: wish.orangeUp, color: .orange)
                 itemSection("四星 UP", icon: "star.leadinghalf.filled", items: wish.purpleUp, color: .purple)
@@ -38,9 +43,13 @@ struct HistoryWishDetail: View {
 
     private var bannerPaging: HistoryWishBannerPaging {
         HistoryWishBannerPaging(
-            ids: wish.banners.map(\.id),
+            ids: visibleBanners.map(\.id),
             selectedID: bannerID ?? wish.id
         )
+    }
+
+    private var visibleBanners: [HistoryWishBanner] {
+        category.banners(in: wish.banners)
     }
 
     private func moveBanner(by offset: Int) {
@@ -51,9 +60,9 @@ struct HistoryWishDetail: View {
     }
 
     private func resetBanner() {
-        bannerID = wish.banners.contains { $0.id == wish.id }
+        bannerID = visibleBanners.contains { $0.id == wish.id }
             ? wish.id
-            : wish.banners.first?.id
+            : visibleBanners.first?.id
     }
 
     private var statisticsHeader: some View {

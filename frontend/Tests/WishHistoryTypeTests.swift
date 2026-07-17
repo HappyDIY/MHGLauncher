@@ -4,6 +4,23 @@ import Testing
 
 @Suite("历史祈愿卡池类型")
 struct WishHistoryTypeTests {
+    @Test("分类筛选同时区分列表与同期横幅")
+    func filtersCategories() {
+        #expect(HistoryWishCategory.character.includes(gachaType: "301"))
+        #expect(HistoryWishCategory.character.includes(gachaType: "400"))
+        #expect(!HistoryWishCategory.character.includes(gachaType: "302"))
+        #expect(HistoryWishCategory.weapon.includes(gachaType: "302"))
+        #expect(!HistoryWishCategory.weapon.includes(gachaType: "301"))
+
+        let banners = [
+            HistoryWishBanner(id: "role-1", name: "角色一", gachaType: "301", bannerUrl: nil),
+            HistoryWishBanner(id: "role-2", name: "角色二", gachaType: "400", bannerUrl: nil),
+            HistoryWishBanner(id: "weapon", name: "武器", gachaType: "302", bannerUrl: nil)
+        ]
+        #expect(HistoryWishCategory.character.banners(in: banners).map(\.id) == ["role-1", "role-2"])
+        #expect(HistoryWishCategory.weapon.banners(in: banners).map(\.id) == ["weapon"])
+    }
+
     @Test("双角色卡池合并为同一祈愿时段")
     func mergesConcurrentCharacterBanners() {
         let events = [

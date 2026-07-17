@@ -2,10 +2,11 @@ import SwiftUI
 
 struct HistoryWishBannerCarousel: View {
     let wish: HistoryWishEvent
+    let banners: [HistoryWishBanner]
     @Binding var selectedID: String?
 
-    private var banners: [HistoryWishBanner] {
-        if !wish.banners.isEmpty { return wish.banners }
+    private var visibleBanners: [HistoryWishBanner] {
+        if !banners.isEmpty { return banners }
         return [HistoryWishBanner(
             id: wish.id,
             name: wish.name,
@@ -17,7 +18,7 @@ struct HistoryWishBannerCarousel: View {
     var body: some View {
         ScrollView(.horizontal) {
             LazyHStack(spacing: 0) {
-                ForEach(banners) { banner in
+                ForEach(visibleBanners) { banner in
                     bannerCard(banner)
                         .containerRelativeFrame(.horizontal)
                         .id(banner.id)
