@@ -11,11 +11,28 @@ node_root="$("$root/scripts/fetch-node.sh")"
 output="$root/build/gacha-history-assets/$version"
 payload="$output/payload"
 archive="$output/gacha-history.zip"
+metadata_cache="$root/build/gacha-history-cache/Snap.Metadata"
+metadata_root="${MHG_METADATA_ROOT:-}"
+metadata_revision="${MHG_METADATA_REVISION:-main}"
+if [[ -z "$metadata_root" ]]; then
+  if [[ ! -d "$metadata_cache/.git" ]]; then
+    git clone --depth 1 --filter=blob:none --sparse \
+      https://github.com/SnapHutaoRemasteringProject/Snap.Metadata.git "$metadata_cache"
+    git -C "$metadata_cache" sparse-checkout set Genshin/CHS
+  fi
+  git -C "$metadata_cache" fetch --depth 1 origin "$metadata_revision"
+  git -C "$metadata_cache" checkout --detach FETCH_HEAD
+  metadata_root="$metadata_cache/Genshin/CHS"
+  metadata_revision="$(git -C "$metadata_cache" rev-parse HEAD)"
+fi
+test -d "$metadata_root/Avatar"
+test -f "$metadata_root/Weapon.json"
+test -f "$metadata_root/Reliquary.json"
 rm -rf "$output"
 mkdir -p "$payload"
 "$node_root/bin/node" "$root/scripts/build-gacha-history-resource.mjs" \
-  "$root/backend/src/mhglauncher/data" "$payload" \
-  "$root/build/gacha-history-cache/images" "$version"
+  "$root/backend/src/mhglauncher/data" "$metadata_root" "$payload" \
+  "$root/build/gacha-history-cache/images" "$version" "$metadata_revision"
 find "$payload" -exec touch -t 198001010000 {} +
 (
   cd "$payload"
