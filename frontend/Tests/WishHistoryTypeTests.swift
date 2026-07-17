@@ -20,6 +20,7 @@ struct WishHistoryTypeTests {
         #expect(history.count == 2)
         #expect(history.first { $0.id == "first" }?.summary.map(\.name) == ["角色一"])
         #expect(history.first { $0.id == "second" }?.summary.map(\.name) == ["角色二"])
+        #expect(history.allSatisfy { $0.banners.map(\.name) == ["角色池一", "角色池二"] })
     }
 
     private func event(id: String, type: String, name: String) -> GachaEvent {

@@ -9,12 +9,20 @@ struct HistoryWishItem: Identifiable, Equatable, Sendable {
     let count: Int
 }
 
+struct HistoryWishBanner: Identifiable, Equatable, Sendable {
+    let id: String
+    let name: String
+    let gachaType: String
+    let bannerUrl: URL?
+}
+
 struct HistoryWishEvent: Identifiable, Equatable, Sendable {
     let id: String
     let version: String
     let name: String
     let gachaType: String
     let bannerUrl: URL?
+    let banners: [HistoryWishBanner]
     let startedAt: Date
     let endedAt: Date
     let total: Int
@@ -32,6 +40,7 @@ struct HistoryWishEvent: Identifiable, Equatable, Sendable {
 
     static func make(events: [GachaEvent], records: [WishRecord]) -> [HistoryWishEvent] {
         let recordsByType = Dictionary(grouping: records, by: \.gachaType)
+        let bannersByPeriod = bannerGroups(events: events)
         let samples = records.reduce(into: [Int: [String: WishRecord]]()) { result, record in
             if result[record.rank]?[record.name] == nil {
                 result[record.rank, default: [:]][record.name] = record
@@ -47,6 +56,9 @@ struct HistoryWishEvent: Identifiable, Equatable, Sendable {
                 name: event.name,
                 gachaType: event.gachaType,
                 bannerUrl: event.bannerUrl,
+                banners: bannersByPeriod[
+                    HistoryWishPeriodKey(startedAt: startedAt, endedAt: endedAt)
+                ] ?? [],
                 startedAt: startedAt,
                 endedAt: endedAt,
                 total: eventRecords.count,
@@ -116,11 +128,31 @@ struct HistoryWishEvent: Identifiable, Equatable, Sendable {
     }
 
     private static func typeOrder(_ value: String) -> Int {
-        switch value.normalizedGachaType {
+        switch value {
         case "301": 0
-        case "302": 1
-        case "500": 2
+        case "400": 1
+        case "302": 2
+        case "500": 3
         default: 9
+        }
+    }
+
+    private static func bannerGroups(
+        events: [GachaEvent]
+    ) -> [HistoryWishPeriodKey: [HistoryWishBanner]] {
+        var groups: [HistoryWishPeriodKey: [HistoryWishBanner]] = [:]
+        for event in events {
+            guard let startedAt = event.startedAt, let endedAt = event.endedAt else { continue }
+            let key = HistoryWishPeriodKey(startedAt: startedAt, endedAt: endedAt)
+            groups[key, default: []].append(HistoryWishBanner(
+                id: event.id,
+                name: event.name,
+                gachaType: event.gachaType,
+                bannerUrl: event.bannerUrl
+            ))
+        }
+        return groups.mapValues { banners in
+            banners.sorted { typeOrder($0.gachaType) < typeOrder($1.gachaType) }
         }
     }
 
@@ -136,6 +168,11 @@ struct HistoryWishEvent: Identifiable, Equatable, Sendable {
     private static func dayString(_ date: Date) -> String {
         dayFormatter.string(from: date)
     }
+}
+
+private struct HistoryWishPeriodKey: Hashable {
+    let startedAt: Date
+    let endedAt: Date
 }
 
 extension String {

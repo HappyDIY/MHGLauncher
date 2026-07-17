@@ -2,26 +2,21 @@ import SwiftUI
 
 struct HistoryWishDetail: View {
     let wish: HistoryWishEvent
-    let paging: HistoryWishPaging
-    let goPrevious: () -> Void
-    let goNext: () -> Void
+    @State private var bannerID: String?
 
     var body: some View {
-        VStack(spacing: 0) {
-            pager
-            Divider().padding(.horizontal, 12)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    banner
-                    itemSection("五星 UP", icon: "star.fill", items: wish.orangeUp, color: .orange)
-                    itemSection("四星 UP", icon: "star.leadinghalf.filled", items: wish.purpleUp, color: .purple)
-                    itemSection("五星结果", icon: "sparkles", items: wish.summary, color: .orange)
-                    itemSection("四星结果", icon: "diamond.fill", items: wish.purple, color: .purple)
-                    itemSection("三星结果", icon: "circle.fill", items: wish.blue, color: .blue)
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                banner
+                statisticsHeader
+                itemSection("五星 UP", icon: "star.fill", items: wish.orangeUp, color: .orange)
+                itemSection("四星 UP", icon: "star.leadinghalf.filled", items: wish.purpleUp, color: .purple)
+                itemSection("五星结果", icon: "sparkles", items: wish.summary, color: .orange)
+                itemSection("四星结果", icon: "diamond.fill", items: wish.purple, color: .purple)
+                itemSection("三星结果", icon: "circle.fill", items: wish.blue, color: .blue)
             }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .glassEffect(
@@ -29,45 +24,67 @@ struct HistoryWishDetail: View {
             in: .rect(cornerRadius: 22)
         )
         .motionAnimation(.selection, value: wish.id)
+        .onChange(of: wish.id) { bannerID = wish.id }
     }
 
-    private var pager: some View {
-        HStack(spacing: 12) {
-            Button("上一页", systemImage: "chevron.left", action: goPrevious)
+    private var bannerPaging: HistoryWishBannerPaging {
+        HistoryWishBannerPaging(
+            ids: wish.banners.map(\.id),
+            selectedID: bannerID ?? wish.id
+        )
+    }
+
+    private var selectedBanner: HistoryWishBanner {
+        wish.banners.first { $0.id == bannerPaging.currentID }
+            ?? HistoryWishBanner(
+                id: wish.id,
+                name: wish.name,
+                gachaType: wish.gachaType,
+                bannerUrl: wish.bannerUrl
+            )
+    }
+
+    private var bannerPager: some View {
+        HStack(spacing: 7) {
+            Button("上一张", systemImage: "chevron.left") { moveBanner(by: -1) }
+                .labelStyle(.iconOnly)
                 .keyboardShortcut(.leftArrow, modifiers: [])
-                .disabled(!paging.canGoPrevious)
+                .disabled(!bannerPaging.canGoPrevious)
                 .motionHover()
-            Spacer()
-            Text("第 \(paging.page) / \(paging.count) 页")
-                .font(.callout.weight(.semibold).monospacedDigit())
-                .foregroundStyle(.secondary)
+            Text("\(bannerPaging.page) / \(bannerPaging.count)")
+                .font(.caption.weight(.semibold).monospacedDigit())
+                .foregroundStyle(.white)
                 .contentTransition(.numericText())
-                .accessibilityLabel("第 \(paging.page) 页，共 \(paging.count) 页")
-            Spacer()
-            Button("下一页", systemImage: "chevron.right", action: goNext)
+                .accessibilityLabel("第 \(bannerPaging.page) 张，共 \(bannerPaging.count) 张")
+            Button("下一张", systemImage: "chevron.right") { moveBanner(by: 1) }
+                .labelStyle(.iconOnly)
                 .keyboardShortcut(.rightArrow, modifiers: [])
-                .disabled(!paging.canGoNext)
+                .disabled(!bannerPaging.canGoNext)
                 .motionHover()
         }
         .buttonStyle(.glass)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(8)
+    }
+
+    private func moveBanner(by offset: Int) {
+        guard let id = bannerPaging.adjacentID(offset: offset) else { return }
+        bannerID = id
     }
 
     private var banner: some View {
         ZStack(alignment: .bottomLeading) {
             CachedAsyncImage(
-                url: wish.bannerUrl,
+                url: selectedBanner.bannerUrl,
                 contentMode: .fill,
                 maxPixelDimension: 1536
             ) {
                 LinearGradient(
-                    colors: [wish.poolTint.opacity(0.52), .purple.opacity(0.24)],
+                    colors: [selectedBanner.poolTint.opacity(0.52), .purple.opacity(0.24)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
                 .overlay {
-                    Image(systemName: wish.poolIcon)
+                    Image(systemName: selectedBanner.poolIcon)
                         .font(.system(size: 48, weight: .medium))
                         .foregroundStyle(.white.opacity(0.72))
                 }
@@ -79,6 +96,11 @@ struct HistoryWishDetail: View {
                 endPoint: .bottom
             )
             bannerLabel
+            if bannerPaging.count > 1 {
+                bannerPager
+                    .padding(6)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            }
         }
         .clipShape(.rect(cornerRadius: 16))
         .overlay {
@@ -86,23 +108,36 @@ struct HistoryWishDetail: View {
                 .stroke(.white.opacity(0.16))
         }
         .shadow(color: .black.opacity(0.14), radius: 14, y: 6)
-        .accessibilityElement(children: .combine)
     }
 
     private var bannerLabel: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text("版本 \(wish.version.nonempty ?? "未知") · \(wish.poolTitle)")
+            Text("版本 \(wish.version.nonempty ?? "未知") · \(selectedBanner.poolTitle)")
                 .font(.caption.weight(.semibold))
-            Text(wish.name)
+            Text(selectedBanner.name)
                 .font(.title2.bold())
             HStack(spacing: 12) {
                 Label(wish.timeSpan, systemImage: "calendar")
-                Label(wish.totalText, systemImage: "sparkles")
+                Label(
+                    selectedBanner.id == wish.id ? wish.totalText : "同期横幅",
+                    systemImage: selectedBanner.id == wish.id ? "sparkles" : "rectangle.stack"
+                )
             }
             .font(.caption)
         }
         .foregroundStyle(.white)
         .padding(16)
+    }
+
+    private var statisticsHeader: some View {
+        HStack {
+            Label("抽取统计 · \(wish.name)", systemImage: "chart.bar.xaxis")
+                .font(.headline)
+            Spacer()
+            Text(wish.totalText)
+                .font(.caption.weight(.semibold).monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
     }
 
     @ViewBuilder

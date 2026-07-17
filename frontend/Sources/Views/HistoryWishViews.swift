@@ -93,8 +93,20 @@ struct HistoryWishIcon: View {
 }
 
 extension HistoryWishEvent {
-    var poolTitle: String {
-        switch gachaType {
+    var poolTitle: String { gachaType.gachaPoolTitle }
+    var poolIcon: String { gachaType.gachaPoolIcon }
+    var poolTint: Color { gachaType.gachaPoolTint }
+}
+
+extension HistoryWishBanner {
+    var poolTitle: String { gachaType.gachaPoolTitle }
+    var poolIcon: String { gachaType.gachaPoolIcon }
+    var poolTint: Color { gachaType.gachaPoolTint }
+}
+
+private extension String {
+    var gachaPoolTitle: String {
+        switch self {
         case "301": "角色活动"
         case "400": "角色活动 · 2"
         case "302": "武器活动"
@@ -103,16 +115,16 @@ extension HistoryWishEvent {
         }
     }
 
-    var poolIcon: String {
-        switch gachaType {
+    var gachaPoolIcon: String {
+        switch self {
         case "302": "shield.lefthalf.filled"
         case "500": "sparkles.rectangle.stack.fill"
         default: "person.2.fill"
         }
     }
 
-    var poolTint: Color {
-        switch gachaType {
+    var gachaPoolTint: Color {
+        switch self {
         case "302": .orange
         case "500": .purple
         case "400": .indigo
