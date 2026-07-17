@@ -15,6 +15,19 @@ struct GachaEvent: Codable, Sendable, Identifiable {
     let updatedAt: Date
 }
 
+struct GachaResourceStatus: Codable, Sendable, Equatable {
+    let state: String
+    let version: String?
+    let eventCount: Int
+    let imageCount: Int
+    let installedBytes: Int64
+    let installedAt: Date?
+
+    var isReady: Bool { state == "ready" }
+}
+
+struct GachaResourceInstallRequest: Codable {}
+
 struct AchievementArchive: Codable, Sendable, Identifiable {
     let id: String
     let name: String

@@ -6,7 +6,6 @@ extension LauncherStore {
         let generation = companionDataGeneration
         do {
             let client = try requireClient()
-            async let events: [GachaEvent] = client.get("/v1/gacha-events")
             async let loadedCharacters: [GameCharacter] = client.get(
                 "/v1/characters", query: [URLQueryItem(name: "uid", value: uid)]
             )
@@ -21,15 +20,6 @@ extension LauncherStore {
             } catch {
                 guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
                 value.achievementError = Self.presentableMessage(error)
-            }
-            do {
-                let loaded = try await events
-                guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
-                value.gachaEvents = loaded
-                await refreshGachaHistoryPresentation()
-            } catch {
-                guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
-                message = Self.presentableMessage(error)
             }
             do {
                 let received = try await loadedCharacters
@@ -56,13 +46,43 @@ extension LauncherStore {
         }
     }
 
-    func refreshGachaEvents() async {
-        await perform {
-            value.gachaEvents = try await requireClient().post(
-                "/v1/gacha-events/refresh",
-                body: CredentialRequest(credential: try requireCredential())
-            )
+    func loadGachaResources() async {
+        do {
+            let status: GachaResourceStatus = try await requireClient().get("/v1/gacha-resources/status")
+            value.gachaResourceStatus = status
+            guard status.isReady else {
+                value.gachaEvents = []
+                await refreshGachaHistoryPresentation()
+                return
+            }
+            value.gachaEvents = try await requireClient().get("/v1/gacha-events")
             await refreshGachaHistoryPresentation()
+        } catch {
+            message = Self.presentableMessage(error)
+        }
+    }
+
+    func installGachaResources() async {
+        let previous = value.gachaResourceStatus
+        value.gachaResourceStatus = GachaResourceStatus(
+            state: "installing",
+            version: previous?.version,
+            eventCount: previous?.eventCount ?? 0,
+            imageCount: previous?.imageCount ?? 0,
+            installedBytes: previous?.installedBytes ?? 0,
+            installedAt: previous?.installedAt
+        )
+        await perform {
+            value.gachaResourceStatus = try await requireClient().post(
+                "/v1/gacha-resources/install",
+                body: GachaResourceInstallRequest(),
+                timeout: 3_600
+            )
+            value.gachaEvents = try await requireClient().get("/v1/gacha-events")
+            await refreshGachaHistoryPresentation()
+        }
+        if value.gachaResourceStatus?.state == "installing" {
+            value.gachaResourceStatus = previous
         }
     }
 

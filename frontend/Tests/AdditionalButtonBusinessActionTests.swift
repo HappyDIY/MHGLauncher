@@ -7,7 +7,7 @@ struct AdditionalButtonBusinessActionTests {
     @Test("无关接口失败不阻止成就快照加载")
     @MainActor
     func achievementDomainLoadsIndependently() async {
-        let backend = ValueFakeBackend(failureRoute: "/v1/gacha-events")
+        let backend = ValueFakeBackend(failureRoute: "/v1/characters")
         let store = LauncherStore(deviceOwnerAuthenticator: ValueAuthenticator())
         store.backend.useClient(APIClient(token: "fixture") { try await backend.respond($0) })
         store.account = InteractiveFixtures.account
@@ -39,12 +39,13 @@ struct AdditionalButtonBusinessActionTests {
         }
 
         await store.loadValueData()
+        await store.loadGachaResources()
         #expect(store.value.gachaEvents.count == 1)
         #expect(store.characters.count == 1)
         #expect(store.value.achievementGoals.count == 1)
         #expect(store.selectedAchievementArchive?.id == "archive-1")
 
-        await store.refreshGachaEvents()
+        await store.installGachaResources()
         await store.refreshCharacters()
         await store.refreshSelectedCharacterDetail()
         await store.createAchievementArchive(named: "旅行档案")
@@ -58,7 +59,7 @@ struct AdditionalButtonBusinessActionTests {
 
         #expect(store.message == nil)
         #expect(store.value.cloudMessage == "已取回 2 条记录")
-        #expect(await backend.saw("POST", "/v1/gacha-events/refresh"))
+        #expect(await backend.saw("POST", "/v1/gacha-resources/install"))
         #expect(await backend.saw("POST", "/v1/characters/1001/refresh"))
         #expect(await backend.savedAchievementRevision == 0)
         #expect(await backend.saw("POST", "/v1/cloud/login/account"))
@@ -105,7 +106,9 @@ private actor ValueFakeBackend {
             )
         }
         switch (request.method, route) {
-        case ("GET", "/v1/gacha-events"), ("POST", "/v1/gacha-events/refresh"): return try json([event])
+        case ("GET", "/v1/gacha-events"): return try json([event])
+        case ("GET", "/v1/gacha-resources/status"), ("POST", "/v1/gacha-resources/install"):
+            return try json(resourceStatus)
         case ("GET", "/v1/characters"), ("POST", "/v1/characters/refresh"): return try json([character])
         case ("POST", "/v1/characters/1001/refresh"): return try json(character)
         case ("GET", "/v1/notifications/settings"), ("PUT", "/v1/notifications/settings"): return try json(settings)
@@ -131,6 +134,7 @@ private actor ValueFakeBackend {
 private let date = Date(timeIntervalSince1970: 1_782_144_000)
 private let settings = NotificationSettings(dailyCommissionEnabled: true, dailyCommissionTime: "08:00", resinFullEnabled: true, gachaRefreshEnabled: true, versionUpdateEnabled: true)
 private let event = GachaEvent(id: "event-1", version: "5.8", gachaType: "301", name: "卡池", startedAt: date, endedAt: date, orangeUp: ["角色"], purpleUp: [], bannerUrl: nil, updatedAt: date)
+private let resourceStatus = GachaResourceStatus(state: "ready", version: "fixture", eventCount: 1, imageCount: 1, installedBytes: 1, installedAt: date)
 private let character = GameCharacter(uid: InteractiveFixtures.role.uid, avatarId: "1001", name: "旅行者", element: "Anemo", level: 90, rarity: 5, constellation: 0, fetter: 10, weaponName: "剑", weaponLevel: 90, iconUrl: nil, payload: nil, updatedAt: date)
 private let archive = AchievementArchive(id: "archive-1", name: "默认", selected: true, createdAt: date, updatedAt: date, revision: 0)
 private let goal = AchievementGoal(id: 1, order: 1, name: "天地万象", rewardCount: 5, iconUrl: nil)

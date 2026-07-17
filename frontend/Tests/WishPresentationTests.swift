@@ -135,7 +135,7 @@ struct WishPresentationTests {
             endedAt: date("2026-07-08T10:00:00Z"),
             orangeUp: ["丝柯克", "玛薇卡"],
             purpleUp: ["班尼特"],
-            orangeUpIcons: ["玛薇卡": URL(string: "/v1/images/gacha/mavuika.png")!],
+            orangeUpIcons: ["玛薇卡": URL(string: "/v1/gacha-resources/files/images/mavuika.img")!],
             purpleUpIcons: nil,
             bannerUrl: nil,
             updatedAt: date("2026-06-18T10:00:00Z")
@@ -151,7 +151,7 @@ struct WishPresentationTests {
 
         #expect(item.total == 3)
         #expect(item.orangeUp.map(\.count) == [1, 0])
-        #expect(item.orangeUp.first { $0.name == "玛薇卡" }?.iconUrl?.relativeString == "/v1/images/gacha/mavuika.png")
+        #expect(item.orangeUp.first { $0.name == "玛薇卡" }?.iconUrl?.relativeString == "/v1/gacha-resources/files/images/mavuika.img")
         #expect(item.summary.map(\.name) == ["丝柯克"])
         #expect(item.purple.map(\.name) == ["班尼特"])
         #expect(item.blue.map(\.name) == ["冷刃"])
