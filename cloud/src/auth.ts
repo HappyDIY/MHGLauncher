@@ -10,7 +10,9 @@ export async function verifyGachaUrl(raw: string): Promise<{ uid: string; items:
   const url = new URL(raw);
   if (url.protocol !== "https:" || url.username || url.password || url.port || !gachaHosts.has(url.hostname)
     || !url.searchParams.get("authkey")) throw new HttpError(422, "gacha_url_invalid", "抽卡 URL 无效");
+	  url.searchParams.set("gacha_type", "301");
   url.searchParams.set("size", "20");
+	  url.searchParams.set("end_id", "0");
   const response = await fetch(url, { signal: AbortSignal.timeout(30_000), redirect: "error" });
   const payload = await response.json() as { retcode?: number; message?: string; data?: { uid?: unknown; list?: Record<string, any>[] } };
   if (!response.ok || Number(payload.retcode ?? 0) !== 0) throw new HttpError(422, "gacha_url_expired", payload.message ?? "抽卡 URL 不可用");

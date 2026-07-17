@@ -17,6 +17,16 @@ test("云服务网络失败时返回明确错误", async () => {
   await expect(app.cloud.uploadWishes("100000001", "token")).rejects.toMatchObject({ code: "cloud_error", status: 503 });
 });
 
+test("云端鉴权错误保留可行动原因", async () => {
+  const app = fixture(); app.settings.cloudBaseUrl = "https://cloud.example";
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json(
+    { code: "gacha_url_expired", message: "抽卡 URL 已过期" }, { status: 422 },
+  ));
+  await expect(app.cloud.login("https://example.com/gacha")).rejects.toMatchObject({
+    code: "gacha_url_expired", message: "抽卡 URL 已过期", status: 422,
+  });
+});
+
 test("本地代理先绑定云端会话 UID", async () => {
   const app = fixture(); app.settings.cloudBaseUrl = "https://cloud.example";
   const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ uid: "100000002" }));
