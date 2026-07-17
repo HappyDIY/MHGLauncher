@@ -57,7 +57,7 @@ test("会话同时执行绝对和空闲期限", async () => {
 
 test("数据接口仅使用 bearer 会话 UID", async () => {
   const session = await issue("100000008");
-  const item = { id: "1", uid: "100000008", gacha_type: "301", uigf_gacha_type: "301", item_id: "1",
+	  const item = { id: "1", uid: "100000008", gacha_type: "301", uigf_gacha_type: "301", item_id: "",
     name: "角色", item_type: "角色", rank: 5, time: "2026-01-01T00:00:00Z" };
   const uploaded = await cloudRequest("POST", "/api/v1/gacha/upload", session.token, { items: [item] });
   expect(uploaded.status).toBe(200);

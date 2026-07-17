@@ -49,3 +49,15 @@ test("云端数据请求不再发送客户端 UID", async () => {
   expect(url).toBe("https://cloud.example/api/v1/gacha/upload");
   expect(JSON.parse(String(init?.body))).toEqual({ items: [] });
 });
+
+test("取回兼容官方接口的空物品 ID", async () => {
+  const app = fixture(); app.settings.cloudBaseUrl = "https://cloud.example";
+  vi.spyOn(globalThis, "fetch")
+    .mockResolvedValueOnce(Response.json({ uid: "100000001" }))
+    .mockResolvedValueOnce(Response.json({ items: [{
+      id: "1", uid: "100000001", gacha_type: "301", uigf_gacha_type: "301", item_id: "",
+      name: "角色", item_type: "角色", rank: 5, time: "2026-01-01T00:00:00Z",
+    }] }));
+  await expect(app.cloud.retrieveWishes("100000001", "token")).resolves.toEqual({ imported: 1 });
+  expect(app.wishes.list("100000001")[0]?.item_id).toBe("");
+});

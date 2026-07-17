@@ -11,7 +11,7 @@ import { z } from "zod";
 const cloudWish = z.object({
   id: z.string().regex(/^\d{1,19}$/), uid: z.string().regex(/^\d{9,10}$/),
   gacha_type: z.enum(["100", "200", "301", "302", "400", "500"]),
-  uigf_gacha_type: z.enum(["100", "200", "301", "302", "500"]), item_id: z.string().regex(/^\d{1,19}$/),
+  uigf_gacha_type: z.enum(["100", "200", "301", "302", "500"]), item_id: z.string().regex(/^(?:|\d{1,19})$/),
   name: z.string().max(128), item_type: z.string().max(64), rank: z.number().int().min(1).max(5),
   time: z.string().datetime(),
 }).strict();
