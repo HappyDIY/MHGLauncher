@@ -42,6 +42,7 @@ export async function valueRoute(app: Container, method: string, path: string, q
   ));
   if (method === "GET" && path === "/achievements/export") return json(app.achievements.exportUIAF(query.get("archive_id") ?? undefined));
   if (method === "POST" && path === "/cloud/login") return json(await app.cloud.login(gachaUrl.parse(body).gacha_url));
+  if (method === "POST" && path === "/cloud/login/account") return json(await app.cloud.loginWithCredential(credential.parse(body).credential, role()));
   if (method === "POST" && path === "/cloud/reverify") { const value = gachaUrl.parse(body); return json(await app.cloud.reverify(value.gacha_url, value.token)); }
   if (method === "GET" && path === "/cloud/session") return json(app.cloud.session(required(query, "uid")));
   if (method === "POST" && path === "/cloud/wishes/upload") { const value = cloudUid.parse(body); return json(await app.cloud.uploadWishes(value.uid, value.token)); }

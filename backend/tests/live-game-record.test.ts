@@ -20,6 +20,23 @@ test("抽卡 URL 拒绝非官方域名", async () => {
   expect(fetch).not.toHaveBeenCalled();
 });
 
+test("活动页 URL 规范化为官方祈愿接口", async () => {
+  const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+    const url = new URL(String(input));
+    expect(url.origin + url.pathname).toBe("https://public-operation-hk4e.mihoyo.com/gacha_info/api/getGachaLog");
+    expect(url.searchParams.get("gacha_type")).toBe("301");
+    return Response.json({ retcode: 0, data: { list: [{
+      id: "1", uid: "100000001", gacha_type: "301", item_id: "1001",
+      name: "测试角色", item_type: "角色", rank_type: "5", time: "2026-01-01 00:00:00",
+    }] } });
+  });
+  const proof = await source().verifyGachaUrl(
+    "https://webstatic.mihoyo.com/hk4e/event/e20190909gacha-v3/index.html?auth_appid=webview_gacha&authkey=fixture",
+  );
+  expect(proof.uid).toBe("100000001");
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
+
 test("卡池日历使用 POST 与角色参数", async () => {
   vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
     expect(init?.method).toBe("POST");

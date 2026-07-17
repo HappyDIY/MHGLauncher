@@ -1,6 +1,7 @@
 import type { Store } from "../core/database";
 import type { CompanionSnapshot, GameRole, WishRecord, WishStatistics } from "../core/models";
 import type { Provider } from "../providers/provider";
+import type { GameRecordSource } from "../providers/game-record";
 import type { ImageCache } from "./images";
 import { enrich } from "./metadata";
 import { banner, type BannerDetail } from "./wish-statistics";
@@ -14,7 +15,10 @@ const wish = (row: Record<string, unknown>): WishRecord => ({
 });
 
 export class WishService {
-  constructor(private readonly store: Store, private readonly provider: Provider, private readonly images: ImageCache) {}
+  constructor(
+    private readonly store: Store, private readonly provider: Provider,
+    private readonly images: ImageCache, private readonly gachaRecords?: GameRecordSource,
+  ) {}
 
   async sync(credential: string, role: GameRole, log?: (message: string) => void): Promise<number> {
     const newest = Object.fromEntries(this.store.all(`SELECT gacha_type,id FROM (
@@ -30,6 +34,20 @@ export class WishService {
     }
     log?.(`米游社分页读取完成，共处理 ${pages} 页`);
     return inserted;
+  }
+
+  async importFromGachaUrl(url: string, log?: (message: string) => void): Promise<{ inserted: number; uids: string[] }> {
+    if (!this.gachaRecords) throw new AppError("gacha_import_unavailable", "当前环境不支持抽卡 URL 导入", 503);
+    let inserted = 0, pages = 0;
+    const uids = new Set<string>();
+    for await (const records of this.gachaRecords.wishesFromGachaUrl(url)) {
+      records.forEach(({ uid }) => uids.add(uid));
+      if (uids.size > 1) throw new AppError("gacha_uid_mismatch", "抽卡 URL 返回了不一致的 UID", 422);
+      const added = this.newRecordCount(records); this.save(records);
+      inserted += added; pages += 1; log?.(`第 ${pages} 个卡池读取 ${records.length} 条记录，新增 ${added} 条`);
+    }
+    log?.(`抽卡 URL 分页读取完成，共处理 ${pages} 个卡池`);
+    return { inserted, uids: [...uids] };
   }
 
   save(records: WishRecord[]): void {

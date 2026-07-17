@@ -10,4 +10,5 @@ export interface GameRecordSource {
   characterDetail(credential: string, role: GameRole, avatarId: string): Promise<GameCharacter>;
   gachaEvents(credential: string, role: GameRole): Promise<GachaEvent[]>;
   verifyGachaUrl(url: string): Promise<GachaUrlProof>;
+  wishesFromGachaUrl(url: string): AsyncIterable<WishRecord[]>;
 }
