@@ -22,12 +22,27 @@ function remote(meta: Metadata): string {
   return `https://api.snaphutaorp.org/static/raw/${avatar ? "AvatarIcon" : "EquipIcon"}/${icon}.png`;
 }
 
+function named(value: string): [string, Metadata] | undefined {
+  names ??= new Map(Object.entries(all()).map(([key, metadata]) => [metadata[0], [key, metadata]]));
+  return names.get(value);
+}
+
+export function iconURLs(values: string[], images?: ImageCache): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const value of values) {
+    const meta = named(value)?.[1];
+    if (!meta) continue;
+    const url = remote(meta);
+    if (url) result[value] = images ? images.localURL(url) : url;
+  }
+  return result;
+}
+
 export function enrich(record: WishRecord, images?: ImageCache): WishRecord {
   let id = record.item_id;
   let meta = all()[id];
   if (!meta && record.name) {
-    names ??= new Map(Object.entries(all()).map(([key, value]) => [value[0], [key, value]]));
-    const match = names.get(record.name);
+    const match = named(record.name);
     if (match) [id, meta] = match;
   }
   if (!meta) return { ...record, icon_url: record.icon_url ?? null };

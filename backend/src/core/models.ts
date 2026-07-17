@@ -54,6 +54,7 @@ export interface AchievementSnapshot {
 export interface GachaEvent {
   id: string; version: string; gacha_type: string; name: string;
   started_at: string | null; ended_at: string | null; orange_up: string[]; purple_up: string[];
+  orange_up_icons?: Record<string, string>; purple_up_icons?: Record<string, string>;
   banner_url?: string | null; updated_at: string;
 }
 export interface NotificationSettings {

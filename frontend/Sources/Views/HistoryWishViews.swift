@@ -7,126 +7,45 @@ struct HistoryWishRow: View {
 
     var body: some View {
         Button(action: select) {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 7) {
                 HStack {
-                    Text("版本 \(wish.version.nonempty ?? "未知")  \(wish.name)")
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
+                    Label(wish.phaseTitle, systemImage: "calendar.badge.clock")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(wish.poolTint)
                     Spacer()
                     Text(wish.totalText)
-                        .font(.subheadline.monospacedDigit())
+                        .font(.caption.weight(.semibold).monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
-                HStack(alignment: .top) {
-                    upStrip(wish.orangeUp, maxWidth: 134)
-                    Spacer(minLength: 10)
-                    upStrip(wish.purpleUp, maxWidth: 272)
+                Text(wish.name)
+                    .font(.headline)
+                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(wish.timeSpan)
+                    Spacer(minLength: 4)
+                    if selected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(wish.poolTint)
+                    }
                 }
-                Text(wish.timeSpan)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
-            .padding(10)
+            .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(rowBackground)
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityValue(selected ? "已选择" : "未选择")
-        .motionHover(.subtle)
-    }
-
-    private func upStrip(_ items: [HistoryWishItem], maxWidth: CGFloat) -> some View {
-        LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 44, maximum: 48), spacing: 4)],
-            spacing: 4
-        ) {
-            ForEach(items) { item in
-                VStack(spacing: 3) {
-                    HistoryWishIcon(item: item, size: 40, showsBadge: false)
-                    Text("\(item.count)")
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .frame(maxWidth: maxWidth, alignment: .leading)
-    }
-
-    private var rowBackground: some View {
-        RoundedRectangle(cornerRadius: 8)
-            .fill(selected ? Color.accentColor.opacity(0.16) : .clear)
-            .overlay {
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.primary.opacity(selected ? 0.12 : 0.06))
-            }
-    }
-}
-
-struct HistoryWishDetail: View {
-    let wish: HistoryWishEvent
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                banner
-                itemSection("五星", items: wish.summary, color: .orange)
-                itemSection("四星", items: wish.purple, color: .purple)
-                itemSection("三星", items: wish.blue, color: .blue)
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .motionAnimation(.selection, value: wish.id)
-    }
-
-    private var banner: some View {
-        ZStack {
-            CachedAsyncImage(
-                url: wish.bannerUrl,
-                contentMode: .fill,
-                maxPixelDimension: 1536
-            ) {
-                LinearGradient(
-                    colors: [.cyan.opacity(0.35), .purple.opacity(0.2)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .overlay(
-                    Image(systemName: icon(for: wish.gachaType))
-                        .font(.system(size: 46))
-                        .foregroundStyle(.white.opacity(0.75))
-                )
-            }
-            .aspectRatio(1080 / 533, contentMode: .fit)
-            .clipShape(.rect(cornerRadius: 12))
-            Color.black.opacity(0.10).clipShape(.rect(cornerRadius: 12))
-        }
-        .shadow(color: .black.opacity(0.12), radius: 14, y: 6)
-    }
-
-    private func itemSection(
-        _ title: String,
-        items: [HistoryWishItem],
-        color: Color
-    ) -> some View {
-        Group {
-            if !items.isEmpty {
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(color)
-                LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 54, maximum: 64), spacing: 8)],
-                    spacing: 8
-                ) {
-                    ForEach(items) { HistoryWishIcon(item: $0, size: 54, showsBadge: true) }
-                }
-            }
-        }
-    }
-
-    private func icon(for type: String) -> String {
-        type.normalizedGachaType == "302" ? "shield.lefthalf.filled" : "sparkles"
+        .motionHover(selected ? .selection : .subtle)
+        .glassEffect(
+            selected
+                ? .regular.tint(wish.poolTint.opacity(0.18)).interactive()
+                : .clear.interactive(),
+            in: .rect(cornerRadius: 14)
+        )
+        .motionAnimation(.selection, value: selected)
     }
 }
 
@@ -146,7 +65,7 @@ struct HistoryWishIcon: View {
         .clipShape(.rect(cornerRadius: 8))
         .opacity(item.count > 0 ? 1 : 0.42)
         .overlay(alignment: .topTrailing) {
-            if showsBadge || item.count > 0 { badge(item.count) }
+            if showsBadge { badge(item.count) }
         }
         .help("\(item.name) × \(item.count)")
         .accessibilityLabel("\(item.name)，数量 \(item.count)")
@@ -168,5 +87,46 @@ struct HistoryWishIcon: View {
         default: [.blue.opacity(0.66), .gray.opacity(0.46)]
         }
         return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+}
+
+extension HistoryWishEvent {
+    var poolTitle: String { gachaType.gachaPoolTitle }
+    var poolIcon: String { gachaType.gachaPoolIcon }
+    var poolTint: Color { gachaType.gachaPoolTint }
+}
+
+extension HistoryWishBanner {
+    var poolTitle: String { gachaType.gachaPoolTitle }
+    var poolIcon: String { gachaType.gachaPoolIcon }
+    var poolTint: Color { gachaType.gachaPoolTint }
+}
+
+private extension String {
+    var gachaPoolTitle: String {
+        switch self {
+        case "301": "角色活动"
+        case "400": "角色活动 · 2"
+        case "302": "武器活动"
+        case "500": "集录祈愿"
+        default: "活动祈愿"
+        }
+    }
+
+    var gachaPoolIcon: String {
+        switch self {
+        case "302": "shield.lefthalf.filled"
+        case "500": "sparkles.rectangle.stack.fill"
+        default: "person.2.fill"
+        }
+    }
+
+    var gachaPoolTint: Color {
+        switch self {
+        case "302": .orange
+        case "500": .purple
+        case "400": .indigo
+        default: .cyan
+        }
     }
 }
