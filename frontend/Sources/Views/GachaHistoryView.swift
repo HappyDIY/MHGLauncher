@@ -14,24 +14,10 @@ struct GachaHistoryView: View {
             if store.gachaHistory.isEmpty {
                 emptyState.motionTransition(.content)
             } else {
-                GeometryReader { geometry in
-                    if geometry.size.width >= 900 {
-                        HStack(spacing: 0) {
-                            listPane.frame(width: min(439, geometry.size.width * 0.42))
-                            Divider()
-                            detailPane.frame(maxWidth: .infinity)
-                        }
-                    } else {
-                        VStack(spacing: 12) {
-                            listPane.frame(height: min(280, geometry.size.height * 0.42))
-                            detailPane
-                        }
-                    }
-                }
-                .glassEffect(.regular, in: .rect(cornerRadius: 18))
-                .motionEntrance(order: 1)
+                workspace.motionEntrance(order: 1)
             }
         }
+        .toolbar { toolbarActions }
         .task {
             await store.loadValueData()
             if store.wishes.isEmpty { await store.loadCompanionData() }
@@ -44,19 +30,24 @@ struct GachaHistoryView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            PageHeader(title: "历史祈愿", subtitle: subtitle)
+        PageHeader(title: "历史祈愿", subtitle: subtitle)
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarActions: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
             Button("刷新卡池", systemImage: "arrow.clockwise") {
                 Task { await store.refreshGachaEvents() }
             }
-            .buttonStyle(.glassProminent)
-            .motionHover(.prominent)
+            .buttonStyle(.glass)
+            .motionHover()
+            .disabled(store.isBusy || store.selectedRole == nil)
             Button("同步记录", systemImage: "arrow.trianglehead.2.clockwise.rotate.90") {
                 Task { await store.syncWishes() }
             }
-            .buttonStyle(.glass)
-            .motionHover()
-            .disabled(store.isWishOperationActive)
+            .buttonStyle(.glassProminent)
+            .motionHover(.prominent)
+            .disabled(store.isWishOperationActive || store.selectedRole == nil)
         }
     }
 
@@ -68,37 +59,67 @@ struct GachaHistoryView: View {
 
     private var emptyState: some View {
         ContentUnavailableView {
-            Label("还没有可展示的历史祈愿", systemImage: "sparkles.rectangle.stack")
+            Label(emptyTitle, systemImage: "sparkles.rectangle.stack")
         } description: {
-            Text("刷新历史卡池并同步祈愿记录后，这里会按活动卡池还原 UP、横幅和抽取结果。")
+            Text(emptyDescription)
         } actions: {
-            Button("刷新卡池") { Task { await store.refreshGachaEvents() } }
+            Button("同步记录") { Task { await store.syncWishes() } }
                 .buttonStyle(.glassProminent)
                 .motionHover(.prominent)
-            Button("同步记录") { Task { await store.syncWishes() } }
+                .disabled(store.isWishOperationActive || store.selectedRole == nil)
+            Button("刷新卡池") { Task { await store.refreshGachaEvents() } }
                 .buttonStyle(.glass)
                 .motionHover()
-                .disabled(store.isWishOperationActive)
+                .disabled(store.isBusy || store.selectedRole == nil)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .glassEffect(.regular, in: .rect(cornerRadius: 22))
+        .background {
+            Color.clear.glassEffect(
+                .regular.tint(.blue.opacity(0.06)),
+                in: .rect(cornerRadius: 22)
+            )
+        }
+    }
+
+    private var workspace: some View {
+        GeometryReader { geometry in
+            let sidebarWidth = min(max(geometry.size.width * 0.34, 280), 340)
+            GlassEffectContainer(spacing: 12) {
+                HStack(spacing: 12) {
+                    listPane.frame(width: sidebarWidth)
+                    detailPane.frame(minWidth: 420, maxWidth: .infinity)
+                }
+            }
+        }
     }
 
     private var listPane: some View {
-        ScrollView {
-            LazyVStack(spacing: 8) {
-                ForEach(store.gachaHistory) { wish in
-                    HistoryWishRow(
-                        wish: wish,
-                        selected: selection?.id == wish.id
-                    ) {
-                        selectedID = wish.id
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Label("活动卡池", systemImage: "rectangle.stack.fill")
+                    .font(.headline)
+                Spacer()
+                Text("\(store.gachaHistory.count) 个")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .padding(14)
+            Divider().padding(.horizontal, 12)
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    ForEach(store.gachaHistory) { wish in
+                        HistoryWishRow(
+                            wish: wish,
+                            selected: selection?.id == wish.id
+                        ) { selectedID = wish.id }
                     }
                 }
+                .padding(10)
             }
-            .padding(12)
         }
-        .background(.thinMaterial.opacity(0.28))
+        .background {
+            Color.clear.glassEffect(.regular, in: .rect(cornerRadius: 22))
+        }
     }
 
     @ViewBuilder
@@ -106,5 +127,15 @@ struct GachaHistoryView: View {
         if let selection {
             HistoryWishDetail(wish: selection)
         }
+    }
+
+    private var emptyTitle: String {
+        store.wishes.isEmpty ? "还没有祈愿记录" : "没有匹配的历史卡池"
+    }
+
+    private var emptyDescription: String {
+        store.wishes.isEmpty
+            ? "同步祈愿记录后，这里会自动还原活动卡池、UP 与抽取结果。"
+            : "刷新卡池元数据后重试，未落在活动时段内的记录仍可在祈愿记录页查看。"
     }
 }

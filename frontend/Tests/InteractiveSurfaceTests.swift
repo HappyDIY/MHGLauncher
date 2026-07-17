@@ -84,6 +84,7 @@ struct InteractiveSurfaceTests {
         store.gameRuntimeReady = true
         store.companionLoaded = true
         store.dailyNote = InteractiveFixtures.dailyNote
+        store.value.gachaEvents = [InteractiveFixtures.gachaEvent]
         await store.installWishRecords(InteractiveFixtures.wishRecords)
         store.wishStatistics = [InteractiveFixtures.wishStatistics]
         store.bannerDetails = [InteractiveFixtures.bannerDetail]

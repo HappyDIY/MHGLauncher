@@ -79,6 +79,13 @@ enum InteractiveFixtures {
             rank: 4, time: .now.addingTimeInterval(-3600), iconUrl: nil
         )
     ]
+    static let gachaEvent = GachaEvent(
+        id: "event-1", version: "6.7", gachaType: "301", name: "镜中的茶宴",
+        startedAt: .now.addingTimeInterval(-86_400),
+        endedAt: .now.addingTimeInterval(86_400),
+        orangeUp: ["芙宁娜"], purpleUp: ["西风剑"], bannerUrl: nil,
+        updatedAt: .now
+    )
     static let wishStatistics = WishStatistics(
         uid: "100000001",
         gachaType: "301",
