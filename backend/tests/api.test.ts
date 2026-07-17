@@ -132,6 +132,8 @@ describe("本地 API 契约", () => {
 	    const bundled = await (await request("GET", "/v1/gacha-events")).json();
 	    expect(bundled.length).toBeGreaterThan(200);
 	    expect(bundled.some((value: { version: string }) => value.version === "1.0")).toBe(true);
+	    const arlecchino = bundled.find((value: { name: string }) => value.name === "炉边烬影");
+	    expect(arlecchino.orange_up_icons["阿蕾奇诺"]).toMatch(/^\/v1\/images\/gacha\//);
 	    const events = await (await request("POST", "/v1/gacha-events/refresh", body)).json();
 	    expect(events.length).toBeGreaterThan(200);
 	    expect(events.some((value: { id: string }) => value.id === "fixture-301")).toBe(true);
