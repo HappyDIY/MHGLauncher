@@ -32,7 +32,7 @@ export function settings(env: NodeJS.ProcessEnv = process.env): Settings {
     downloadWorkers: integer(env.MHG_DOWNLOAD_WORKERS, 4),
     downloadSpeedLimitKB: integer(env.MHG_DOWNLOAD_SPEED_LIMIT, 0),
 	    socketPath: resolve(env.MHG_SOCKET_PATH ?? join(tmpdir(), `mhg-${process.pid}.sock`)),
-	    cloudBaseUrl: env.MHG_CLOUD_BASE_URL ?? "",
+	    cloudBaseUrl: (env.MHG_CLOUD_BASE_URL ?? "http://127.0.0.1:3333").replace(/\/+$/, ""),
 	  };
 		}
 
@@ -42,5 +42,11 @@ export function validateServerSettings(value: Settings): void {
   }
   if (!Number.isFinite(value.requestTimeout) || value.requestTimeout < 1_000 || value.requestTimeout > 300_000) {
     throw new AppError("request_timeout_invalid", "MHG_REQUEST_TIMEOUT 必须位于 1000 到 300000 毫秒之间", 500);
+  }
+  let cloudUrl: URL;
+  try { cloudUrl = new URL(value.cloudBaseUrl ?? ""); }
+  catch { throw new AppError("cloud_url_invalid", "MHG_CLOUD_BASE_URL 必须是有效 URL", 500); }
+  if (!["http:", "https:"].includes(cloudUrl.protocol) || cloudUrl.username || cloudUrl.password) {
+    throw new AppError("cloud_url_invalid", "MHG_CLOUD_BASE_URL 必须是无凭据的 HTTP 或 HTTPS URL", 500);
   }
 }
