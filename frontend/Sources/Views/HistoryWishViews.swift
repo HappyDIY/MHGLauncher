@@ -9,7 +9,7 @@ struct HistoryWishRow: View {
         Button(action: select) {
             VStack(alignment: .leading, spacing: 7) {
                 HStack {
-                    Label(wish.poolTitle, systemImage: wish.poolIcon)
+                    Label(wish.phaseTitle, systemImage: "calendar.badge.clock")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(wish.poolTint)
                     Spacer()
@@ -21,8 +21,6 @@ struct HistoryWishRow: View {
                     .font(.headline)
                     .lineLimit(1)
                 HStack(spacing: 6) {
-                    Text("版本 \(wish.version.nonempty ?? "未知")")
-                    Text("·")
                     Text(wish.timeSpan)
                     Spacer(minLength: 4)
                     if selected {

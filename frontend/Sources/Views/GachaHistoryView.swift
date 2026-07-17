@@ -54,7 +54,7 @@ struct GachaHistoryView: View {
     private var subtitle: String {
         guard let role = store.selectedRole else { return "请先登录账号并同步祈愿记录" }
         let count = store.gachaHistory.reduce(0) { $0 + $1.total }
-        return "\(role.nickname) · UID \(role.uid) · 已匹配 \(store.gachaHistory.count) 个卡池、\(count) 抽"
+        return "\(role.nickname) · UID \(role.uid) · 已匹配 \(store.gachaHistory.count) 个祈愿时段、\(count) 抽"
     }
 
     private var emptyState: some View {
@@ -97,7 +97,7 @@ struct GachaHistoryView: View {
     private var listPane: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Label("活动卡池", systemImage: "rectangle.stack.fill")
+                Label("祈愿时段", systemImage: "rectangle.stack.fill")
                     .font(.headline)
                 Spacer()
                 Text("\(store.gachaHistory.count) 个")

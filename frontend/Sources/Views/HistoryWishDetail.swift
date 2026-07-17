@@ -3,6 +3,7 @@ import SwiftUI
 struct HistoryWishDetail: View {
     let wish: HistoryWishEvent
     @State private var bannerID: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ScrollView {
@@ -14,7 +15,7 @@ struct HistoryWishDetail: View {
                         next: { moveBanner(by: 1) }
                     )
                 }
-                banner
+                HistoryWishBannerCarousel(wish: wish, selectedID: $bannerID)
                 statisticsHeader
                 itemSection("五星 UP", icon: "star.fill", items: wish.orangeUp, color: .orange)
                 itemSection("四星 UP", icon: "star.leadinghalf.filled", items: wish.purpleUp, color: .purple)
@@ -31,7 +32,8 @@ struct HistoryWishDetail: View {
             in: .rect(cornerRadius: 22)
         )
         .motionAnimation(.selection, value: wish.id)
-        .onChange(of: wish.id) { bannerID = wish.id }
+        .onAppear { resetBanner() }
+        .onChange(of: wish.id) { resetBanner() }
     }
 
     private var bannerPaging: HistoryWishBannerPaging {
@@ -41,72 +43,17 @@ struct HistoryWishDetail: View {
         )
     }
 
-    private var selectedBanner: HistoryWishBanner {
-        wish.banners.first { $0.id == bannerPaging.currentID }
-            ?? HistoryWishBanner(
-                id: wish.id,
-                name: wish.name,
-                gachaType: wish.gachaType,
-                bannerUrl: wish.bannerUrl
-            )
-    }
-
     private func moveBanner(by offset: Int) {
         guard let id = bannerPaging.adjacentID(offset: offset) else { return }
-        bannerID = id
+        withAnimation(LauncherMotion.animation(.selection, reduceMotion: reduceMotion)) {
+            bannerID = id
+        }
     }
 
-    private var banner: some View {
-        ZStack(alignment: .bottomLeading) {
-            CachedAsyncImage(
-                url: selectedBanner.bannerUrl,
-                contentMode: .fill,
-                maxPixelDimension: 1536
-            ) {
-                LinearGradient(
-                    colors: [selectedBanner.poolTint.opacity(0.52), .purple.opacity(0.24)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .overlay {
-                    Image(systemName: selectedBanner.poolIcon)
-                        .font(.system(size: 48, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.72))
-                }
-            }
-            .aspectRatio(1080 / 533, contentMode: .fit)
-            LinearGradient(
-                colors: [.clear, .black.opacity(0.72)],
-                startPoint: .center,
-                endPoint: .bottom
-            )
-            bannerLabel
-        }
-        .clipShape(.rect(cornerRadius: 16))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(.white.opacity(0.16))
-        }
-        .shadow(color: .black.opacity(0.14), radius: 14, y: 6)
-    }
-
-    private var bannerLabel: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text("版本 \(wish.version.nonempty ?? "未知") · \(selectedBanner.poolTitle)")
-                .font(.caption.weight(.semibold))
-            Text(selectedBanner.name)
-                .font(.title2.bold())
-            HStack(spacing: 12) {
-                Label(wish.timeSpan, systemImage: "calendar")
-                Label(
-                    selectedBanner.id == wish.id ? wish.totalText : "同期横幅",
-                    systemImage: selectedBanner.id == wish.id ? "sparkles" : "rectangle.stack"
-                )
-            }
-            .font(.caption)
-        }
-        .foregroundStyle(.white)
-        .padding(16)
+    private func resetBanner() {
+        bannerID = wish.banners.contains { $0.id == wish.id }
+            ? wish.id
+            : wish.banners.first?.id
     }
 
     private var statisticsHeader: some View {

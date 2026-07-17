@@ -7,8 +7,13 @@ struct HistoryWishBannerNavigation: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Label("同期横幅", systemImage: "photo.stack")
-                .font(.headline)
+            VStack(alignment: .leading, spacing: 2) {
+                Label("同期横幅", systemImage: "photo.stack")
+                    .font(.headline)
+                Text("触控板左右滑动")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
             Text("第 \(paging.page) / \(paging.count) 张")
                 .font(.caption.weight(.semibold).monospacedDigit())
                 .foregroundStyle(.secondary)
