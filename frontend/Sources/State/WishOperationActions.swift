@@ -94,7 +94,7 @@ extension LauncherStore {
     }
 
     func reloadWishes(client: APIClient) async throws {
-        guard let uid = selectedRole?.uid else { throw LauncherError.roleMissing }
+        guard let uid = activeWishUID else { throw LauncherError.roleMissing }
         let generation = companionDataGeneration
         let snapshot: CompanionSnapshot = try await client.get(
             "/v1/companion/snapshot",

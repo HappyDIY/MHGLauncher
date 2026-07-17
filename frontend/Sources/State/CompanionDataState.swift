@@ -1,6 +1,8 @@
 import Foundation
 
 extension LauncherStore {
+    var activeWishUID: String? { selectedRole?.uid ?? manualWishUID }
+
     func startCompanionSelection() -> Int {
         companionSelectionIntent &+= 1
         return companionSelectionIntent

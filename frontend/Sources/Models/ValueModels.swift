@@ -94,7 +94,6 @@ struct CloudSession: Codable, Sendable {
 
 struct GachaURLRequest: Codable {
     let gachaUrl: String
-    let token: String?
 }
 
 struct CloudUIDRequest: Codable {
