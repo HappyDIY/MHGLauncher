@@ -9,6 +9,8 @@ struct GachaEvent: Codable, Sendable, Identifiable {
     let endedAt: Date?
     let orangeUp: [String]
     let purpleUp: [String]
+    var orangeUpIcons: [String: URL]? = nil
+    var purpleUpIcons: [String: URL]? = nil
     let bannerUrl: URL?
     let updatedAt: Date
 }

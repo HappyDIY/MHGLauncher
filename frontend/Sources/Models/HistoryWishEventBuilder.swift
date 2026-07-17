@@ -30,6 +30,8 @@ extension HistoryWishEvent {
             types.contains($0.gachaType) && startedAt <= $0.time && $0.time <= endedAt
         }
         let key = HistoryWishPeriodKey(startedAt: startedAt, endedAt: endedAt)
+        let orangeIcons = iconURLs(events: sorted, keyPath: \.orangeUpIcons)
+        let purpleIcons = iconURLs(events: sorted, keyPath: \.purpleUpIcons)
         return HistoryWishEvent(
             id: event.id,
             version: event.version,
@@ -43,11 +45,11 @@ extension HistoryWishEvent {
             total: matched.count,
             orangeUp: upItems(
                 names: unique(sorted.flatMap(\.orangeUp)), rank: 5,
-                eventRecords: matched, samples: samples
+                eventRecords: matched, samples: samples, icons: orangeIcons
             ),
             purpleUp: upItems(
                 names: unique(sorted.flatMap(\.purpleUp)), rank: 4,
-                eventRecords: matched, samples: samples
+                eventRecords: matched, samples: samples, icons: purpleIcons
             ),
             summary: aggregate(matched, rank: 5),
             purple: aggregate(matched, rank: 4),
@@ -87,7 +89,7 @@ extension HistoryWishEvent {
 
     private static func upItems(
         names: [String], rank: Int, eventRecords: [WishRecord],
-        samples: [Int: [String: WishRecord]]
+        samples: [Int: [String: WishRecord]], icons: [String: URL]
     ) -> [HistoryWishItem] {
         let counts = Dictionary(grouping: eventRecords.filter { $0.rank == rank }, by: \.name)
         var indexed: [(Int, HistoryWishItem)] = []
@@ -99,7 +101,7 @@ extension HistoryWishEvent {
             let item = HistoryWishItem(
                 id: id, name: name,
                 itemType: sample?.itemType ?? "", rank: rank,
-                iconUrl: sample?.iconUrl, count: matches.count
+                iconUrl: sample?.iconUrl ?? icons[name], count: matches.count
             )
             indexed.append((index, item))
         }
@@ -147,6 +149,15 @@ extension HistoryWishEvent {
     private static func unique(_ values: [String]) -> [String] {
         var seen = Set<String>()
         return values.filter { seen.insert($0).inserted }
+    }
+
+    private static func iconURLs(
+        events: [GachaEvent],
+        keyPath: KeyPath<GachaEvent, [String: URL]?>
+    ) -> [String: URL] {
+        events.reduce(into: [:]) { result, event in
+            result.merge(event[keyPath: keyPath] ?? [:]) { current, _ in current }
+        }
     }
 
     private static func typeOrder(_ value: String) -> Int {
