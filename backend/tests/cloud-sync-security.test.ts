@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
 import { fixture } from "./helpers";
 
@@ -25,6 +27,9 @@ test("云端鉴权错误保留可行动原因", async () => {
   await expect(app.cloud.login("https://example.com/gacha")).rejects.toMatchObject({
     code: "gacha_url_expired", message: "抽卡 URL 已过期", status: 422,
   });
+	  expect(JSON.parse(readFileSync(join(app.settings.dataDir, "cloud-sync-diagnostic.json"), "utf8"))).toMatchObject({
+	    path: "/api/v1/auth/gacha-url", status: 422, code: "gacha_url_expired",
+	  });
 });
 
 test("本地代理先绑定云端会话 UID", async () => {
