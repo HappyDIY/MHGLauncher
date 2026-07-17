@@ -69,8 +69,8 @@ extension LauncherStore {
     func loginCloud() async {
         await perform {
             let result: CloudLoginResult = try await requireClient().post(
-                "/v1/cloud/login",
-                body: GachaURLRequest(gachaUrl: value.cloudLoginURL, token: nil)
+                "/v1/cloud/login/account",
+                body: CredentialRequest(credential: try requireCredential())
             )
             try keychain.save(result.token, account: cloudKeychainAccount(uid: result.uid))
             value.cloudSession = CloudSession(uid: result.uid, tokenRef: result.tokenRef, reverifiedAt: result.reverifiedAt, updatedAt: result.reverifiedAt)

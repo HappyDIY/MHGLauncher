@@ -25,6 +25,21 @@ struct AuthWishAPIModelTests {
         #expect(task.failureMessage == "访问过于频繁，请稍后再同步祈愿记录")
     }
 
+    @Test("解码 URL 导入目标 UID")
+    func decodeGachaURLImportUID() throws {
+        let data = Data(
+            """
+            {
+              "id": "task-2", "kind": "import_gacha_url", "status": "completed",
+              "progress": 1, "logs": [], "result": {"inserted": 2},
+              "error": "", "target_uids": ["100000001"]
+            }
+            """.utf8
+        )
+        let task = try JSONDecoder.api.decode(WishTaskSnapshot.self, from: data)
+        #expect(task.targetUids == ["100000001"])
+    }
+
     @Test("解码短信验证上下文")
     func decodeMobileCaptchaVerification() throws {
         let data = Data(

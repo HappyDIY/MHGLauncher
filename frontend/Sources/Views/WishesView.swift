@@ -13,7 +13,7 @@ struct WishesView: View {
         VStack(alignment: .leading, spacing: 16) {
             header
                 .motionEntrance(order: 0)
-            if store.selectedRole == nil {
+            if store.activeWishUID == nil {
                 ContentUnavailableView {
                     Label("需要选择角色", systemImage: "person.crop.circle.badge.questionmark")
                 } description: {
@@ -81,10 +81,15 @@ struct WishesView: View {
         HStack(alignment: .center, spacing: 14) {
             PageHeader(
                 title: "祈愿记录",
-                subtitle: store.selectedRole.map { "\($0.nickname) · UID \($0.uid)" } ?? "请先登录账号"
+                subtitle: store.selectedRole.map { "\($0.nickname) · UID \($0.uid)" }
+                    ?? store.manualWishUID.map { "手动导入 · UID \($0)" } ?? "请先登录账号"
             )
-            Button("同步记录", systemImage: "arrow.trianglehead.2.clockwise.rotate.90") {
-                Task { await store.syncWishes() }
+            Button(
+                store.account == nil ? "登录并同步" : "同步记录",
+                systemImage: "arrow.trianglehead.2.clockwise.rotate.90"
+            ) {
+                if store.account == nil { store.selectedDestination = .account }
+                else { Task { await store.syncWishes() } }
             }
             .buttonStyle(.glassProminent)
             .motionHover(.prominent)
@@ -111,6 +116,7 @@ struct WishesView: View {
             .buttonStyle(.glass)
             .motionHover()
             .disabled(store.isWishOperationActive)
+            WishAdvancedOptions(store: store)
         }
     }
     private var workspace: some View {

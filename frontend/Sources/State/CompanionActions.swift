@@ -135,6 +135,22 @@ extension LauncherStore {
         }
     }
 
+    func importWishes(fromGachaURL value: String) async {
+        await runWishOperation(.importGachaURL) {
+            let client = try requireClient()
+            let task: WishTaskSnapshot = try await client.post(
+                "/v1/wishes/tasks/import-url",
+                body: GachaURLRequest(gachaUrl: value.trimmingCharacters(in: .whitespacesAndNewlines))
+            )
+            let snapshot = try await waitForWishTask(task, client: client)
+            guard let uid = snapshot.targetUids?.first else { throw LauncherError.roleMissing }
+            manualWishUID = uid
+            updateWishOperation(nil, "URL 导入已完成，正在载入 UID \(uid) 的祈愿数据")
+            try await reloadWishes(client: client)
+            finishWishOperation("已从后端载入 \(wishes.count) 条祈愿记录")
+        }
+    }
+
     func exportUIGF(to url: URL) async {
         guard let uid = selectedRole?.uid else {
             message = LauncherError.roleMissing.localizedDescription

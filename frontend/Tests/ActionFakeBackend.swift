@@ -189,6 +189,7 @@ private func wishTask() -> WishTaskSnapshot {
         result: ["inserted": 0],
         error: "",
         errorCode: nil,
-        revision: 1
+        revision: 1,
+        targetUids: nil
     )
 }

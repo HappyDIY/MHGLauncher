@@ -84,7 +84,7 @@ final class LauncherStore {
     }
     var triggerWishImport = false
     var triggerWishExport = false
-    var triggerWishClear = false
+    var triggerWishClear = false; var manualWishUID: String?
     var showsLoginBeforeLaunch = false
     var speedLimitKB = 0
     let loginDeferralKey = "loginLaunchDeferrals"

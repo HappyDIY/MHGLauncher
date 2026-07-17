@@ -16,6 +16,5 @@ final class ValueStore {
     var notificationError: String?
     var notificationEvents: [NotificationEvent] = []
     var cloudSession: CloudSession?
-    var cloudLoginURL = ""
     var cloudMessage = ""
 }

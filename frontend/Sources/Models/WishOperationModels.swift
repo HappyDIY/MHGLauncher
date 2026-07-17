@@ -2,6 +2,7 @@ import Foundation
 
 enum WishOperationKind: String, Sendable {
     case sync
+    case importGachaURL
     case importUIGF
     case exportUIGF
     case clearAll
@@ -9,6 +10,7 @@ enum WishOperationKind: String, Sendable {
     var title: String {
         switch self {
         case .sync: "同步祈愿记录"
+        case .importGachaURL: "通过抽卡 URL 导入"
         case .importUIGF: "导入 UIGF 数据"
         case .exportUIGF: "导出 UIGF 数据"
         case .clearAll: "清空全部祈愿记录"
@@ -18,6 +20,7 @@ enum WishOperationKind: String, Sendable {
     var icon: String {
         switch self {
         case .sync: "arrow.trianglehead.2.clockwise.rotate.90"
+        case .importGachaURL: "link.badge.plus"
         case .importUIGF: "square.and.arrow.down"
         case .exportUIGF: "square.and.arrow.up"
         case .clearAll: "trash"
@@ -54,6 +57,7 @@ struct WishTaskSnapshot: Codable, Sendable {
     let error: String
     let errorCode: String?
     let revision: Int?
+    let targetUids: [String]?
 
     var failureMessage: String {
         switch errorCode {

@@ -52,7 +52,6 @@ struct AdditionalButtonBusinessActionTests {
         if let entry = store.value.achievementEntries.first { await store.saveAchievement(entry, checked: true) }
         await store.updateNotificationSettings(settings, revertingTo: settings)
         await store.evaluateNotifications()
-        store.value.cloudLoginURL = "https://example.invalid/authkey"
         await store.loginCloud()
         await store.uploadCloudWishes()
         await store.retrieveCloudWishes()
@@ -62,6 +61,7 @@ struct AdditionalButtonBusinessActionTests {
         #expect(await backend.saw("POST", "/v1/gacha-events/refresh"))
         #expect(await backend.saw("POST", "/v1/characters/1001/refresh"))
         #expect(await backend.savedAchievementRevision == 0)
+        #expect(await backend.saw("POST", "/v1/cloud/login/account"))
         #expect(await backend.saw("POST", "/v1/cloud/wishes/retrieve"))
     }
 
@@ -117,7 +117,7 @@ private actor ValueFakeBackend {
         case ("POST", "/v1/achievements"):
             savedAchievementRevision = try JSONDecoder.api.decode(AchievementSaveRequest.self, from: request.body ?? Data()).expectedRevision
             return try json(snapshot)
-        case ("POST", "/v1/cloud/login"): return try json(CloudLoginResult(uid: InteractiveFixtures.role.uid, token: "cloud-token", tokenRef: "keychain:cloud", reverifiedAt: date))
+        case ("POST", "/v1/cloud/login/account"): return try json(CloudLoginResult(uid: InteractiveFixtures.role.uid, token: "cloud-token", tokenRef: "keychain:cloud", reverifiedAt: date))
         case ("POST", "/v1/cloud/wishes/upload"): return try json(CountResponse(inserted: nil, imported: nil, deleted: nil, uploaded: 2))
         case ("POST", "/v1/cloud/wishes/retrieve"): return try json(CountResponse(inserted: nil, imported: 2, deleted: nil, uploaded: nil))
         case ("GET", "/v1/companion/snapshot"): return try json(CompanionSnapshot(wishes: [], statistics: [], bannerStatistics: [], note: nil))
