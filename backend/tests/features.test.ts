@@ -17,7 +17,7 @@ test("任务式祈愿同步、去重、统计和导出", async () => {
   const completed = await (await request("GET", `/v1/wishes/tasks/${task.id}`)).json();
   expect(completed.status).toBe("completed"); expect(completed.result.inserted).toBe(2);
   const records = await (await request("GET", "/v1/wishes?uid=100000001")).json();
-  expect(records).toHaveLength(2); expect(records[0].icon_url).toMatch(/^\/v1\/images\//);
+  expect(records).toHaveLength(2); expect(records[0].icon_url).toBeNull();
   expect((await (await request("GET", "/v1/wishes/statistics?uid=100000001")).json())[0].five_star_count).toBe(1);
   const exported = await (await request("GET", "/v1/wishes/export?uid=100000001")).json();
   expect(exported.info.version).toBe("v4.2"); expect(exported.info.uigf_version).toBeUndefined();

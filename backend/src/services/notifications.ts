@@ -1,5 +1,6 @@
 import type { Store } from "../core/database";
 import type { DailyNote, GameState, NotificationEvent, NotificationSettings } from "../core/models";
+import type { GachaResourceService } from "./gacha-resources";
 
 const bool = (value: unknown): boolean => Boolean(Number(value));
 const settings = (row: Record<string, unknown>): NotificationSettings => ({
@@ -11,7 +12,7 @@ const settings = (row: Record<string, unknown>): NotificationSettings => ({
 });
 
 export class NotificationService {
-  constructor(private readonly store: Store) {}
+  constructor(private readonly store: Store, private readonly gachaResources: GachaResourceService) {}
 
   get(): NotificationSettings {
     return settings(this.store.one("SELECT * FROM notification_settings WHERE id=1") ?? {});
@@ -53,7 +54,8 @@ export class NotificationService {
 
   private hasEventStartingToday(now: Date): boolean {
     const day = this.day(now);
-    return this.store.all("SELECT id FROM gacha_events WHERE substr(started_at,1,10)=? LIMIT 1", day).length > 0;
+    try { return this.gachaResources.events().some(({ started_at }) => started_at?.startsWith(day)); }
+    catch { return false; }
   }
 
   private after(value: string, now: Date): boolean {

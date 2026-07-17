@@ -2,10 +2,9 @@ import type { Store } from "../core/database";
 import type { CompanionSnapshot, GameRole, WishRecord, WishStatistics } from "../core/models";
 import type { Provider } from "../providers/provider";
 import type { GameRecordSource } from "../providers/game-record";
-import type { ImageCache } from "./images";
-import { enrich } from "./metadata";
 import { banner, type BannerDetail } from "./wish-statistics";
 import { AppError } from "../core/errors";
+import type { GachaResourceService } from "./gacha-resources";
 
 const wish = (row: Record<string, unknown>): WishRecord => ({
   id: String(row.id), uid: String(row.uid), gacha_type: String(row.gacha_type),
@@ -17,7 +16,7 @@ const wish = (row: Record<string, unknown>): WishRecord => ({
 export class WishService {
   constructor(
     private readonly store: Store, private readonly provider: Provider,
-    private readonly images: ImageCache, private readonly gachaRecords?: GameRecordSource,
+    private readonly resources: GachaResourceService, private readonly gachaRecords?: GameRecordSource,
   ) {}
 
   async sync(credential: string, role: GameRole, log?: (message: string) => void): Promise<number> {
@@ -71,7 +70,7 @@ export class WishService {
     const rows = type
       ? this.store.all("SELECT * FROM wishes WHERE uid=? AND gacha_type=? ORDER BY time_epoch DESC,LENGTH(id) DESC,id DESC", uid, type)
       : this.store.all("SELECT * FROM wishes WHERE uid=? ORDER BY time_epoch DESC,LENGTH(id) DESC,id DESC", uid);
-    return rows.map(wish).map((value) => enrich(value, this.images));
+    return rows.map(wish).map((value) => this.resources.enrich(value));
   }
 
   statistics(uid: string): WishStatistics[] {
@@ -89,7 +88,7 @@ export class WishService {
     return {
       wishes, statistics: this.statisticsFrom(wishes),
       banner_statistics: [...Map.groupBy(ascending, (value) => value.uigf_gacha_type).entries()]
-        .sort().map(([type, values]) => banner(uid, type, values, this.images)),
+        .sort().map(([type, values]) => banner(uid, type, values, this.resources)),
       note: note as CompanionSnapshot["note"],
     };
   }
@@ -106,7 +105,7 @@ export class WishService {
   bannerStatistics(uid: string): BannerDetail[] {
     const records = this.store.all("SELECT * FROM wishes WHERE uid=? ORDER BY time_epoch ASC,LENGTH(id) ASC,id ASC", uid).map(wish);
     return [...Map.groupBy(records, (value) => value.uigf_gacha_type).entries()].sort()
-      .map(([type, values]) => banner(uid, type, values, this.images));
+      .map(([type, values]) => banner(uid, type, values, this.resources));
   }
 
   private newRecordCount(records: WishRecord[]): number {

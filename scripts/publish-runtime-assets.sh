@@ -27,4 +27,5 @@ fi
 
 MHG_REQUIRE_RUNTIME_SIGNATURE=1 "$root/scripts/verify-runtime-assets.sh" "$asset_dir" all
 gh release upload "$tag" "$asset_dir"/*
+"$root/scripts/publish-gacha-history-resource.sh" "$tag" "${tag#v}"
 printf '运行时资产已上传到 GitHub Release：%s\n' "$tag"

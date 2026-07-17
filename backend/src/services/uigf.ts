@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { AppError } from "../core/errors";
 import type { WishRecord } from "../core/models";
-import { enrich } from "./metadata";
 
 const item = z.object({
   id: z.coerce.string().regex(/^\d{1,19}$/), uigf_gacha_type: z.coerce.string(),
@@ -48,11 +47,11 @@ function record(uid: string, timezone: number, value: z.infer<typeof item>): Wis
   if (!gachaTypes.has(value.gacha_type) || !uigfTypes.has(value.uigf_gacha_type) || !time) {
     throw new AppError("uigf_item_invalid", "UIGF 记录字段无效");
   }
-  return enrich({
+  return {
     id: value.id, uid, gacha_type: value.gacha_type, uigf_gacha_type: value.uigf_gacha_type,
     item_id: value.item_id, name: value.name, item_type: value.item_type,
     rank: Number(value.rank_type ?? 0), time,
-  });
+  };
 }
 
 function normalizeTime(value: string, timezone: number): string | null {

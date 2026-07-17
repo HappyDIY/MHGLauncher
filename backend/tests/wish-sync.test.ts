@@ -9,7 +9,7 @@ import { LiveProvider } from "../src/providers/live";
 import type { Provider } from "../src/providers/provider";
 import { wishSyncLimitedMessage } from "../src/providers/wish-sync";
 import type { AccountService } from "../src/services/accounts";
-import type { ImageCache } from "../src/services/images";
+import type { GachaResourceService } from "../src/services/gacha-resources";
 import { WishTasks } from "../src/services/wish-tasks";
 import { WishService } from "../src/services/wishes";
 
@@ -62,7 +62,8 @@ describe("祈愿同步限流", () => {
       yield [wish("complete-1", "100")];
       throw new AppError("wish_sync_limited", wishSyncLimitedMessage, 429);
     } } as unknown as Provider;
-    const service = new WishService(store, provider, {} as ImageCache);
+    const resources = { enrich: (value: WishRecord) => value } as GachaResourceService;
+    const service = new WishService(store, provider, resources);
 
     await expect(service.sync("stoken=fixture", role)).rejects.toMatchObject({ code: "wish_sync_limited" });
     expect(store.all("SELECT id,gacha_type FROM wishes WHERE uid=?", role.uid)).toEqual([{ id: "complete-1", gacha_type: "100" }]);

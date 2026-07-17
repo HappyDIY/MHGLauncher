@@ -35,4 +35,12 @@ describe("服务安全配置", () => {
       MHG_CLOUD_BASE_URL: "file:///tmp/cloud",
     }))).toThrow("MHG_CLOUD_BASE_URL");
   });
+
+  test("历史卡池资源仅接受 HTTPS 清单", () => {
+    expect(settings({ NODE_ENV: "test" }).gachaResourceManifestUrl).toContain("github.com/HappyDIY/MHGLauncher");
+    expect(() => validateServerSettings(settings({
+      NODE_ENV: "test", MHG_API_TOKEN: "token",
+      MHG_GACHA_RESOURCE_MANIFEST_URL: "http://resource.example/manifest.json",
+    }))).toThrow("历史卡池资源");
+  });
 });
