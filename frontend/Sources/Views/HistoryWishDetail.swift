@@ -16,12 +16,11 @@ struct HistoryWishDetail: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background {
-            Color.clear.glassEffect(
-                .regular.tint(wish.poolTint.opacity(0.06)),
-                in: .rect(cornerRadius: 22)
-            )
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .glassEffect(
+            .regular.tint(wish.poolTint.opacity(0.06)),
+            in: .rect(cornerRadius: 22)
+        )
         .motionAnimation(.selection, value: wish.id)
     }
 

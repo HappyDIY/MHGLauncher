@@ -73,23 +73,24 @@ struct GachaHistoryView: View {
                 .disabled(store.isBusy || store.selectedRole == nil)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background {
-            Color.clear.glassEffect(
-                .regular.tint(.blue.opacity(0.06)),
-                in: .rect(cornerRadius: 22)
-            )
-        }
+        .glassEffect(
+            .regular.tint(.blue.opacity(0.06)),
+            in: .rect(cornerRadius: 22)
+        )
     }
 
     private var workspace: some View {
         GeometryReader { geometry in
             let sidebarWidth = min(max(geometry.size.width * 0.34, 280), 340)
-            GlassEffectContainer(spacing: 12) {
-                HStack(spacing: 12) {
-                    listPane.frame(width: sidebarWidth)
-                    detailPane.frame(minWidth: 420, maxWidth: .infinity)
-                }
+            HStack(spacing: 12) {
+                listPane.frame(width: sidebarWidth)
+                detailPane.frame(minWidth: 420, maxWidth: .infinity)
             }
+            .frame(
+                width: geometry.size.width,
+                height: geometry.size.height,
+                alignment: .topLeading
+            )
         }
     }
 
@@ -117,9 +118,8 @@ struct GachaHistoryView: View {
                 .padding(10)
             }
         }
-        .background {
-            Color.clear.glassEffect(.regular, in: .rect(cornerRadius: 22))
-        }
+        .frame(maxHeight: .infinity)
+        .glassEffect(.regular, in: .rect(cornerRadius: 22))
     }
 
     @ViewBuilder
