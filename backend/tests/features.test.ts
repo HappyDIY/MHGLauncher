@@ -41,6 +41,7 @@ test("我的角色刷新、缓存与详情", async () => {
   const refreshed = await (await request("POST", "/v1/characters/refresh", { credential })).json();
   expect(refreshed[0].name).toBe("芙宁娜");
   expect(await (await request("GET", "/v1/characters?uid=100000001")).json()).toHaveLength(2);
+  expect(await (await request("POST", "/v1/characters/cache-assets", {})).json()).toHaveLength(2);
   const detail = await (await request("POST", `/v1/characters/${refreshed[0].avatar_id}/refresh`, { credential })).json();
   expect(detail.payload.weapon.name).toBe("静水流涌之辉");
 });

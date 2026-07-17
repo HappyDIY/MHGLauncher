@@ -11,6 +11,7 @@ import { DownloadControl, hash } from "./download";
 import { streamDownload } from "./download-transfer";
 import { activate, extract, safeTarget, verify } from "./installer";
 import { catalogFiles, readCatalog, resourceFile, type Catalog, type Metadata } from "./gacha-resource-catalog";
+import { ImageResourceCache } from "./image-resource-cache";
 const remoteManifestSchema = z.object({
   schema_version: z.literal(1), version: z.string().min(1).max(64),
   archive: z.object({
@@ -21,11 +22,13 @@ const remoteManifestSchema = z.object({
 
 export class GachaResourceService {
   private readonly destination: string;
+  private readonly imageCache: ImageResourceCache;
   private catalogCache?: Catalog;
   private installing = false;
 
   constructor(private readonly dataDir: string, private readonly manifestUrl?: string) {
     this.destination = join(dataDir, "resources", "gacha-history");
+    this.imageCache = new ImageResourceCache(dataDir);
   }
 
   status(): GachaResourceStatus {
@@ -65,8 +68,17 @@ export class GachaResourceService {
 
   enrichCharacter(character: GameCharacter): GameCharacter {
     const catalog = this.catalog(false);
-    return localizeCharacter(character, catalog, (name) => this.endpoint(name, catalog?.version ?? "missing"));
+    return localizeCharacter(
+      character, catalog, (name) => this.endpoint(name, catalog?.version ?? "missing"),
+      (remote) => this.imageCache.localURL(remote),
+    );
   }
+
+  async cacheCharacters(characters: GameCharacter[]): Promise<void> {
+    await this.imageCache.ensureCharacters(characters);
+  }
+
+  cachedFile(name: string): Buffer | null { return this.imageCache.file(name); }
 
   file(name: string): Buffer | null {
     if (!resourceFile.safeParse(name).success) return null;

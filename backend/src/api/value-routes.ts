@@ -21,6 +21,7 @@ const characterId = z.string().regex(/^(?:0|[1-9]\d{0,15})$/).refine((value) => 
 export async function valueRoute(app: Container, method: string, path: string, query: URLSearchParams, body: unknown): Promise<Response | null> {
   const role = () => { const value = app.accounts.selectedRole(); if (!value) throw new AppError("role_missing", "尚未选择原神角色", 409); return value; };
   if (method === "GET" && path === "/characters") return json(app.characters.list(required(query, "uid")));
+  if (method === "POST" && path === "/characters/cache-assets") return json(await app.characters.cache(role().uid));
   if (method === "POST" && path === "/characters/refresh") return json(await app.characters.refresh(credential.parse(body).credential, role()));
   const character = match(path, /^\/characters\/([^/]+)\/refresh$/);
   if (method === "POST" && character) return json(await app.characters.refreshDetail(credential.parse(body).credential, role(), characterId.parse(character)));

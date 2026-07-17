@@ -16,7 +16,7 @@ export class CharacterService {
   constructor(
     private readonly store: Store,
     private readonly records: GameRecordSource,
-    private readonly resources: Pick<GachaResourceService, "enrichCharacter">,
+    private readonly resources: Pick<GachaResourceService, "cacheCharacters" | "enrichCharacter">,
   ) {}
 
   list(uid: string): GameCharacter[] {
@@ -26,14 +26,20 @@ export class CharacterService {
 
   async refresh(credential: string, role: GameRole): Promise<GameCharacter[]> {
     const values = await this.records.characters(credential, role);
-    this.save(values);
+    this.save(values); await this.resources.cacheCharacters(values);
     return values.map((value) => this.resources.enrichCharacter(value));
   }
 
   async refreshDetail(credential: string, role: GameRole, avatarId: string): Promise<GameCharacter> {
     const value = await this.records.characterDetail(credential, role, avatarId);
-    this.save([value]);
+    this.save([value]); await this.resources.cacheCharacters([value]);
     return this.resources.enrichCharacter(value);
+  }
+
+  async cache(uid: string): Promise<GameCharacter[]> {
+    const values = this.store.all("SELECT * FROM characters WHERE uid=? ORDER BY rarity DESC,level DESC,name", uid).map(row);
+    await this.resources.cacheCharacters(values);
+    return values.map((value) => this.resources.enrichCharacter(value));
   }
 
   private save(values: GameCharacter[]): void {
