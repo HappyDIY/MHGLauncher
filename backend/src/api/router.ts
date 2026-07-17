@@ -126,6 +126,11 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   if (method === "GET" && path === "/wishes/export") { const uid = required(query, "uid"); return json(exportUIGF(uid, app.wishes.list(uid))); }
   if (method === "GET" && path === "/notes") return json(app.notes.get(required(query, "uid")));
   if (method === "GET" && path === "/characters") return json(app.characters.list(required(query, "uid")));
+  if (method === "POST" && path === "/characters/cache-assets") {
+    const role = app.accounts.selectedRole();
+    if (!role) throw new AppError("role_missing", "尚未选择原神角色", 409);
+    return json(await app.characters.cache(role.uid));
+  }
   if (method === "POST" && path === "/characters/refresh") {
     const value = credential.parse(body), role = app.accounts.selectedRole();
     if (!role) throw new AppError("role_missing", "尚未选择原神角色", 409);
@@ -145,6 +150,8 @@ async function route(method: string, path: string, query: URLSearchParams, body:
   if (method === "POST" && path === "/notes/verification") { const value = verification.parse(body); return json({ xrpc_challenge: await app.notes.verify(value.credential, value.challenge, value.validate, value.xrpc_challenge_path) }); }
 	  const resourceFile = match(path, /^\/gacha-resources\/files\/(.+)$/);
 	  if (method === "GET" && resourceFile) { const data = app.gachaResources.file(resourceFile); if (!data) throw new AppError("image_missing", "历史卡池插图不存在", 404); return new Response(new Uint8Array(data), { headers: { "Content-Type": "application/octet-stream", "Cache-Control": "private, max-age=31536000, immutable" } }); }
+	  const cachedFile = match(path, /^\/gacha-resources\/cache\/(.+)$/);
+	  if (method === "GET" && cachedFile) { const data = app.gachaResources.cachedFile(cachedFile); if (!data) throw new AppError("image_missing", "本地素材不存在", 404); return new Response(new Uint8Array(data), { headers: { "Content-Type": "application/octet-stream", "Cache-Control": "private, max-age=31536000, immutable" } }); }
 	  const value = await valueRoute(app, method, path, query, body);
 	  if (value) return value;
 	  throw new AppError("not_found", "接口不存在", 404);
