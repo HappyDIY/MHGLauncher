@@ -1,20 +1,13 @@
 import SwiftUI
 
-enum CharacterLayout: Hashable {
-    case list
-    case grid
-}
-
 struct CharacterBrowserView: View {
     @Bindable var store: LauncherStore
-    @Binding var layout: CharacterLayout
     @State private var elementFilter = CharacterElementFilter.all
 
     var body: some View {
         VStack(spacing: 0) {
             CharacterBrowserControls(
                 searchText: $store.characterSearchText,
-                layout: $layout,
                 elementFilter: $elementFilter,
                 countText: countText,
                 roleSummary: roleSummary
@@ -34,23 +27,8 @@ struct CharacterBrowserView: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            switch layout {
-            case .list: characterList
-            case .grid: characterGrid
-            }
+            characterGrid
         }
-    }
-
-    private var characterList: some View {
-        List(filteredCharacters, selection: $store.selectedCharacterId) { character in
-            CharacterListRow(character: character)
-                .tag(character.avatarId)
-                .contentShape(.rect)
-                .onTapGesture { store.selectCharacter(character) }
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .motionAnimation(.selection, value: store.selectedCharacterId)
     }
 
     private var characterGrid: some View {

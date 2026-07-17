@@ -27,42 +27,6 @@ struct CharacterEmptyView: View {
     }
 }
 
-struct CharacterListRow: View {
-    let character: GameCharacter
-
-    var body: some View {
-        HStack(spacing: 12) {
-            CharacterIcon(character: character, size: 52)
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 6) {
-                    Text(character.name)
-                        .font(.body.weight(.semibold))
-                        .lineLimit(1)
-                    HStack(spacing: 3) {
-                        CharacterElementIcon(character: character, size: 12)
-                        Text(character.elementTitle)
-                    }
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(character.elementColor)
-                }
-                Text(character.weaponName.nonempty ?? "未同步武器")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 4)
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("\(character.level)")
-                    .font(.title3.weight(.semibold).monospacedDigit())
-                Text("等级 · \(character.constellation) 命")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.vertical, 6)
-    }
-}
-
 struct CharacterGridTile: View {
     let character: GameCharacter
     let selected: Bool

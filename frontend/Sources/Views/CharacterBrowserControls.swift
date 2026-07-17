@@ -42,7 +42,6 @@ enum CharacterElementFilter: String, CaseIterable, Identifiable {
 
 struct CharacterBrowserControls: View {
     @Binding var searchText: String
-    @Binding var layout: CharacterLayout
     @Binding var elementFilter: CharacterElementFilter
     let countText: String
     let roleSummary: String
@@ -52,7 +51,6 @@ struct CharacterBrowserControls: View {
             header
             searchField
             HStack(spacing: 8) {
-                layoutPicker
                 elementMenu
                 Spacer(minLength: 0)
             }
@@ -100,16 +98,6 @@ struct CharacterBrowserControls: View {
         .padding(.horizontal, 11)
         .frame(height: 34)
         .glassEffect(.regular.interactive(), in: .capsule)
-    }
-
-    private var layoutPicker: some View {
-        Picker("布局", selection: $layout) {
-            Label("列表", systemImage: "list.bullet").tag(CharacterLayout.list)
-            Label("网格", systemImage: "square.grid.2x2").tag(CharacterLayout.grid)
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .frame(width: 132)
     }
 
     private var elementMenu: some View {

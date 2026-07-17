@@ -2,7 +2,6 @@ import SwiftUI
 
 struct CharactersView: View {
     @Bindable var store: LauncherStore
-    @State private var layout = CharacterLayout.list
 
     var body: some View {
         Group {
@@ -12,7 +11,7 @@ struct CharactersView: View {
                 }
             } else {
                 HSplitView {
-                    CharacterBrowserView(store: store, layout: $layout)
+                    CharacterBrowserView(store: store)
                         .frame(minWidth: 250, idealWidth: 310, maxWidth: 360)
                     CharacterDetailView(store: store)
                         .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
