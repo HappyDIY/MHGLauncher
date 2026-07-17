@@ -2,10 +2,18 @@ import SwiftUI
 
 struct GachaHistoryView: View {
     @Bindable var store: LauncherStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedID: String?
 
     private var selection: HistoryWishEvent? {
         store.gachaHistory.first { $0.id == selectedID } ?? store.gachaHistory.first
+    }
+
+    private var paging: HistoryWishPaging {
+        HistoryWishPaging(
+            ids: store.gachaHistory.map(\.id),
+            selectedID: selection?.id
+        )
     }
 
     var body: some View {
@@ -106,16 +114,28 @@ struct GachaHistoryView: View {
             }
             .padding(14)
             Divider().padding(.horizontal, 12)
-            ScrollView {
-                LazyVStack(spacing: 8) {
-                    ForEach(store.gachaHistory) { wish in
-                        HistoryWishRow(
-                            wish: wish,
-                            selected: selection?.id == wish.id
-                        ) { selectedID = wish.id }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(store.gachaHistory) { wish in
+                            HistoryWishRow(
+                                wish: wish,
+                                selected: selection?.id == wish.id
+                            ) { selectedID = wish.id }
+                            .id(wish.id)
+                        }
+                    }
+                    .padding(10)
+                }
+                .onChange(of: selectedID) { _, id in
+                    guard let id else { return }
+                    withAnimation(LauncherMotion.animation(
+                        .selection,
+                        reduceMotion: reduceMotion
+                    )) {
+                        proxy.scrollTo(id, anchor: .center)
                     }
                 }
-                .padding(10)
             }
         }
         .frame(maxHeight: .infinity)
@@ -125,8 +145,18 @@ struct GachaHistoryView: View {
     @ViewBuilder
     private var detailPane: some View {
         if let selection {
-            HistoryWishDetail(wish: selection)
+            HistoryWishDetail(
+                wish: selection,
+                paging: paging,
+                goPrevious: { moveSelection(by: -1) },
+                goNext: { moveSelection(by: 1) }
+            )
         }
+    }
+
+    private func moveSelection(by offset: Int) {
+        guard let id = paging.adjacentID(offset: offset) else { return }
+        selectedID = id
     }
 
     private var emptyTitle: String {

@@ -2,19 +2,26 @@ import SwiftUI
 
 struct HistoryWishDetail: View {
     let wish: HistoryWishEvent
+    let paging: HistoryWishPaging
+    let goPrevious: () -> Void
+    let goNext: () -> Void
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                banner
-                itemSection("五星 UP", icon: "star.fill", items: wish.orangeUp, color: .orange)
-                itemSection("四星 UP", icon: "star.leadinghalf.filled", items: wish.purpleUp, color: .purple)
-                itemSection("五星结果", icon: "sparkles", items: wish.summary, color: .orange)
-                itemSection("四星结果", icon: "diamond.fill", items: wish.purple, color: .purple)
-                itemSection("三星结果", icon: "circle.fill", items: wish.blue, color: .blue)
+        VStack(spacing: 0) {
+            pager
+            Divider().padding(.horizontal, 12)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    banner
+                    itemSection("五星 UP", icon: "star.fill", items: wish.orangeUp, color: .orange)
+                    itemSection("四星 UP", icon: "star.leadinghalf.filled", items: wish.purpleUp, color: .purple)
+                    itemSection("五星结果", icon: "sparkles", items: wish.summary, color: .orange)
+                    itemSection("四星结果", icon: "diamond.fill", items: wish.purple, color: .purple)
+                    itemSection("三星结果", icon: "circle.fill", items: wish.blue, color: .blue)
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .glassEffect(
@@ -22,6 +29,29 @@ struct HistoryWishDetail: View {
             in: .rect(cornerRadius: 22)
         )
         .motionAnimation(.selection, value: wish.id)
+    }
+
+    private var pager: some View {
+        HStack(spacing: 12) {
+            Button("上一页", systemImage: "chevron.left", action: goPrevious)
+                .keyboardShortcut(.leftArrow, modifiers: [])
+                .disabled(!paging.canGoPrevious)
+                .motionHover()
+            Spacer()
+            Text("第 \(paging.page) / \(paging.count) 页")
+                .font(.callout.weight(.semibold).monospacedDigit())
+                .foregroundStyle(.secondary)
+                .contentTransition(.numericText())
+                .accessibilityLabel("第 \(paging.page) 页，共 \(paging.count) 页")
+            Spacer()
+            Button("下一页", systemImage: "chevron.right", action: goNext)
+                .keyboardShortcut(.rightArrow, modifiers: [])
+                .disabled(!paging.canGoNext)
+                .motionHover()
+        }
+        .buttonStyle(.glass)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
 
     private var banner: some View {
