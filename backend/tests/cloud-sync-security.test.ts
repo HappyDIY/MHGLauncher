@@ -3,6 +3,20 @@ import { fixture } from "./helpers";
 
 afterEach(() => { vi.restoreAllMocks(); });
 
+test("未配置云地址时拒绝伪造同步结果", async () => {
+  const app = fixture();
+  const fetch = vi.spyOn(globalThis, "fetch");
+  await expect(app.cloud.uploadWishes("100000001", "token")).rejects.toMatchObject({ code: "cloud_not_configured" });
+  await expect(app.cloud.retrieveWishes("100000001", "token")).rejects.toMatchObject({ code: "cloud_not_configured" });
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+test("云服务网络失败时返回明确错误", async () => {
+  const app = fixture(); app.settings.cloudBaseUrl = "https://cloud.example";
+  vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("connection refused"));
+  await expect(app.cloud.uploadWishes("100000001", "token")).rejects.toMatchObject({ code: "cloud_error", status: 503 });
+});
+
 test("本地代理先绑定云端会话 UID", async () => {
   const app = fixture(); app.settings.cloudBaseUrl = "https://cloud.example";
   const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ uid: "100000002" }));

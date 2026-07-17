@@ -62,7 +62,7 @@ export class Container {
 	    this.achievements = new AchievementService(this.store);
 	    this.gachaEvents = new GachaEventService(this.store, this.records, this.images);
 	    this.notifications = new NotificationService(this.store);
-	    this.cloud = new CloudSyncService(config, this.store, this.records, this.provider, this.wishes);
+	    this.cloud = new CloudSyncService(config, this.store, this.provider, this.wishes);
 	  }
 
   close(): void { this.launches.close(); this.store.close(); }
