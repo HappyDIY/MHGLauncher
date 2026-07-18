@@ -63,6 +63,24 @@ at startup. Configure the cloud container with `MHG_UPDATE_VERSION`,
 `.pkg`, or `.zip`; the app verifies both the declared byte size and SHA-256 hash
 before opening the downloaded package.
 
+## Cloud administration
+
+The standalone `admin/` Next.js application manages cloud users, sessions,
+release metadata, and audit events. It calls the cloud service through the
+server-only `/api/admin/v1` boundary; its service token is never exposed to the
+browser. Start the local stack and create the single owner account with:
+
+```bash
+docker compose up -d db cloud admin
+docker compose exec admin npm run owner:create
+```
+
+Production deployments must replace every `MHG_ADMIN_*` development value,
+serve the panel over HTTPS, and keep `MHG_CLOUD_INTERNAL_URL` on the private
+service network. The admin database role owns only the `admin` PostgreSQL
+schema. Release packages remain externally hosted; the panel stores and
+publishes their validated URL, hash, size, and changelog.
+
 ## Status
 
 The downloadable runtime contains integrity-pinned open-source Wine/DXMT components. It does not contain or depend on CrossOver.app or its closed-source components. See `packaging/GAME_RUNTIME_NOTICES.md` for provenance.

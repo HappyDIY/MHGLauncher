@@ -7,6 +7,7 @@ services:
       POSTGRES_PASSWORD: mhglauncher
     volumes:
       - mhglauncher-cloud-db:/var/lib/postgresql
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/10-admin.sql:ro
     ports:
       - "${MHG_CLOUD_DB_PORT_MAPPING:-127.0.0.1:54329:5432}"
   cloud:
@@ -14,6 +15,8 @@ services:
       context: ./cloud
     environment:
       DATABASE_URL: postgres://mhglauncher:mhglauncher@db:5432/mhglauncher
+      MHG_ADMIN_SERVICE_TOKEN: "${MHG_ADMIN_SERVICE_TOKEN:-development-admin-service-token}"
+      MHG_ADMIN_AUDIT_KEY: "${MHG_ADMIN_AUDIT_KEY:-development-admin-audit-key}"
       MHG_UPDATE_VERSION: "${MHG_UPDATE_VERSION:-}"
       MHG_UPDATE_DOWNLOAD_URL: "${MHG_UPDATE_DOWNLOAD_URL:-}"
       MHG_UPDATE_SHA256: "${MHG_UPDATE_SHA256:-}"
@@ -23,6 +26,20 @@ services:
       - "${MHG_CLOUD_PORT_MAPPING:-127.0.0.1:3333:3000}"
     depends_on:
       - db
+  admin:
+    build:
+      context: ./admin
+    environment:
+      ADMIN_DATABASE_URL: postgres://mhglauncher_admin:mhglauncher_admin@db:5432/mhglauncher
+      MHG_CLOUD_INTERNAL_URL: http://cloud:3000
+      MHG_ADMIN_SERVICE_TOKEN: "${MHG_ADMIN_SERVICE_TOKEN:-development-admin-service-token}"
+      MHG_ADMIN_ENCRYPTION_KEY: "${MHG_ADMIN_ENCRYPTION_KEY:-1111111111111111111111111111111111111111111111111111111111111111}"
+      MHG_ADMIN_ORIGIN: "${MHG_ADMIN_ORIGIN:-http://localhost:3400}"
+    ports:
+      - "${MHG_ADMIN_PORT_MAPPING:-127.0.0.1:3400:3400}"
+    depends_on:
+      - db
+      - cloud
 
 volumes:
   mhglauncher-cloud-db:

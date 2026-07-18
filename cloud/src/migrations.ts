@@ -18,30 +18,37 @@ const migrations: Migration[] = [
   { version: 4, statements: [
     "CREATE TABLE IF NOT EXISTS achievement_archives(uid TEXT PRIMARY KEY REFERENCES users(uid) ON DELETE CASCADE,payload JSONB NOT NULL,updated_at TIMESTAMPTZ NOT NULL DEFAULT now())",
   ] },
+  { version: 5, statements: [
+    "CREATE TABLE IF NOT EXISTS app_releases(id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,version TEXT NOT NULL UNIQUE,download_url TEXT NOT NULL,sha256 TEXT NOT NULL,size BIGINT NOT NULL,changelog TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','published','archived')),created_at TIMESTAMPTZ NOT NULL DEFAULT now(),published_at TIMESTAMPTZ)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS app_releases_one_published ON app_releases(status) WHERE status='published'",
+    "CREATE TABLE IF NOT EXISTS admin_audit_events(id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,request_id TEXT NOT NULL UNIQUE,actor TEXT NOT NULL,action TEXT NOT NULL,target_type TEXT NOT NULL,target_ref TEXT NOT NULL,result TEXT NOT NULL CHECK(result IN ('success','failure')),metadata JSONB NOT NULL DEFAULT '{}'::jsonb,created_at TIMESTAMPTZ NOT NULL DEFAULT now())",
+    "CREATE INDEX IF NOT EXISTS admin_audit_events_created ON admin_audit_events(created_at DESC,id DESC)",
+  ] },
 ];
 
 export async function migrate(pool: Pool): Promise<void> {
-  await pool.query("CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY,applied_at TIMESTAMPTZ NOT NULL DEFAULT now())");
-  const result = await pool.query<{ version: number }>("SELECT version FROM schema_migrations ORDER BY version");
-  const applied = new Set(result.rows.map(({ version }) => version));
-  for (const migration of migrations) {
-    if (applied.has(migration.version)) continue;
-    const client = await pool.connect();
-    try {
+  const client = await pool.connect();
+  try {
+    await client.query("SELECT pg_advisory_lock(781942601)");
+    await client.query("CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY,applied_at TIMESTAMPTZ NOT NULL DEFAULT now())");
+    const result = await client.query<{ version: number }>("SELECT version FROM schema_migrations ORDER BY version");
+    const applied = new Set(result.rows.map(({ version }) => version));
+    for (const migration of migrations) {
+      if (applied.has(migration.version)) continue;
       await client.query("BEGIN");
-      for (const statement of migration.statements) await client.query(statement);
-      await client.query("INSERT INTO schema_migrations(version) VALUES($1)", [migration.version]);
-      await verify(client, migration.version);
-      await client.query("COMMIT");
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
+      try {
+        for (const statement of migration.statements) await client.query(statement);
+        await client.query("INSERT INTO schema_migrations(version) VALUES($1)", [migration.version]);
+        await verify(client, migration.version);
+        await client.query("COMMIT");
+      } catch (error) { await client.query("ROLLBACK"); throw error; }
     }
+    const latest = Number((await client.query("SELECT COALESCE(MAX(version),0) version FROM schema_migrations")).rows[0]?.version ?? 0);
+    if (latest !== migrations.at(-1)?.version) throw new Error("cloud schema version mismatch");
+  } finally {
+    await client.query("SELECT pg_advisory_unlock(781942601)").catch(() => undefined);
+    client.release();
   }
-  const latest = Number((await pool.query("SELECT COALESCE(MAX(version),0) version FROM schema_migrations")).rows[0]?.version ?? 0);
-  if (latest !== migrations.at(-1)?.version) throw new Error("cloud schema version mismatch");
 }
 
 async function verify(client: PoolClient, version: number): Promise<void> {
@@ -55,5 +62,11 @@ async function verify(client: PoolClient, version: number): Promise<void> {
   if (version >= 4) {
     const archive = await client.query("SELECT to_regclass('public.achievement_archives') name");
     if (!archive.rows[0]?.name) throw new Error("cloud achievement archive table missing");
+  }
+  if (version >= 5) {
+    for (const table of ["app_releases", "admin_audit_events"]) {
+      const result = await client.query("SELECT to_regclass($1) name", [`public.${table}`]);
+      if (!result.rows[0]?.name) throw new Error(`cloud ${table} table missing`);
+    }
   }
 }

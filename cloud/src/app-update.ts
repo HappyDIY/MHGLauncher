@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { HttpError } from "./http";
+import { pool, ready } from "./db";
 
 const version = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
-const update = z.object({
+export const appUpdateSchema = z.object({
   version: z.string().regex(version),
   download_url: z.string().url().max(2_048),
   sha256: z.string().regex(/^[a-fA-F0-9]{64}$/),
@@ -18,10 +19,10 @@ const update = z.object({
   }
 });
 
-export type AppUpdate = z.infer<typeof update>;
+export type AppUpdate = z.infer<typeof appUpdateSchema>;
 
 export function latestUpdate(env: NodeJS.ProcessEnv = process.env): AppUpdate {
-  const result = update.safeParse({
+  const result = appUpdateSchema.safeParse({
     version: env.MHG_UPDATE_VERSION,
     download_url: env.MHG_UPDATE_DOWNLOAD_URL,
     sha256: env.MHG_UPDATE_SHA256,
@@ -32,4 +33,13 @@ export function latestUpdate(env: NodeJS.ProcessEnv = process.env): AppUpdate {
     throw new HttpError(503, "update_not_configured", "应用更新信息尚未配置");
   }
   return { ...result.data, sha256: result.data.sha256.toLowerCase() };
+}
+
+export async function currentUpdate(env: NodeJS.ProcessEnv = process.env): Promise<AppUpdate & { source: "database" | "environment" }> {
+  if (!env.DATABASE_URL) return { ...latestUpdate(env), source: "environment" };
+  await ready();
+  const result = await pool().query("SELECT version,download_url,sha256,size,changelog FROM app_releases WHERE status='published' LIMIT 1");
+  const row = result.rows[0];
+  if (row) return { ...appUpdateSchema.parse({ ...row, size: Number(row.size) }), sha256: String(row.sha256).toLowerCase(), source: "database" };
+  return { ...latestUpdate(env), source: "environment" };
 }

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { latestUpdate } from "./app-update";
+import { currentUpdate } from "./app-update";
 import { issue, requireFresh, requireSession, reverify, revoke, verifyGachaUrl } from "./auth";
 import { ready } from "./db";
 import { bearer, fail, HttpError, json } from "./http";
@@ -15,7 +15,10 @@ export async function dispatch(request: Request): Promise<Response> {
   try {
     const url = new URL(request.url);
     const path = url.pathname.replace(/^\/api\/v1/, "");
-    if (request.method === "GET" && path === "/updates/latest") return json(latestUpdate());
+    if (request.method === "GET" && path === "/updates/latest") {
+      const { source: _source, ...release } = await currentUpdate();
+      return json(release);
+    }
     await ready();
     let freshUid: string | undefined;
     if (path === "/gacha/upload" || path === "/achievements/upload") freshUid = (await requireFresh(bearer(request))).uid;
