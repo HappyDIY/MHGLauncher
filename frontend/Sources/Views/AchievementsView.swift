@@ -4,7 +4,6 @@ struct AchievementsView: View {
     @Bindable var store: LauncherStore
     @State var searchText = ""
     @State var selectedGoal: Int?
-    @State var layoutMode: AchievementLayoutMode = .list
     @State var uncompletedFirst = true
     @State var dailyOnly = false
     @State var confirmsRemoval = false
@@ -72,12 +71,6 @@ struct AchievementsView: View {
     private func toolbar(_ presentation: AchievementPresentation) -> some View {
         Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
             GridRow {
-                Picker("布局", selection: $layoutMode) {
-                    ForEach(AchievementLayoutMode.allCases) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
                 TextField("搜索标题、描述、版本或成就 ID", text: $searchText)
                     .textFieldStyle(.roundedBorder)
                     .frame(minWidth: 220)
@@ -103,16 +96,9 @@ struct AchievementsView: View {
 
     private func content(_ presentation: AchievementPresentation) -> some View {
         GeometryReader { geometry in
-            if layoutMode == .list {
-                HStack(alignment: .top, spacing: 14) {
-                    goalList(presentation).frame(width: min(330, geometry.size.width * 0.34))
-                    achievementList(presentation)
-                }
-            } else {
-                VStack(spacing: 14) {
-                    goalGrid(presentation).frame(height: min(260, max(180, geometry.size.height * 0.34)))
-                    achievementList(presentation)
-                }
+            HStack(alignment: .top, spacing: 14) {
+                goalList(presentation).frame(width: min(330, geometry.size.width * 0.34))
+                achievementList(presentation)
             }
         }
     }
@@ -120,16 +106,6 @@ struct AchievementsView: View {
     private func goalList(_ presentation: AchievementPresentation) -> some View {
         ScrollView {
             LazyVStack(spacing: 6) {
-                goalButtons(presentation)
-            }
-            .padding(8)
-        }
-        .background { Color.clear.glassEffect(.regular, in: .rect(cornerRadius: 12)) }
-    }
-
-    private func goalGrid(_ presentation: AchievementPresentation) -> some View {
-        ScrollView {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 8)], spacing: 8) {
                 goalButtons(presentation)
             }
             .padding(8)
