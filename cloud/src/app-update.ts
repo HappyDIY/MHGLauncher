@@ -10,7 +10,12 @@ export const appUpdateSchema = z.object({
   size: z.coerce.number().int().positive().max(4 * 1024 * 1024 * 1024),
   changelog: z.string().min(1).max(20_000),
 }).strict().superRefine((value, context) => {
-  const url = new URL(value.download_url);
+  let url: URL;
+  try { url = new URL(value.download_url); }
+  catch {
+    context.addIssue({ code: "custom", path: ["download_url"], message: "更新地址无效" });
+    return;
+  }
   if (url.protocol !== "https:" || url.username || url.password) {
     context.addIssue({ code: "custom", path: ["download_url"], message: "更新地址必须使用无凭据的 HTTPS URL" });
   }

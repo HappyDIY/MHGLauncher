@@ -43,4 +43,11 @@ describe("应用更新接口", () => {
       }
     }
   });
+
+  test("Compose 空字符串配置仍返回稳定错误", async () => {
+    let error: unknown;
+    try { latestUpdate({ NODE_ENV: "test", MHG_UPDATE_VERSION: "", MHG_UPDATE_DOWNLOAD_URL: "", MHG_UPDATE_SHA256: "",
+      MHG_UPDATE_SIZE: "", MHG_UPDATE_CHANGELOG: "" }); } catch (caught) { error = caught; }
+    expect(error).toMatchObject({ code: "update_not_configured" });
+  });
 });
