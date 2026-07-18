@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { latestUpdate } from "./app-update";
 import { issue, requireFresh, requireSession, reverify, revoke, verifyGachaUrl } from "./auth";
 import { ready } from "./db";
 import { bearer, fail, HttpError, json } from "./http";
@@ -12,9 +13,10 @@ const achievementUploadBody = z.object({ items: z.array(achievements.cloudAchiev
 
 export async function dispatch(request: Request): Promise<Response> {
   try {
-    await ready();
     const url = new URL(request.url);
     const path = url.pathname.replace(/^\/api\/v1/, "");
+    if (request.method === "GET" && path === "/updates/latest") return json(latestUpdate());
+    await ready();
     let freshUid: string | undefined;
     if (path === "/gacha/upload" || path === "/achievements/upload") freshUid = (await requireFresh(bearer(request))).uid;
     else if (path === "/auth/reverify") await requireSession(bearer(request));

@@ -24,6 +24,10 @@ struct AppCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .newItem) {}
         CommandGroup(replacing: .sidebar) {}
+        CommandGroup(after: .appInfo) {
+            Button("检查更新…") { Task { await store?.checkForAppUpdate() } }
+                .disabled(store == nil || store?.appUpdate.isChecking == true)
+        }
 
         CommandMenu("祈愿记录") {
             Button("打开祈愿记录") {

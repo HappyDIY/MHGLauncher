@@ -57,6 +57,9 @@ struct RootView: View {
             Text(store.message ?? "")
         }
         .environment(\.apiClient, store.backend.client)
+        .sheet(isPresented: appUpdateSheet) {
+            if store.appUpdate.manifest != nil { AppUpdateSheet(store: store) }
+        }
         .sheet(item: geetestSheet) { sheet in
             GeetestView(challenge: sheet.challenge, subtitle: sheet.subtitle) { value, validate in
                 Task {
@@ -160,6 +163,13 @@ struct RootView: View {
                 store.noteVerification = nil
             }
         }
+    }
+
+    private var appUpdateSheet: Binding<Bool> {
+        Binding(
+            get: { store.appUpdate.showsSheet },
+            set: { store.appUpdate.showsSheet = $0 }
+        )
     }
 
     private func importFile() {

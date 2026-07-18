@@ -22,6 +22,7 @@ import { CloudSyncService } from "../services/cloud-sync";
 import { PreparedLoginStore } from "../services/prepared-logins";
 import { ResourceCoordinator } from "../services/resource-coordinator";
 import { GachaResourceService } from "../services/gacha-resources";
+import { AppUpdateService } from "../services/app-updates";
 
 export class Container {
   readonly settings: Settings;
@@ -41,6 +42,7 @@ export class Container {
 	  readonly gachaEvents: GachaEventService;
 	  readonly cloud: CloudSyncService;
 	  readonly preparedLogins: PreparedLoginStore;
+	  readonly appUpdates: AppUpdateService;
 
   constructor(config = settings()) {
     this.settings = config; mkdirSync(config.dataDir, { recursive: true });
@@ -63,6 +65,7 @@ export class Container {
 	    this.gachaEvents = new GachaEventService(this.gachaResources);
 	    this.notifications = new NotificationService(this.store, this.gachaResources);
 	    this.cloud = new CloudSyncService(config, this.store, this.provider, this.wishes, this.achievements);
+	    this.appUpdates = new AppUpdateService(config);
 	  }
 
   close(): void { this.launches.close(); this.store.close(); }

@@ -51,6 +51,13 @@ verify that archive with:
 Publishing the normal runtime assets also uploads this separate archive. The
 manifest endpoint can be overridden with `MHG_GACHA_RESOURCE_MANIFEST_URL`.
 
+The launcher checks `GET /api/v1/updates/latest` on the configured cloud service
+at startup. Configure the cloud container with `MHG_UPDATE_VERSION`,
+`MHG_UPDATE_DOWNLOAD_URL`, `MHG_UPDATE_SHA256`, `MHG_UPDATE_SIZE`, and
+`MHG_UPDATE_CHANGELOG`. The download URL must be HTTPS and point to a `.dmg`,
+`.pkg`, or `.zip`; the app verifies both the declared byte size and SHA-256 hash
+before opening the downloaded package.
+
 ## Status
 
 The downloadable runtime contains integrity-pinned open-source Wine/DXMT components. It does not contain or depend on CrossOver.app or its closed-source components. See `packaging/GAME_RUNTIME_NOTICES.md` for provenance.
