@@ -34,12 +34,16 @@ export async function valueRoute(app: Container, method: string, path: string, q
   if (method === "POST" && archiveSelect) return json(app.achievements.selectArchive(archiveSelect));
   const archiveDelete = match(path, /^\/achievements\/archives\/([^/]+)$/);
   if (method === "DELETE" && archiveDelete) return json({ deleted: app.achievements.removeArchive(archiveDelete) });
-  if (method === "GET" && path === "/achievements/goals") return json(app.achievements.goals());
-  if (method === "GET" && path === "/achievements/view") return json(app.achievements.view(required(query, "archive_id")));
-  if (method === "GET" && path === "/achievements/snapshot") return json(app.achievements.snapshot(required(query, "archive_id")));
+  const achievementIcon = match(path, /^\/achievements\/resources\/icons\/([A-Za-z0-9_]{1,128})\.png$/);
+  if (method === "GET" && achievementIcon) return new Response(Uint8Array.from(await app.achievementResources.icon(achievementIcon)), {
+    headers: { "Content-Type": "image/png", "Cache-Control": "private, max-age=31536000, immutable" },
+  });
+  if (method === "GET" && path === "/achievements/goals") return json(await app.achievements.goals());
+  if (method === "GET" && path === "/achievements/view") return json(await app.achievements.view(required(query, "archive_id")));
+  if (method === "GET" && path === "/achievements/snapshot") return json(await app.achievements.snapshot(required(query, "archive_id")));
   if (method === "GET" && path === "/achievements") return json(app.achievements.list(query.get("archive_id") ?? undefined));
-  if (method === "POST" && path === "/achievements") { const value = achievementSave.parse(body); return json(app.achievements.saveSnapshot(value.archive_id, value.expected_revision, value.items)); }
-  if (method === "POST" && path === "/achievements/import") return json(app.achievements.importUIAF(
+  if (method === "POST" && path === "/achievements") { const value = achievementSave.parse(body); return json(await app.achievements.saveSnapshot(value.archive_id, value.expected_revision, value.items)); }
+  if (method === "POST" && path === "/achievements/import") return json(await app.achievements.importUIAF(
     required(query, "archive_id"), revision(query), body as never,
   ));
   if (method === "GET" && path === "/achievements/export") return json(app.achievements.exportUIAF(query.get("archive_id") ?? undefined));

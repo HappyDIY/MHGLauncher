@@ -55,6 +55,14 @@ struct AchievementEntryRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
+            CachedAsyncImage(url: entry.iconUrl, maxPixelDimension: 96) {
+                Image(systemName: checked ? "trophy.fill" : "trophy")
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 38, height: 38)
+            .padding(5)
+            .background(.thinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
             Toggle("完成成就", isOn: Binding(
                 get: { checked },
                 set: { value in onToggle(value) }

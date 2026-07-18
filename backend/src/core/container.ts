@@ -22,6 +22,7 @@ import { CloudSyncService } from "../services/cloud-sync";
 import { PreparedLoginStore } from "../services/prepared-logins";
 import { ResourceCoordinator } from "../services/resource-coordinator";
 import { GachaResourceService } from "../services/gacha-resources";
+import { AchievementResources } from "../services/achievement-resources";
 
 export class Container {
   readonly settings: Settings;
@@ -37,6 +38,7 @@ export class Container {
 	  readonly records: GameRecordSource;
 	  readonly characters: CharacterService;
 	  readonly achievements: AchievementService;
+	  readonly achievementResources: AchievementResources;
 	  readonly notifications: NotificationService;
 	  readonly gachaEvents: GachaEventService;
 	  readonly cloud: CloudSyncService;
@@ -48,6 +50,11 @@ export class Container {
 	    this.provider = config.providerMode === "fixture" ? new FixtureProvider(config.fixtureDir) : new LiveProvider(config);
 	    this.records = config.providerMode === "fixture" ? new FixtureGameRecordSource(config.fixtureDir) : new LiveGameRecordSource(config);
     this.gachaResources = new GachaResourceService(config.dataDir, config.gachaResourceManifestUrl);
+	this.achievementResources = new AchievementResources(config.dataDir, {
+	  metadataBaseUrl: config.achievementMetadataBaseUrl ?? "",
+	  iconBaseUrl: config.achievementIconBaseUrl ?? "",
+	  localMetadataDir: config.providerMode === "fixture" ? join(process.cwd(), "src/mhglauncher/data") : undefined,
+	});
     this.accounts = new AccountService(this.store, this.provider);
     this.preparedLogins = new PreparedLoginStore();
     const resources = new ResourceCoordinator();
@@ -59,7 +66,7 @@ export class Container {
 	    this.wishes = new WishService(this.store, this.provider, this.gachaResources, this.records);
 	    this.wishTasks = new WishTasks(this.accounts, this.wishes);
 	    this.characters = new CharacterService(this.store, this.records, this.gachaResources);
-	    this.achievements = new AchievementService(this.store);
+	    this.achievements = new AchievementService(this.store, this.achievementResources);
 	    this.gachaEvents = new GachaEventService(this.gachaResources);
 	    this.notifications = new NotificationService(this.store, this.gachaResources);
 	    this.cloud = new CloudSyncService(config, this.store, this.provider, this.wishes);

@@ -163,7 +163,7 @@ async function loginCookie(credential: string): Promise<void> {
 	    expect(view.find((value: { achievement_id: number }) => value.achievement_id === 84501).current).toBe(1);
     const goals = await (await request("GET", "/v1/achievements/goals")).json();
     expect(goals.length).toBeGreaterThan(0);
-    expect([...view, ...goals].every((value: { icon_url: string | null }) => value.icon_url === null || value.icon_url.startsWith("https://"))).toBe(true);
+    expect([...view, ...goals].every((value: { icon_url: string | null }) => value.icon_url === null || value.icon_url.startsWith("/v1/achievements/resources/icons/"))).toBe(true);
     const exported = await (await request("GET", `/v1/achievements/export?archive_id=${archive.id}`)).json();
 	    expect(exported.list[0].id).toBe(84501);
 	  });

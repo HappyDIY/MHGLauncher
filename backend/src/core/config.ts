@@ -14,6 +14,8 @@ export interface Settings {
 	  socketPath: string;
 	  cloudBaseUrl?: string;
 	  gachaResourceManifestUrl?: string;
+	  achievementMetadataBaseUrl?: string;
+	  achievementIconBaseUrl?: string;
 }
 
 function integer(value: string | undefined, fallback: number): number {
@@ -36,6 +38,10 @@ export function settings(env: NodeJS.ProcessEnv = process.env): Settings {
 	    cloudBaseUrl: (env.MHG_CLOUD_BASE_URL ?? "http://127.0.0.1:3333").replace(/\/+$/, ""),
 	    gachaResourceManifestUrl: env.MHG_GACHA_RESOURCE_MANIFEST_URL
 	      ?? "https://github.com/HappyDIY/MHGLauncher/releases/latest/download/gacha-history-manifest.json",
+	    achievementMetadataBaseUrl: env.MHG_ACHIEVEMENT_METADATA_BASE_URL
+	      ?? "https://raw.githubusercontent.com/SnapHutaoRemasteringProject/Snap.Metadata/main/Genshin/CHS/",
+	    achievementIconBaseUrl: env.MHG_ACHIEVEMENT_ICON_BASE_URL
+	      ?? "https://api.snaphutaorp.org/static/raw/AchievementIcon/",
 	  };
 		}
 
@@ -58,4 +64,12 @@ export function validateServerSettings(value: Settings): void {
   if (resourceUrl.protocol !== "https:" || resourceUrl.username || resourceUrl.password) {
     throw new AppError("gacha_resource_url_invalid", "历史卡池资源必须使用无凭据的 HTTPS 地址", 500);
   }
+	for (const raw of [value.achievementMetadataBaseUrl, value.achievementIconBaseUrl]) {
+	  let url: URL;
+	  try { url = new URL(raw ?? ""); }
+	  catch { throw new AppError("achievement_resource_url_invalid", "成就资源地址无效", 500); }
+	  if (url.protocol !== "https:" || url.username || url.password) {
+	    throw new AppError("achievement_resource_url_invalid", "成就资源必须使用无凭据的 HTTPS 地址", 500);
+	  }
+	}
 }

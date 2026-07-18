@@ -27,10 +27,10 @@ npm run build
 
 cp -R .next app build next.config.ts package.json package-lock.json "$dist/app/"
 mkdir -p "$dist/app/src/mhglauncher/data"
-cp src/mhglauncher/data/achievement.json \
-  src/mhglauncher/data/achievement_goals.json \
-  src/mhglauncher/data/Snap.Metadata.LICENSE \
+cp src/mhglauncher/data/Snap.Metadata.LICENSE \
   "$dist/app/src/mhglauncher/data/"
+test ! -e "$dist/app/src/mhglauncher/data/achievement.json"
+test ! -e "$dist/app/src/mhglauncher/data/achievement_goals.json"
 test ! -e "$dist/app/src/mhglauncher/data/gacha_events.json"
 test ! -e "$dist/app/src/mhglauncher/data/gacha_items.json"
 printf '%s\n' "$build_mode" >"$dist/app/.build-mode"
