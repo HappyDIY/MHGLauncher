@@ -25,7 +25,6 @@ struct RootView: View {
                     .scrollContentBackground(.hidden)
                     .background {
                         SidebarGlassEffect()
-                            .ignoresSafeArea()
                     }
                     .navigationTitle("MHGLauncher")
                     .navigationSplitViewColumnWidth(min: 180, ideal: 210)
