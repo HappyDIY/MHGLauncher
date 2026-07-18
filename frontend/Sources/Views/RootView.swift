@@ -13,12 +13,11 @@ struct RootView: View {
                 NavigationSplitView {
                     CodexSidebar(store: store)
                 } detail: {
-                    ZStack {
+                    NavigationPageHost(
+                        destination: store.selectedDestination ?? .home
+                    ) {
                         content
-                            .id(store.selectedDestination ?? .home)
-                            .motionTransition(.navigation)
                     }
-                    .motionAnimation(.navigation, value: store.selectedDestination)
                     .padding(24)
                     .background(background)
                 }
