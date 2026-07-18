@@ -17,5 +17,8 @@ struct SidebarGlassEffectTests {
         styleView.applyStyle()
 
         #expect(glassView.style == .clear)
+        if glassView.responds(to: NSSelectorFromString("effectIsInteractive")) {
+            #expect(glassView.value(forKey: "effectIsInteractive") as? Bool == true)
+        }
     }
 }

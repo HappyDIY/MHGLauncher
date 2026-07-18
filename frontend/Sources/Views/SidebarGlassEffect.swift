@@ -27,6 +27,10 @@ final class SidebarGlassStyleView: NSView {
         while let view = ancestor {
             if let glassView = view as? NSGlassEffectView {
                 glassView.style = .clear
+                let interactiveSelector = NSSelectorFromString("setEffectIsInteractive:")
+                if glassView.responds(to: interactiveSelector) {
+                    glassView.setValue(true, forKey: "effectIsInteractive")
+                }
                 return
             }
             ancestor = view.superview
