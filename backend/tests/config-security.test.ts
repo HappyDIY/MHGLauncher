@@ -23,7 +23,7 @@ describe("服务安全配置", () => {
   });
 
   test("默认连接本机云服务并允许环境覆盖", () => {
-    expect(settings({ NODE_ENV: "test" }).cloudBaseUrl).toBe("http://127.0.0.1:3333");
+    expect(settings({ NODE_ENV: "test" }).cloudBaseUrl).toBe("http://localhost:3333");
     expect(settings({ NODE_ENV: "test", MHG_CLOUD_BASE_URL: "https://cloud.example/" }).cloudBaseUrl)
       .toBe("https://cloud.example");
   });
@@ -34,6 +34,16 @@ describe("服务安全配置", () => {
       MHG_API_TOKEN: "token",
       MHG_CLOUD_BASE_URL: "file:///tmp/cloud",
     }))).toThrow("MHG_CLOUD_BASE_URL");
+    expect(() => validateServerSettings(settings({
+      NODE_ENV: "test",
+      MHG_API_TOKEN: "token",
+      MHG_CLOUD_BASE_URL: "http://cloud.example",
+    }))).toThrow("HTTPS");
+    expect(() => validateServerSettings(settings({
+      NODE_ENV: "test",
+      MHG_API_TOKEN: "token",
+      MHG_CLOUD_BASE_URL: "http://localhost:3333",
+    }))).not.toThrow();
   });
 
   test("历史卡池资源仅接受 HTTPS 清单", () => {

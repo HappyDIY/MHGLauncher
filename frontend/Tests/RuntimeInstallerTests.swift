@@ -25,12 +25,14 @@ struct RuntimeInstallerTests {
             token: "token",
             socketPath: "/tmp/test.sock",
             runtime: runtime,
-            base: ["MHG_DATA_DIR": "/tmp/data"]
+            base: ["MHG_DATA_DIR": "/tmp/data"],
+            cloudBaseURL: "https://cloud.example"
         )
         #expect(environment["NODE_ENV"] == "production")
         #expect(environment["MHG_HPATCHZ"] == "/tmp/runtime/backend/hpatchz")
         #expect(environment["MHG_RUNTIME_ROOT"] == "/tmp/runtime/game-runtime")
         #expect(environment["MHG_DATA_DIR"] == "/tmp/data")
+        #expect(environment["MHG_CLOUD_BASE_URL"] == "https://cloud.example")
     }
 
     @Test("拒绝包含目录穿越路径的压缩包")

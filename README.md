@@ -32,8 +32,13 @@ Run all automated checks:
 Build the application bundle:
 
 ```bash
+cp .env.example .env
 MHG_MHYPBASE_SOURCE=/path/to/mhypbase.dll ./scripts/build-app.sh
 ```
+
+`MHG_CLOUD_BASE_URL` in `.env` is embedded into the App bundle at build time.
+Cloud servers must use HTTPS; only `localhost` and loopback addresses may use
+HTTP for local development. A missing value defaults to `http://localhost:3333`.
 
 The output is written to `dist/MHGLauncher.app`. The App bundle intentionally excludes Node.js and the game runtime; on first use it downloads the version-bound, signed runtime assets from the matching draft-tested Release. Offline first launch therefore requires those assets to have been installed previously.
 
