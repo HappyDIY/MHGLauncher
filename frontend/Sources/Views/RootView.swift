@@ -159,6 +159,7 @@ struct RootView: View {
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
+        .backgroundExtensionEffect()
         .ignoresSafeArea()
         .motionAnimation(.navigation, value: store.selectedDestination)
     }
