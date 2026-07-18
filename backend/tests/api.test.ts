@@ -146,10 +146,10 @@ async function loginCookie(credential: string): Promise<void> {
   expect(response.status).toBe(200);
 }
 
-	  test("成就档案支持保存与导出 UIAF", async () => {
-	    const archive = await (await request("POST", "/v1/achievements/archives", { name: "主档案" })).json();
-	    const saved = await (await request("POST", "/v1/achievements", { archive_id: archive.id, expected_revision: 0, items: [{ achievement_id: 84501, current: 0, status: 2, timestamp: 1_756_000_000 }] })).json();
-	    expect(saved.revision).toBe(1);
+	  test("UID 成就档案支持保存与导出 UIAF", async () => {
+	    const archive = await (await request("GET", "/v1/achievements/archive?uid=100000001")).json();
+	    expect(archive).toMatchObject({ id: "100000001", name: "100000001" }); expect(await (await request("GET", "/v1/achievements/archive?uid=100000001")).json()).toMatchObject({ id: archive.id });
+	    const saved = await (await request("POST", "/v1/achievements", { archive_id: archive.id, expected_revision: 0, items: [{ achievement_id: 84501, current: 0, status: 2, timestamp: 1_756_000_000 }] })).json(); expect(saved.revision).toBe(1);
 	    expect((await request("POST", "/v1/achievements", { archive_id: archive.id, expected_revision: 0, items: [] })).status).toBe(409);
 	    const imported = await (await request("POST", `/v1/achievements/import?archive_id=${archive.id}&expected_revision=1`, {
 	      info: { uiaf_version: "v1.1" }, list: [{ id: 84502, current: 1, status: 3, timestamp: 1_756_000_001 }],

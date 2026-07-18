@@ -5,7 +5,7 @@ import { dispatch } from "../src/router";
 
 beforeAll(async () => {
   await ready();
-  await pool().query("TRUNCATE gacha_records,sessions,users CASCADE");
+  await pool().query("TRUNCATE achievement_archives,gacha_records,sessions,users CASCADE");
 });
 
 afterAll(async () => { await pool().end(); });
@@ -13,7 +13,7 @@ afterAll(async () => { await pool().end(); });
 test("迁移账本按顺序完成且可重入", async () => {
   await ready();
   const versions = await pool().query("SELECT version FROM schema_migrations ORDER BY version");
-  expect(versions.rows.map(({ version }) => Number(version))).toEqual([1, 2, 3]);
+  expect(versions.rows.map(({ version }) => Number(version))).toEqual([1, 2, 3, 4]);
   const columns = await pool().query("SELECT column_name FROM information_schema.columns WHERE table_name='sessions'");
   expect(columns.rows.map(({ column_name }) => column_name)).toEqual(expect.arrayContaining([
     "expires_at", "last_seen_at", "revoked_at",
@@ -64,6 +64,15 @@ test("数据接口仅使用 bearer 会话 UID", async () => {
   const retrieved = await (await cloudRequest("POST", "/api/v1/gacha/retrieve", session.token, { uid: "100000009" })).json();
   expect(retrieved.items).toHaveLength(1); expect(retrieved.items[0].uid).toBe("100000008");
   expect((await cloudRequest("DELETE", "/api/v1/gacha/100000009", session.token)).status).toBe(404);
+});
+
+test("成就档案按会话 UID 覆盖上传并取回", async () => {
+  const session = await issue("100000012");
+  const item = { achievement_id: 84501, current: 1, status: 3, timestamp: 1_756_000_000 };
+  const uploaded = await cloudRequest("POST", "/api/v1/achievements/upload", session.token, { items: [item, item] });
+  expect(await uploaded.json()).toEqual({ uploaded: 1 });
+  const retrieved = await cloudRequest("POST", "/api/v1/achievements/retrieve", session.token, {});
+  expect(await retrieved.json()).toEqual({ items: [item] });
 });
 
 test("上传严格校验记录、数组和请求体边界", async () => {

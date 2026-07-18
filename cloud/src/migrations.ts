@@ -15,6 +15,9 @@ const migrations: Migration[] = [
     "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ",
     "CREATE INDEX IF NOT EXISTS sessions_uid_active ON sessions(uid) WHERE revoked_at IS NULL",
   ] },
+  { version: 4, statements: [
+    "CREATE TABLE IF NOT EXISTS achievement_archives(uid TEXT PRIMARY KEY REFERENCES users(uid) ON DELETE CASCADE,payload JSONB NOT NULL,updated_at TIMESTAMPTZ NOT NULL DEFAULT now())",
+  ] },
 ];
 
 export async function migrate(pool: Pool): Promise<void> {
@@ -48,5 +51,9 @@ async function verify(client: PoolClient, version: number): Promise<void> {
   const columns = new Set(result.rows.map(({ column_name }) => column_name));
   for (const required of ["expires_at", "last_seen_at", "revoked_at"]) {
     if (!columns.has(required)) throw new Error(`cloud sessions missing ${required}`);
+  }
+  if (version >= 4) {
+    const archive = await client.query("SELECT to_regclass('public.achievement_archives') name");
+    if (!archive.rows[0]?.name) throw new Error("cloud achievement archive table missing");
   }
 }

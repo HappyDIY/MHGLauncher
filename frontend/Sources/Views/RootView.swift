@@ -11,19 +11,7 @@ struct RootView: View {
                 RuntimeSetupView(store: store)
             } else {
                 NavigationSplitView {
-                    List(Destination.allCases, selection: $store.selectedDestination) { destination in
-                        Label {
-                            Text(destination.rawValue)
-                        } icon: {
-                            Image(systemName: destination.icon)
-                                .motionSymbolBounce(
-                                    value: store.selectedDestination == destination
-                                )
-                        }
-                            .tag(destination)
-                    }
-                    .navigationTitle("MHGLauncher")
-                    .navigationSplitViewColumnWidth(min: 180, ideal: 210)
+                    CodexSidebar(store: store)
                 } detail: {
                     ZStack {
                         content
@@ -69,6 +57,9 @@ struct RootView: View {
             Text(store.message ?? "")
         }
         .environment(\.apiClient, store.backend.client)
+        .sheet(isPresented: appUpdateSheet) {
+            if store.appUpdate.manifest != nil { AppUpdateSheet(store: store) }
+        }
         .sheet(item: geetestSheet) { sheet in
             GeetestView(challenge: sheet.challenge, subtitle: sheet.subtitle) { value, validate in
                 Task {
@@ -155,6 +146,7 @@ struct RootView: View {
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
+        .backgroundExtensionEffect()
         .ignoresSafeArea()
         .motionAnimation(.navigation, value: store.selectedDestination)
     }
@@ -171,6 +163,13 @@ struct RootView: View {
                 store.noteVerification = nil
             }
         }
+    }
+
+    private var appUpdateSheet: Binding<Bool> {
+        Binding(
+            get: { store.appUpdate.showsSheet },
+            set: { store.appUpdate.showsSheet = $0 }
+        )
     }
 
     private func importFile() {

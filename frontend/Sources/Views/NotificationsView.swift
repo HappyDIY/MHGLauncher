@@ -7,6 +7,23 @@ struct NotificationsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             PageHeader(title: "消息提醒", subtitle: "本机通知")
+            GlassCard("MHGLauncher 更新", icon: "arrow.down.app") {
+                LabeledContent("当前版本", value: store.currentAppVersion)
+                if let manifest = store.appUpdate.manifest {
+                    LabeledContent("可用版本", value: manifest.version)
+                    Button {
+                        store.appUpdate.showsSheet = true
+                    } label: {
+                        Label("查看更新", systemImage: "doc.text.magnifyingglass")
+                    }
+                }
+                Button {
+                    Task { await store.checkForAppUpdate() }
+                } label: {
+                    Label("检查更新", systemImage: "arrow.clockwise")
+                }
+                .disabled(store.appUpdate.isChecking || store.backend.client == nil)
+            }
             if store.selectedRole == nil {
                 ContentUnavailableView(
                     "需要选择角色",
@@ -37,7 +54,7 @@ struct NotificationsView: View {
                 }
                 GlassCard("更新", icon: "bell.badge") {
                     Toggle("卡池刷新", isOn: bool(\.gachaRefreshEnabled))
-                    Toggle("版本更新", isOn: bool(\.versionUpdateEnabled))
+                    Toggle("游戏版本更新", isOn: bool(\.versionUpdateEnabled))
                     Button {
                         Task { await store.evaluateNotifications() }
                     } label: {

@@ -11,11 +11,11 @@ export interface Settings {
   requestTimeout: number;
   downloadWorkers: number;
   downloadSpeedLimitKB: number;
-	  socketPath: string;
-	  cloudBaseUrl?: string;
-	  gachaResourceManifestUrl?: string;
-	  achievementMetadataBaseUrl?: string;
-	  achievementIconBaseUrl?: string;
+  socketPath: string;
+  cloudBaseUrl?: string;
+  gachaResourceManifestUrl?: string;
+  achievementMetadataBaseUrl?: string;
+  achievementIconBaseUrl?: string;
 }
 
 function integer(value: string | undefined, fallback: number): number {
@@ -34,16 +34,16 @@ export function settings(env: NodeJS.ProcessEnv = process.env): Settings {
     requestTimeout: integer(env.MHG_REQUEST_TIMEOUT, 30_000),
     downloadWorkers: integer(env.MHG_DOWNLOAD_WORKERS, 4),
     downloadSpeedLimitKB: integer(env.MHG_DOWNLOAD_SPEED_LIMIT, 0),
-	    socketPath: resolve(env.MHG_SOCKET_PATH ?? join(tmpdir(), `mhg-${process.pid}.sock`)),
-	    cloudBaseUrl: (env.MHG_CLOUD_BASE_URL ?? "http://127.0.0.1:3333").replace(/\/+$/, ""),
-	    gachaResourceManifestUrl: env.MHG_GACHA_RESOURCE_MANIFEST_URL
-	      ?? "https://github.com/HappyDIY/MHGLauncher/releases/latest/download/gacha-history-manifest.json",
-	    achievementMetadataBaseUrl: env.MHG_ACHIEVEMENT_METADATA_BASE_URL
-	      ?? "https://raw.githubusercontent.com/SnapHutaoRemasteringProject/Snap.Metadata/main/Genshin/CHS/",
-	    achievementIconBaseUrl: env.MHG_ACHIEVEMENT_ICON_BASE_URL
-	      ?? "https://api.snaphutaorp.org/static/raw/AchievementIcon/",
-	  };
-		}
+    socketPath: resolve(env.MHG_SOCKET_PATH ?? join(tmpdir(), `mhg-${process.pid}.sock`)),
+    cloudBaseUrl: (env.MHG_CLOUD_BASE_URL ?? "http://localhost:3333").replace(/\/+$/, ""),
+    gachaResourceManifestUrl: env.MHG_GACHA_RESOURCE_MANIFEST_URL
+      ?? "https://github.com/HappyDIY/MHGLauncher/releases/latest/download/gacha-history-manifest.json",
+    achievementMetadataBaseUrl: env.MHG_ACHIEVEMENT_METADATA_BASE_URL
+      ?? "https://raw.githubusercontent.com/SnapHutaoRemasteringProject/Snap.Metadata/main/Genshin/CHS/",
+    achievementIconBaseUrl: env.MHG_ACHIEVEMENT_ICON_BASE_URL
+      ?? "https://api.snaphutaorp.org/static/raw/AchievementIcon/",
+  };
+}
 
 export function validateServerSettings(value: Settings): void {
   if (!value.apiToken.trim()) {
@@ -55,8 +55,11 @@ export function validateServerSettings(value: Settings): void {
   let cloudUrl: URL;
   try { cloudUrl = new URL(value.cloudBaseUrl ?? ""); }
   catch { throw new AppError("cloud_url_invalid", "MHG_CLOUD_BASE_URL 必须是有效 URL", 500); }
-  if (!["http:", "https:"].includes(cloudUrl.protocol) || cloudUrl.username || cloudUrl.password) {
-    throw new AppError("cloud_url_invalid", "MHG_CLOUD_BASE_URL 必须是无凭据的 HTTP 或 HTTPS URL", 500);
+  const localHosts = new Set(["localhost", "127.0.0.1", "[::1]"]);
+  const secureProtocol = cloudUrl.protocol === "https:"
+    || cloudUrl.protocol === "http:" && localHosts.has(cloudUrl.hostname);
+  if (!secureProtocol || cloudUrl.username || cloudUrl.password) {
+    throw new AppError("cloud_url_invalid", "MHG_CLOUD_BASE_URL 仅允许无凭据的 HTTPS URL，本地回环地址可使用 HTTP", 500);
   }
   let resourceUrl: URL;
   try { resourceUrl = new URL(value.gachaResourceManifestUrl ?? ""); }

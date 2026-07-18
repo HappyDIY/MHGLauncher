@@ -9,6 +9,7 @@ final class LauncherStore {
     let keychain = KeychainStore()
     let deviceOwnerAuthenticator: any DeviceOwnerAuthenticating
     var value = ValueStore()
+    let appUpdate = AppUpdateState()
 
     init(deviceOwnerAuthenticator: any DeviceOwnerAuthenticating = DeviceOwnerAuthenticator()) {
         self.deviceOwnerAuthenticator = deviceOwnerAuthenticator
@@ -130,10 +131,8 @@ final class LauncherStore {
         await refreshSpeedLimit()
         let savedKB = UserDefaults.standard.integer(forKey: "downloadSpeedLimitKB")
         if savedKB > 0 { await setSpeedLimit(savedKB) }
-        if selectedRole != nil {
-            await loadCompanionData()
-            await loadValueData()
-        }
+        if selectedRole != nil { await loadCompanionData(); await loadValueData() }
+        Task { await checkForAppUpdate(silent: true) }
     }
 
     func retryBootstrap() async {

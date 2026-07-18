@@ -17,7 +17,7 @@ struct AdditionalButtonBusinessActionTests {
 
         #expect(store.value.achievementLoaded)
         #expect(store.value.achievementError == nil)
-        #expect(store.selectedAchievementArchive?.id == "archive-1")
+        #expect(store.selectedAchievementArchive?.id == InteractiveFixtures.role.uid)
     }
 
     @Test("卡池角色成就云端与通知按钮走完整契约")
@@ -43,17 +43,17 @@ struct AdditionalButtonBusinessActionTests {
         #expect(store.value.gachaEvents.count == 1)
         #expect(store.characters.count == 1)
         #expect(store.value.achievementGoals.count == 1)
-        #expect(store.selectedAchievementArchive?.id == "archive-1")
+        #expect(store.selectedAchievementArchive?.id == InteractiveFixtures.role.uid)
 
         await store.installGachaResources()
         await store.refreshCharacters()
         await store.refreshSelectedCharacterDetail()
-        await store.createAchievementArchive(named: "旅行档案")
-        if let archive = store.selectedAchievementArchive { await store.selectAchievementArchive(archive) }
         if let entry = store.value.achievementEntries.first { await store.saveAchievement(entry, checked: true) }
         await store.updateNotificationSettings(settings, revertingTo: settings)
         await store.evaluateNotifications()
         await store.loginCloud()
+        await store.uploadCloudAchievements()
+        await store.retrieveCloudAchievements()
         await store.uploadCloudWishes()
         await store.retrieveCloudWishes()
 
@@ -65,6 +65,7 @@ struct AdditionalButtonBusinessActionTests {
         #expect(await backend.saw("POST", "/v1/characters/1001/refresh"))
         #expect(await backend.savedAchievementRevision == 0)
         #expect(await backend.saw("POST", "/v1/cloud/login/account"))
+        #expect(await backend.saw("POST", "/v1/cloud/achievements/retrieve"))
         #expect(await backend.saw("POST", "/v1/cloud/wishes/retrieve"))
     }
 
@@ -117,13 +118,15 @@ private actor ValueFakeBackend {
         case ("GET", "/v1/notifications/settings"), ("PUT", "/v1/notifications/settings"): return try json(settings)
         case ("POST", "/v1/notifications/evaluate"): return try json([NotificationEvent]())
         case ("GET", "/v1/achievements/goals"): return try json([goal])
-        case ("GET", "/v1/achievements/archives"): return try json([archive])
+        case ("GET", "/v1/achievements/archive"): return try json(archive)
         case ("GET", "/v1/achievements/snapshot"): return try json(snapshot)
-        case ("POST", "/v1/achievements/archives"), ("POST", "/v1/achievements/archives/archive-1/select"): return try json(archive)
         case ("POST", "/v1/achievements"):
             savedAchievementRevision = try JSONDecoder.api.decode(AchievementSaveRequest.self, from: request.body ?? Data()).expectedRevision
             return try json(snapshot)
         case ("POST", "/v1/cloud/login/account"): return try json(CloudLoginResult(uid: InteractiveFixtures.role.uid, token: "cloud-token", tokenRef: "keychain:cloud", reverifiedAt: date))
+        case ("GET", "/v1/cloud/session"): return try json(Optional<CloudSession>.none)
+        case ("POST", "/v1/cloud/achievements/upload"): return try json(CountResponse(inserted: nil, imported: nil, deleted: nil, uploaded: 1))
+        case ("POST", "/v1/cloud/achievements/retrieve"): return try json(CountResponse(inserted: nil, imported: 1, deleted: nil, uploaded: nil))
         case ("POST", "/v1/cloud/wishes/upload"): return try json(CountResponse(inserted: nil, imported: nil, deleted: nil, uploaded: 2))
         case ("POST", "/v1/cloud/wishes/retrieve"): return try json(CountResponse(inserted: nil, imported: 2, deleted: nil, uploaded: nil))
         case ("GET", "/v1/companion/snapshot"): return try json(CompanionSnapshot(wishes: [], statistics: [], bannerStatistics: [], note: nil))
@@ -139,10 +142,10 @@ private let settings = NotificationSettings(dailyCommissionEnabled: true, dailyC
 private let event = GachaEvent(id: "event-1", version: "5.8", gachaType: "301", name: "卡池", startedAt: date, endedAt: date, orangeUp: ["角色"], purpleUp: [], bannerUrl: nil, updatedAt: date)
 private let resourceStatus = GachaResourceStatus(state: "ready", version: "fixture", eventCount: 1, imageCount: 1, installedBytes: 1, installedAt: date)
 private let character = GameCharacter(uid: InteractiveFixtures.role.uid, avatarId: "1001", name: "旅行者", element: "Anemo", level: 90, rarity: 5, constellation: 0, fetter: 10, weaponName: "剑", weaponLevel: 90, iconUrl: nil, payload: nil, updatedAt: date)
-private let archive = AchievementArchive(id: "archive-1", name: "默认", selected: true, createdAt: date, updatedAt: date, revision: 0)
+private let archive = AchievementArchive(id: InteractiveFixtures.role.uid, name: InteractiveFixtures.role.uid, selected: true, createdAt: date, updatedAt: date, revision: 0)
 private let goal = AchievementGoal(id: 1, order: 1, name: "天地万象", rewardCount: 5, iconUrl: nil)
-private let entry = AchievementEntry(archiveId: "archive-1", achievementId: 1, current: 0, status: 0, timestamp: 0, updatedAt: "2026-07-01T00:00:00Z", goal: 1, order: 1, title: "起点", description: "完成测试", progress: 1, version: "1.0", rewardCount: 5, iconUrl: nil, isDailyQuest: false)
-private let item = AchievementItem(archiveId: "archive-1", achievementId: 1, current: 1, status: 3, timestamp: 1, updatedAt: date)
+private let entry = AchievementEntry(archiveId: InteractiveFixtures.role.uid, achievementId: 1, current: 0, status: 0, timestamp: 0, updatedAt: "2026-07-01T00:00:00Z", goal: 1, order: 1, title: "起点", description: "完成测试", progress: 1, version: "1.0", rewardCount: 5, iconUrl: nil, isDailyQuest: false)
+private let item = AchievementItem(archiveId: InteractiveFixtures.role.uid, achievementId: 1, current: 1, status: 3, timestamp: 1, updatedAt: date)
 private let snapshot = AchievementSnapshot(archive: archive, entries: [entry], revision: 0)
 
 private func json<T: Encodable>(_ value: T) throws -> APIResponse { APIResponse(status: 200, body: try JSONEncoder.api.encode(value)) }

@@ -6,6 +6,7 @@ import { AppError } from "../core/errors";
 import type { CloudLoginResult, GameRole } from "../core/models";
 import type { Provider } from "../providers/provider";
 import type { WishService } from "./wishes";
+import type { AchievementService } from "./achievements";
 import { z } from "zod";
 
 const cloudWish = z.object({
@@ -15,10 +16,15 @@ const cloudWish = z.object({
   name: z.string().max(128), item_type: z.string().max(64), rank: z.number().int().min(1).max(5),
   time: z.string().datetime(),
 }).strict();
+const cloudAchievement = z.object({
+  achievement_id: z.number().int().positive(), current: z.number().int().min(0),
+  status: z.number().int().min(0).max(3), timestamp: z.number().int().min(0),
+}).strict();
 
 const forwardedCloudErrors = new Set([
   "gacha_url_invalid", "gacha_url_expired", "gacha_url_unverified", "gacha_item_invalid",
   "identity_mismatch", "reverify_required", "unauthorized",
+  "achievement_items_invalid", "stored_data_invalid",
 ]);
 
 export class CloudSyncService {
@@ -27,6 +33,7 @@ export class CloudSyncService {
     private readonly store: Store,
     private readonly provider: Provider,
     private readonly wishes: WishService,
+    private readonly achievements: AchievementService,
   ) {}
 
   async loginWithCredential(credential: string, role: GameRole): Promise<CloudLoginResult> {
@@ -64,6 +71,27 @@ export class CloudSyncService {
     const items = z.array(cloudWish).max(20_000).safeParse(payload.items);
     if (!items.success) throw new AppError("cloud_payload_invalid", "云端记录格式无效", 502);
     this.wishes.save(items.data);
+    return { imported: items.data.length };
+  }
+
+  async uploadAchievements(uid: string, token: string): Promise<Record<string, number>> {
+    const items = this.achievements.list(uid).map(({ achievement_id, current, status, timestamp }) => (
+      { achievement_id, current, status, timestamp }
+    ));
+    await this.assertRemoteIdentity(uid, token);
+    return this.remote<Record<string, number>>("/api/v1/achievements/upload", token, { items });
+  }
+
+  async retrieveAchievements(uid: string, token: string): Promise<Record<string, number>> {
+    await this.assertRemoteIdentity(uid, token);
+    const payload = await this.remote<{ items: unknown[] }>("/api/v1/achievements/retrieve", token, {});
+    const items = z.array(cloudAchievement).max(200_000).safeParse(payload.items);
+    if (!items.success) throw new AppError("cloud_payload_invalid", "云端成就格式无效", 502);
+    const archive = this.achievements.archiveForUid(uid);
+    const revision = (await this.achievements.snapshot(archive.id)).revision;
+    await this.achievements.importUIAF(archive.id, revision, {
+      list: items.data.map(({ achievement_id, ...item }) => ({ id: achievement_id, ...item })),
+    });
     return { imported: items.data.length };
   }
 

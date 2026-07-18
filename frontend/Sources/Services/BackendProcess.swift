@@ -79,7 +79,8 @@ final class BackendProcess {
         token: String,
         socketPath: String,
         runtime: InstalledRuntime,
-        base: [String: String] = ProcessInfo.processInfo.environment
+        base: [String: String] = ProcessInfo.processInfo.environment,
+        cloudBaseURL: String? = Bundle.main.object(forInfoDictionaryKey: "MHGCloudBaseURL") as? String
     ) -> [String: String] {
         var values = base
         values["MHG_API_TOKEN"] = token
@@ -91,6 +92,9 @@ final class BackendProcess {
         values["NODE_ENV"] = "production"
         values["MHG_HPATCHZ"] = runtime.hpatchzURL.path
         values["MHG_RUNTIME_ROOT"] = runtime.gameRuntimeURL.path
+        if let cloudURL = cloudBaseURL, !cloudURL.isEmpty {
+            values["MHG_CLOUD_BASE_URL"] = cloudURL
+        }
         return values
     }
 

@@ -5,6 +5,11 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 app="$root/dist/MHGLauncher.app"
 contents="$app/Contents"
 backend_dir="${MHG_DEBUG_BACKEND_DIR:-}"
+configured_plist="$(mktemp)"
+trap 'rm -f "$configured_plist"' EXIT
+
+cp "$root/packaging/Info.plist" "$configured_plist"
+swift "$root/scripts/configure-cloud-server.swift" "$root/.env" "$configured_plist"
 
 if [[ -z "$backend_dir" ]]; then
   /bin/bash "$root/scripts/build-backend-debug.sh"
@@ -15,7 +20,7 @@ fi
 rm -rf "$app"
 mkdir -p "$contents/MacOS" "$contents/Resources/Backend"
 
-cp "$root/packaging/Info.plist" "$contents/Info.plist"
+cp "$configured_plist" "$contents/Info.plist"
 cp "$root/frontend/.build/arm64-apple-macosx/debug/MHGLauncher" \
   "$contents/MacOS/MHGLauncher"
 resource_bundle="$root/frontend/.build/arm64-apple-macosx/debug/MHGLauncher_MHGLauncher.bundle"

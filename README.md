@@ -32,8 +32,13 @@ Run all automated checks:
 Build the application bundle:
 
 ```bash
+cp .env.example .env
 MHG_MHYPBASE_SOURCE=/path/to/mhypbase.dll ./scripts/build-app.sh
 ```
+
+`MHG_CLOUD_BASE_URL` in `.env` is embedded into the App bundle at build time.
+Cloud servers must use HTTPS; only `localhost` and loopback addresses may use
+HTTP for local development. A missing value defaults to `http://localhost:3333`.
 
 The output is written to `dist/MHGLauncher.app`. The App bundle intentionally excludes Node.js and the game runtime; on first use it downloads the version-bound, signed runtime assets from the matching draft-tested Release. Offline first launch therefore requires those assets to have been installed previously.
 
@@ -50,6 +55,13 @@ verify that archive with:
 
 Publishing the normal runtime assets also uploads this separate archive. The
 manifest endpoint can be overridden with `MHG_GACHA_RESOURCE_MANIFEST_URL`.
+
+The launcher checks `GET /api/v1/updates/latest` on the configured cloud service
+at startup. Configure the cloud container with `MHG_UPDATE_VERSION`,
+`MHG_UPDATE_DOWNLOAD_URL`, `MHG_UPDATE_SHA256`, `MHG_UPDATE_SIZE`, and
+`MHG_UPDATE_CHANGELOG`. The download URL must be HTTPS and point to a `.dmg`,
+`.pkg`, or `.zip`; the app verifies both the declared byte size and SHA-256 hash
+before opening the downloaded package.
 
 ## Status
 

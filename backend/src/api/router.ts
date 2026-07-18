@@ -46,6 +46,7 @@ export async function dispatch(request: Request): Promise<Response> {
 
 async function route(method: string, path: string, query: URLSearchParams, body: unknown, signal: AbortSignal): Promise<Response> {
   const app = container();
+  if (method === "GET" && path === "/app-update") return json(await app.appUpdates.latest());
   if (method === "GET" && path === "/accounts") return json(app.accounts.list());
   if (method === "GET" && path === "/account") return json(app.accounts.get());
   if (method === "DELETE" && path === "/account") { app.accounts.logout(); return new Response(null, { status: 204 }); }

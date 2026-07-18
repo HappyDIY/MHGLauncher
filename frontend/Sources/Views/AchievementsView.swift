@@ -6,7 +6,6 @@ struct AchievementsView: View {
     @State var selectedGoal: Int?
     @State var uncompletedFirst = true
     @State var dailyOnly = false
-    @State var confirmsRemoval = false
 
     var body: some View {
         let presentation = achievementPresentation
@@ -34,15 +33,10 @@ struct AchievementsView: View {
                 content(presentation).motionEntrance(order: 2)
             }
         }
-        .confirmationDialog("删除当前成就档案？", isPresented: $confirmsRemoval) {
-            Button("删除", role: .destructive) {
-                Task { await store.removeSelectedAchievementArchive() }
-            }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("档案内的成就记录会一并删除，此操作无法撤销。")
+        .task(id: store.selectedRole?.uid) {
+            await store.loadValueData()
+            restoreGoalSelection()
         }
-        .task { await store.loadValueData() }
         .motionAnimation(.content, value: achievementAnimationID)
     }
 
@@ -50,20 +44,21 @@ struct AchievementsView: View {
         VStack(alignment: .leading, spacing: 10) {
             PageHeader(title: "成就管理", subtitle: headerSubtitle(presentation))
             HStack(spacing: 10) {
-                Button("新建档案", systemImage: "plus") {
-                    Task { await store.createAchievementArchive() }
-                }
-                .buttonStyle(.glassProminent)
-                Button("删除档案", systemImage: "trash", role: .destructive) {
-                    confirmsRemoval = true
-                }
-                .disabled(store.selectedAchievementArchive == nil)
                 Menu("UIAF", systemImage: "doc.badge.gearshape") {
                     Button("导入 UIAF", systemImage: "square.and.arrow.down") { importFile() }
                     Button("导出 UIAF", systemImage: "square.and.arrow.up") { exportFile() }
                         .disabled(store.value.achievementEntries.isEmpty)
                 }
                 .disabled(store.selectedAchievementArchive == nil)
+                Menu("云同步", systemImage: "icloud") {
+                    Button("上传成就", systemImage: "square.and.arrow.up") {
+                        Task { await store.uploadCloudAchievements() }
+                    }
+                    Button("取回成就", systemImage: "square.and.arrow.down") {
+                        Task { await store.retrieveCloudAchievements() }
+                    }
+                }
+                .disabled(!canCloudSync)
             }
         }
     }
@@ -74,11 +69,8 @@ struct AchievementsView: View {
                 TextField("搜索标题、描述、版本或成就 ID", text: $searchText)
                     .textFieldStyle(.roundedBorder)
                     .frame(minWidth: 220)
-                Picker("档案", selection: archiveSelection) {
-                    ForEach(store.value.achievementArchives) { archive in
-                        Text(archive.name).tag(archive.id)
-                    }
-                }
+                Text("UID \(store.selectedAchievementArchive?.name ?? "-")")
+                    .foregroundStyle(.secondary)
             }
             GridRow {
                 Toggle("未完成优先", isOn: $uncompletedFirst).toggleStyle(.checkbox)
@@ -116,7 +108,7 @@ struct AchievementsView: View {
     private func goalButtons(_ presentation: AchievementPresentation) -> some View {
         ForEach(presentation.goals) { goal in
             Button {
-                selectedGoal = selectedGoal == goal.id ? nil : goal.id
+                selectGoal(goal.id)
             } label: {
                 let stats = presentation.stats[goal.id] ?? (0, 0)
                 AchievementGoalCell(
@@ -154,23 +146,26 @@ struct AchievementsView: View {
         ContentUnavailableView {
             Label("还没有成就档案", systemImage: "trophy")
         } description: {
-            Text("新建档案后即可导入 UIAF，或手动勾选成就同步完成进度。")
-        } actions: {
-            Button("新建档案") { Task { await store.createAchievementArchive() } }
-                .buttonStyle(.glassProminent)
-                .motionHover(.prominent)
+            Text("选择角色后会自动创建以 UID 命名的成就档案。")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .glassEffect(.regular, in: .rect(cornerRadius: 16))
     }
 
-    private var archiveSelection: Binding<String> {
-        Binding {
-            store.selectedAchievementArchive?.id ?? ""
-        } set: { id in
-            guard let archive = store.value.achievementArchives.first(where: { $0.id == id }) else { return }
-            Task { await store.selectAchievementArchive(archive) }
-        }
+    private var canCloudSync: Bool {
+        guard let uid = store.selectedRole?.uid else { return false }
+        return store.value.cloudSession?.uid == uid && !store.isBusy
+    }
+
+    func selectGoal(_ id: Int) {
+        selectedGoal = id
+        guard let uid = store.selectedRole?.uid else { return }
+        AchievementGoalSelection.save(id, uid: uid)
+    }
+
+    func restoreGoalSelection() {
+        guard let uid = store.selectedRole?.uid else { selectedGoal = nil; return }
+        selectedGoal = AchievementGoalSelection.restore(uid: uid, goals: store.value.achievementGoals)
     }
 
 }
