@@ -114,10 +114,6 @@ struct CloudUIDRequest: Codable {
     let token: String
 }
 
-struct AchievementArchiveRequest: Codable {
-    let name: String
-}
-
 struct AchievementSaveRequest: Codable {
     let archiveId: String
     let expectedRevision: Int

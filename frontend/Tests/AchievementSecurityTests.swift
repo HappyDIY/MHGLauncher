@@ -10,6 +10,7 @@ struct AchievementSecurityTests {
         let backend = ConflictBackend()
         let store = LauncherStore(deviceOwnerAuthenticator: AchievementAuthenticator())
         store.backend.useClient(APIClient(token: "fixture") { try await backend.respond($0) })
+        store.roles = [InteractiveFixtures.role]
         store.value.achievementArchives = [archive]
         store.value.achievementEntries = [entry]
 
@@ -41,8 +42,8 @@ private actor ConflictBackend {
                 return APIResponse(status: 409, body: Data(#"{"code":"archive_revision_conflict","message":"conflict","details":{}}"#.utf8))
             }
             return try response(snapshot(revision: 2))
-        case ("GET", "/v1/achievements/archives"):
-            return try response([archive])
+        case ("GET", "/v1/achievements/archive"):
+            return try response(archive)
         case ("GET", "/v1/achievements/snapshot"):
             return try response(snapshot(revision: 1))
         default:
@@ -55,10 +56,11 @@ private actor ConflictBackend {
 }
 
 private let archive = AchievementArchive(
-    id: "archive", name: "默认", selected: true, createdAt: .now, updatedAt: .now, revision: 0
+    id: InteractiveFixtures.role.uid, name: InteractiveFixtures.role.uid,
+    selected: true, createdAt: .now, updatedAt: .now, revision: 0
 )
 private let entry = AchievementEntry(
-    archiveId: "archive", achievementId: 84501, current: 0, status: 0, timestamp: 0,
+    archiveId: InteractiveFixtures.role.uid, achievementId: 84501, current: 0, status: 0, timestamp: 0,
     updatedAt: "", goal: 1, order: 1, title: "成就", description: "", progress: 1,
     version: "1.0", rewardCount: 5, iconUrl: nil, isDailyQuest: false
 )

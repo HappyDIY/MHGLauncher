@@ -1,12 +1,6 @@
 import AppKit
 import SwiftUI
 
-enum AchievementLayoutMode: String, CaseIterable, Identifiable {
-    case list = "列表"
-    case grid = "网格"
-    var id: Self { self }
-}
-
 struct AchievementGoalCell: View {
     let goal: AchievementGoal
     let finished: Int

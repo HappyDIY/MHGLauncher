@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { AppError } from "../core/errors";
@@ -37,37 +36,20 @@ const goalMeta = (): GoalMeta[] => {
 export class AchievementService {
   constructor(private readonly store: Store) {}
 
-  archives(): AchievementArchive[] {
-    return this.store.all("SELECT * FROM achievement_archives ORDER BY selected DESC,updated_at DESC").map(archive);
-  }
-
-  createArchive(name: string): AchievementArchive {
-    if (!name.trim()) throw new AppError("archive_name_invalid", "成就档案名称不能为空", 422);
-    const now = new Date().toISOString(), id = randomUUID();
-    this.store.db.transaction(() => {
-      if (!this.archives().length) this.store.db.exec("UPDATE achievement_archives SET selected=0");
-      this.store.db.prepare("INSERT INTO achievement_archives(id,name,selected,created_at,updated_at,revision) VALUES(?,?,?,?,?,0)")
-        .run(id, name.trim(), Number(!this.archives().length), now, now);
-    })();
-    return { id, name: name.trim(), selected: !this.archives().some((value) => value.id !== id), created_at: now, updated_at: now };
-  }
-
-  selectArchive(id: string): AchievementArchive {
-    const value = this.store.one("SELECT * FROM achievement_archives WHERE id=?", id);
-    if (!value) throw new AppError("archive_missing", "成就档案不存在", 404);
+  archiveForUid(uid: string): AchievementArchive {
+    if (!/^\d{9,10}$/.test(uid)) throw new AppError("uid_invalid", "角色 UID 无效", 422);
+    const now = new Date().toISOString();
     this.store.db.transaction(() => {
       this.store.db.exec("UPDATE achievement_archives SET selected=0");
-      this.store.db.prepare("UPDATE achievement_archives SET selected=1,updated_at=? WHERE id=?").run(new Date().toISOString(), id);
+      this.store.db.prepare(`INSERT INTO achievement_archives(id,name,selected,created_at,updated_at,revision)
+        VALUES(?,?,1,?,?,0) ON CONFLICT(id) DO UPDATE SET name=excluded.name,selected=1`)
+        .run(uid, uid, now, now);
     })();
-    return { ...archive(value), selected: true };
+    return archive(this.store.one("SELECT * FROM achievement_archives WHERE id=?", uid)!);
   }
 
-  removeArchive(id: string): number {
-    return this.store.db.prepare("DELETE FROM achievement_archives WHERE id=?").run(id).changes;
-  }
-
-  list(archiveId = this.selectedId()): AchievementItem[] {
-    return archiveId ? this.store.all("SELECT * FROM achievements WHERE archive_id=? ORDER BY achievement_id", archiveId).map(item) : [];
+  list(archiveId: string): AchievementItem[] {
+    return this.store.all("SELECT * FROM achievements WHERE archive_id=? ORDER BY achievement_id", archiveId).map(item);
   }
 
   goals(): AchievementGoal[] {
@@ -77,7 +59,7 @@ export class AchievementService {
     }));
   }
 
-  view(archiveId = this.selectedId()): AchievementViewItem[] {
+  view(archiveId: string): AchievementViewItem[] {
     const existing = new Map(this.list(archiveId).map((value) => [value.achievement_id, value]));
     return achievementMeta().map((meta) => {
       const saved = existing.get(meta.Id);
@@ -139,14 +121,9 @@ export class AchievementService {
     return this.saveSnapshot(archiveId, expectedRevision, values);
   }
 
-  exportUIAF(archiveId = this.selectedId()): Record<string, unknown> {
-    if (!archiveId) return { info: { export_app: "MHGLauncher", uiaf_version: "v1.1" }, list: [] };
+  exportUIAF(archiveId: string): Record<string, unknown> {
     return { info: { export_app: "MHGLauncher", uiaf_version: "v1.1", export_timestamp: Math.floor(Date.now() / 1000) },
       list: this.list(archiveId).map((value) => ({ id: value.achievement_id, current: value.current, status: value.status, timestamp: value.timestamp })) };
-  }
-
-  selectedId(): string | undefined {
-    return this.store.one("SELECT id FROM achievement_archives ORDER BY selected DESC,updated_at DESC LIMIT 1")?.id as string | undefined;
   }
 
   private requireArchive(id: string): void {

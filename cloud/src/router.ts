@@ -3,10 +3,12 @@ import { issue, requireFresh, requireSession, reverify, revoke, verifyGachaUrl }
 import { ready } from "./db";
 import { bearer, fail, HttpError, json } from "./http";
 import * as gacha from "./gacha";
+import * as achievements from "./achievements";
 import { readJsonBody } from "./body";
 
 const gachaUrl = z.object({ gacha_url: z.string().url().max(16_384) }).strict();
 const uploadBody = z.object({ items: z.array(gacha.cloudWishSchema).max(20_000) }).strict();
+const achievementUploadBody = z.object({ items: z.array(achievements.cloudAchievementSchema).max(200_000) }).strict();
 
 export async function dispatch(request: Request): Promise<Response> {
   try {
@@ -14,10 +16,10 @@ export async function dispatch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname.replace(/^\/api\/v1/, "");
     let freshUid: string | undefined;
-    if (path === "/gacha/upload") freshUid = (await requireFresh(bearer(request))).uid;
+    if (path === "/gacha/upload" || path === "/achievements/upload") freshUid = (await requireFresh(bearer(request))).uid;
     else if (path === "/auth/reverify") await requireSession(bearer(request));
-    const acceptsBody = ["/auth/gacha-url", "/auth/reverify", "/gacha/upload"].includes(path);
-    const maxBytes = path === "/gacha/upload" ? 16 * 1024 * 1024 : 1024 * 1024;
+    const acceptsBody = ["/auth/gacha-url", "/auth/reverify", "/gacha/upload", "/achievements/upload"].includes(path);
+    const maxBytes = path.endsWith("/upload") ? 16 * 1024 * 1024 : 1024 * 1024;
     const body = request.method === "POST" && acceptsBody ? await readJsonBody(request, maxBytes) : undefined;
     return await route(request.method, path, body, request, freshUid);
   } catch (error) {
@@ -50,6 +52,13 @@ async function route(method: string, path: string, body: unknown, request: Reque
   }
   if (method === "POST" && path === "/gacha/retrieve") {
     const session = await requireSession(bearer(request)); return json(await gacha.retrieve(session.uid));
+  }
+  if (method === "POST" && path === "/achievements/upload") {
+    const value = achievementUploadBody.parse(body);
+    return json(await achievements.upload(freshUid ?? "", value.items));
+  }
+  if (method === "POST" && path === "/achievements/retrieve") {
+    const session = await requireSession(bearer(request)); return json(await achievements.retrieve(session.uid));
   }
   if (method === "DELETE" && path === "/gacha") {
     const session = await requireFresh(bearer(request)); return json(await gacha.remove(session.uid));

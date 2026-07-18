@@ -61,3 +61,25 @@ test("取回兼容官方接口的空物品 ID", async () => {
   await expect(app.cloud.retrieveWishes("100000001", "token")).resolves.toEqual({ imported: 1 });
   expect(app.wishes.list("100000001")[0]?.item_id).toBe("");
 });
+
+test("成就云同步按 UID 上传并以版本快照取回", async () => {
+  const app = fixture(); app.settings.cloudBaseUrl = "https://cloud.example";
+  const archive = app.achievements.archiveForUid("100000001");
+  app.achievements.saveSnapshot(archive.id, 0, [
+    { achievement_id: 84501, current: 1, status: 3, timestamp: 1_756_000_000 },
+  ]);
+  const fetch = vi.spyOn(globalThis, "fetch")
+    .mockResolvedValueOnce(Response.json({ uid: "100000001" }))
+    .mockResolvedValueOnce(Response.json({ uploaded: 1 }))
+    .mockResolvedValueOnce(Response.json({ uid: "100000001" }))
+    .mockResolvedValueOnce(Response.json({ items: [
+      { achievement_id: 84502, current: 1, status: 3, timestamp: 1_756_000_001 },
+    ] }));
+
+  await expect(app.cloud.uploadAchievements("100000001", "token")).resolves.toEqual({ uploaded: 1 });
+  expect(JSON.parse(String(fetch.mock.calls[1]?.[1]?.body))).toEqual({ items: [
+    { achievement_id: 84501, current: 1, status: 3, timestamp: 1_756_000_000 },
+  ] });
+  await expect(app.cloud.retrieveAchievements("100000001", "token")).resolves.toEqual({ imported: 1 });
+  expect(app.achievements.list(archive.id).map(({ achievement_id }) => achievement_id)).toEqual([84501, 84502]);
+});

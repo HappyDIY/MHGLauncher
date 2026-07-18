@@ -8,6 +8,20 @@ struct AchievementPresentation {
     let finishDescription: String
 }
 
+enum AchievementGoalSelection {
+    static func restore(uid: String, goals: [AchievementGoal], defaults: UserDefaults = .standard) -> Int? {
+        let ordered = goals.sorted { $0.order < $1.order }
+        let saved = defaults.integer(forKey: key(uid))
+        return ordered.first(where: { $0.id == saved })?.id ?? ordered.first?.id
+    }
+
+    static func save(_ id: Int, uid: String, defaults: UserDefaults = .standard) {
+        defaults.set(id, forKey: key(uid))
+    }
+
+    static func key(_ uid: String) -> String { "achievementSelectedGoal.\(uid)" }
+}
+
 extension AchievementsView {
     var achievementAnimationID: String {
         let archive = store.selectedAchievementArchive?.id ?? ""
@@ -31,9 +45,7 @@ extension AchievementsView {
         } else {
             entries.sort { $0.order < $1.order }
         }
-        let included = Set(entries.map(\.goal))
         let goals = store.value.achievementGoals
-            .filter { included.contains($0.id) || selectedGoal == $0.id }
             .sorted { $0.order < $1.order }
         let stats = store.value.achievementEntries.reduce(into: [Int: (Int, Int)]()) { result, entry in
             var value = result[entry.goal] ?? (0, 0)

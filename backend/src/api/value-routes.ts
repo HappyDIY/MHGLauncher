@@ -6,7 +6,6 @@ import { exportUIGF } from "../services/uigf";
 const credential = z.object({ credential: z.string().min(1).max(16_384) }).strict();
 const gachaUrl = z.object({ gacha_url: z.string().url().max(16_384), token: z.string().max(1024).optional().default("") }).strict();
 const cloudUid = z.object({ uid: z.string().regex(/^\d{9,10}$/), token: z.string().min(1).max(1024) }).strict();
-const archive = z.object({ name: z.string().min(1).max(128) }).strict();
 const achievementSave = z.object({
   archive_id: z.string().min(1), expected_revision: z.number().int().min(0),
   items: z.array(z.object({ achievement_id: z.number().int(), current: z.number().int(), status: z.number().int(), timestamp: z.number().int() }).strict()).max(200_000),
@@ -27,27 +26,24 @@ export async function valueRoute(app: Container, method: string, path: string, q
   if (method === "GET" && path === "/gacha-events") return json(app.gachaEvents.list());
   if (method === "GET" && path === "/gacha-resources/status") return json(app.gachaResources.status());
   if (method === "POST" && path === "/gacha-resources/install") return json(await app.gachaResources.install());
-  if (method === "GET" && path === "/achievements/archives") return json(app.achievements.archives());
-  if (method === "POST" && path === "/achievements/archives") return json(app.achievements.createArchive(archive.parse(body).name), 201);
-  const archiveSelect = match(path, /^\/achievements\/archives\/([^/]+)\/select$/);
-  if (method === "POST" && archiveSelect) return json(app.achievements.selectArchive(archiveSelect));
-  const archiveDelete = match(path, /^\/achievements\/archives\/([^/]+)$/);
-  if (method === "DELETE" && archiveDelete) return json({ deleted: app.achievements.removeArchive(archiveDelete) });
+  if (method === "GET" && path === "/achievements/archive") return json(app.achievements.archiveForUid(required(query, "uid")));
   if (method === "GET" && path === "/achievements/goals") return json(app.achievements.goals());
   if (method === "GET" && path === "/achievements/view") return json(app.achievements.view(required(query, "archive_id")));
   if (method === "GET" && path === "/achievements/snapshot") return json(app.achievements.snapshot(required(query, "archive_id")));
-  if (method === "GET" && path === "/achievements") return json(app.achievements.list(query.get("archive_id") ?? undefined));
+  if (method === "GET" && path === "/achievements") return json(app.achievements.list(required(query, "archive_id")));
   if (method === "POST" && path === "/achievements") { const value = achievementSave.parse(body); return json(app.achievements.saveSnapshot(value.archive_id, value.expected_revision, value.items)); }
   if (method === "POST" && path === "/achievements/import") return json(app.achievements.importUIAF(
     required(query, "archive_id"), revision(query), body as never,
   ));
-  if (method === "GET" && path === "/achievements/export") return json(app.achievements.exportUIAF(query.get("archive_id") ?? undefined));
+  if (method === "GET" && path === "/achievements/export") return json(app.achievements.exportUIAF(required(query, "archive_id")));
   if (method === "POST" && path === "/cloud/login") return json(await app.cloud.login(gachaUrl.parse(body).gacha_url));
   if (method === "POST" && path === "/cloud/login/account") return json(await app.cloud.loginWithCredential(credential.parse(body).credential, role()));
   if (method === "POST" && path === "/cloud/reverify") { const value = gachaUrl.parse(body); return json(await app.cloud.reverify(value.gacha_url, value.token)); }
   if (method === "GET" && path === "/cloud/session") return json(app.cloud.session(required(query, "uid")));
   if (method === "POST" && path === "/cloud/wishes/upload") { const value = cloudUid.parse(body); return json(await app.cloud.uploadWishes(value.uid, value.token)); }
   if (method === "POST" && path === "/cloud/wishes/retrieve") { const value = cloudUid.parse(body); return json(await app.cloud.retrieveWishes(value.uid, value.token)); }
+  if (method === "POST" && path === "/cloud/achievements/upload") { const value = cloudUid.parse(body); return json(await app.cloud.uploadAchievements(value.uid, value.token)); }
+  if (method === "POST" && path === "/cloud/achievements/retrieve") { const value = cloudUid.parse(body); return json(await app.cloud.retrieveAchievements(value.uid, value.token)); }
   if (method === "POST" && path === "/cloud/wishes/delete") { const value = cloudUid.parse(body); return json(await app.cloud.deleteWishes(value.uid, value.token)); }
   if (method === "POST" && path === "/cloud/revoke") { const value = cloudUid.parse(body); await app.cloud.revokeSession(value.uid, value.token); return new Response(null, { status: 204 }); }
   if (method === "GET" && path === "/notifications/settings") return json(app.notifications.get());

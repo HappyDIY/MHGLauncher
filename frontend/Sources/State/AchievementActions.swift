@@ -9,52 +9,18 @@ extension LauncherStore {
         let api = try client ?? requireClient()
         value.achievementIntent += 1
         let intent = value.achievementIntent
-        let archives: [AchievementArchive] = try await api.get("/v1/achievements/archives")
+        guard let archiveUid = uid ?? selectedRole?.uid else { return }
+        let archive: AchievementArchive = try await api.get(
+            "/v1/achievements/archive",
+            query: [URLQueryItem(name: "uid", value: archiveUid)]
+        )
         guard isCurrentAchievementLoad(intent, uid: uid, generation: generation) else { return }
-        guard let archive = archives.first(where: \.selected) ?? archives.first else {
-            value.achievementArchives = []; value.achievementEntries = []; value.achievementRevision = 0
-            return
-        }
         let snapshot: AchievementSnapshot = try await api.get(
             "/v1/achievements/snapshot",
             query: [URLQueryItem(name: "archive_id", value: archive.id)]
         )
         guard isCurrentAchievementLoad(intent, uid: uid, generation: generation), snapshot.archive.id == archive.id else { return }
-        applyAchievementSnapshot(snapshot, archives: archives)
-    }
-
-    func createAchievementArchive(named name: String? = nil) async {
-        await perform {
-            let title = name?.nonempty ?? "成就档案 \(value.achievementArchives.count + 1)"
-            _ = try await requireClient().post(
-                "/v1/achievements/archives",
-                body: AchievementArchiveRequest(name: title)
-            ) as AchievementArchive
-            try await loadAchievementData()
-        }
-    }
-
-    func selectAchievementArchive(_ archive: AchievementArchive) async {
-        value.achievementIntent &+= 1
-        let intent = value.achievementIntent
-        await achievementSelectionGate.acquire()
-        defer { Task { await achievementSelectionGate.release() } }
-        guard intent == value.achievementIntent else { return }
-        await perform {
-            _ = try await requireClient().post(
-                "/v1/achievements/archives/\(archive.id)/select"
-            ) as AchievementArchive
-            guard intent == value.achievementIntent else { return }
-            try await loadAchievementData()
-        }
-    }
-
-    func removeSelectedAchievementArchive() async {
-        guard let archive = selectedAchievementArchive else { return }
-        await perform {
-            try await requireClient().delete("/v1/achievements/archives/\(archive.id)")
-            try await loadAchievementData()
-        }
+        applyAchievementSnapshot(snapshot, archives: [archive])
     }
 
     func saveAchievement(_ entry: AchievementEntry, checked: Bool) async {
@@ -91,6 +57,29 @@ extension LauncherStore {
                 query: [URLQueryItem(name: "archive_id", value: archiveId)]
             )
             try UIGFFileIO.write(data, to: url)
+        }
+    }
+
+    func uploadCloudAchievements() async {
+        guard let uid = selectedRole?.uid else { return }
+        await perform {
+            let response: CountResponse = try await requireClient().post(
+                "/v1/cloud/achievements/upload",
+                body: CloudUIDRequest(uid: uid, token: try cloudToken(uid: uid))
+            )
+            value.cloudMessage = "已上传 \(response.uploaded ?? 0) 条成就"
+        }
+    }
+
+    func retrieveCloudAchievements() async {
+        guard let uid = selectedRole?.uid else { return }
+        await perform {
+            let response: CountResponse = try await requireClient().post(
+                "/v1/cloud/achievements/retrieve",
+                body: CloudUIDRequest(uid: uid, token: try cloudToken(uid: uid))
+            )
+            try await loadAchievementData(uid: uid)
+            value.cloudMessage = "已取回 \(response.imported ?? 0) 条成就"
         }
     }
 

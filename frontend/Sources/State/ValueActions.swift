@@ -11,6 +11,9 @@ extension LauncherStore {
             )
             async let settings: NotificationSettings = client.get("/v1/notifications/settings")
             async let goals: [AchievementGoal] = client.get("/v1/achievements/goals")
+            async let cloudSession: CloudSession? = client.get(
+                "/v1/cloud/session", query: [URLQueryItem(name: "uid", value: uid)]
+            )
             do {
                 try await loadAchievementData(client: client, uid: uid, generation: generation)
                 guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
@@ -38,6 +41,14 @@ extension LauncherStore {
             } catch {
                 guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
                 value.notificationError = Self.presentableMessage(error)
+            }
+            do {
+                let loaded = try await cloudSession
+                guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
+                value.cloudSession = loaded
+            } catch {
+                guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
+                value.cloudSession = nil
             }
         } catch {
             guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
