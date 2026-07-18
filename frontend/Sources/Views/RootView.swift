@@ -11,23 +11,7 @@ struct RootView: View {
                 RuntimeSetupView(store: store)
             } else {
                 NavigationSplitView {
-                    List(Destination.allCases, selection: $store.selectedDestination) { destination in
-                        Label {
-                            Text(destination.rawValue)
-                        } icon: {
-                            Image(systemName: destination.icon)
-                                .motionSymbolBounce(
-                                    value: store.selectedDestination == destination
-                                )
-                        }
-                            .tag(destination)
-                    }
-                    .scrollContentBackground(.hidden)
-                    .background {
-                        SidebarGlassEffect()
-                    }
-                    .navigationTitle("MHGLauncher")
-                    .navigationSplitViewColumnWidth(min: 180, ideal: 210)
+                    CodexSidebar(store: store)
                 } detail: {
                     ZStack {
                         content
