@@ -23,4 +23,15 @@ struct NavigationPageHostTests {
 
         #expect(size == CGSize(width: 900, height: 240))
     }
+
+    @Test("页面缓存立即包含新目的地且不重复")
+    func cacheIncludesDestinationOnce() {
+        let cached = ["home", "game"]
+
+        #expect(NavigationPageCache.including("game", in: cached) == cached)
+        #expect(
+            NavigationPageCache.including("achievements", in: cached)
+                == ["home", "game", "achievements"]
+        )
+    }
 }

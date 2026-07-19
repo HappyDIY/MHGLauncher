@@ -34,7 +34,7 @@ struct AchievementsView: View {
             }
         }
         .task(id: store.selectedRole?.uid) {
-            await store.loadValueData()
+            await store.loadValueData(force: false)
             restoreGoalSelection()
         }
         .motionAnimation(.content, value: achievementAnimationID)

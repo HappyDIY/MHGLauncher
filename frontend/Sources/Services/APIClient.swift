@@ -32,11 +32,14 @@ struct APIClient: Sendable {
         self.transport = transport
     }
 
-    func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {
+    func get<T: Decodable & Sendable>(
+        _ path: String,
+        query: [URLQueryItem] = []
+    ) async throws -> T {
         try await send(path: pathWithQuery(path, query), method: "GET", body: nil)
     }
 
-    func post<T: Decodable, Body: Encodable>(
+    func post<T: Decodable & Sendable, Body: Encodable>(
         _ path: String,
         body: Body,
         timeout: TimeInterval = 60
@@ -49,11 +52,14 @@ struct APIClient: Sendable {
         )
     }
 
-    func post<T: Decodable>(_ path: String) async throws -> T {
+    func post<T: Decodable & Sendable>(_ path: String) async throws -> T {
         try await send(path: path, method: "POST", body: Data("{}".utf8))
     }
 
-    func put<T: Decodable, Body: Encodable>(_ path: String, body: Body) async throws -> T {
+    func put<T: Decodable & Sendable, Body: Encodable>(
+        _ path: String,
+        body: Body
+    ) async throws -> T {
         try await send(
             path: path,
             method: "PUT",
@@ -61,7 +67,7 @@ struct APIClient: Sendable {
         )
     }
 
-    func upload<T: Decodable>(_ path: String, json: Data) async throws -> T {
+    func upload<T: Decodable & Sendable>(_ path: String, json: Data) async throws -> T {
         try await send(path: path, method: "POST", body: json)
     }
 
@@ -69,7 +75,7 @@ struct APIClient: Sendable {
         _ = try await raw(path: path, method: "DELETE", body: nil)
     }
 
-    func deleteResponse<T: Decodable>(_ path: String) async throws -> T {
+    func deleteResponse<T: Decodable & Sendable>(_ path: String) async throws -> T {
         try await send(path: path, method: "DELETE", body: nil)
     }
 
@@ -77,7 +83,8 @@ struct APIClient: Sendable {
         try await raw(path: pathWithQuery(path, query), method: "GET", body: nil)
     }
 
-    private func send<T: Decodable>(
+    @concurrent
+    private func send<T: Decodable & Sendable>(
         path: String,
         method: String,
         body: Data?,

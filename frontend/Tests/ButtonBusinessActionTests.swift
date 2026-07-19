@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import MHGLauncher
 
-@Suite("按钮业务逻辑")
+@Suite("按钮业务逻辑", .serialized)
 struct ButtonBusinessActionTests {
     @Test("游戏页按钮执行业务流程")
     @MainActor

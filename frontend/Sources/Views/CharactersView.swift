@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CharactersView: View {
     @Bindable var store: LauncherStore
+    var navigationPageIsActive = true
 
     var body: some View {
         Group {
@@ -19,15 +20,19 @@ struct CharactersView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .navigationTitle("我的角色")
+        .navigationTitle(navigationPageIsActive ? "我的角色" : "MHGLauncher")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                syncButton
+            if navigationPageIsActive {
+                ToolbarItem(placement: .primaryAction) {
+                    syncButton
+                }
             }
         }
         .task {
-            await store.loadCharacters()
-            if store.characters.isEmpty { await store.refreshCharacters() }
+            if store.characters.isEmpty {
+                await store.loadCharacters()
+                if store.characters.isEmpty { await store.refreshCharacters() }
+            }
         }
         .motionEntrance(.content)
     }

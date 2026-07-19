@@ -13,10 +13,8 @@ struct RootView: View {
                 NavigationSplitView {
                     CodexSidebar(store: store)
                 } detail: {
-                    NavigationPageHost(
-                        destination: store.selectedDestination ?? .home
-                    ) {
-                        content
+                    NavigationPageHost(destination: store.selectedDestination ?? .home) { destination, isActive in
+                        content(for: destination, isActive: isActive)
                     }
                     .padding(24)
                     .background(background)
@@ -120,15 +118,24 @@ struct RootView: View {
     }
 
     @ViewBuilder
-    private var content: some View {
-        switch store.selectedDestination ?? .home {
+    private func content(
+        for destination: Destination,
+        isActive: Bool
+    ) -> some View {
+        switch destination {
         case .home: HomeView(store: store)
         case .game: GameView(store: store)
         case .wishes: WishesView(store: store)
-        case .gachaHistory: GachaHistoryView(store: store)
+        case .gachaHistory: GachaHistoryView(
+            store: store,
+            navigationPageIsActive: isActive
+        )
         case .cloudSync: CloudSyncView(store: store)
         case .notes: NotesView(store: store)
-        case .characters: CharactersView(store: store)
+        case .characters: CharactersView(
+            store: store,
+            navigationPageIsActive: isActive
+        )
         case .achievements: AchievementsView(store: store)
         case .notifications: NotificationsView(store: store)
         case .account: AccountView(store: store)

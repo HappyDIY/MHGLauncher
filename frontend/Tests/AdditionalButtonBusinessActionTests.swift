@@ -20,6 +20,25 @@ struct AdditionalButtonBusinessActionTests {
         #expect(store.selectedAchievementArchive?.id == InteractiveFixtures.role.uid)
     }
 
+    @Test("页面回访复用当前角色数据")
+    @MainActor
+    func pageRevisitReusesValueData() async {
+        let backend = ValueFakeBackend()
+        let store = LauncherStore(deviceOwnerAuthenticator: ValueAuthenticator())
+        store.backend.useClient(APIClient(token: "fixture") { try await backend.respond($0) })
+        store.account = InteractiveFixtures.account
+        store.roles = [InteractiveFixtures.role]
+
+        await store.loadValueData()
+        let initialCount = await backend.requestCount()
+        await store.loadValueData(force: false)
+
+        #expect(await backend.requestCount() == initialCount)
+        _ = store.resetCompanionData()
+        await store.loadValueData(force: false)
+        #expect(await backend.requestCount() > initialCount)
+    }
+
     @Test("卡池角色成就云端与通知按钮走完整契约")
     @MainActor
     func valueButtonsRunBusinessActions() async throws {
@@ -135,6 +154,7 @@ private actor ValueFakeBackend {
     }
 
     func saw(_ method: String, _ route: String) -> Bool { requests.contains { $0.method == method && $0.path.components(separatedBy: "?")[0] == route } }
+    func requestCount() -> Int { requests.count }
 }
 
 private let date = Date(timeIntervalSince1970: 1_782_144_000)

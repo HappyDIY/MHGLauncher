@@ -21,6 +21,7 @@ extension LauncherStore {
         characters = []
         selectedCharacterId = nil
         companionLoaded = false
+        value.loadedRoleUID = nil
         value.cloudSession = nil
         return companionDataGeneration
     }

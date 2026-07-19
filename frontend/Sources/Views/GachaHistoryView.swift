@@ -2,6 +2,7 @@ import SwiftUI
 
 struct GachaHistoryView: View {
     @Bindable var store: LauncherStore
+    var navigationPageIsActive = true
     @State private var selectedID: String?
     @State private var category = HistoryWishCategory.character
 
@@ -22,9 +23,13 @@ struct GachaHistoryView: View {
                 workspace.motionEntrance(order: 1)
             }
         }
-        .toolbar { toolbarActions }
+        .toolbar {
+            if navigationPageIsActive { toolbarActions }
+        }
         .task {
-            await store.loadGachaResources()
+            if store.value.gachaResourceStatus == nil {
+                await store.loadGachaResources()
+            }
             if store.wishes.isEmpty { await store.loadCompanionData() }
         }
         .onChange(of: visibleWishes.map(\.id)) {

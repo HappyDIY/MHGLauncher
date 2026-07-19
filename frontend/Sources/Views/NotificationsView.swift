@@ -65,7 +65,7 @@ struct NotificationsView: View {
             }
             Spacer()
         }
-        .task { await store.loadValueData() }
+        .task { await store.loadValueData(force: false) }
         .motionEntrance(.content)
     }
 

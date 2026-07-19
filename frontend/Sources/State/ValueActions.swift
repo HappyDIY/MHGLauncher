@@ -1,8 +1,9 @@
 import Foundation
 
 extension LauncherStore {
-    func loadValueData() async {
+    func loadValueData(force: Bool = true) async {
         guard let uid = selectedRole?.uid else { return }
+        guard force || value.loadedRoleUID != uid else { return }
         let generation = companionDataGeneration
         do {
             let client = try requireClient()
@@ -54,6 +55,9 @@ extension LauncherStore {
             guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
             value.achievementError = Self.presentableMessage(error)
             value.notificationError = value.achievementError
+        }
+        if isCurrentCompanionData(uid: uid, generation: generation) {
+            value.loadedRoleUID = uid
         }
     }
 

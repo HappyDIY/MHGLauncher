@@ -16,6 +16,15 @@ struct APIClientTests {
         #expect(state.availableVersion == "5.8.0")
     }
 
+    @Test("响应解码离开主执行器")
+    @MainActor
+    func responseDecodesAwayFromMainActor() async throws {
+        let client = makeClient { _ in json(200, "{}") }
+        let probe: DecodeThreadProbe = try await client.get("/v1/probe")
+
+        #expect(!probe.decodedOnMainThread)
+    }
+
     @Test("长任务使用指定超时时间")
     func customRequestTimeout() async throws {
         let client = makeClient { request in
@@ -111,6 +120,15 @@ struct APIClientTests {
         handler: @escaping @Sendable (APIRequest) async throws -> APIResponse
     ) -> APIClient {
         APIClient(token: "token", transport: handler)
+    }
+}
+
+private struct DecodeThreadProbe: Decodable, Sendable {
+    let decodedOnMainThread: Bool
+
+    init(from decoder: Decoder) throws {
+        _ = try decoder.singleValueContainer()
+        decodedOnMainThread = Thread.isMainThread
     }
 }
 
