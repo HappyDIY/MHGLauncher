@@ -135,30 +135,6 @@ private struct MotionTransitionModifier: ViewModifier {
     }
 }
 
-private struct MotionEntranceModifier: ViewModifier {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var appeared = false
-    let role: MotionRole
-    let order: Int
-
-    func body(content: Content) -> some View {
-        let spec = LauncherMotion.spec(
-            for: role,
-            reduceMotion: reduceMotion,
-            order: order
-        )
-        content
-            .compositingGroup()
-            .opacity(appeared ? 1 : 0)
-            .offset(appeared ? .zero : spec.offset)
-            .scaleEffect(appeared ? 1 : spec.scale)
-            .blur(radius: appeared ? 0 : spec.blur)
-            .onAppear {
-                withAnimation(spec.animation) { appeared = true }
-            }
-    }
-}
-
 private struct MotionAnimationModifier<Value: Equatable>: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let role: MotionRole
@@ -173,13 +149,6 @@ private struct MotionAnimationModifier<Value: Equatable>: ViewModifier {
 }
 
 extension View {
-    func motionEntrance(
-        _ role: MotionRole = .content,
-        order: Int = 0
-    ) -> some View {
-        modifier(MotionEntranceModifier(role: role, order: order))
-    }
-
     func motionTransition(_ role: MotionRole = .content) -> some View {
         modifier(MotionTransitionModifier(role: role))
     }

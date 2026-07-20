@@ -139,6 +139,7 @@ struct AchievementsView: View {
             }
             .padding(8)
         }
+        .trackingScrollActivity()
         .background { Color.clear.glassEffect(.regular, in: .rect(cornerRadius: 12)) }
     }
 

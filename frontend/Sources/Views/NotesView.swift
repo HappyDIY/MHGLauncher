@@ -4,6 +4,10 @@ struct NotesView: View {
     @Bindable var store: LauncherStore
 
     var body: some View {
+        content.trackingScrollActivity()
+    }
+
+    private var content: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .bottom) {

@@ -21,6 +21,7 @@ struct BannerDetailCard: View {
             .padding(18)
             .frame(maxWidth: .infinity)
         }
+        .trackingScrollActivity()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
             // 固定玻璃背景，时间线滚动时不重新合成整个内容层。

@@ -28,6 +28,7 @@ struct WishResultsPanel: View, Equatable {
                         .padding(2)
                     }
                 }
+                .trackingScrollActivity()
             }
         }
         .padding(16)

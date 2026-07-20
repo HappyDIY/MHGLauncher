@@ -95,7 +95,6 @@ private struct MotionHoverModifier: ViewModifier {
             reduceMotion: reduceMotion
         )
         content
-            .compositingGroup()
             .scaleEffect(active ? spec.scale : 1)
             .offset(y: active ? spec.lift : 0)
             .rotation3DEffect(
@@ -136,9 +135,10 @@ private struct MotionScrollAppearanceModifier: ViewModifier {
         if reduceMotion {
             content
         } else {
-            // 先合成为单层再做滚动过渡，模糊/缩放/透明每帧只栅格化一次子树。
+            // 滚动过渡仅保留透明与缩放；去掉逐帧高斯模糊——模糊只在滚动
+            // 过程中（非恒等相位）生效，是滚动页每帧的持续开销，静止时相位
+            // 恒等、原本就无模糊，故去除后静止视觉逐像素一致。
             content
-                .compositingGroup()
                 .scrollTransition(
                     .animated(LauncherMotion.animation(
                         .content,
@@ -148,7 +148,6 @@ private struct MotionScrollAppearanceModifier: ViewModifier {
                     view
                         .opacity(phase.isIdentity ? 1 : 0.68)
                         .scaleEffect(phase.isIdentity ? 1 : 0.94)
-                        .blur(radius: phase.isIdentity ? 0 : 4)
                 }
         }
     }
