@@ -17,9 +17,12 @@ struct PoolSelector: View {
 
     var body: some View {
         ScrollView(.horizontal) {
-            HStack(spacing: 12) {
-                ForEach(sorted) { detail in
-                    poolButton(detail)
+            // 玻璃容器统一采样背景，多个胶囊按钮共享一次背板采样而非逐个采样。
+            GlassEffectContainer(spacing: 12) {
+                HStack(spacing: 12) {
+                    ForEach(sorted) { detail in
+                        poolButton(detail)
+                    }
                 }
             }
         }

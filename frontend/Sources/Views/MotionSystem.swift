@@ -99,7 +99,10 @@ private struct MotionTransitionValues: ViewModifier {
     let blur: CGFloat
 
     func body(content: Content) -> some View {
+        // 先合成为单层，再施加位移/缩放/模糊/透明，使动画每帧只栅格化一次子树，
+        // 而非对玻璃、材质、图片、文本逐层重复合成。视觉结果保持一致。
         content
+            .compositingGroup()
             .opacity(opacity)
             .offset(offset)
             .scaleEffect(scale)
@@ -145,6 +148,7 @@ private struct MotionEntranceModifier: ViewModifier {
             order: order
         )
         content
+            .compositingGroup()
             .opacity(appeared ? 1 : 0)
             .offset(appeared ? .zero : spec.offset)
             .scaleEffect(appeared ? 1 : spec.scale)

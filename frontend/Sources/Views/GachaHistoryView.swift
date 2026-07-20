@@ -132,12 +132,15 @@ struct GachaHistoryView: View {
             .padding(14)
             Divider().padding(.horizontal, 12)
             ScrollView {
-                LazyVStack(spacing: 8) {
-                    ForEach(visibleWishes) { wish in
-                        HistoryWishRow(
-                            wish: wish,
-                            selected: selection?.id == wish.id
-                        ) { selectedID = wish.id }
+                // 玻璃容器统一采样背景，时段行滚动时共享一次背板采样。
+                GlassEffectContainer(spacing: 8) {
+                    LazyVStack(spacing: 8) {
+                        ForEach(visibleWishes) { wish in
+                            HistoryWishRow(
+                                wish: wish,
+                                selected: selection?.id == wish.id
+                            ) { selectedID = wish.id }
+                        }
                     }
                 }
                 .padding(10)

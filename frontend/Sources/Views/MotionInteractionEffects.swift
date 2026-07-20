@@ -95,6 +95,7 @@ private struct MotionHoverModifier: ViewModifier {
             reduceMotion: reduceMotion
         )
         content
+            .compositingGroup()
             .scaleEffect(active ? spec.scale : 1)
             .offset(y: active ? spec.lift : 0)
             .rotation3DEffect(
@@ -135,17 +136,20 @@ private struct MotionScrollAppearanceModifier: ViewModifier {
         if reduceMotion {
             content
         } else {
-            content.scrollTransition(
-                .animated(LauncherMotion.animation(
-                    .content,
-                    reduceMotion: false
-                ))
-            ) { view, phase in
-                view
-                    .opacity(phase.isIdentity ? 1 : 0.68)
-                    .scaleEffect(phase.isIdentity ? 1 : 0.94)
-                    .blur(radius: phase.isIdentity ? 0 : 4)
-            }
+            // 先合成为单层再做滚动过渡，模糊/缩放/透明每帧只栅格化一次子树。
+            content
+                .compositingGroup()
+                .scrollTransition(
+                    .animated(LauncherMotion.animation(
+                        .content,
+                        reduceMotion: false
+                    ))
+                ) { view, phase in
+                    view
+                        .opacity(phase.isIdentity ? 1 : 0.68)
+                        .scaleEffect(phase.isIdentity ? 1 : 0.94)
+                        .blur(radius: phase.isIdentity ? 0 : 4)
+                }
         }
     }
 }

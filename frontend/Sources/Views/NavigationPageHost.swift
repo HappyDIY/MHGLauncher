@@ -24,6 +24,7 @@ struct NavigationPageHost<Destination: Hashable, Content: View>: View {
                 let isCached = cachedDestinations.contains(page)
                 content(page, page == destination)
                     .id(page)
+                    .environment(\.navigationPageActive, page == destination)
                     .modifier(NavigationPageVisibilityModifier(
                         visible: page == destination,
                         initiallyVisible: isCached && page == destination

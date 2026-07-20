@@ -51,6 +51,33 @@ struct ViewportRetentionTests {
         #expect(state.retainedHeight == 196)
     }
 
+    @Test("非激活页在测得高度后停止构建高频内容")
+    func inactivePageStopsRenderingAfterMeasurement() {
+        var state = ViewportRetentionState()
+        state.updateHeight(148)
+
+        // 页面不可见（非激活）时以占位替代，停止内部计时器与重绘。
+        #expect(!state.shouldRender(pageActive: false))
+        // 激活页仍按滚动可见性构建。
+        #expect(state.shouldRender(pageActive: true))
+    }
+
+    @Test("非激活页在首次测量前仍构建以获取占位高度")
+    func inactivePageStillBuildsBeforeMeasurement() {
+        let state = ViewportRetentionState()
+
+        #expect(state.shouldRender(pageActive: false))
+    }
+
+    @Test("激活页离开可视区后同样使用占位")
+    func activePageEvictsWhenScrolledAway() {
+        var state = ViewportRetentionState()
+        state.updateHeight(148)
+        state.updateVisibility(false)
+
+        #expect(!state.shouldRender(pageActive: true))
+    }
+
     @Test("速度样本环形缓冲区保留最新项与时间顺序")
     func speedBufferRetainsNewestSamples() {
         var buffer = SpeedSampleBuffer(capacity: 3)

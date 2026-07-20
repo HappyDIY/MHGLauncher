@@ -101,10 +101,7 @@ struct GameView: View {
         case "version_diff", "version_diff_chunks": "版本差分"
         default: "完整更新"
         }
-        let size = ByteCountFormatter.string(
-            fromByteCount: state.downloadBytes ?? 0,
-            countStyle: .file
-        )
+        let size = ByteCountFormatting.fileSize(state.downloadBytes ?? 0)
         return "\(kind) · \(size)"
     }
 

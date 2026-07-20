@@ -16,14 +16,17 @@ struct WishResultsPanel: View, Equatable {
                 emptyState
             } else {
                 ScrollView {
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
-                        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                            WishResultCard(item: item, mode: mode)
-                                .id("\(mode.rawValue)-\(item.id)")
-                                .motionEntrance(order: index)
+                    // 玻璃容器统一采样背景，卡片网格滚动时共享一次背板采样。
+                    GlassEffectContainer(spacing: 12) {
+                        LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+                            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                                WishResultCard(item: item, mode: mode)
+                                    .id("\(mode.rawValue)-\(item.id)")
+                                    .motionEntrance(order: index)
+                            }
                         }
+                        .padding(2)
                     }
-                    .padding(2)
                 }
             }
         }

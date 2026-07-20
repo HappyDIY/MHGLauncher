@@ -71,14 +71,8 @@ struct GameJobLiveProgress: View {
         } else {
             current = progress.completedBytes
         }
-        let value = ByteCountFormatter.string(
-            fromByteCount: current,
-            countStyle: .file
-        )
-        let total = ByteCountFormatter.string(
-            fromByteCount: progress.totalBytes,
-            countStyle: .file
-        )
+        let value = ByteCountFormatting.fileSize(current)
+        let total = ByteCountFormatting.fileSize(progress.totalBytes)
         return "\(value) / \(total)"
     }
 }

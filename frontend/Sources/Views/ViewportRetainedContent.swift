@@ -8,6 +8,12 @@ struct ViewportRetentionState: Equatable {
         isVisible || retainedHeight == 0
     }
 
+    // 结合导航页激活态：页面不可见时，仅在尚未测得占位高度前构建内容。
+    func shouldRender(pageActive: Bool) -> Bool {
+        guard pageActive else { return retainedHeight == 0 }
+        return shouldRender
+    }
+
     mutating func updateVisibility(_ isVisible: Bool) {
         self.isVisible = isVisible
     }
@@ -23,6 +29,7 @@ struct ViewportRetentionState: Equatable {
 }
 
 struct ViewportRetainedContent<Content: View>: View {
+    @Environment(\.navigationPageActive) private var pageActive
     @State private var retention = ViewportRetentionState()
     private let geometryID: AnyHashable?
     private let content: () -> Content
@@ -35,9 +42,16 @@ struct ViewportRetainedContent<Content: View>: View {
         self.content = content
     }
 
+    // 仅当页面处于激活态且在可视区内才构建高频内容；被缓存但不可见的页面
+    // （opacity 0）以等高占位替代，从而停止其内部计时器与重绘。首次测量前
+    // 仍构建以获得占位高度。
+    private var rendersContent: Bool {
+        retention.shouldRender(pageActive: pageActive)
+    }
+
     var body: some View {
         Group {
-            if retention.shouldRender {
+            if rendersContent {
                 content()
                     .background {
                         GeometryReader { geometry in
