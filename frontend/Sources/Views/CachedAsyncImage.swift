@@ -4,10 +4,16 @@ import SwiftUI
 // 内存级图片缓存与并发下载协调器，避免滚动复用时的重复下载与解码。
 actor ImageMemoryCache {
     static let shared = ImageMemoryCache()
-    private let cache = NSCache<NSString, NSImage>()
+    // NSCache 自身线程安全，标记 nonisolated 以支持视图 init 阶段同步读取，
+    // 避免滚动复用时每个 cell 都为已缓存图片支付一次 actor 往返。
+    nonisolated(unsafe) let cache = NSCache<NSString, NSImage>()
     private var inFlight: [String: Task<NSImage?, Never>] = [:]
 
     init() { cache.countLimit = 256 }
+
+    nonisolated func cachedImage(forKey key: String) -> NSImage? {
+        cache.object(forKey: key as NSString)
+    }
 
     func image(forKey key: String) -> NSImage? { cache.object(forKey: key as NSString) }
 
@@ -46,6 +52,13 @@ struct CachedAsyncImage<Placeholder: View>: View {
         self.accessibilityLabel = accessibilityLabel
         self.maxPixelDimension = maxPixelDimension
         self.placeholder = placeholder
+        // 滚动复用时，若图片已在内存缓存，直接同步命中，首帧即显示，
+        // 省去 actor 往返与 nil→image 的额外一帧及过渡动画。
+        if let url {
+            let location = url.scheme == nil ? url.relativeString : url.absoluteString
+            let key = maxPixelDimension.map { "\(location)#max-pixels=\($0)" } ?? location
+            _image = State(initialValue: ImageMemoryCache.shared.cachedImage(forKey: key))
+        }
     }
 
     var body: some View {
