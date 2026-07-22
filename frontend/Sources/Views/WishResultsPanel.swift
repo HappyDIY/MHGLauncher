@@ -72,7 +72,7 @@ struct WishResultsPanel: View, Equatable {
     }
 
     private var columns: [GridItem] {
-        [GridItem(.adaptive(minimum: 150, maximum: 210), spacing: 12)]
+        Array(repeating: GridItem(.flexible(minimum: 0), spacing: 12), count: 3)
     }
 }
 
@@ -86,24 +86,27 @@ private struct WishResultCard: View {
             Text(item.name)
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(1)
-            HStack {
+            HStack(spacing: 4) {
                 Text(String(repeating: "★", count: item.rank))
+                    .font(.caption2)
                     .foregroundStyle(item.rank == 5 ? .orange : .purple)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Spacer()
                 Text(amountText)
-                    .font(.caption.bold().monospacedDigit())
+                    .font(.caption2.bold().monospacedDigit())
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .contentTransition(.numericText())
             }
         }
         .padding(10)
-        .background {
-            // 卡片内容与玻璃背景分层，滚动动画只需移动已经合成的内容。
-            Color.clear.glassEffect(
-                .clear.tint(accent.opacity(0.1)),
-                in: .rect(cornerRadius: 16)
-            )
-        }
+        // 玻璃效果必须最后作用于卡片内容，避免容器抽取背景子树后颠倒合成层级。
+        .glassEffect(
+            .clear.tint(accent.opacity(0.1)),
+            in: .rect(cornerRadius: 16)
+        )
         .motionAnimation(.content, value: amountText)
     }
 
