@@ -48,11 +48,11 @@ private struct CodexSidebarRow: View {
                     .font(.system(size: 14, weight: .medium))
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(isSelected ? .primary : .secondary)
+            .foregroundStyle(.primary)
             .padding(.horizontal, CodexSidebarStyle.rowHorizontalPadding)
             .frame(maxWidth: .infinity, minHeight: CodexSidebarStyle.rowHeight)
-            .background(rowBackground, in: Capsule())
-            .contentShape(Capsule())
+            .background(rowBackground, in: rowShape)
+            .contentShape(rowShape)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -66,6 +66,10 @@ private struct CodexSidebarRow: View {
     private var rowBackground: Color {
         if isSelected { return Color.primary.opacity(0.10) }
         return Color.primary.opacity(isHovering ? 0.055 : 0)
+    }
+
+    private var rowShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: CodexSidebarStyle.rowCornerRadius, style: .continuous)
     }
 }
 
@@ -105,6 +109,7 @@ enum CodexSidebarStyle {
     static let minimumWidth: CGFloat = 220
     static let idealWidth: CGFloat = 260
     static let rowHeight: CGFloat = 32
+    static let rowCornerRadius: CGFloat = 6
     static let rowSpacing: CGFloat = 10
     static let rowHorizontalPadding: CGFloat = 10
     static let iconSize: CGFloat = 18
