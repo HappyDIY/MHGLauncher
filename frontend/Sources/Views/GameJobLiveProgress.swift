@@ -136,7 +136,6 @@ private struct GameJobLiveChunkRow: View {
                 .lineLimit(1)
             GameProgressBar(
                 progress: progress,
-                tint: .blue,
                 label: "\(chunk.id) 进度"
             )
             .motionAnimation(.content, value: chunk.bytesDone)

@@ -20,7 +20,7 @@ struct DownloadSpeedPlot: View, Animatable {
             )
             .foregroundStyle(
                 LinearGradient(
-                    colors: [.blue.opacity(0.18), .blue.opacity(0.02)],
+                    colors: [.accentColor.opacity(0.18), .accentColor.opacity(0.02)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -30,7 +30,7 @@ struct DownloadSpeedPlot: View, Animatable {
                 x: .value("时间", \.time),
                 y: .value("速度", \.megabytesPerSecond)
             )
-            .foregroundStyle(.blue)
+            .foregroundStyle(.accentColor)
             .interpolationMethod(.catmullRom)
         }
         .chartXAxis(.hidden)
