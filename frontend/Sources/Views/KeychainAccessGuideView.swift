@@ -36,7 +36,7 @@ struct KeychainAccessGuideView: View {
             }
         }
         .padding(32)
-        .frame(width: 1150, height: 750)
+        .frame(width: 1050, height: 700)
         .onChange(of: errorMessage) { errorFocused = $1 != nil }
     }
 }

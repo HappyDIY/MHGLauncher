@@ -155,7 +155,7 @@ struct MHGLauncherApp: App {
                 }
             } else {
                 RootView(store: store)
-                    .frame(width: 1150, height: 750)
+                    .frame(width: 1050, height: 700)
                     .task {
                         await startLauncherIfNeeded()
                     }
