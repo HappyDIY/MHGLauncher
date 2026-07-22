@@ -16,6 +16,7 @@ struct CodexSidebar: View {
         }
         .listStyle(.sidebar)
         .controlSize(.regular)
+        .contentMargins(.horizontal, 0, for: .scrollContent)
         .scrollContentBackground(.hidden)
         .background {
             CodexSidebarBackground()
@@ -141,9 +142,9 @@ enum CodexSidebarStyle {
     static let rowHeight: CGFloat = 28
     static let rowCornerRadius: CGFloat = 7
     static let rowSpacing: CGFloat = 8
-    static let rowHorizontalPadding: CGFloat = 8
+    static let rowHorizontalPadding: CGFloat = 14
     static let iconSize: CGFloat = 18
     static let selectionOpacity = 0.12
     static let hoverOpacity = 0.055
-    static let rowInsets = EdgeInsets(top: 1, leading: 8, bottom: 1, trailing: 8)
+    static let rowInsets = EdgeInsets(top: 1, leading: -13, bottom: 1, trailing: -13)
 }
