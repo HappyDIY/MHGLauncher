@@ -137,9 +137,9 @@ struct CodexSidebarVibrancy: NSViewRepresentable {
 }
 
 enum CodexSidebarStyle {
-    static let minimumWidth: CGFloat = 180
-    static let idealWidth: CGFloat = 200
-    static let maximumWidth: CGFloat = 240
+    static let minimumWidth: CGFloat = 150
+    static let idealWidth: CGFloat = 150
+    static let maximumWidth: CGFloat = 150
     static let rowHeight: CGFloat = 32
     static let rowCornerRadius: CGFloat = 7
     static let rowSpacing: CGFloat = 8

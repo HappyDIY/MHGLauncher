@@ -16,9 +16,9 @@ struct CodexSidebarTests {
 
     @Test("采用 Finder 风格宽度和分组")
     func usesFinderMetricsAndSections() {
-        #expect(CodexSidebarStyle.minimumWidth == 180)
-        #expect(CodexSidebarStyle.idealWidth == 200)
-        #expect(CodexSidebarStyle.maximumWidth == 240)
+        #expect(CodexSidebarStyle.minimumWidth == 150)
+        #expect(CodexSidebarStyle.idealWidth == 150)
+        #expect(CodexSidebarStyle.maximumWidth == 150)
         #expect(CodexSidebarStyle.rowHeight == 32)
         #expect(CodexSidebarStyle.rowCornerRadius == 7)
         #expect(CodexSidebarStyle.contentHorizontalPadding == 10)
