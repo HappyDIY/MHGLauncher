@@ -5,18 +5,17 @@ struct CodexSidebar: View {
     @Bindable var store: LauncherStore
 
     var body: some View {
-        List(Destination.allCases) { destination in
-            CodexSidebarRow(
-                destination: destination,
-                isSelected: store.selectedDestination == destination
-            ) {
-                store.selectedDestination = destination
+        List(selection: $store.selectedDestination) {
+            ForEach(CodexSidebarSection.allCases) { section in
+                if let title = section.title {
+                    Section(title) { rows(for: section) }
+                } else {
+                    Section { rows(for: section) }
+                }
             }
-            .listRowInsets(CodexSidebarStyle.rowInsets)
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
         }
         .listStyle(.sidebar)
+        .controlSize(.regular)
         .scrollContentBackground(.hidden)
         .background {
             CodexSidebarBackground()
@@ -25,66 +24,70 @@ struct CodexSidebar: View {
         .navigationTitle("MHGLauncher")
         .navigationSplitViewColumnWidth(
             min: CodexSidebarStyle.minimumWidth,
-            ideal: CodexSidebarStyle.idealWidth
+            ideal: CodexSidebarStyle.idealWidth,
+            max: CodexSidebarStyle.maximumWidth
         )
+    }
+
+    @ViewBuilder
+    private func rows(for section: CodexSidebarSection) -> some View {
+        ForEach(section.destinations) { destination in
+            CodexSidebarRow(
+                destination: destination,
+                isSelected: store.selectedDestination == destination
+            )
+            .tag(destination)
+        }
     }
 }
 
 private struct CodexSidebarRow: View {
-    @Environment(\.isEnabled) private var isEnabled
-    @State private var isHovering = false
     let destination: Destination
     let isSelected: Bool
-    let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: CodexSidebarStyle.rowSpacing) {
-                Image(systemName: destination.icon)
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: CodexSidebarStyle.iconSize)
-                    .motionSymbolBounce(value: isSelected)
-                Text(destination.rawValue)
-                    .font(.body)
-                Spacer(minLength: 0)
-            }
-            .foregroundStyle(.primary)
-            .padding(.horizontal, CodexSidebarStyle.rowHorizontalPadding)
-            .frame(maxWidth: .infinity, minHeight: CodexSidebarStyle.rowHeight)
-            .background(rowBackground, in: rowShape)
-            .contentShape(rowShape)
+        HStack(spacing: CodexSidebarStyle.rowSpacing) {
+            Image(systemName: destination.icon)
+                .foregroundStyle(Color.accentColor)
+                .frame(width: CodexSidebarStyle.iconSize)
+                .motionSymbolBounce(value: isSelected)
+            Text(destination.rawValue)
+                .font(.body)
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
+        .foregroundStyle(.primary)
+        .contentShape(Rectangle())
         .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .motionAnimation(.micro, value: isHovering)
-        .onHover { isHovering = $0 && isEnabled }
-        .onChange(of: isEnabled) {
-            if !isEnabled { isHovering = false }
+    }
+}
+
+enum CodexSidebarSection: CaseIterable, Identifiable {
+    case primary
+    case gameData
+    case services
+
+    var id: Self { self }
+
+    var title: String? {
+        switch self {
+        case .primary: nil
+        case .gameData: "游戏资料"
+        case .services: "服务"
         }
     }
 
-    private var rowBackground: Color {
-        if isSelected { return Color.primary.opacity(0.10) }
-        return Color.primary.opacity(isHovering ? 0.055 : 0)
-    }
-
-    private var rowShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: CodexSidebarStyle.rowCornerRadius, style: .continuous)
+    var destinations: [Destination] {
+        switch self {
+        case .primary: [.home, .game]
+        case .gameData: [.wishes, .gachaHistory, .notes, .characters, .achievements]
+        case .services: [.cloudSync, .notifications, .account]
+        }
     }
 }
 
 struct CodexSidebarBackground: View {
     var body: some View {
-        ZStack {
-            CodexSidebarVibrancy()
-            Color(nsColor: .windowBackgroundColor)
-                .opacity(CodexSidebarStyle.surfaceOpacity)
-        }
-        .overlay(alignment: .trailing) {
-            Color.primary.opacity(0.06)
-                .frame(width: 0.5)
-        }
-        .shadow(color: .black.opacity(0.07), radius: 8, x: 3)
+        CodexSidebarVibrancy()
     }
 }
 
@@ -95,7 +98,7 @@ struct CodexSidebarVibrancy: NSViewRepresentable {
 
     static func makeEffectView() -> NSVisualEffectView {
         let view = NSVisualEffectView()
-        view.material = .menu
+        view.material = .sidebar
         view.blendingMode = .behindWindow
         view.state = .active
         return view
@@ -105,13 +108,9 @@ struct CodexSidebarVibrancy: NSViewRepresentable {
 }
 
 enum CodexSidebarStyle {
-    static let surfaceOpacity = 0.70
-    static let minimumWidth: CGFloat = 220
-    static let idealWidth: CGFloat = 260
-    static let rowHeight: CGFloat = 28
-    static let rowCornerRadius: CGFloat = 6
-    static let rowSpacing: CGFloat = 10
-    static let rowHorizontalPadding: CGFloat = 8
+    static let minimumWidth: CGFloat = 180
+    static let idealWidth: CGFloat = 220
+    static let maximumWidth: CGFloat = 320
+    static let rowSpacing: CGFloat = 8
     static let iconSize: CGFloat = 18
-    static let rowInsets = EdgeInsets(top: 1, leading: 8, bottom: 1, trailing: 8)
 }
