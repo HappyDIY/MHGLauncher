@@ -10,7 +10,7 @@ struct RootView: View {
             if showsRuntimeSetup {
                 RuntimeSetupView(store: store)
             } else {
-                NavigationSplitView {
+                NavigationSplitView(columnVisibility: .constant(.all)) {
                     CodexSidebar(store: store)
                 } detail: {
                     NavigationPageHost(destination: store.selectedDestination ?? .home) { destination, isActive in
@@ -19,6 +19,7 @@ struct RootView: View {
                     .padding(24)
                     .background(background)
                 }
+                .toolbar(removing: .sidebarToggle)
             }
         }
         .disabled(store.isWishOperationActive)
