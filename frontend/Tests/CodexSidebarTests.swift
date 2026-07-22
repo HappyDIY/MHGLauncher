@@ -21,6 +21,8 @@ struct CodexSidebarTests {
         #expect(CodexSidebarStyle.maximumWidth == 240)
         #expect(CodexSidebarStyle.rowHeight == 32)
         #expect(CodexSidebarStyle.rowCornerRadius == 7)
+        #expect(CodexSidebarStyle.contentHorizontalPadding == 10)
+        #expect(CodexSidebarStyle.rowHorizontalPadding == 10)
         #expect(CodexSidebarStyle.selectionOpacity == 0.12)
         let destinations = CodexSidebarSection.allCases.flatMap(\.destinations)
         #expect(destinations.count == Destination.allCases.count)

@@ -5,19 +5,23 @@ struct CodexSidebar: View {
     @Bindable var store: LauncherStore
 
     var body: some View {
-        List {
-            ForEach(CodexSidebarSection.allCases) { section in
-                if let title = section.title {
-                    Section(title) { rows(for: section) }
-                } else {
-                    Section { rows(for: section) }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(CodexSidebarSection.allCases) { section in
+                    if let title = section.title {
+                        Text(title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, CodexSidebarStyle.sectionHeaderIndent)
+                            .padding(.top, CodexSidebarStyle.sectionSpacing)
+                            .padding(.bottom, CodexSidebarStyle.sectionHeaderBottomPadding)
+                    }
+                    rows(for: section)
                 }
             }
+            .padding(.horizontal, CodexSidebarStyle.contentHorizontalPadding)
+            .padding(.top, CodexSidebarStyle.contentTopPadding)
         }
-        .listStyle(.sidebar)
-        .controlSize(.regular)
-        .contentMargins(.horizontal, 0, for: .scrollContent)
-        .scrollContentBackground(.hidden)
         .background {
             CodexSidebarBackground()
                 .ignoresSafeArea()
@@ -39,9 +43,6 @@ struct CodexSidebar: View {
             ) {
                 store.selectedDestination = destination
             }
-            .listRowInsets(CodexSidebarStyle.rowInsets)
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
         }
     }
 }
@@ -142,9 +143,13 @@ enum CodexSidebarStyle {
     static let rowHeight: CGFloat = 32
     static let rowCornerRadius: CGFloat = 7
     static let rowSpacing: CGFloat = 8
-    static let rowHorizontalPadding: CGFloat = 2
+    static let rowHorizontalPadding: CGFloat = 10
     static let iconSize: CGFloat = 18
+    static let contentHorizontalPadding: CGFloat = 10
+    static let contentTopPadding: CGFloat = 8
+    static let sectionHeaderIndent: CGFloat = 6
+    static let sectionSpacing: CGFloat = 14
+    static let sectionHeaderBottomPadding: CGFloat = 4
     static let selectionOpacity = 0.12
     static let hoverOpacity = 0.055
-    static let rowInsets = EdgeInsets(top: 1, leading: 0, bottom: 1, trailing: 0)
 }
