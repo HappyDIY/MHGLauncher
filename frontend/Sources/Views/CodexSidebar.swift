@@ -45,7 +45,7 @@ private struct CodexSidebarRow: View {
                     .frame(width: CodexSidebarStyle.iconSize)
                     .motionSymbolBounce(value: isSelected)
                 Text(destination.rawValue)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.body)
                 Spacer(minLength: 0)
             }
             .foregroundStyle(.primary)
@@ -108,10 +108,10 @@ enum CodexSidebarStyle {
     static let surfaceOpacity = 0.70
     static let minimumWidth: CGFloat = 220
     static let idealWidth: CGFloat = 260
-    static let rowHeight: CGFloat = 32
+    static let rowHeight: CGFloat = 28
     static let rowCornerRadius: CGFloat = 6
     static let rowSpacing: CGFloat = 10
-    static let rowHorizontalPadding: CGFloat = 10
+    static let rowHorizontalPadding: CGFloat = 8
     static let iconSize: CGFloat = 18
-    static let rowInsets = EdgeInsets(top: 1, leading: 12, bottom: 1, trailing: 12)
+    static let rowInsets = EdgeInsets(top: 1, leading: 8, bottom: 1, trailing: 8)
 }
