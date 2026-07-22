@@ -16,17 +16,14 @@ struct WishResultsPanel: View, Equatable {
                 emptyState
             } else {
                 ScrollView {
-                    // 玻璃容器统一采样背景，卡片网格滚动时共享一次背板采样。
-                    GlassEffectContainer(spacing: 12) {
-                        LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
-                            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                                WishResultCard(item: item, mode: mode)
-                                    .id("\(mode.rawValue)-\(item.id)")
-                                    .motionEntrance(order: index)
-                            }
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+                        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                            WishResultCard(item: item, mode: mode)
+                                .id("\(mode.rawValue)-\(item.id)")
+                                .motionEntrance(order: index)
                         }
-                        .padding(2)
                     }
+                    .padding(2)
                 }
                 .trackingScrollActivity()
             }
@@ -102,11 +99,7 @@ private struct WishResultCard: View {
             }
         }
         .padding(10)
-        // 玻璃效果必须最后作用于卡片内容，避免容器抽取背景子树后颠倒合成层级。
-        .glassEffect(
-            .clear.tint(accent.opacity(0.1)),
-            in: .rect(cornerRadius: 16)
-        )
+        .background(.regularMaterial, in: .rect(cornerRadius: 16))
         .motionAnimation(.content, value: amountText)
     }
 
