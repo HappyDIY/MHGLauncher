@@ -5,7 +5,7 @@ struct CodexSidebar: View {
     @Bindable var store: LauncherStore
 
     var body: some View {
-        List(selection: $store.selectedDestination) {
+        List {
             ForEach(CodexSidebarSection.allCases) { section in
                 if let title = section.title {
                     Section(title) { rows(for: section) }
@@ -35,29 +35,56 @@ struct CodexSidebar: View {
             CodexSidebarRow(
                 destination: destination,
                 isSelected: store.selectedDestination == destination
-            )
-            .tag(destination)
+            ) {
+                store.selectedDestination = destination
+            }
+            .listRowInsets(CodexSidebarStyle.rowInsets)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         }
     }
 }
 
 private struct CodexSidebarRow: View {
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovering = false
     let destination: Destination
     let isSelected: Bool
+    let action: () -> Void
 
     var body: some View {
-        HStack(spacing: CodexSidebarStyle.rowSpacing) {
-            Image(systemName: destination.icon)
-                .foregroundStyle(Color.accentColor)
-                .frame(width: CodexSidebarStyle.iconSize)
-                .motionSymbolBounce(value: isSelected)
-            Text(destination.rawValue)
-                .font(.body)
-            Spacer(minLength: 0)
+        Button(action: action) {
+            HStack(spacing: CodexSidebarStyle.rowSpacing) {
+                Image(systemName: destination.icon)
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: CodexSidebarStyle.iconSize)
+                    .motionSymbolBounce(value: isSelected)
+                Text(destination.rawValue)
+                    .font(.body)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, CodexSidebarStyle.rowHorizontalPadding)
+            .frame(maxWidth: .infinity, minHeight: CodexSidebarStyle.rowHeight)
+            .background(rowBackground, in: rowShape)
+            .contentShape(rowShape)
         }
-        .foregroundStyle(.primary)
-        .contentShape(Rectangle())
+        .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .motionAnimation(.micro, value: isHovering)
+        .onHover { isHovering = $0 && isEnabled }
+        .onChange(of: isEnabled) {
+            if !isEnabled { isHovering = false }
+        }
+    }
+
+    private var rowBackground: Color {
+        if isSelected { return Color.primary.opacity(CodexSidebarStyle.selectionOpacity) }
+        return Color.primary.opacity(isHovering ? CodexSidebarStyle.hoverOpacity : 0)
+    }
+
+    private var rowShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: CodexSidebarStyle.rowCornerRadius, style: .continuous)
     }
 }
 
@@ -111,6 +138,12 @@ enum CodexSidebarStyle {
     static let minimumWidth: CGFloat = 180
     static let idealWidth: CGFloat = 220
     static let maximumWidth: CGFloat = 320
+    static let rowHeight: CGFloat = 28
+    static let rowCornerRadius: CGFloat = 7
     static let rowSpacing: CGFloat = 8
+    static let rowHorizontalPadding: CGFloat = 8
     static let iconSize: CGFloat = 18
+    static let selectionOpacity = 0.12
+    static let hoverOpacity = 0.055
+    static let rowInsets = EdgeInsets(top: 1, leading: 8, bottom: 1, trailing: 8)
 }
