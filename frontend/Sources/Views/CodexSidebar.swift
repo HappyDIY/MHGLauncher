@@ -41,6 +41,7 @@ private struct CodexSidebarRow: View {
         Button(action: action) {
             HStack(spacing: CodexSidebarStyle.rowSpacing) {
                 Image(systemName: destination.icon)
+                    .foregroundStyle(Color.accentColor)
                     .frame(width: CodexSidebarStyle.iconSize)
                     .motionSymbolBounce(value: isSelected)
                 Text(destination.rawValue)
