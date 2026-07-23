@@ -12,7 +12,11 @@ let package = Package(
         .executableTarget(
             name: "MHGLauncher",
             path: "Sources",
-            exclude: ["Resources/Assets.xcassets"],
+            exclude: [
+                "Resources/AppIcon.icon",
+                "Resources/AppIcon.icon-source",
+                "Resources/Assets.xcassets"
+            ],
             resources: [.process("Resources/ElementIcons")]
         ),
         .testTarget(

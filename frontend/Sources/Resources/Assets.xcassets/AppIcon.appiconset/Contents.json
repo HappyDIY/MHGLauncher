@@ -4,25 +4,31 @@
       "filename" : "light.png",
       "idiom" : "mac",
       "scale" : "1x",
-      "size" : "1024x1024",
-      "appearances" : [
-        {
-          "appearance" : "luminosity",
-          "value" : "light"
-        }
-      ]
+      "size" : "1024x1024"
     },
     {
-      "filename" : "dark.png",
-      "idiom" : "mac",
-      "scale" : "1x",
-      "size" : "1024x1024",
       "appearances" : [
         {
           "appearance" : "luminosity",
           "value" : "dark"
         }
-      ]
+      ],
+      "filename" : "dark.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "1024x1024"
+    },
+    {
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "tinted"
+        }
+      ],
+      "filename" : "mono.png",
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "1024x1024"
     }
   ],
   "info" : {

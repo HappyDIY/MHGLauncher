@@ -48,18 +48,42 @@ build_icon() {
   rm -rf "$(dirname "$iconset")"
 }
 
+compile_composer_icon() {
+  local icon="$1"
+  local developer_dir="${DEVELOPER_DIR:-}"
+  local actool=""
+  local icon_info
+
+  if [[ -n "$developer_dir" && -x "$developer_dir/usr/bin/actool" ]]; then
+    actool="$developer_dir/usr/bin/actool"
+  elif [[ -x "/Applications/Xcode.app/Contents/Developer/usr/bin/actool" ]]; then
+    developer_dir="/Applications/Xcode.app/Contents/Developer"
+    actool="$developer_dir/usr/bin/actool"
+  else
+    return 1
+  fi
+
+  icon_info="$(mktemp)"
+  DEVELOPER_DIR="$developer_dir" "$actool" \
+    --compile "$contents/Resources" \
+    --platform macosx \
+    --minimum-deployment-target 26.0 \
+    --app-icon AppIcon \
+    --standalone-icon-behavior all \
+    --output-partial-info-plist "$icon_info" \
+    "$icon" >/dev/null
+  rm -f "$icon_info"
+  test -f "$contents/Resources/Assets.car"
+  test -f "$contents/Resources/AppIcon.icns"
+}
+
+composer_icon="$root/frontend/Sources/Resources/AppIcon.icon"
 icon_src="$root/frontend/Sources/Resources/Assets.xcassets/AppIcon.appiconset"
-if [ -f "$icon_src/light.png" ]; then
+if [[ -d "$composer_icon" ]] && compile_composer_icon "$composer_icon"; then
+  :
+elif [ -f "$icon_src/light.png" ]; then
+  printf '未找到 Icon Composer 编译工具，回退到静态 AppIcon.icns。\n' >&2
   build_icon "$icon_src/light.png" "$contents/Resources/AppIcon.icns"
-  export MHG_APP_PATH="$app"
-  swift - <<'SWIFTEOF'
-import Cocoa
-let appPath = ProcessInfo.processInfo.environment["MHG_APP_PATH"] ?? ""
-guard !appPath.isEmpty,
-      let icon = NSImage(contentsOf: URL(fileURLWithPath: "\(appPath)/Contents/Resources/AppIcon.icns"))
-else { exit(1) }
-NSWorkspace.shared.setIcon(icon, forFile: appPath, options: [])
-SWIFTEOF
 fi
 
 chmod +x "$contents/MacOS/MHGLauncher"

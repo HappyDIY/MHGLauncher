@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <clipPath id="frame"><rect x="42" y="42" width="940" height="940" rx="224"/></clipPath>
+    <linearGradient id="glass" x1="160" y1="94" x2="858" y2="936" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity=".62"/>
+      <stop offset=".48" stop-color="#EAF5FF" stop-opacity=".3"/>
+      <stop offset="1" stop-color="#B5EAF0" stop-opacity=".4"/>
+    </linearGradient>
+    <linearGradient id="portal" x1="270" y1="326" x2="752" y2="817" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#112845" stop-opacity=".84"/>
+      <stop offset=".5" stop-color="#266D83" stop-opacity=".7"/>
+      <stop offset="1" stop-color="#173A5A" stop-opacity=".8"/>
+    </linearGradient>
+    <filter id="shadow" x="-40%" y="-40%" width="180%" height="190%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#0A2538" flood-opacity=".25"/>
+    </filter>
+  </defs>
+  <g clip-path="url(#frame)">
+    <rect x="42" y="42" width="940" height="940" fill="url(#glass)"/>
+    <path d="M182 287C338 119 657 113 862 294" fill="none" stroke="#FFFFFF" stroke-opacity=".48" stroke-width="90"/>
+    <path d="M310 349C222 449 210 596 278 708C348 822 494 867 623 815C756 762 828 626 797 489C784 431 756 383 716 344"
+      fill="none" stroke="url(#portal)" stroke-linecap="round" stroke-width="78" filter="url(#shadow)"/>
+    <path d="M306 343C221 449 217 589 281 693C350 804 490 846 615 797C742 747 811 619 786 498"
+      fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-opacity=".48" stroke-width="12"/>
+    <path d="M512 184C548 275 598 353 665 430C615 428 576 416 548 397V643L512 706L476 643V397C448 416 409 428 359 430C426 353 476 275 512 184Z"
+      fill="#102843" stroke="#FFFFFF" stroke-opacity=".55" stroke-width="6" filter="url(#shadow)"/>
+    <path d="M512 247L538 342L512 326L486 342Z" fill="#FFFFFF" fill-opacity=".92"/>
+    <path d="M754 218L771 256L810 273L771 290L754 329L737 290L698 273L737 256Z"
+      fill="#102843" stroke="#FFFFFF" stroke-opacity=".68" stroke-width="5" filter="url(#shadow)"/>
+    <path d="M153 188C309 66 686 62 880 196" fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-opacity=".56" stroke-width="18"/>
+  </g>
+  <rect x="51" y="51" width="922" height="922" rx="215" fill="none" stroke="#FFFFFF" stroke-opacity=".8" stroke-width="10"/>
+</svg>

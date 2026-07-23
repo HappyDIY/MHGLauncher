@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <clipPath id="frame"><rect x="42" y="42" width="940" height="940" rx="224"/></clipPath>
+    <linearGradient id="bg" x1="174" y1="106" x2="850" y2="918" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#15194A"/>
+      <stop offset=".48" stop-color="#155E91"/>
+      <stop offset="1" stop-color="#18A99F"/>
+    </linearGradient>
+    <radialGradient id="light" cx="0" cy="0" r="1" gradientTransform="translate(356 230) rotate(54) scale(706)">
+      <stop stop-color="#A78BFA" stop-opacity=".62"/>
+      <stop offset=".52" stop-color="#22D3EE" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#07152E" stop-opacity=".26"/>
+    </radialGradient>
+    <linearGradient id="portal" x1="270" y1="326" x2="752" y2="817" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E8FCFF"/>
+      <stop offset=".28" stop-color="#68E7F4"/>
+      <stop offset=".68" stop-color="#6FA8FF"/>
+      <stop offset="1" stop-color="#EEE9FF"/>
+    </linearGradient>
+    <linearGradient id="launch" x1="426" y1="223" x2="585" y2="690" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset=".56" stop-color="#FFF9E9"/>
+      <stop offset="1" stop-color="#FFC968"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="715" y1="225" x2="792" y2="326" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF4B8"/>
+      <stop offset="1" stop-color="#FFB84D"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="30" stdDeviation="30" flood-color="#041225" flood-opacity=".48"/>
+    </filter>
+    <filter id="lift" x="-40%" y="-40%" width="180%" height="190%">
+      <feDropShadow dx="0" dy="24" stdDeviation="18" flood-color="#06142F" flood-opacity=".46"/>
+    </filter>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="25"/>
+    </filter>
+  </defs>
+  <g clip-path="url(#frame)">
+    <rect x="42" y="42" width="940" height="940" fill="url(#bg)"/>
+    <rect x="42" y="42" width="940" height="940" fill="url(#light)"/>
+    <path d="M185 292C328 120 641 113 857 290" fill="none" stroke="#FFFFFF" stroke-opacity=".13" stroke-width="94"/>
+    <path d="M310 349C222 449 210 596 278 708C348 822 494 867 623 815C756 762 828 626 797 489C784 431 756 383 716 344"
+      fill="none" stroke="#30E9F2" stroke-opacity=".46" stroke-width="104" filter="url(#glow)"/>
+    <path d="M310 349C222 449 210 596 278 708C348 822 494 867 623 815C756 762 828 626 797 489C784 431 756 383 716 344"
+      fill="none" stroke="url(#portal)" stroke-linecap="round" stroke-width="78" filter="url(#shadow)"/>
+    <path d="M306 343C221 449 217 589 281 693C350 804 490 846 615 797C742 747 811 619 786 498"
+      fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-opacity=".62" stroke-width="13"/>
+    <path d="M512 184C548 275 598 353 665 430C615 428 576 416 548 397V643L512 706L476 643V397C448 416 409 428 359 430C426 353 476 275 512 184Z"
+      fill="url(#launch)" stroke="#FFFFFF" stroke-opacity=".78" stroke-width="6" filter="url(#lift)"/>
+    <path d="M512 247L538 342L512 326L486 342Z" fill="url(#gold)"/>
+    <path d="M493 391V635L512 670" fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-opacity=".6" stroke-width="9"/>
+    <path d="M754 218L771 256L810 273L771 290L754 329L737 290L698 273L737 256Z"
+      fill="url(#gold)" stroke="#FFF9DB" stroke-width="5" filter="url(#lift)"/>
+    <ellipse cx="758" cy="256" rx="13" ry="23" fill="#FFFFFF" fill-opacity=".7"/>
+    <path d="M153 188C309 66 686 62 880 196" fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-opacity=".24" stroke-width="18"/>
+  </g>
+  <rect x="51" y="51" width="922" height="922" rx="215" fill="none" stroke="#D5FCFF" stroke-opacity=".68" stroke-width="10"/>
+</svg>
