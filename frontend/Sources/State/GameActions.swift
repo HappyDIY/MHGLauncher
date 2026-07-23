@@ -39,13 +39,13 @@ extension LauncherStore {
             let request = SpeedLimitRequest(speedLimitKb: kb)
             let response: SpeedLimitResponse = try await client.post("/v1/settings/speed-limit", body: request)
             speedLimitKB = response.speedLimitKb
-            UserDefaults.standard.set(speedLimitKB, forKey: "downloadSpeedLimitKB")
+            userSettings.set(speedLimitKB, forKey: "downloadSpeedLimitKB")
         }
     }
 
     func launchGame() async {
         guard !isLaunchingGame else { return }
-        if account == nil, UserDefaults.standard.integer(forKey: loginDeferralKey) < 2 {
+        if account == nil, userSettings.integer(forKey: loginDeferralKey) < 2 {
             showsLoginBeforeLaunch = true
             return
         }
@@ -53,8 +53,8 @@ extension LauncherStore {
     }
 
     func deferLoginAndLaunch() async {
-        let count = UserDefaults.standard.integer(forKey: loginDeferralKey)
-        UserDefaults.standard.set(count + 1, forKey: loginDeferralKey)
+        let count = userSettings.integer(forKey: loginDeferralKey)
+        userSettings.set(count + 1, forKey: loginDeferralKey)
         showsLoginBeforeLaunch = false
         await startLaunch()
     }

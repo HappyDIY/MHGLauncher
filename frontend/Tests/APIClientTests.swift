@@ -57,8 +57,15 @@ struct APIClientTests {
         let client = makeClient { _ in
             json(422, #"{"code":"disk_space_insufficient","message":"磁盘空间不足","details":{"required":130,"sufficient":false}}"#)
         }
-        await #expect(throws: APIErrorPayload.self) {
+        do {
             let _: EmptyResponse = try await client.get("/v1/game/space-check")
+            Issue.record("请求应抛出 APIErrorPayload")
+        } catch let error as APIErrorPayload {
+            #expect(error.code == "disk_space_insufficient")
+            #expect(error.details?["required"]?.integerValue == 130)
+            #expect(error.details?["sufficient"]?.boolValue == false)
+        } catch {
+            Issue.record("错误类型不正确：\(error)")
         }
     }
 

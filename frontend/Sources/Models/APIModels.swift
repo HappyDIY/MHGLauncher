@@ -3,7 +3,7 @@ import Foundation
 struct APIErrorPayload: Decodable, Error {
     let code: String
     let message: String
-    let details: [String: String]?
+    let details: [String: JSONValue]?
 
     private enum CodingKeys: String, CodingKey {
         case code
@@ -15,7 +15,7 @@ struct APIErrorPayload: Decodable, Error {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         code = try container.decode(String.self, forKey: .code)
         message = try container.decode(String.self, forKey: .message)
-        details = try? container.decode([String: String].self, forKey: .details)
+        details = try container.decodeIfPresent([String: JSONValue].self, forKey: .details)
     }
 }
 

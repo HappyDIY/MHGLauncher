@@ -6,7 +6,7 @@ extension LauncherStore {
         let revision = statusMessageRevision
         statusMessage = value
         Task { @MainActor in
-            try? await Task.sleep(for: duration)
+            try? await clock.sleep(for: duration)
             guard statusMessageRevision == revision else { return }
             statusMessage = nil
         }

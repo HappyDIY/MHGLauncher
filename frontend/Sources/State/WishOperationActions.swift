@@ -37,7 +37,7 @@ extension LauncherStore {
         defer { isBusy = false }
         do {
             try await operation()
-            try? await Task.sleep(for: .seconds(1.4))
+            try? await clock.sleep(for: .seconds(1.4))
             if wishOperation?.id == operationID, wishOperation?.status == .succeeded {
                 wishOperation = nil
             }

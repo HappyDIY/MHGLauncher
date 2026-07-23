@@ -193,7 +193,7 @@ extension LauncherStore {
                 finishQRLoginAttempt(attempt)
                 return
             }
-            try await Task.sleep(for: .seconds(2))
+            try await clock.sleep(for: .seconds(2))
         }
     }
 

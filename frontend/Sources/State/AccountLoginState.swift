@@ -43,9 +43,9 @@ extension LauncherStore {
 
     func mobileVerification(from error: APIErrorPayload) -> MobileCaptchaVerificationContext? {
         guard let details = error.details,
-              let gt = details["gt"],
-              let challenge = details["challenge"],
-              let sessionId = details["session_id"] ?? details["sessionId"] else {
+              let gt = details["gt"]?.stringValue,
+              let challenge = details["challenge"]?.stringValue,
+              let sessionId = (details["session_id"] ?? details["sessionId"])?.stringValue else {
             return nil
         }
         return MobileCaptchaVerificationContext(

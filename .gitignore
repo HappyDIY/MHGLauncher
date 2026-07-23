@@ -20,6 +20,8 @@ node_modules/
 .next/
 backend/build/
 coverage/
+.stryker-tmp/
+reports/mutation/
 *.tsbuildinfo
 test-results/
 playwright-report/

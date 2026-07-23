@@ -8,7 +8,9 @@ cd "$root/cloud"
 npm ci
 npm run typecheck
 
-if command -v docker >/dev/null 2>&1; then
+if [[ -n "${DATABASE_URL:-}" ]]; then
+  npm test
+elif command -v docker >/dev/null 2>&1; then
 	  compose_file="$root/docker-compose.yml"
 	  compose_project="mhglauncher-cloud-test-$$"
 	  export MHG_CLOUD_DB_PORT_MAPPING="127.0.0.1::5432"
@@ -23,5 +25,6 @@ if command -v docker >/dev/null 2>&1; then
 	  export DATABASE_URL="postgres://mhglauncher:mhglauncher@127.0.0.1:$database_port/mhglauncher"
 	  npm test
 else
-  printf 'Docker 不可用，已跳过 cloud 集成测试。\n' >&2
+  printf 'Docker 和 DATABASE_URL 均不可用，拒绝跳过 cloud 集成测试。\n' >&2
+  exit 1
 fi

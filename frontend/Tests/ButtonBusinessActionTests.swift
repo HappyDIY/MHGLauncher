@@ -4,18 +4,11 @@ import Testing
 
 @Suite("按钮业务逻辑", .serialized)
 struct ButtonBusinessActionTests {
-    @Test("游戏页按钮执行业务流程")
+    @Test("游戏控制按钮执行业务流程")
     @MainActor
-    func gameButtonsRunBusinessActions() async throws {
+    func gameControlButtonsRunBusinessActions() async throws {
         let backend = ActionFakeBackend()
         let store = makeStore(backend: backend)
-
-        await store.startGameJob(.install)
-        #expect(store.gameJob?.status == .completed)
-        await store.startGameJob(.update)
-        await store.startGameJob(.predownload)
-        let createdJob = await backend.saw("POST", "/v1/game/jobs")
-        #expect(createdJob)
 
         store.gameJob = InteractiveFixtures.gameJob
         await store.controlGameJob("pause")
@@ -40,6 +33,8 @@ struct ButtonBusinessActionTests {
         store.gameLaunch = InteractiveFixtures.gameLaunch
         await store.stopGame()
         #expect(store.gameLaunch?.status == .stopped)
+        let unexpected = await backend.unexpectedRequests
+        #expect(unexpected.isEmpty)
     }
 
     @Test("账号页按钮执行业务流程")
@@ -78,6 +73,8 @@ struct ButtonBusinessActionTests {
         #expect(store.account == nil)
         #expect(store.roles.isEmpty)
         #expect(store.wishes.isEmpty)
+        let unexpected = await backend.unexpectedRequests
+        #expect(unexpected.isEmpty)
     }
 
     @Test("祈愿与便笺按钮执行业务流程")
@@ -110,6 +107,8 @@ struct ButtonBusinessActionTests {
         await store.clearAllWishes()
         #expect(store.wishes.isEmpty)
         #expect(store.bannerDetails.isEmpty)
+        let unexpected = await backend.unexpectedRequests
+        #expect(unexpected.isEmpty)
     }
 
     @MainActor
@@ -117,10 +116,31 @@ struct ButtonBusinessActionTests {
         backend: ActionFakeBackend,
         authenticated: Bool = false
     ) -> LauncherStore {
-        let store = LauncherStore(deviceOwnerAuthenticator: PassingAuthenticator())
-        store.backend.useClient(APIClient(token: "fixture") { request in
-            try await backend.respond(request)
-        })
+        makeStore(
+            client: APIClient(token: "fixture") { request in
+                try await backend.respond(request)
+            },
+            authenticated: authenticated
+        )
+    }
+
+    @MainActor
+    private func makeStore(
+        client: APIClient,
+        authenticated: Bool = false
+    ) -> LauncherStore {
+        let suiteName = "ButtonBusinessActionTests.\(UUID().uuidString)"
+        let settings = UserDefaults(suiteName: suiteName)!
+        settings.removePersistentDomain(forName: suiteName)
+        let dependencies = LauncherDependencies(
+            keychain: MemoryKeychainStore(),
+            userSettings: settings
+        )
+        let store = LauncherStore(
+            dependencies: dependencies,
+            deviceOwnerAuthenticator: PassingAuthenticator()
+        )
+        store.backend.useClient(client)
         store.account = InteractiveFixtures.account
         store.accounts = [InteractiveFixtures.account]
         store.roles = [InteractiveFixtures.role]

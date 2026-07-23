@@ -26,8 +26,8 @@ if [[ ! -d node_modules ]]; then
   run npm ci
 fi
 run npm run typecheck
-run npm test -- --run tests/api.test.ts tests/game.test.ts tests/predownload.test.ts
+run npx vitest run tests/api-contract.test.ts tests/api.test.ts tests/game.test.ts tests/predownload.test.ts
 
 section "frontend Swift API model and runtime boundary check"
 cd "$root/frontend"
-run swift test --filter "APIClientTests|APIModelTests|GameModelTests|FeatureSurfaceTests|RuntimeInstallerTests"
+run swift test --filter "APIContract|APIClientTests|APIModelTests|GameModelTests|FeatureSurfaceTests|RuntimeInstallerTests"

@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { acquirePrivateUmask } from "./private-umask";
 import { chmodSync, existsSync, lstatSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { securityMigrations } from "./database-security-migrations";
@@ -41,7 +42,7 @@ export class Store {
   private readonly statements = new Map<string, Database.Statement>();
 
   constructor(path: string) {
-    const previousUmask = process.umask(0o077);
+    const restoreUmask = acquirePrivateUmask(0o077);
     try {
       const existing = existsSync(path), backup = `${path}.pre-security.bak`;
       mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
@@ -63,7 +64,7 @@ export class Store {
         this.db.exec("ALTER TABLE wishes ADD COLUMN uigf_gacha_type TEXT NOT NULL DEFAULT ''");
       }
     } finally {
-      process.umask(previousUmask);
+      restoreUmask();
     }
   }
 

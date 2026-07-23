@@ -1,0 +1,1233 @@
+{
+  "schema_version": 1,
+  "backend": {
+    "src/api/local-api-contract.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/api/request-contracts.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/api/router.ts": {
+      "statements": 87.5,
+      "branches": 91.35,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/api/value-routes.ts": {
+      "statements": 65.21,
+      "branches": 78.87,
+      "functions": 85.71,
+      "lines": 93.47
+    },
+    "src/core/config.ts": {
+      "statements": 90,
+      "branches": 93.75,
+      "functions": 100,
+      "lines": 88.88
+    },
+    "src/core/container.ts": {
+      "statements": 92.3,
+      "branches": 76.92,
+      "functions": 75,
+      "lines": 95.65
+    },
+    "src/core/database-security-migrations.ts": {
+      "statements": 71.66,
+      "branches": 52.5,
+      "functions": 93.75,
+      "lines": 76.47
+    },
+    "src/core/database.ts": {
+      "statements": 96.07,
+      "branches": 87.5,
+      "functions": 100,
+      "lines": 95.34
+    },
+    "src/core/errors.ts": {
+      "statements": 90.9,
+      "branches": 92.3,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/core/models.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/core/private-umask.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/core/request-body.ts": {
+      "statements": 95.45,
+      "branches": 91.66,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/core/safe-path.ts": {
+      "statements": 89.28,
+      "branches": 83.01,
+      "functions": 100,
+      "lines": 95.55
+    },
+    "src/core/server-socket.ts": {
+      "statements": 77.27,
+      "branches": 53.84,
+      "functions": 100,
+      "lines": 87.5
+    },
+    "src/providers/aigis.ts": {
+      "statements": 81.25,
+      "branches": 62.5,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/providers/build-diff.ts": {
+      "statements": 95,
+      "branches": 83.33,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/providers/build-selection.ts": {
+      "statements": 78.57,
+      "branches": 66.66,
+      "functions": 100,
+      "lines": 90
+    },
+    "src/providers/credential.ts": {
+      "statements": 96.66,
+      "branches": 61.29,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/providers/device.ts": {
+      "statements": 91.42,
+      "branches": 66.66,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/providers/fixture-game-record.ts": {
+      "statements": 71.42,
+      "branches": 50,
+      "functions": 80,
+      "lines": 72.72
+    },
+    "src/providers/fixture.ts": {
+      "statements": 100,
+      "branches": 77.77,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/providers/game-record.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/providers/live-game-record.ts": {
+      "statements": 41.75,
+      "branches": 26.8,
+      "functions": 57.89,
+      "lines": 48.43
+    },
+    "src/providers/live.ts": {
+      "statements": 80,
+      "branches": 60.46,
+      "functions": 75,
+      "lines": 82.65
+    },
+    "src/providers/note-client.ts": {
+      "statements": 87.14,
+      "branches": 60.16,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/providers/provider.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/providers/qr.ts": {
+      "statements": 86.66,
+      "branches": 64.7,
+      "functions": 100,
+      "lines": 90.9
+    },
+    "src/providers/signing.ts": {
+      "statements": 94.44,
+      "branches": 93.33,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/providers/sophon-validation.ts": {
+      "statements": 70.83,
+      "branches": 78.18,
+      "functions": 100,
+      "lines": 77.14
+    },
+    "src/providers/sophon.ts": {
+      "statements": 19.66,
+      "branches": 7.46,
+      "functions": 25,
+      "lines": 20.9
+    },
+    "src/providers/wish-sync.ts": {
+      "statements": 50,
+      "branches": 50,
+      "functions": 50,
+      "lines": 62.5
+    },
+    "src/services/accounts.ts": {
+      "statements": 69.33,
+      "branches": 58.13,
+      "functions": 80.95,
+      "lines": 71.42
+    },
+    "src/services/achievement-metadata.ts": {
+      "statements": 76.47,
+      "branches": 80.95,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/services/achievement-resources.ts": {
+      "statements": 84.88,
+      "branches": 77.08,
+      "functions": 92.3,
+      "lines": 96.77
+    },
+    "src/services/achievements.ts": {
+      "statements": 82.14,
+      "branches": 59.52,
+      "functions": 88,
+      "lines": 88.37
+    },
+    "src/services/app-updates.ts": {
+      "statements": 88,
+      "branches": 77.77,
+      "functions": 100,
+      "lines": 90
+    },
+    "src/services/character-resource-enrichment.ts": {
+      "statements": 97.56,
+      "branches": 88.57,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/services/characters.ts": {
+      "statements": 100,
+      "branches": 75,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/services/cloud-sync.ts": {
+      "statements": 73.41,
+      "branches": 65,
+      "functions": 65,
+      "lines": 76.05
+    },
+    "src/services/concurrent-map.ts": {
+      "statements": 93.33,
+      "branches": 83.33,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/services/disk-space.ts": {
+      "statements": 92.3,
+      "branches": 66.66,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/services/download-transfer.ts": {
+      "statements": 77.66,
+      "branches": 77.14,
+      "functions": 80,
+      "lines": 89.55
+    },
+    "src/services/download.ts": {
+      "statements": 94.59,
+      "branches": 75,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/services/file-allocation.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/services/file-hash.ts": {
+      "statements": 92.53,
+      "branches": 81.48,
+      "functions": 100,
+      "lines": 97.67
+    },
+    "src/services/gacha-events.ts": {
+      "statements": 66.66,
+      "branches": 0,
+      "functions": 66.66,
+      "lines": 66.66
+    },
+    "src/services/gacha-resource-catalog.ts": {
+      "statements": 88.88,
+      "branches": 50,
+      "functions": 100,
+      "lines": 93.75
+    },
+    "src/services/gacha-resources.ts": {
+      "statements": 84,
+      "branches": 72.05,
+      "functions": 88,
+      "lines": 91.42
+    },
+    "src/services/game-build.ts": {
+      "statements": 90.47,
+      "branches": 92.3,
+      "functions": 91.66,
+      "lines": 94.44
+    },
+    "src/services/game-config.ts": {
+      "statements": 100,
+      "branches": 83.33,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/services/game-detection.ts": {
+      "statements": 97.72,
+      "branches": 92,
+      "functions": 92.3,
+      "lines": 100
+    },
+    "src/services/game-install-resume.ts": {
+      "statements": 88.67,
+      "branches": 87.71,
+      "functions": 90,
+      "lines": 92.68
+    },
+    "src/services/game-integrity.ts": {
+      "statements": 92.18,
+      "branches": 91.42,
+      "functions": 100,
+      "lines": 97.72
+    },
+    "src/services/game-launch-environment.ts": {
+      "statements": 80.95,
+      "branches": 62.5,
+      "functions": 100,
+      "lines": 83.33
+    },
+    "src/services/game-launch-files.ts": {
+      "statements": 83.33,
+      "branches": 80.95,
+      "functions": 100,
+      "lines": 89.09
+    },
+    "src/services/game-launch-guardian.ts": {
+      "statements": 38.63,
+      "branches": 47.36,
+      "functions": 50,
+      "lines": 60.86
+    },
+    "src/services/game-launch-language.ts": {
+      "statements": 84.21,
+      "branches": 50,
+      "functions": 100,
+      "lines": 94.11
+    },
+    "src/services/game-launch-process.ts": {
+      "statements": 86.84,
+      "branches": 60,
+      "functions": 89.47,
+      "lines": 97.26
+    },
+    "src/services/game-launch-recovery.ts": {
+      "statements": 88.57,
+      "branches": 84.61,
+      "functions": 83.33,
+      "lines": 92
+    },
+    "src/services/game-launch-retention.ts": {
+      "statements": 27.27,
+      "branches": 0,
+      "functions": 33.33,
+      "lines": 50
+    },
+    "src/services/game-launch-status-store.ts": {
+      "statements": 82.92,
+      "branches": 52.94,
+      "functions": 100,
+      "lines": 87.5
+    },
+    "src/services/game-launches.ts": {
+      "statements": 72.77,
+      "branches": 63.2,
+      "functions": 73.91,
+      "lines": 76.22
+    },
+    "src/services/game-resource-install.ts": {
+      "statements": 76.92,
+      "branches": 83.87,
+      "functions": 100,
+      "lines": 81.25
+    },
+    "src/services/game-resource-progress.ts": {
+      "statements": 90.62,
+      "branches": 90,
+      "functions": 100,
+      "lines": 95.45
+    },
+    "src/services/game-staging.ts": {
+      "statements": 86.95,
+      "branches": 80.95,
+      "functions": 100,
+      "lines": 93.02
+    },
+    "src/services/game-wine-server.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/services/games.ts": {
+      "statements": 72.72,
+      "branches": 73.57,
+      "functions": 66.66,
+      "lines": 83.58
+    },
+    "src/services/http-response.ts": {
+      "statements": 94.44,
+      "branches": 90.9,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/services/image-resource-cache.ts": {
+      "statements": 90.47,
+      "branches": 80.76,
+      "functions": 93.33,
+      "lines": 97.82
+    },
+    "src/services/installer.ts": {
+      "statements": 85.71,
+      "branches": 79.67,
+      "functions": 100,
+      "lines": 92.22
+    },
+    "src/services/job-progress.ts": {
+      "statements": 88.57,
+      "branches": 70,
+      "functions": 83.33,
+      "lines": 95.45
+    },
+    "src/services/managed-file.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/services/notes.ts": {
+      "statements": 87.5,
+      "branches": 80,
+      "functions": 75,
+      "lines": 85.71
+    },
+    "src/services/notifications.ts": {
+      "statements": 92.1,
+      "branches": 86.95,
+      "functions": 95.23,
+      "lines": 96.72
+    },
+    "src/services/patch-install.ts": {
+      "statements": 81.81,
+      "branches": 77.41,
+      "functions": 100,
+      "lines": 90.32
+    },
+    "src/services/predownload-build.ts": {
+      "statements": 94.44,
+      "branches": 85.71,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/services/predownload-status.ts": {
+      "statements": 86.66,
+      "branches": 86.84,
+      "functions": 90.9,
+      "lines": 97.05
+    },
+    "src/services/predownload.ts": {
+      "statements": 47.05,
+      "branches": 33.33,
+      "functions": 72.72,
+      "lines": 53.57
+    },
+    "src/services/prepared-logins.ts": {
+      "statements": 88.23,
+      "branches": 83.33,
+      "functions": 71.42,
+      "lines": 96.29
+    },
+    "src/services/process-command.ts": {
+      "statements": 88.46,
+      "branches": 85.71,
+      "functions": 77.77,
+      "lines": 100
+    },
+    "src/services/rate-limiter.ts": {
+      "statements": 84.61,
+      "branches": 75,
+      "functions": 100,
+      "lines": 86.36
+    },
+    "src/services/resource-coordinator.ts": {
+      "statements": 95,
+      "branches": 75,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/services/revision-notifier.ts": {
+      "statements": 94.59,
+      "branches": 80.76,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/services/sophon-install.ts": {
+      "statements": 83.78,
+      "branches": 83.67,
+      "functions": 85.18,
+      "lines": 89.39
+    },
+    "src/services/storage-error.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/services/task-retention.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/services/uigf.ts": {
+      "statements": 97.77,
+      "branches": 68.57,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/services/wish-standard-items.ts": {
+      "statements": 100,
+      "branches": 100,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/services/wish-statistics.ts": {
+      "statements": 100,
+      "branches": 94.44,
+      "functions": 100,
+      "lines": 100
+    },
+    "src/services/wish-tasks.ts": {
+      "statements": 95.65,
+      "branches": 85.71,
+      "functions": 95,
+      "lines": 100
+    },
+    "src/services/wishes.ts": {
+      "statements": 91.46,
+      "branches": 50,
+      "functions": 93.75,
+      "lines": 98.11
+    }
+  },
+  "frontend": {
+    "Sources/MHGLauncherApp.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Models/APIModels.swift": {
+      "lines": 76.92,
+      "regions": 66.67,
+      "functions": 55.56
+    },
+    "Sources/Models/AppUpdateModels.swift": {
+      "lines": 100,
+      "regions": 88.57,
+      "functions": 100
+    },
+    "Sources/Models/CharacterEquipmentModels.swift": {
+      "lines": 62.07,
+      "regions": 59.57,
+      "functions": 62.5
+    },
+    "Sources/Models/CharacterModels.swift": {
+      "lines": 74.07,
+      "regions": 33.33,
+      "functions": 41.67
+    },
+    "Sources/Models/CharacterProperty.swift": {
+      "lines": 83.82,
+      "regions": 38.71,
+      "functions": 53.85
+    },
+    "Sources/Models/CompanionModels.swift": {
+      "lines": 66.67,
+      "regions": 40,
+      "functions": 40
+    },
+    "Sources/Models/GameModels.swift": {
+      "lines": 100,
+      "regions": 100,
+      "functions": 100
+    },
+    "Sources/Models/HistoryWishBannerPaging.swift": {
+      "lines": 83.33,
+      "regions": 68.18,
+      "functions": 78.57
+    },
+    "Sources/Models/HistoryWishCategory.swift": {
+      "lines": 100,
+      "regions": 100,
+      "functions": 100
+    },
+    "Sources/Models/HistoryWishEventBuilder.swift": {
+      "lines": 96.48,
+      "regions": 82.72,
+      "functions": 87.93
+    },
+    "Sources/Models/JSONValue.swift": {
+      "lines": 100,
+      "regions": 89.66,
+      "functions": 100
+    },
+    "Sources/Models/RuntimeModels.swift": {
+      "lines": 82.61,
+      "regions": 79.59,
+      "functions": 82.98
+    },
+    "Sources/Models/ValueModels.swift": {
+      "lines": 57.14,
+      "regions": 57.14,
+      "functions": 57.14
+    },
+    "Sources/Models/WishHistoryPresentation.swift": {
+      "lines": 100,
+      "regions": 100,
+      "functions": 100
+    },
+    "Sources/Models/WishOperationModels.swift": {
+      "lines": 65.43,
+      "regions": 46.94,
+      "functions": 77.78
+    },
+    "Sources/Models/WishPresentation.swift": {
+      "lines": 86.01,
+      "regions": 71.23,
+      "functions": 96.15
+    },
+    "Sources/Models/WishPresentationCache.swift": {
+      "lines": 100,
+      "regions": 100,
+      "functions": 100
+    },
+    "Sources/Services/APIClient.swift": {
+      "lines": 91.59,
+      "regions": 87.76,
+      "functions": 85.71
+    },
+    "Sources/Services/AppUpdateDownload.swift": {
+      "lines": 17.78,
+      "regions": 18.18,
+      "functions": 28.57
+    },
+    "Sources/Services/BackendProcess.swift": {
+      "lines": 30.19,
+      "regions": 20,
+      "functions": 47.06
+    },
+    "Sources/Services/CachedImageDecoder.swift": {
+      "lines": 91.3,
+      "regions": 60,
+      "functions": 100
+    },
+    "Sources/Services/DeviceOwnerAuthenticator.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Services/DisplayFrameCoalescer.swift": {
+      "lines": 88.16,
+      "regions": 81.82,
+      "functions": 92.86
+    },
+    "Sources/Services/FinalDisclaimerConsent.swift": {
+      "lines": 92.31,
+      "regions": 80,
+      "functions": 100
+    },
+    "Sources/Services/KeychainAccessPrompt.swift": {
+      "lines": 87.5,
+      "regions": 85.71,
+      "functions": 100
+    },
+    "Sources/Services/KeychainStore.swift": {
+      "lines": 80,
+      "regions": 71.43,
+      "functions": 80
+    },
+    "Sources/Services/LongPollQuery.swift": {
+      "lines": 85.71,
+      "regions": 50,
+      "functions": 50
+    },
+    "Sources/Services/NotificationAppDelegate.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Services/ProcessPipeDrain.swift": {
+      "lines": 89.01,
+      "regions": 73.68,
+      "functions": 100
+    },
+    "Sources/Services/QRCodeImage.swift": {
+      "lines": 100,
+      "regions": 66.67,
+      "functions": 100
+    },
+    "Sources/Services/RuntimeArchive.swift": {
+      "lines": 60,
+      "regions": 51.9,
+      "functions": 55.56
+    },
+    "Sources/Services/RuntimeArchiveRemote.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Services/RuntimeArchiveTar.swift": {
+      "lines": 93.83,
+      "regions": 88.37,
+      "functions": 90
+    },
+    "Sources/Services/RuntimeDownloadSource.swift": {
+      "lines": 46.08,
+      "regions": 33.33,
+      "functions": 55.56
+    },
+    "Sources/Services/RuntimeInstallGate.swift": {
+      "lines": 100,
+      "regions": 88.89,
+      "functions": 100
+    },
+    "Sources/Services/RuntimeInstallLedger.swift": {
+      "lines": 97.47,
+      "regions": 82.86,
+      "functions": 91.67
+    },
+    "Sources/Services/RuntimeInstaller.swift": {
+      "lines": 75.3,
+      "regions": 69.7,
+      "functions": 85
+    },
+    "Sources/Services/RuntimeInstallerBackendCopy.swift": {
+      "lines": 71.11,
+      "regions": 79.17,
+      "functions": 100
+    },
+    "Sources/Services/RuntimeInstallerPaths.swift": {
+      "lines": 97.83,
+      "regions": 86.67,
+      "functions": 100
+    },
+    "Sources/Services/RuntimeManifestDownload.swift": {
+      "lines": 25.71,
+      "regions": 25,
+      "functions": 57.14
+    },
+    "Sources/Services/RuntimePromotion.swift": {
+      "lines": 53.6,
+      "regions": 33.8,
+      "functions": 44.44
+    },
+    "Sources/Services/SingleInstanceGuard.swift": {
+      "lines": 71.43,
+      "regions": 64.71,
+      "functions": 71.43
+    },
+    "Sources/Services/UIGFFileIO.swift": {
+      "lines": 94.92,
+      "regions": 88.46,
+      "functions": 87.5
+    },
+    "Sources/Services/UnixSocketTransport.swift": {
+      "lines": 27.36,
+      "regions": 29.2,
+      "functions": 18.75
+    },
+    "Sources/Services/UserNotificationService.swift": {
+      "lines": 12.5,
+      "regions": 18.18,
+      "functions": 33.33
+    },
+    "Sources/State/AccountActions.swift": {
+      "lines": 90.41,
+      "regions": 72.12,
+      "functions": 85.71
+    },
+    "Sources/State/AccountLoginState.swift": {
+      "lines": 88.89,
+      "regions": 73.68,
+      "functions": 80
+    },
+    "Sources/State/AchievementActions.swift": {
+      "lines": 74.69,
+      "regions": 61.45,
+      "functions": 73.91
+    },
+    "Sources/State/AppUpdateActions.swift": {
+      "lines": 10.53,
+      "regions": 8,
+      "functions": 50
+    },
+    "Sources/State/AsyncSerialGate.swift": {
+      "lines": 11.76,
+      "regions": 22.22,
+      "functions": 40
+    },
+    "Sources/State/CharacterActions.swift": {
+      "lines": 86.87,
+      "regions": 65.91,
+      "functions": 81.25
+    },
+    "Sources/State/CompanionActions.swift": {
+      "lines": 66.67,
+      "regions": 59.46,
+      "functions": 81.25
+    },
+    "Sources/State/CompanionDataState.swift": {
+      "lines": 96.15,
+      "regions": 85.71,
+      "functions": 85.71
+    },
+    "Sources/State/ErrorPresentation.swift": {
+      "lines": 100,
+      "regions": 94.12,
+      "functions": 100
+    },
+    "Sources/State/GameActions.swift": {
+      "lines": 90.37,
+      "regions": 70.67,
+      "functions": 85.71
+    },
+    "Sources/State/GameJobActions.swift": {
+      "lines": 87.66,
+      "regions": 64.81,
+      "functions": 75
+    },
+    "Sources/State/GameJobPresentation.swift": {
+      "lines": 91.55,
+      "regions": 85.71,
+      "functions": 83.33
+    },
+    "Sources/State/LauncherDependencies.swift": {
+      "lines": 100,
+      "regions": 100,
+      "functions": 100
+    },
+    "Sources/State/LauncherError.swift": {
+      "lines": 100,
+      "regions": 57.14,
+      "functions": 100
+    },
+    "Sources/State/LauncherStore.swift": {
+      "lines": 63.25,
+      "regions": 75.25,
+      "functions": 92.31
+    },
+    "Sources/State/NotificationActions.swift": {
+      "lines": 71.74,
+      "regions": 68.97,
+      "functions": 100
+    },
+    "Sources/State/PreparedLoginActions.swift": {
+      "lines": 92.31,
+      "regions": 80,
+      "functions": 80
+    },
+    "Sources/State/StatusActions.swift": {
+      "lines": 100,
+      "regions": 100,
+      "functions": 100
+    },
+    "Sources/State/ValueActions.swift": {
+      "lines": 90.91,
+      "regions": 78.76,
+      "functions": 70.83
+    },
+    "Sources/State/ValueStore.swift": {
+      "lines": 100,
+      "regions": 100,
+      "functions": 100
+    },
+    "Sources/State/WishOperationActions.swift": {
+      "lines": 81.63,
+      "regions": 70.73,
+      "functions": 80
+    },
+    "Sources/State/WishPresentationState.swift": {
+      "lines": 100,
+      "regions": 81.82,
+      "functions": 100
+    },
+    "Sources/Views/AccessibilityLiveRegion.swift": {
+      "lines": 100,
+      "regions": 100,
+      "functions": 100
+    },
+    "Sources/Views/AccountLoginView.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Views/AccountView.swift": {
+      "lines": 93.1,
+      "regions": 62.75,
+      "functions": 66.67
+    },
+    "Sources/Views/AchievementComponents.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Views/AchievementLogic.swift": {
+      "lines": 72.22,
+      "regions": 62.5,
+      "functions": 71.43
+    },
+    "Sources/Views/AchievementsView.swift": {
+      "lines": 33.42,
+      "regions": 25,
+      "functions": 24.07
+    },
+    "Sources/Views/AppUpdateSheet.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Views/BannerDetailCard.swift": {
+      "lines": 96.17,
+      "regions": 68.18,
+      "functions": 88.46
+    },
+    "Sources/Views/ByteCountFormatting.swift": {
+      "lines": 100,
+      "regions": 100,
+      "functions": 100
+    },
+    "Sources/Views/CachedAsyncImage.swift": {
+      "lines": 49.68,
+      "regions": 27.45,
+      "functions": 35
+    },
+    "Sources/Views/CharacterArtwork.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Views/CharacterBrowserControls.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Views/CharacterBrowserItems.swift": {
+      "lines": 33.77,
+      "regions": 41.94,
+      "functions": 42.86
+    },
+    "Sources/Views/CharacterBrowserView.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Views/CharacterDetailSections.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Views/CharacterDetailView.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Views/CharacterGrowthSection.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Views/CharacterHeroBand.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Views/CharacterSmallComponents.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Views/CharacterVisuals.swift": {
+      "lines": 69.7,
+      "regions": 30.3,
+      "functions": 71.43
+    },
+    "Sources/Views/CharactersView.swift": {
+      "lines": 81.03,
+      "regions": 73.33,
+      "functions": 60
+    },
+    "Sources/Views/CloudSyncView.swift": {
+      "lines": 89.96,
+      "regions": 53.57,
+      "functions": 60
+    },
+    "Sources/Views/CodexSidebar.swift": {
+      "lines": 95.19,
+      "regions": 82.22,
+      "functions": 79.17
+    },
+    "Sources/Views/Components.swift": {
+      "lines": 100,
+      "regions": 75.86,
+      "functions": 100
+    },
+    "Sources/Views/Destination.swift": {
+      "lines": 100,
+      "regions": 96.77,
+      "functions": 100
+    },
+    "Sources/Views/DownloadSpeedChart.swift": {
+      "lines": 95,
+      "regions": 75,
+      "functions": 73.68
+    },
+    "Sources/Views/DownloadSpeedPlot.swift": {
+      "lines": 76.19,
+      "regions": 65.52,
+      "functions": 71.43
+    },
+    "Sources/Views/FinalDisclaimerView.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Views/GachaHistoryView.swift": {
+      "lines": 73.58,
+      "regions": 45.05,
+      "functions": 54.9
+    },
+    "Sources/Views/GameJobCard.swift": {
+      "lines": 84.43,
+      "regions": 69.77,
+      "functions": 71.43
+    },
+    "Sources/Views/GameJobLiveProgress.swift": {
+      "lines": 90.43,
+      "regions": 61.36,
+      "functions": 71.43
+    },
+    "Sources/Views/GameLaunchControls.swift": {
+      "lines": 92.14,
+      "regions": 62.07,
+      "functions": 60.87
+    },
+    "Sources/Views/GameLaunchProgressView.swift": {
+      "lines": 94.68,
+      "regions": 64.29,
+      "functions": 87.5
+    },
+    "Sources/Views/GameResourceActionButtons.swift": {
+      "lines": 76.7,
+      "regions": 55.56,
+      "functions": 56.25
+    },
+    "Sources/Views/GameView.swift": {
+      "lines": 87.79,
+      "regions": 49.15,
+      "functions": 62.86
+    },
+    "Sources/Views/GeetestSheet.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Views/GeetestView.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Views/HistoryWishBannerCarousel.swift": {
+      "lines": 96.41,
+      "regions": 85,
+      "functions": 100
+    },
+    "Sources/Views/HistoryWishBannerNavigation.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Views/HistoryWishDetail.swift": {
+      "lines": 86.96,
+      "regions": 71.05,
+      "functions": 80.77
+    },
+    "Sources/Views/HistoryWishViews.swift": {
+      "lines": 93.96,
+      "regions": 66.67,
+      "functions": 84.21
+    },
+    "Sources/Views/HomeView.swift": {
+      "lines": 90.49,
+      "regions": 69.39,
+      "functions": 73.68
+    },
+    "Sources/Views/KeychainAccessGuideView.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Views/MotionEntrance.swift": {
+      "lines": 94.29,
+      "regions": 83.33,
+      "functions": 80
+    },
+    "Sources/Views/MotionInteractionEffects.swift": {
+      "lines": 94.7,
+      "regions": 68.09,
+      "functions": 63.64
+    },
+    "Sources/Views/MotionSymbolEffects.swift": {
+      "lines": 90,
+      "regions": 80,
+      "functions": 100
+    },
+    "Sources/Views/MotionSystem.swift": {
+      "lines": 98.84,
+      "regions": 96.77,
+      "functions": 100
+    },
+    "Sources/Views/NavigationPageActive.swift": {
+      "lines": 100,
+      "regions": 100,
+      "functions": 100
+    },
+    "Sources/Views/NavigationPageHost.swift": {
+      "lines": 90.16,
+      "regions": 67.5,
+      "functions": 80
+    },
+    "Sources/Views/NotesView.swift": {
+      "lines": 96.45,
+      "regions": 72.22,
+      "functions": 83.33
+    },
+    "Sources/Views/NotificationsView.swift": {
+      "lines": 37.1,
+      "regions": 14.04,
+      "functions": 16.22
+    },
+    "Sources/Views/PoolSelector.swift": {
+      "lines": 89.66,
+      "regions": 68.75,
+      "functions": 68.75
+    },
+    "Sources/Views/RootView.swift": {
+      "lines": 68.93,
+      "regions": 43.18,
+      "functions": 47.92
+    },
+    "Sources/Views/RuntimeSetupView.swift": {
+      "lines": 84.24,
+      "regions": 58.82,
+      "functions": 85.71
+    },
+    "Sources/Views/RuntimeStatusView.swift": {
+      "lines": 64.29,
+      "regions": 38.46,
+      "functions": 50
+    },
+    "Sources/Views/ScrollActivity.swift": {
+      "lines": 100,
+      "regions": 87.5,
+      "functions": 100
+    },
+    "Sources/Views/ViewportRetainedContent.swift": {
+      "lines": 97.03,
+      "regions": 92.31,
+      "functions": 94.74
+    },
+    "Sources/Views/WishAdvancedOptions.swift": {
+      "lines": 3.33,
+      "regions": 14.29,
+      "functions": 9.09
+    },
+    "Sources/Views/WishFiveStarTimeline.swift": {
+      "lines": 26.09,
+      "regions": 17.86,
+      "functions": 16.67
+    },
+    "Sources/Views/WishHistoryPanel.swift": {
+      "lines": 88.15,
+      "regions": 54.79,
+      "functions": 62
+    },
+    "Sources/Views/WishItemCell.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Views/WishLoadingPlaceholder.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Views/WishOperationHost.swift": {
+      "lines": 20,
+      "regions": 25,
+      "functions": 50
+    },
+    "Sources/Views/WishOperationOverlay.swift": {
+      "lines": 0,
+      "regions": 0,
+      "functions": 0
+    },
+    "Sources/Views/WishOverviewHero.swift": {
+      "lines": 94.67,
+      "regions": 66.67,
+      "functions": 70
+    },
+    "Sources/Views/WishPityPresentation.swift": {
+      "lines": 63.64,
+      "regions": 76.92,
+      "functions": 66.67
+    },
+    "Sources/Views/WishResultsPanel.swift": {
+      "lines": 96.06,
+      "regions": 74.36,
+      "functions": 91.67
+    },
+    "Sources/Views/WishesView.swift": {
+      "lines": 67.82,
+      "regions": 37.66,
+      "functions": 35.71
+    }
+  }
+}

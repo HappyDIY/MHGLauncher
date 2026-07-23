@@ -9,7 +9,11 @@ enum UserNotificationDeliveryError: LocalizedError, Sendable {
     }
 }
 
-struct UserNotificationService: Sendable {
+protocol UserNotificationDelivering: Sendable {
+    func deliver(_ events: [NotificationEvent]) async throws -> [String]
+}
+
+struct UserNotificationService: UserNotificationDelivering {
     func deliver(_ events: [NotificationEvent]) async throws -> [String] {
         guard !events.isEmpty else { return [] }
         let center = UNUserNotificationCenter.current()

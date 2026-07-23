@@ -1,12 +1,13 @@
 import { lstat, unlink } from "node:fs/promises";
 import { AppError } from "./errors";
+import { acquirePrivateUmask } from "./private-umask";
 
 export interface SocketIdentity { dev: number; ino: number }
 
 export async function withPrivateSocketUmask<T>(action: () => Promise<T>): Promise<T> {
-  const previous = process.umask(0o177);
+  const restoreUmask = acquirePrivateUmask(0o177);
   try { return await action(); }
-  finally { process.umask(previous); }
+  finally { restoreUmask(); }
 }
 
 export async function requireUnusedSocketPath(path: string): Promise<void> {

@@ -1,51 +1,47 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import { container } from "../core/container";
+import { container, type Container } from "../core/container";
 import { AppError, errorResponse } from "../core/errors";
 import type { JobKind } from "../core/models";
 import { exportUIGF } from "../services/uigf";
 import { longPollOptions } from "../services/revision-notifier";
 import { valueRoute } from "./value-routes";
 import { readJsonBody } from "../core/request-body";
-
-const credential = z.object({ credential: z.string().min(1).max(16_384) }).strict();
-const gachaUrl = z.object({ gacha_url: z.string().url().max(16_384) }).strict();
-const roleSync = z.object({ aid: z.string().min(1).max(32), credential: z.string().min(1).max(16_384) }).strict();
-const selectAccount = z.object({ aid: z.string().min(1).max(32) }).strict();
-const selectRole = z.object({ uid: z.string().regex(/^\d{9,10}$/) }).strict();
-const mobile = z.object({ mobile: z.string().regex(/^1\d{10}$/) }).strict();
-const mobileLogin = z.object({ mobile: z.string().regex(/^1\d{10}$/), captcha: z.string().min(4).max(16), action_type: z.string().min(1).max(128), aigis: z.string().max(16_384).optional().nullable() }).strict();
-const mobileVerification = z.object({ mobile: z.string().regex(/^1\d{10}$/), session_id: z.string().min(1).max(256), challenge: z.string().min(1).max(4096), validate: z.string().min(1).max(4096) }).strict();
-const cookieLogin = z.object({ credential: z.string().min(1).max(16_384) }).strict();
-const loginTransaction = z.object({ transaction_id: z.string().uuid() }).strict();
-const refresh = z.object({ credential: z.string().max(16_384), xrpc_challenge: z.string().max(4096).default(""), xrpc_challenge_path: z.string().max(2048).default("") }).strict();
-const verification = z.object({ credential: z.string().max(16_384), challenge: z.string().max(4096), validate: z.string().max(4096), xrpc_challenge_path: z.string().max(2048).default("") }).strict();
-const startJob = z.object({ kind: z.enum(["install", "update", "verify", "predownload"]), install_path: z.string().min(1).max(4096) }).strict();
-const controlJob = z.object({ action: z.enum(["pause", "resume", "cancel"]) }).strict();
-const speedLimit = z.object({ speed_limit_kb: z.number().int().min(0).max(10_000_000) }).strict();
-const startLaunch = z.object({
-  install_path: z.string().min(1).max(4096), performance_profile: z.enum(["optimized", "compatibility", "baseline"]).default("optimized"),
-  metal_hud: z.boolean().default(false), network_debug: z.boolean().default(false),
-  wine_log: z.boolean().default(false),
-  frame_pacing: z.number().int().min(0).max(240).default(0), credential: z.string().min(1).max(16_384).optional(),
-}).strict();
+import {
+  controlJobRequest as controlJob, credentialRequest as credential,
+  gachaUrlRequest as gachaUrl, loginTransactionRequest as loginTransaction,
+  mobileLoginRequest as mobileLogin, mobileRequest as mobile,
+  mobileVerificationRequest as mobileVerification, noteRefreshRequest as refresh,
+  noteVerificationRequest as verification, roleSyncRequest as roleSync,
+  selectAccountRequest as selectAccount, selectRoleRequest as selectRole,
+  speedLimitRequest as speedLimit, startJobRequest as startJob,
+  startLaunchRequest as startLaunch,
+} from "./request-contracts";
+const cookieLogin = credential;
 const characterId = z.string().regex(/^(?:0|[1-9]\d{0,15})$/).refine((value) => Number(value) <= Number.MAX_SAFE_INTEGER);
 
 export async function dispatch(request: Request): Promise<Response> {
+  return dispatchWith(container(), request);
+}
+
+export function createDispatch(app: Container): (request: Request) => Promise<Response> {
+  return (request) => dispatchWith(app, request);
+}
+
+async function dispatchWith(app: Container, request: Request): Promise<Response> {
   try {
-    authorize(request);
+    authorize(app, request);
     const url = new URL(request.url), path = url.pathname.replace(/^\/v1/, "");
     const limit = ["/wishes/tasks/import", "/achievements/import"].includes(path) ? 64 * 1024 * 1024 : 1024 * 1024;
     const body = request.method === "POST" || request.method === "PUT" ? await readJsonBody(request, limit) : undefined;
-    return await route(request.method, path, url.searchParams, body, request.signal);
+    return await route(app, request.method, path, url.searchParams, body, request.signal);
   } catch (error) {
     if (error instanceof z.ZodError) return Response.json({ code: "validation_error", message: "请求参数无效", details: { issues: JSON.stringify(error.issues) } }, { status: 422 });
     return errorResponse(error);
   }
 }
 
-async function route(method: string, path: string, query: URLSearchParams, body: unknown, signal: AbortSignal): Promise<Response> {
-  const app = container();
+async function route(app: Container, method: string, path: string, query: URLSearchParams, body: unknown, signal: AbortSignal): Promise<Response> {
   if (method === "GET" && path === "/health") return json({ status: "ok", version: "1.0.0" });
   if (method === "GET" && path === "/app-update") return json(await app.appUpdates.latest());
   if (method === "GET" && path === "/accounts") return json(app.accounts.list());
@@ -159,8 +155,8 @@ async function route(method: string, path: string, query: URLSearchParams, body:
 	  throw new AppError("not_found", "接口不存在", 404);
 	}
 
-function authorize(request: Request): void {
-  const expected = container().settings.apiToken;
+function authorize(app: Container, request: Request): void {
+  const expected = app.settings.apiToken;
   if (!expected) return;
   const actual = request.headers.get("authorization")?.replace(/^Bearer /, "") ?? "";
   const left = Buffer.from(actual), right = Buffer.from(expected);

@@ -16,8 +16,11 @@ export interface LaunchRunInput {
 }
 export type LaunchReporter = (status: GameLaunchStatus, message?: string, progress?: number) => void;
 export interface GameLaunchRunner { run(input: LaunchRunInput, report: LaunchReporter): Promise<number> }
+export interface LaunchProbeTiming { intervalMs: number; timeoutMs: number }
 
 export class WineLaunchRunner implements GameLaunchRunner {
+  constructor(private readonly probeTiming: LaunchProbeTiming = { intervalMs: 250, timeoutMs: 30_000 }) {}
+
   async run(input: LaunchRunInput, report: LaunchReporter): Promise<number> {
     const paths = runtimePaths(input.runtimeRoot), prefix = join(input.dataDir, "wineprefix");
     if (input.signal.aborted) return 0;
@@ -59,10 +62,10 @@ export class WineLaunchRunner implements GameLaunchRunner {
       void runCommand(paths.probe, [String(child.pid ?? 0), snapshot], { timeout: 1_000 })
         .then((result) => { if (result.status === 0) { clearInterval(probe); releaseGate("游戏窗口已显示，域名屏蔽已解除"); } })
         .finally(() => { probing = false; });
-    }, 250);
+    }, this.probeTiming.intervalMs);
     const fallback = setTimeout(() => {
       clearInterval(probe); releaseGate("窗口探针超时，已自动解除域名屏蔽");
-    }, 30_000);
+    }, this.probeTiming.timeoutMs);
     let terminate = (): void => undefined;
     const completion = new Promise<number>((resolve, reject) => {
       let cleaned = false, reported = false, finishing = false;

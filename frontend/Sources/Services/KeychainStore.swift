@@ -1,7 +1,14 @@
 import Foundation
 import Security
 
-struct KeychainStore: Sendable {
+protocol KeychainStoring: Sendable {
+    func prepareAccess() throws
+    func save(_ value: String, account: String) throws
+    func read(account: String) throws -> String?
+    func delete(account: String) throws
+}
+
+struct KeychainStore: KeychainStoring {
     let service = "com.mhglauncher.credentials"
     private let accessProbeAccount = "system:keychain-access-probe"
 

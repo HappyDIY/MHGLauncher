@@ -1,1 +1,3 @@
-{}
+{
+  "entry": ["vitest.mutation.config.ts"]
+}

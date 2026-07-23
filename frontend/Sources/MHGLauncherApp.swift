@@ -179,13 +179,22 @@ struct MHGLauncherApp: App {
         }
     }
 
-    @MainActor
-    private func startLauncherIfNeeded() async {
+    @MainActor private func startLauncherIfNeeded() async {
         guard !didStart else { return }
         didStart = true
         appDelegate.store = store
         await store.bootstrap()
+        emitSmokeBootstrapEvent()
         if store.account != nil, store.message == nil { store.showStatus("账号登录成功") }
         await store.runNoteRefreshLoop()
+    }
+    @MainActor private func emitSmokeBootstrapEvent() {
+        guard ProcessInfo.processInfo.environment["MHG_SMOKE_MODE"] == "1" else { return }
+        let ready = store.backend.client != nil && store.runtimeErrorMessage == nil && store.message == nil
+        let payload: [String: String] = ["event": ready ? "bootstrap_ready" : "bootstrap_failed",
+            "message": store.message ?? store.runtimeErrorMessage ?? "",
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
+        FileHandle.standardOutput.write(data + Data("\n".utf8))
     }
 }

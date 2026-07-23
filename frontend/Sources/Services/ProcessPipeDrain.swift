@@ -6,6 +6,7 @@ final class ProcessPipeDrain: @unchecked Sendable {
     private let lock = NSLock()
     private var buffer = Data()
     private var continuation: CheckedContinuation<String, Error>?
+    private var timeoutTask: Task<Void, Never>?
     private var finished = false
     private var readyResult: Result<String, Error>?
 
@@ -22,8 +23,9 @@ final class ProcessPipeDrain: @unchecked Sendable {
                 if let result = readyResult { lock.unlock(); continuation.resume(with: result); return }
                 self.continuation = continuation
                 lock.unlock()
-                Task { [weak self] in
+                timeoutTask = Task { [weak self] in
                     try? await Task.sleep(for: timeout)
+                    guard !Task.isCancelled else { return }
                     self?.fail(URLError(.timedOut))
                 }
             }
@@ -66,6 +68,7 @@ final class ProcessPipeDrain: @unchecked Sendable {
     }
 
     private func finishLocked(_ result: Result<String, Error>) -> CheckedContinuation<String, Error>? {
+        timeoutTask?.cancel(); timeoutTask = nil
         finished = true; readyResult = result; buffer.removeAll(keepingCapacity: false)
         let value = continuation; continuation = nil; return value
     }

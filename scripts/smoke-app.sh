@@ -45,6 +45,31 @@ if [[ -z "$app_pid" || -z "$backend_pid" ]]; then
   printf '未观察到 App 与后端的父子进程关系\n' >&2
   exit 1
 fi
+
+bootstrap_ready=""
+for _ in {1..600}; do
+  if grep -q '"event":"bootstrap_ready"' "$log"; then
+    bootstrap_ready="1"
+    break
+  fi
+  if grep -q '"event":"bootstrap_failed"' "$log"; then
+    cat "$log" >&2
+    printf 'App bootstrap 报告失败\n' >&2
+    exit 1
+  fi
+  if ! kill -0 "$app_pid" 2>/dev/null || ! kill -0 "$backend_pid" 2>/dev/null; then
+    cat "$log" >&2
+    printf 'App bootstrap 完成前进程已退出\n' >&2
+    exit 1
+  fi
+  sleep 0.1
+done
+if [[ -z "$bootstrap_ready" ]]; then
+  cat "$log" >&2
+  printf '等待 App bootstrap 成功超时\n' >&2
+  exit 1
+fi
+
 kill "$app_pid"
 
 for _ in {1..50}; do

@@ -1,0 +1,64 @@
+name: quality-gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: quality-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  launcher:
+    name: launcher-macos
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run launcher quality gate
+        env:
+          DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+        run: scripts/test-launcher.sh
+
+  services:
+    name: services-postgres
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: mhglauncher
+          POSTGRES_USER: mhglauncher
+          POSTGRES_PASSWORD: mhglauncher
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mhglauncher"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run service quality gate
+        env:
+          DATABASE_URL: postgres://mhglauncher:mhglauncher@127.0.0.1:5432/mhglauncher
+        run: scripts/test-services.sh
+
+  quality-gate:
+    name: quality-gate
+    if: always()
+    needs: [launcher, services]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every gate
+        env:
+          LAUNCHER_RESULT: ${{ needs.launcher.result }}
+          SERVICES_RESULT: ${{ needs.services.result }}
+        run: |
+          test "$LAUNCHER_RESULT" = success
+          test "$SERVICES_RESULT" = success

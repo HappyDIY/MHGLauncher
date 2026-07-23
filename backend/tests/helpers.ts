@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach } from "vitest";
 import { Container } from "../src/core/container";
-import { dispatch } from "../src/api/router";
+import { createDispatch } from "../src/api/router";
 
 const roots: string[] = [];
 export function fixture(): Container {
@@ -13,6 +13,8 @@ export function fixture(): Container {
   globalThis.mhgContainer = value; return value;
 }
 export async function request(method: string, path: string, body?: unknown, token = "test-token"): Promise<Response> {
-  return dispatch(new Request(`http://local${path}`, { method, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) }));
+  const app = globalThis.mhgContainer;
+  if (!app) throw new Error("测试 Container 尚未创建");
+  return createDispatch(app)(new Request(`http://local${path}`, { method, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) }));
 }
 afterEach(() => { globalThis.mhgContainer?.close(); globalThis.mhgContainer = undefined; for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });

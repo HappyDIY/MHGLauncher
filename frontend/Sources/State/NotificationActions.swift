@@ -36,7 +36,7 @@ extension LauncherStore {
             if let uid = selectedRole?.uid { path += "?uid=\(uid)" }
             let events: [NotificationEvent] = try await requireClient().post(path)
             value.notificationEvents = events
-            let delivered = try await UserNotificationService().deliver(events)
+            let delivered = try await notifications.deliver(events)
             value.notificationPermissionMessage = nil
             guard !delivered.isEmpty else { return }
             let _: [String] = try await requireClient().post(

@@ -86,7 +86,8 @@ final class DisplayLinkFrameScheduler: NSObject, DisplayFrameScheduling {
     }
 
     private func makeDisplayLink() -> CADisplayLink? {
-        let target = NSApp.keyWindow ?? NSApp.mainWindow
+        let application = NSApplication.shared
+        let target = application.keyWindow ?? application.mainWindow
         let link = target?.displayLink(
             target: self,
             selector: #selector(handleFrame(_:))

@@ -2,22 +2,12 @@ import { z } from "zod";
 import type { Container } from "../core/container";
 import { AppError } from "../core/errors";
 import { exportUIGF } from "../services/uigf";
-
-const credential = z.object({ credential: z.string().min(1).max(16_384) }).strict();
-const gachaUrl = z.object({ gacha_url: z.string().url().max(16_384), token: z.string().max(1024).optional().default("") }).strict();
-const cloudUid = z.object({ uid: z.string().regex(/^\d{9,10}$/), token: z.string().min(1).max(1024) }).strict();
-const achievementSave = z.object({
-  archive_id: z.string().min(1), expected_revision: z.number().int().min(0),
-  items: z.array(z.object({ achievement_id: z.number().int(), current: z.number().int(), status: z.number().int(), timestamp: z.number().int() }).strict()).max(200_000),
-}).strict();
-const settings = z.object({
-  daily_commission_enabled: z.boolean().optional(), daily_commission_time: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/).optional(),
-  resin_full_enabled: z.boolean().optional(),
-  gacha_refresh_enabled: z.boolean().optional(), version_update_enabled: z.boolean().optional(),
-}).strict();
-const notificationAcknowledgement = z.object({
-  keys: z.array(z.string().regex(/^[A-Za-z0-9:._-]{1,160}$/)).max(20),
-}).strict();
+import {
+  achievementSaveRequest as achievementSave, cloudGachaUrlRequest as gachaUrl,
+  cloudUidRequest as cloudUid, credentialRequest as credential,
+  notificationAcknowledgementRequest as notificationAcknowledgement,
+  notificationSettingsRequest as settings,
+} from "./request-contracts";
 const characterId = z.string().regex(/^(?:0|[1-9]\d{0,15})$/).refine((value) => Number(value) <= Number.MAX_SAFE_INTEGER);
 
 export async function valueRoute(app: Container, method: string, path: string, query: URLSearchParams, body: unknown): Promise<Response | null> {

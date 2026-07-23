@@ -1,53 +1,53 @@
 import Foundation
 import Observation
-
 @MainActor
 @Observable
 final class LauncherStore {
-    let backend = BackendProcess()
-    let runtimeInstaller = RuntimeInstaller()
-    let keychain = KeychainStore()
+    let backend: BackendProcess
+    let runtimeInstaller: RuntimeInstaller
+    let keychain: any KeychainStoring
+    let userSettings: UserDefaults
+    let notifications: any UserNotificationDelivering
+    let clock: any LauncherClock
     let deviceOwnerAuthenticator: any DeviceOwnerAuthenticating
     var value = ValueStore()
     let appUpdate = AppUpdateState()
-
-    init(deviceOwnerAuthenticator: any DeviceOwnerAuthenticating = DeviceOwnerAuthenticator()) {
+    init(
+        dependencies: LauncherDependencies = LauncherDependencies(),
+        deviceOwnerAuthenticator: any DeviceOwnerAuthenticating = DeviceOwnerAuthenticator()
+    ) {
+        backend = dependencies.backend; runtimeInstaller = dependencies.runtimeInstaller
+        keychain = dependencies.keychain; userSettings = dependencies.userSettings
+        notifications = dependencies.notifications; clock = dependencies.clock
         self.deviceOwnerAuthenticator = deviceOwnerAuthenticator
+        gamePerformanceProfile = GamePerformanceProfile(
+            rawValue: dependencies.userSettings.string(forKey: "gamePerformanceProfile") ?? ""
+        ) ?? .optimized
+        metalHudEnabled = dependencies.userSettings.bool(forKey: "metalHudEnabled")
+        networkDebugEnabled = dependencies.userSettings.bool(forKey: "networkDebugEnabled")
+        wineLogEnabled = dependencies.userSettings.bool(forKey: "wineLogEnabled")
     }
-    var runtimeProgress: RuntimeProgress?
-    var runtimeErrorMessage: String?
-    var isBootstrapping = false
-    var isInstallingCoreRuntime = false
-    var isInstallingGameRuntime = false
-    var gameRuntimeReady = false
+    var runtimeProgress: RuntimeProgress?; var runtimeErrorMessage: String?
+    var isBootstrapping = false; var isInstallingCoreRuntime = false
+    var isInstallingGameRuntime = false; var gameRuntimeReady = false
     private var installedRuntime: InstalledRuntime?
     var account: Account?
-    var accounts: [Account] = []
-    var roles: [GameRole] = []
+    var accounts: [Account] = []; var roles: [GameRole] = []
     var gameState: GameState?
     let gameJobPresentation = GameJobPresentation(); var gameJob: GameJob? { didSet { gameJobPresentation.apply(gameJob) } }
-    var pendingGameJobKind: JobKind?
-    var gameLaunch: GameLaunch?
+    var pendingGameJobKind: JobKind?; var gameLaunch: GameLaunch?
     @ObservationIgnored var gameStateIntent = 0
     @ObservationIgnored var gameJobIntent = 0
     @ObservationIgnored var gameLaunchIntent = 0
     @ObservationIgnored var launchPollingTask: Task<Void, Never>?
     var isLaunchingGame = false
     var isStoppingGame = false
-    var gamePerformanceProfile = GamePerformanceProfile(
-        rawValue: UserDefaults.standard.string(forKey: "gamePerformanceProfile") ?? ""
-    ) ?? .optimized {
-        didSet { UserDefaults.standard.set(gamePerformanceProfile.rawValue, forKey: "gamePerformanceProfile") }
-    }
-    var metalHudEnabled = UserDefaults.standard.bool(forKey: "metalHudEnabled") {
-        didSet { UserDefaults.standard.set(metalHudEnabled, forKey: "metalHudEnabled") }
-    }
-    var networkDebugEnabled = UserDefaults.standard.bool(forKey: "networkDebugEnabled") {
-        didSet { UserDefaults.standard.set(networkDebugEnabled, forKey: "networkDebugEnabled") }
-    }
-    var wineLogEnabled = UserDefaults.standard.bool(forKey: "wineLogEnabled") {
-        didSet { UserDefaults.standard.set(wineLogEnabled, forKey: "wineLogEnabled") }
-    }
+    var gamePerformanceProfile: GamePerformanceProfile { didSet {
+        userSettings.set(gamePerformanceProfile.rawValue, forKey: "gamePerformanceProfile")
+    } }
+    var metalHudEnabled: Bool { didSet { userSettings.set(metalHudEnabled, forKey: "metalHudEnabled") } }
+    var networkDebugEnabled: Bool { didSet { userSettings.set(networkDebugEnabled, forKey: "networkDebugEnabled") } }
+    var wineLogEnabled: Bool { didSet { userSettings.set(wineLogEnabled, forKey: "wineLogEnabled") } }
     var wishes: [WishRecord] = []
     var wishResultCatalog = WishResultCatalog(records: [])
     var wishOverviewSummary = WishOverviewSummary(records: [])
@@ -130,7 +130,7 @@ final class LauncherStore {
         await loadNotificationSettings()
         await refreshGame()
         await refreshSpeedLimit()
-        let savedKB = UserDefaults.standard.integer(forKey: "downloadSpeedLimitKB")
+        let savedKB = userSettings.integer(forKey: "downloadSpeedLimitKB")
         if savedKB > 0 { await setSpeedLimit(savedKB) }
         if selectedRole != nil { await loadCompanionData(); await loadValueData() }
         Task { await checkForAppUpdate(silent: true) }

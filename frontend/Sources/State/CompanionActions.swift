@@ -8,7 +8,7 @@ extension LauncherStore {
             }
             await evaluateNotifications()
             do {
-                try await Task.sleep(for: .seconds(300))
+                try await clock.sleep(for: .seconds(300))
             } catch {
                 return
             }
@@ -51,12 +51,12 @@ extension LauncherStore {
             dailyNote = try await client.post("/v1/notes/refresh", body: body)
         } catch let error as APIErrorPayload {
             if error.code == "verification_required",
-               let gt = error.details?["gt"],
-               let challenge = error.details?["challenge"] {
+               let gt = error.details?["gt"]?.stringValue,
+               let challenge = error.details?["challenge"]?.stringValue {
                 noteVerification = GeetestChallenge(
                     gt: gt,
                     challenge: challenge,
-                    xrpcChallengePath: error.details?["xrpc_challenge_path"]
+                    xrpcChallengePath: error.details?["xrpc_challenge_path"]?.stringValue
                 )
             } else {
                 message = Self.presentableMessage(error)
@@ -96,12 +96,12 @@ extension LauncherStore {
             )
         } catch let error as APIErrorPayload {
             if error.code == "verification_required",
-               let gt = error.details?["gt"],
-               let challenge = error.details?["challenge"] {
+               let gt = error.details?["gt"]?.stringValue,
+               let challenge = error.details?["challenge"]?.stringValue {
                 noteVerification = GeetestChallenge(
                     gt: gt,
                     challenge: challenge,
-                    xrpcChallengePath: error.details?["xrpc_challenge_path"]
+                    xrpcChallengePath: error.details?["xrpc_challenge_path"]?.stringValue
                 )
             } else {
                 noteVerification = nil
