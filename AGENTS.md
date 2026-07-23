@@ -113,6 +113,7 @@ Repo-level orchestration scripts (`scripts/`, each self-contained, fetch their o
 
 ```bash
 scripts/test-all.sh          # full CI: source-line check + build config + all component tests + app build + smoke tests
+scripts/test-ai.sh           # silent diff-aware AI gate; emits one structured JSON result
 scripts/test-backend.sh      # npm ci + typecheck + lint + test + source-line check
 scripts/test-frontend.sh     # swift test + source-line check
 scripts/test-features.sh     # backend feature matrix over a real Unix socket (fixture mode)
@@ -132,6 +133,11 @@ docker compose up       # runs cloud + admin + postgres locally
 ## Testing Expectations
 
 - Backend/cloud use **Vitest**; frontend uses **XCTest** (`swift test`); admin also has **Playwright** e2e.
+- AI/LLM agents must run `scripts/test-ai.sh` after making changes and immediately
+  before committing. Do not commit unless its JSON `status` is `passed`.
+- `scripts/test-ai.sh` must remain silent while tests run and emit exactly one
+  structured JSON document when complete. Detailed suite output belongs only in
+  the reported `build/ai-tests/...` log files.
 - New backend behavior should be exercisable in `fixture` mode so `test-features.sh` / `smoke-*.sh` can hit it without network. Fixtures live in `backend/fixtures/`.
 - `scripts/test-all.sh` is the authoritative pre-merge gate. Individual `test-*.sh` scripts let you run one component.
 - Every network provider needs deterministic fixture-backed tests.
