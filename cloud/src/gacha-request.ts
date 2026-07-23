@@ -1,5 +1,6 @@
 import { resolve4 } from "node:dns/promises";
 import { request as httpsRequest } from "node:https";
+import type { LookupFunction } from "node:net";
 import { HttpError } from "./http";
 
 export type GachaRequester = (url: URL) => Promise<Response>;
@@ -20,8 +21,12 @@ export const requestGacha: GachaRequester = async (url) => {
 
 function requestAddress(url: URL, address: string): Promise<Response> {
   return new Promise((resolve, reject) => {
+    const lookup: LookupFunction = (_hostname, options, callback) => {
+      if (options.all) callback(null, [{ address, family: 4 }]);
+      else callback(null, address, 4);
+    };
     const request = httpsRequest(url, {
-      lookup: (_hostname, _options, callback) => callback(null, address, 4),
+      lookup,
     }, (response) => {
       const chunks: Buffer[] = [];
       let size = 0;
