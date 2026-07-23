@@ -2,18 +2,19 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { PoolClient } from "pg";
 import { pool, transaction } from "./db";
 import { HttpError } from "./http";
+import { requestGacha, type GachaRequester } from "./gacha-request";
 
 type GachaItem = { id: string; uid: string; gacha_type: string; uigf_gacha_type: string; item_id: string; name: string; item_type: string; rank: number; time: string };
 const gachaHosts = new Set(["public-operation-hk4e.mihoyo.com"]);
 
-export async function verifyGachaUrl(raw: string): Promise<{ uid: string; items: GachaItem[] }> {
+export async function verifyGachaUrl(raw: string, requester: GachaRequester = requestGacha): Promise<{ uid: string; items: GachaItem[] }> {
   const url = new URL(raw);
   if (url.protocol !== "https:" || url.username || url.password || url.port || !gachaHosts.has(url.hostname)
     || !url.searchParams.get("authkey")) throw new HttpError(422, "gacha_url_invalid", "抽卡 URL 无效");
 	  url.searchParams.set("gacha_type", "301");
   url.searchParams.set("size", "20");
 	  url.searchParams.set("end_id", "0");
-  const response = await fetchGacha(url);
+  const response = await requester(url);
   const payload = await response.json() as { retcode?: number; message?: string; data?: { uid?: unknown; list?: Record<string, any>[] } };
   if (!response.ok || Number(payload.retcode ?? 0) !== 0) throw new HttpError(422, "gacha_url_expired", payload.message ?? "抽卡 URL 不可用");
   const responseUid = String(payload.data?.uid ?? "");
@@ -25,18 +26,6 @@ export async function verifyGachaUrl(raw: string): Promise<{ uid: string; items:
   const items = (payload.data?.list ?? []).map((item) => normalize(provenUid, item));
   if (!items.length) throw new HttpError(422, "gacha_url_unverified", "抽卡 URL 可用，但无法确认 UID");
   return { uid: provenUid, items };
-}
-
-async function fetchGacha(url: URL): Promise<Response> {
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    try {
-      return await fetch(url, { signal: AbortSignal.timeout(8_000), redirect: "error" });
-    } catch {
-      if (attempt === 3) throw new HttpError(503, "gacha_upstream_unavailable", "抽卡服务暂时不可用，请稍后重试");
-      await new Promise((resolve) => setTimeout(resolve, attempt * 150));
-    }
-  }
-  throw new HttpError(503, "gacha_upstream_unavailable", "抽卡服务暂时不可用，请稍后重试");
 }
 
 export async function issue(uid: string, initialize?: (client: PoolClient) => Promise<void>): Promise<{ uid: string; token: string; token_ref: string; reverified_at: string }> {
