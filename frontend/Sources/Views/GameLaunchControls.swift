@@ -13,12 +13,13 @@ struct GameLaunchControls: View {
             }
             .pickerStyle(.segmented)
             .motionHover(.subtle)
-            Toggle("启动时显示 Metal HUD", isOn: $store.metalHudEnabled)
-                .motionHover(.subtle)
-            Toggle("记录每一条 DNS 查询（网络调试）", isOn: $store.networkDebugEnabled)
-                .motionHover(.subtle)
-            Toggle("显示 Wine 原生日志（调试用）", isOn: $store.wineLogEnabled)
-                .motionHover(.subtle)
+            HStack(spacing: 18) {
+                Toggle("Metal HUD", isOn: $store.metalHudEnabled)
+                Toggle("DNS 日志", isOn: $store.networkDebugEnabled)
+                Toggle("Wine 日志", isOn: $store.wineLogEnabled)
+            }
+            .toggleStyle(.checkbox)
+            .motionHover(.subtle)
             HStack {
                 Button {
                     Task { await store.launchGame() }

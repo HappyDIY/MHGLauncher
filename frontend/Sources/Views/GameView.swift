@@ -42,6 +42,14 @@ struct GameView: View {
                 GlassCard("安装位置", icon: "folder") {
                     HStack {
                         TextField("选择游戏目录", text: $store.installPath)
+                        Button {
+                            revealInstallPath()
+                        } label: {
+                            Label("在 Finder 中显示", systemImage: "folder")
+                        }
+                        .buttonStyle(.glass)
+                        .motionHover()
+                        .disabled(!installPathExists)
                         Button("选择") { chooseDirectory() }
                             .buttonStyle(.glass)
                             .motionHover()
@@ -91,6 +99,17 @@ struct GameView: View {
         }
     }
 
+    private var installPathExists: Bool {
+        let path = store.installPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !path.isEmpty && FileManager.default.fileExists(atPath: path)
+    }
+
+    private func revealInstallPath() {
+        let path = store.installPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+    }
+
     private var updateSummary: String? {
         guard let state = store.gameState, state.status == .updateAvailable else {
             return nil
@@ -113,29 +132,29 @@ struct GameView: View {
                 TextField(
                     "0",
                     value: speedLimitBinding,
-                    format: .number.grouping(.never)
+                    format: .number
+                        .grouping(.never)
+                        .precision(.fractionLength(0...2))
                 )
                 .frame(width: 60)
                 .multilineTextAlignment(.trailing)
                 .accessibilityLabel("下载速度限制")
                 .onSubmit {
-                    let value = max(0, store.speedLimitKB)
-                    store.speedLimitKB = value
-                    scheduleSpeedLimitUpdate(value)
+                    scheduleSpeedLimitUpdate(max(0, store.speedLimitKB))
                 }
-                Text("KB/s")
+                Text("MB/s")
                     .foregroundStyle(.secondary)
             }
         }
     }
 
-    private var speedLimitBinding: Binding<Int> {
+    private var speedLimitBinding: Binding<Double> {
         Binding {
-            store.speedLimitKB
+            Double(store.speedLimitKB) / 1024
         } set: { value in
-            let normalized = max(0, value)
-            store.speedLimitKB = normalized
-            scheduleSpeedLimitUpdate(normalized)
+            let normalizedKB = Int((max(0, value) * 1024).rounded())
+            store.speedLimitKB = normalizedKB
+            scheduleSpeedLimitUpdate(normalizedKB)
         }
     }
 

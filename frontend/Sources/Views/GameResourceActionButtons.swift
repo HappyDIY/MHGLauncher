@@ -2,6 +2,7 @@ import SwiftUI
 
 struct GameResourceActionButtons: View {
     @Bindable var store: LauncherStore
+    @State private var disclaimerJobKind: JobKind?
 
     var body: some View {
         HStack {
@@ -18,11 +19,20 @@ struct GameResourceActionButtons: View {
             Spacer()
         }
         .buttonStyle(.glassProminent)
+        .sheet(item: $disclaimerJobKind) { kind in
+            FinalDisclaimerView(allowsCancellation: true) {
+                Task { await store.startGameJob(kind) }
+            }
+        }
     }
 
     private func action(_ kind: JobKind, title: String, enabled: Bool) -> some View {
         Button {
-            Task { await store.startGameJob(kind) }
+            if requiresDisclaimer(kind), FinalDisclaimerConsent.shouldPresent() {
+                disclaimerJobKind = kind
+            } else {
+                Task { await store.startGameJob(kind) }
+            }
         } label: {
             HStack(spacing: 6) {
                 if store.pendingGameJobKind == kind {
@@ -39,4 +49,12 @@ struct GameResourceActionButtons: View {
         .motionHover(.prominent)
         .disabled(!enabled || store.pendingGameJobKind != nil)
     }
+
+    private func requiresDisclaimer(_ kind: JobKind) -> Bool {
+        [.install, .update, .verify].contains(kind)
+    }
+}
+
+extension JobKind: Identifiable {
+    var id: String { rawValue }
 }

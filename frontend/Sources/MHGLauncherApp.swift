@@ -119,6 +119,7 @@ struct MHGLauncherApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var store: LauncherStore
     @State private var showsKeychainGuide: Bool
+    @State private var showsFinalDisclaimer: Bool
     @State private var didStart = false
     private let instanceGuard: SingleInstanceGuard?
 
@@ -127,6 +128,9 @@ struct MHGLauncherApp: App {
         self.instanceGuard = instanceGuard
         _showsKeychainGuide = State(
             initialValue: instanceGuard != nil && KeychainAccessPrompt.shouldPresent()
+        )
+        _showsFinalDisclaimer = State(
+            initialValue: instanceGuard != nil && FinalDisclaimerConsent.shouldPresent()
         )
         let store = LauncherStore()
         _store = State(initialValue: store)
@@ -139,28 +143,39 @@ struct MHGLauncherApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if instanceGuard == nil {
-                EmptyView()
-            } else if showsKeychainGuide {
-                KeychainAccessGuideView(errorMessage: store.message) {
-                    switch KeychainAccessPrompt.authorizeAfterGuide() {
-                    case .success:
-                        showsKeychainGuide = false
+            Group {
+                if instanceGuard == nil {
+                    EmptyView()
+                } else if showsKeychainGuide {
+                    KeychainAccessGuideView(errorMessage: store.message) {
+                        switch KeychainAccessPrompt.authorizeAfterGuide() {
+                        case .success:
+                            showsKeychainGuide = false
+                            Task { await startLauncherIfNeeded() }
+                        case .failure(let error):
+                            store.message = LauncherStore.presentableMessage(
+                                error.localizedDescription
+                            )
+                        }
+                    }
+                } else {
+                    RootView(store: store)
+                        .frame(width: 1050, height: 700)
+                        .task {
+                            guard !showsFinalDisclaimer else { return }
+                            await startLauncherIfNeeded()
+                        }
+                        .onDisappear { Task { await store.backend.stop() } }
+                        .focusedSceneValue(\.launcherStore, store)
+                }
+            }
+            .sheet(isPresented: $showsFinalDisclaimer) {
+                FinalDisclaimerView(allowsCancellation: false) {
+                    showsFinalDisclaimer = false
+                    if !showsKeychainGuide {
                         Task { await startLauncherIfNeeded() }
-                    case .failure(let error):
-                        store.message = LauncherStore.presentableMessage(
-                            error.localizedDescription
-                        )
                     }
                 }
-            } else {
-                RootView(store: store)
-                    .frame(width: 1050, height: 700)
-                    .task {
-                        await startLauncherIfNeeded()
-                    }
-                    .onDisappear { Task { await store.backend.stop() } }
-                    .focusedSceneValue(\.launcherStore, store)
             }
         }
         .windowStyle(.automatic)
