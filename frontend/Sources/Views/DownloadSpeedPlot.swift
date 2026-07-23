@@ -30,7 +30,7 @@ struct DownloadSpeedPlot: View, Animatable {
                 x: .value("时间", \.time),
                 y: .value("速度", \.megabytesPerSecond)
             )
-            .foregroundStyle(.accentColor)
+            .foregroundStyle(Color.accentColor)
             .interpolationMethod(.catmullRom)
         }
         .chartXAxis(.hidden)
