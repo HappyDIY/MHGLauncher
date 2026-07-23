@@ -13,6 +13,9 @@ extension RuntimeArchive {
             }
         }
         if !current.isEmpty { try validateTarPath(current) }
+        try validateTarEntryTypes(
+            try await runTarListing(arguments: ["-tvzf", archiveURL.path])
+        )
     }
 
     static func extractTarGzip(_ archiveURL: URL, to destinationURL: URL) async throws {
@@ -22,10 +25,21 @@ extension RuntimeArchive {
     }
 
     private static func validateTarPath(_ data: Data) throws {
-        let path = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if path.hasPrefix("/") || path == ".." || path.contains("../") {
+        guard let decoded = String(data: data, encoding: .utf8) else {
+            throw RuntimeInstallError.archiveTraversal("无效 UTF-8 路径")
+        }
+        let path = decoded.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty, !path.hasPrefix("/"),
+              !path.split(separator: "/", omittingEmptySubsequences: false).contains("..") else {
             throw RuntimeInstallError.archiveTraversal(path)
+        }
+    }
+
+    private static func validateTarEntryTypes(_ data: Data) throws {
+        for line in data.split(separator: 0x0A) where !line.isEmpty {
+            guard line.first == 0x2D || line.first == 0x64 else {
+                throw RuntimeInstallError.archiveTraversal("链接或特殊文件")
+            }
         }
     }
 

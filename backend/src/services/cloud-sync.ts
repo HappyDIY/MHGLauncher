@@ -7,6 +7,7 @@ import type { CloudLoginResult, GameRole } from "../core/models";
 import type { Provider } from "../providers/provider";
 import type { WishService } from "./wishes";
 import type { AchievementService } from "./achievements";
+import { readBoundedBody } from "./http-response";
 import { z } from "zod";
 
 const cloudWish = z.object({
@@ -127,12 +128,26 @@ export class CloudSyncService {
 	    this.recordFailure(path, 503, "cloud_error");
       throw new AppError("cloud_error", "云同步服务暂不可用", 503);
     }
-    const payload = response.status === 204 ? {} as T & { code?: string; message?: string }
-      : await response.json() as T & { code?: string; message?: string };
+    let payload: T & { code?: string; message?: string };
+    if (response.status === 204) payload = {} as T & { code?: string; message?: string };
+    else {
+      const invalid = () => new AppError("cloud_payload_invalid", "云端响应格式无效", 502);
+      try {
+        payload = JSON.parse(
+          (await readBoundedBody(response, 64 * 1024 * 1024, invalid)).toString("utf8"),
+        ) as T & { code?: string; message?: string };
+      } catch (error) {
+        if (error instanceof AppError) throw error;
+        throw invalid();
+      }
+    }
     if (!response.ok) {
-      const code = payload.code && forwardedCloudErrors.has(payload.code) ? payload.code : "cloud_error";
-	    this.recordFailure(path, response.status, code, payload.code);
-      throw new AppError(code, payload.message ?? "云端服务请求失败", response.status);
+      const upstreamCode = typeof payload.code === "string" ? payload.code : undefined;
+      const code = upstreamCode && forwardedCloudErrors.has(upstreamCode) ? upstreamCode : "cloud_error";
+      const message = typeof payload.message === "string" && payload.message.length <= 1_024
+        ? payload.message : "云端服务请求失败";
+	    this.recordFailure(path, response.status, code, upstreamCode);
+      throw new AppError(code, message, response.status);
     }
     return payload;
   }

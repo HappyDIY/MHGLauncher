@@ -13,6 +13,7 @@ vi.mock("node:child_process", () => ({
 vi.mock("../src/services/process-command", () => ({ runCommand: runCommandMock }));
 
 const { WineLaunchRunner, gameArguments } = await import("../src/services/game-launch-process");
+const { safeLaunchBase } = await import("../src/services/game-launch-environment");
 
 const roots: string[] = [];
 
@@ -61,6 +62,17 @@ describe("Wine 游戏进程启动器", () => {
     expect(gameArguments("/games/Genshin Impact Game")).not.toContainEqual(
       expect.stringContaining("login_auth_ticket="),
     );
+  });
+
+  test("游戏进程环境不会继承启动器令牌和系统凭据", () => {
+    const environment = safeLaunchBase({
+      HOME: "/Users/test", PATH: "/usr/bin", TMPDIR: "/tmp",
+      MHG_API_TOKEN: "local-secret", SSH_AUTH_SOCK: "/tmp/agent",
+      DATABASE_URL: "postgres://secret", OTHER_PASSWORD: "secret",
+    });
+    expect(environment).toEqual({
+      NODE_ENV: "production", HOME: "/Users/test", PATH: "/usr/bin", TMPDIR: "/tmp",
+    });
   });
 });
 

@@ -3,7 +3,9 @@ import { createServer } from "node:http";
 import next from "next";
 import { closeContainer, container } from "./src/core/container";
 import { validateServerSettings } from "./src/core/config";
-import { releaseSocket, requireUnusedSocketPath, socketIdentity } from "./src/core/server-socket";
+import {
+  releaseSocket, requireUnusedSocketPath, socketIdentity, withPrivateSocketUmask,
+} from "./src/core/server-socket";
 
 const config = container().settings;
 validateServerSettings(config);
@@ -14,10 +16,10 @@ const server = createServer(application.getRequestHandler());
 server.requestTimeout = config.requestTimeout;
 server.headersTimeout = Math.min(config.requestTimeout, 60_000);
 
-await new Promise<void>((resolve, reject) => {
+await withPrivateSocketUmask(() => new Promise<void>((resolve, reject) => {
   server.once("error", reject);
   server.listen(config.socketPath, 128, () => resolve());
-});
+}));
 await chmod(config.socketPath, 0o600);
 const listeningSocket = await socketIdentity(config.socketPath);
 process.stdout.write(`${JSON.stringify({ event: "ready", socket_path: config.socketPath })}\n`);

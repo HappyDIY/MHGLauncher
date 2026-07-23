@@ -1,9 +1,11 @@
 import { createServer } from "node:net";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { releaseSocket, requireUnusedSocketPath, socketIdentity } from "../src/core/server-socket";
+import {
+  releaseSocket, requireUnusedSocketPath, socketIdentity, withPrivateSocketUmask,
+} from "../src/core/server-socket";
 
 describe("Unix Socket 所有权", () => {
   test("拒绝删除普通文件", async () => {
@@ -20,5 +22,15 @@ describe("Unix Socket 所有权", () => {
     await expect(releaseSocket(path, { ...identity, ino: identity.ino + 1 })).resolves.toBeUndefined();
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await expect(releaseSocket(path, identity)).resolves.toBeUndefined();
+  });
+
+  test("监听建立时 socket 从一开始就是 0600", async () => {
+    const path = join(mkdtempSync(join(tmpdir(), "mhg-socket-")), "server.sock");
+    const server = createServer();
+    await withPrivateSocketUmask(() => new Promise<void>((resolve, reject) => {
+      server.once("error", reject).listen(path, resolve);
+    }));
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+    await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 });

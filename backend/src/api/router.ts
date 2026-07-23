@@ -24,7 +24,7 @@ const startJob = z.object({ kind: z.enum(["install", "update", "verify", "predow
 const controlJob = z.object({ action: z.enum(["pause", "resume", "cancel"]) }).strict();
 const speedLimit = z.object({ speed_limit_kb: z.number().int().min(0).max(10_000_000) }).strict();
 const startLaunch = z.object({
-  install_path: z.string().min(1), performance_profile: z.enum(["optimized", "compatibility", "baseline"]).default("optimized"),
+  install_path: z.string().min(1).max(4096), performance_profile: z.enum(["optimized", "compatibility", "baseline"]).default("optimized"),
   metal_hud: z.boolean().default(false), network_debug: z.boolean().default(false),
   wine_log: z.boolean().default(false),
   frame_pacing: z.number().int().min(0).max(240).default(0), credential: z.string().min(1).max(16_384).optional(),
@@ -46,6 +46,7 @@ export async function dispatch(request: Request): Promise<Response> {
 
 async function route(method: string, path: string, query: URLSearchParams, body: unknown, signal: AbortSignal): Promise<Response> {
   const app = container();
+  if (method === "GET" && path === "/health") return json({ status: "ok", version: "1.0.0" });
   if (method === "GET" && path === "/app-update") return json(await app.appUpdates.latest());
   if (method === "GET" && path === "/accounts") return json(app.accounts.list());
   if (method === "GET" && path === "/account") return json(app.accounts.get());

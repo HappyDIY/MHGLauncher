@@ -45,16 +45,19 @@ export async function reverify(token: string, uid: string): Promise<{ uid: strin
   const session = await requireSession(token);
   if (session.uid !== uid) throw new HttpError(403, "identity_mismatch", "抽卡 URL 与云端会话 UID 不一致");
   const rotated = randomBytes(32).toString("base64url"), reverifiedAt = new Date().toISOString();
-  await pool().query("UPDATE sessions SET token_hash=$1,reverified_at=$2,last_seen_at=now() WHERE token_hash=$3", [hash(rotated), reverifiedAt, hash(token)]);
+  const result = await pool().query(`UPDATE sessions SET token_hash=$1,reverified_at=$2,last_seen_at=now()
+    WHERE token_hash=$3 AND uid=$4 AND revoked_at IS NULL AND expires_at>now()
+    AND last_seen_at>now()-interval '7 days' RETURNING uid`, [hash(rotated), reverifiedAt, hash(token), uid]);
+  if (!result.rowCount) throw new HttpError(401, "unauthorized", "云端会话无效");
   return { uid, token: rotated, token_ref: `keychain:cloud:${uid}`, reverified_at: reverifiedAt };
 }
 
 export async function requireSession(token: string, uid?: string): Promise<{ uid: string; reverified_at: string }> {
-  const digest = hash(token), result = await pool().query(`SELECT uid,reverified_at FROM sessions WHERE token_hash=$1
-    AND revoked_at IS NULL AND expires_at>now() AND last_seen_at>now()-interval '7 days'`, [digest]);
+  const digest = hash(token), result = await pool().query(`UPDATE sessions SET last_seen_at=now() WHERE token_hash=$1
+    AND revoked_at IS NULL AND expires_at>now() AND last_seen_at>now()-interval '7 days'
+    AND ($2::text IS NULL OR uid=$2) RETURNING uid,reverified_at`, [digest, uid ?? null]);
   const session = result.rows[0] as { uid: string; reverified_at: Date } | undefined;
-  if (!session || (uid && session.uid !== uid)) throw new HttpError(401, "unauthorized", "云端会话无效");
-  await pool().query("UPDATE sessions SET last_seen_at=now() WHERE token_hash=$1", [digest]);
+  if (!session) throw new HttpError(401, "unauthorized", "云端会话无效");
   return { uid: session.uid, reverified_at: session.reverified_at.toISOString() };
 }
 

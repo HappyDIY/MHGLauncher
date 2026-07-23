@@ -19,6 +19,16 @@ test("云服务网络失败时返回明确错误", async () => {
   await expect(app.cloud.uploadWishes("100000001", "token")).rejects.toMatchObject({ code: "cloud_error", status: 503 });
 });
 
+test("云端响应在解析前执行大小限制", async () => {
+  const app = fixture(); app.settings.cloudBaseUrl = "https://cloud.example";
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", {
+    headers: { "content-length": String(64 * 1024 * 1024 + 1) },
+  }));
+  await expect(app.cloud.login("https://example.com/gacha")).rejects.toMatchObject({
+    code: "cloud_payload_invalid",
+  });
+});
+
 test("云端鉴权错误保留可行动原因", async () => {
   const app = fixture(); app.settings.cloudBaseUrl = "https://cloud.example";
   vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json(

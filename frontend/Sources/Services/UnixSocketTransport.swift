@@ -131,17 +131,21 @@ private func parse(_ data: Data) throws -> APIResponse {
     let lines = text.components(separatedBy: "\r\n")
     guard let status = lines.first?.split(separator: " ").dropFirst().first.flatMap({ Int($0) })
     else { throw URLError(.cannotParseResponse) }
-    let pairs: [(String, String)] = lines.dropFirst().compactMap { line in
-        guard let index = line.firstIndex(of: ":") else { return nil }
-        return (line[..<index].lowercased(), line[line.index(after: index)...].trimmingCharacters(in: .whitespaces))
+    var headers: [String: String] = [:]
+    for line in lines.dropFirst() {
+        guard let index = line.firstIndex(of: ":") else { throw URLError(.cannotParseResponse) }
+        let name = line[..<index].lowercased()
+        guard !name.isEmpty, headers[name] == nil else { throw URLError(.cannotParseResponse) }
+        headers[name] = line[line.index(after: index)...].trimmingCharacters(in: .whitespaces)
     }
-    let headers = Dictionary(uniqueKeysWithValues: pairs)
     let body = Data(data[boundary.upperBound...])
     if headers["transfer-encoding"]?.lowercased().contains("chunked") == true {
+        guard headers["content-length"] == nil else { throw URLError(.cannotParseResponse) }
         return APIResponse(status: status, body: try decodeChunks(body))
     }
-    if let length = headers["content-length"].flatMap(Int.init), body.count < length {
-        throw URLError(.networkConnectionLost)
+    if let rawLength = headers["content-length"] {
+        guard let length = Int(rawLength), length >= 0 else { throw URLError(.cannotParseResponse) }
+        guard body.count == length else { throw URLError(.networkConnectionLost) }
     }
     return APIResponse(status: status, body: body)
 }

@@ -23,7 +23,7 @@ export function validateSophonPatches(assets: GamePatchAsset[]): GamePatchAsset[
     if (!safePath(asset.name) || !integer(asset.size, 0) || !md5.test(asset.md5)
       || !identifier.test(patch.id) || !integer(patch.file_size, 1) || !integer(patch.start, 0)
       || !integer(patch.length, 1) || patch.start + patch.length > patch.file_size
-      || (patch.original_name !== "" && !safePath(patch.original_name))) invalid();
+      || !safeRemoteURL(patch.url) || (patch.original_name !== "" && !safePath(patch.original_name))) invalid();
     const name = asset.name.toLowerCase(); if (names.has(name)) invalid(); names.add(name);
     const signature = JSON.stringify([patch.file_size]);
     if (patches.has(patch.id) && patches.get(patch.id) !== signature) invalid();
@@ -40,7 +40,8 @@ export function validateSophonPaths(paths: string[]): string[] {
 function validateChunk(chunk: SophonChunk, assetSize: number, known: Map<string, string>): void {
   if (!identifier.test(chunk.name) || !md5.test(chunk.decompressed_md5) || !integer(chunk.offset, 0)
     || !integer(chunk.size, 1) || !integer(chunk.decompressed_size, 0)
-    || chunk.decompressed_size > maxChunkOutput || chunk.offset + chunk.decompressed_size > assetSize) invalid();
+    || chunk.decompressed_size > maxChunkOutput || chunk.offset + chunk.decompressed_size > assetSize
+    || !safeRemoteURL(chunk.url)) invalid();
   const signature = JSON.stringify([chunk.size, chunk.decompressed_size, chunk.decompressed_md5.toLowerCase()]);
   if (known.has(chunk.name) && known.get(chunk.name) !== signature) invalid();
   known.set(chunk.name, signature);
@@ -54,6 +55,13 @@ function safePath(value: string): boolean {
   const normalized = value.replaceAll("\\", "/");
   return Boolean(normalized) && !normalized.includes("\0") && !isAbsolute(normalized)
     && normalized.split("/").every((part) => part !== "" && part !== "." && part !== "..");
+}
+
+function safeRemoteURL(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && Boolean(url.hostname) && !url.username && !url.password;
+  } catch { return false; }
 }
 
 function invalid(): never {

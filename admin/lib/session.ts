@@ -14,10 +14,11 @@ export async function requireSession(): Promise<AdminSession> {
   if (!token) redirect("/login");
   await ready();
   const tokenHash = digest(token);
-  const result = await pool().query(`SELECT o.email,s.csrf_token FROM admin.admin_sessions s JOIN admin.owner o ON o.id=s.owner_id
-    WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now() AND s.last_seen_at>now()-interval '12 hours'`, [tokenHash]);
+  const result = await pool().query(`UPDATE admin.admin_sessions s SET last_seen_at=now() FROM admin.owner o
+    WHERE s.token_hash=$1 AND s.owner_id=o.id AND s.revoked_at IS NULL
+    AND s.expires_at>now() AND s.last_seen_at>now()-interval '12 hours'
+    RETURNING o.email,s.csrf_token`, [tokenHash]);
   if (!result.rows[0]) redirect("/login");
-  await pool().query("UPDATE admin.admin_sessions SET last_seen_at=now() WHERE token_hash=$1", [tokenHash]);
   return { email: String(result.rows[0].email), csrf: String(result.rows[0].csrf_token), tokenHash };
 }
 

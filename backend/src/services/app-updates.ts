@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Settings } from "../core/config";
 import { AppError } from "../core/errors";
+import { readBoundedBody } from "./http-response";
 
 const manifest = z.object({
   version: z.string().regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/),
@@ -32,10 +33,8 @@ export class AppUpdateService {
     } catch {
       throw new AppError("update_check_failed", "暂时无法检查应用更新", 503);
     }
-    const length = Number(response.headers.get("content-length") ?? 0);
-    if (length > 1024 * 1024) throw new AppError("update_payload_invalid", "云端更新信息无效", 502);
-    const text = await response.text();
-    if (text.length > 1024 * 1024) throw new AppError("update_payload_invalid", "云端更新信息无效", 502);
+    const invalid = () => new AppError("update_payload_invalid", "云端更新信息无效", 502);
+    const text = (await readBoundedBody(response, 1024 * 1024, invalid)).toString("utf8");
     let payload: unknown;
     try { payload = JSON.parse(text); }
     catch { throw new AppError("update_payload_invalid", "云端更新信息无效", 502); }

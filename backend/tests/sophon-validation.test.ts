@@ -19,6 +19,17 @@ test("拒绝同名但元数据不一致的共享分块", () => {
   ])).toThrow("无效字段");
 });
 
+test("拒绝资源清单指向不安全的下载地址", () => {
+  expect(() => validateSophonAssets([{ name: "game.bin", size: 1, md5: "0".repeat(32), chunks: [{
+    name: "0123456789abcdef_chunk", decompressed_md5: "0".repeat(32), offset: 0,
+    size: 1, decompressed_size: 1, url: "http://127.0.0.1/private",
+  }] }])).toThrow("无效字段");
+  expect(() => validateSophonPatches([{ name: "game.bin", size: 1, md5: "0".repeat(32), patch: {
+    id: "0123456789abcdef_patch", file_size: 1, start: 0, length: 1,
+    original_name: "", url: "https://user:secret@fixture/patch",
+  } }])).toThrow("无效字段");
+});
+
 test("拒绝补丁越界和退役文件路径穿越", () => {
   expect(() => validateSophonPatches([{ name: "game.bin", size: 1, md5: "0".repeat(32), patch: {
     id: "0123456789abcdef_patch", file_size: 1, start: 1, length: 1, original_name: "", url: "https://fixture",

@@ -17,5 +17,5 @@ export type Release = {
 
 export type AuditEvent = {
   id: number; actor: string; action: string; target_type: string; target_ref: string;
-  result: string; metadata?: Record<string, unknown>; created_at: string;
+  result: "success" | "failure"; metadata?: Record<string, unknown>; created_at: string;
 };

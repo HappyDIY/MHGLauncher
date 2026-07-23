@@ -8,6 +8,21 @@ export interface RuntimePaths {
   probe: string; dnsGate: string; mhypbase: string;
 }
 
+const inheritedEnvironmentKeys = [
+  "HOME", "USER", "LOGNAME", "PATH", "TMPDIR", "TMP", "TEMP",
+  "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "__CF_USER_TEXT_ENCODING",
+] as const;
+
+export function safeLaunchBase(base: Readonly<Record<string, string | undefined>>): NodeJS.ProcessEnv {
+  return {
+    NODE_ENV: base.NODE_ENV === "development" || base.NODE_ENV === "test" ? base.NODE_ENV : "production",
+    ...Object.fromEntries(inheritedEnvironmentKeys.flatMap((key) => {
+      const value = base[key];
+      return value === undefined ? [] : [[key, value]];
+    })),
+  };
+}
+
 export function runtimePaths(root: string): RuntimePaths {
   const paths = {
     wine: join(root, "wine", "bin", "wine"), wineboot: join(root, "wine", "bin", "wineboot"),
@@ -27,15 +42,16 @@ export function launchEnvironment(
   mkdirSync(sessionDir, { recursive: true, mode: 0o700 });
   writeFileSync(gate, String(process.pid), { mode: 0o600 });
   const optimized = profile === "optimized", compatibility = profile === "compatibility";
+  const inherited = safeLaunchBase(base);
   const environment: NodeJS.ProcessEnv = {
-    ...base, LANG: "zh_CN.UTF-8", LANGUAGE: "zh_CN:zh", LC_ALL: "zh_CN.UTF-8", LC_MESSAGES: "zh_CN.UTF-8",
+    ...inherited, LANG: "zh_CN.UTF-8", LANGUAGE: "zh_CN:zh", LC_ALL: "zh_CN.UTF-8", LC_MESSAGES: "zh_CN.UTF-8",
     WINEPREFIX: prefix, WINEARCH: "win64", WINEDEBUG: wineLog ? "fixme-all" : "-all", WINEDLLOVERRIDES: "winedbg.exe=d",
     WINEMSYNC: optimized ? "1" : "0", WINEESYNC: compatibility ? "1" : "0",
     DYLD_INSERT_LIBRARIES: paths.dnsGate, MHG_DNS_GATE_FILE: gate,
     MHG_DNS_GATE_HOSTS: "dispatchcnglobal.yuanshen.com,dispatchosglobal.yuanshen.com",
     MHG_DNS_GATE_OWNER_PID: String(process.pid), MTL_HUD_ENABLED: metalHud ? "1" : "0",
     DXMT_LOG_LEVEL: metalHud ? "info" : "warn", DXMT_LOG_PATH: join(sessionDir, "dxmt"),
-    DXMT_SHADER_CACHE_PATH: join(base.HOME ?? "", "Library", "Caches", "MHGLauncher", "dxmt", "YuanShen.exe"),
+    DXMT_SHADER_CACHE_PATH: join(inherited.HOME ?? "", "Library", "Caches", "MHGLauncher", "dxmt", "YuanShen.exe"),
     DXMT_CONFIG: framePacing > 0 ? `d3d11.preferredMaxFrameRate=${framePacing};` : "",
   };
   if (networkDebug) {

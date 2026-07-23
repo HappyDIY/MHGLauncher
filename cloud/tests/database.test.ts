@@ -81,6 +81,11 @@ test("上传严格校验记录、数组和请求体边界", async () => {
   const item = { id: "1", uid: "100000010", gacha_type: "301", uigf_gacha_type: "301", item_id: "1",
     name: "角色", item_type: "角色", rank: 5, time: "2026-01-01T00:00:00Z" };
   expect((await cloudRequest("POST", "/api/v1/gacha/upload", session.token, { items: [{ ...item, rank: 9 }] })).status).toBe(422);
+  const mismatched = await cloudRequest("POST", "/api/v1/gacha/upload", session.token, {
+    items: [{ ...item, uid: "100000011" }],
+  });
+  expect(mismatched.status).toBe(403);
+  expect(await mismatched.json()).toMatchObject({ code: "identity_mismatch" });
   expect((await cloudRequest("POST", "/api/v1/gacha/upload", session.token, { items: [item], ignored: true })).status).toBe(422);
   const tooLarge = await dispatch(new Request("http://cloud/api/v1/gacha/upload", {
     method: "POST", headers: { Authorization: `Bearer ${session.token}`, "Content-Type": "application/json", "Content-Length": String(16 * 1024 * 1024 + 1) }, body: "{}",

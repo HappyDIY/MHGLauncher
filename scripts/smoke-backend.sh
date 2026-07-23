@@ -31,7 +31,8 @@ ln -sfn "$("$root/scripts/prepare-smoke-node-modules.sh")" "$app_dir/node_module
 pid=$!
 for _ in {1..100}; do [[ -S "$socket" ]] && break; sleep 0.05; done
 test -S "$socket"
-curl --fail --silent --unix-socket "$socket" http://localhost/health | grep -q '"status":"ok"'
+curl --fail --silent --unix-socket "$socket" -H "Authorization: Bearer smoke-token" \
+  http://localhost/health | grep -q '"status":"ok"'
 test "$(stat -f '%Lp' "$socket")" = "600"
 if lsof -nP -a -p "$pid" -iTCP -sTCP:LISTEN | grep -q LISTEN; then
   printf '后端不应监听 TCP 端口\n' >&2

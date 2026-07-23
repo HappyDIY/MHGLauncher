@@ -3,6 +3,12 @@ import { AppError } from "./errors";
 
 export interface SocketIdentity { dev: number; ino: number }
 
+export async function withPrivateSocketUmask<T>(action: () => Promise<T>): Promise<T> {
+  const previous = process.umask(0o177);
+  try { return await action(); }
+  finally { process.umask(previous); }
+}
+
 export async function requireUnusedSocketPath(path: string): Promise<void> {
   try {
     await lstat(path);

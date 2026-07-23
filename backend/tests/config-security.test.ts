@@ -14,6 +14,18 @@ describe("服务安全配置", () => {
     }))).toThrow("MHG_REQUEST_TIMEOUT");
   });
 
+  test("拒绝会导致下载队列停滞的并发与限速配置", () => {
+    expect(() => validateServerSettings(settings({
+      NODE_ENV: "test", MHG_API_TOKEN: "token", MHG_DOWNLOAD_WORKERS: "0",
+    }))).toThrow("MHG_DOWNLOAD_WORKERS");
+    expect(() => validateServerSettings(settings({
+      NODE_ENV: "test", MHG_API_TOKEN: "token", MHG_DOWNLOAD_WORKERS: "1.5",
+    }))).toThrow("MHG_DOWNLOAD_WORKERS");
+    expect(() => validateServerSettings(settings({
+      NODE_ENV: "test", MHG_API_TOKEN: "token", MHG_DOWNLOAD_SPEED_LIMIT: "-1",
+    }))).toThrow("MHG_DOWNLOAD_SPEED_LIMIT");
+  });
+
   test("接受有效服务配置", () => {
     expect(() => validateServerSettings(settings({
       NODE_ENV: "test",

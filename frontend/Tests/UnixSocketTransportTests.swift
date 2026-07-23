@@ -39,6 +39,20 @@ struct UnixSocketTransportTests {
         }
     }
 
+    @Test("拒绝重复长度头和超出声明长度的响应")
+    func ambiguousLength() {
+        let duplicate = Data(
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nContent-Length: 3\r\n\r\nok".utf8
+        )
+        let overlong = Data("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nokay".utf8)
+        #expect(throws: Error.self) {
+            _ = try UnixSocketTransport.parseResponse(duplicate)
+        }
+        #expect(throws: Error.self) {
+            _ = try UnixSocketTransport.parseResponse(overlong)
+        }
+    }
+
     @Test("生成短 Socket 路径")
     func shortPath() {
         #expect(BackendProcess.makeSocketPath().utf8.count < 104)

@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { join } from "node:path";
 import type { GameCharacter } from "../core/models";
 import { AppError } from "../core/errors";
+import { readBoundedBody } from "./http-response";
 
 const imageName = /^[a-f0-9]{64}\.img$/;
 const imageKeys = new Set(["icon", "image", "side_icon"]);
@@ -56,9 +57,8 @@ export class ImageResourceCache {
       const response = await fetch(url, { signal: AbortSignal.timeout(60_000) });
       const finalURL = response.url ? this.remoteURL(response.url) : url;
       if (!response.ok || !finalURL) throw new AppError("image_cache_download_failed", `素材下载失败：${response.status}`, 502);
-      const length = Number(response.headers.get("content-length") ?? 0);
-      if (length > 50 * 1024 * 1024) throw new AppError("image_cache_too_large", "素材文件过大", 502);
-      const data = Buffer.from(await response.arrayBuffer());
+      const tooLarge = () => new AppError("image_cache_too_large", "素材文件过大", 502);
+      const data = await readBoundedBody(response, 50 * 1024 * 1024, tooLarge);
       if (!validImage(data)) throw new AppError("image_cache_invalid", "素材文件格式无效", 502);
       writeFileSync(partial, data, { mode: 0o600 }); renameSync(partial, path);
     } finally { rmSync(partial, { force: true }); }

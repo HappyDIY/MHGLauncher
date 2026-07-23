@@ -11,6 +11,7 @@ import { DownloadControl, hash } from "./download";
 import { streamDownload } from "./download-transfer";
 import { activate, extract, safeTarget, verify } from "./installer";
 import { catalogFiles, readCatalog, resourceFile, type Catalog, type Metadata } from "./gacha-resource-catalog";
+import { readBoundedBody } from "./http-response";
 import { ImageResourceCache } from "./image-resource-cache";
 const remoteManifestSchema = z.object({
   schema_version: z.literal(1), version: z.string().min(1).max(64),
@@ -123,8 +124,8 @@ export class GachaResourceService {
   private async remoteManifest(): Promise<z.infer<typeof remoteManifestSchema>> {
     const response = await fetch(this.manifestUrl!, { signal: AbortSignal.timeout(30_000) });
     if (!response.ok) throw new AppError("gacha_resource_manifest_failed", `历史卡池资源清单下载失败：${response.status}`, 502);
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.length > 1024 * 1024) throw new AppError("gacha_resource_manifest_invalid", "历史卡池资源清单过大", 502);
+    const tooLarge = () => new AppError("gacha_resource_manifest_invalid", "历史卡池资源清单过大", 502);
+    const bytes = await readBoundedBody(response, 1024 * 1024, tooLarge);
     try { return remoteManifestSchema.parse(JSON.parse(Buffer.from(bytes).toString("utf8"))); }
     catch { throw new AppError("gacha_resource_manifest_invalid", "历史卡池资源清单无效", 502); }
   }

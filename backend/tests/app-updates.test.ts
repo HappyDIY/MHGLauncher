@@ -29,6 +29,8 @@ describe("应用更新代理", () => {
       headers: { "Content-Length": String(1024 * 1024 + 1) },
     }));
     await expect(oversized.latest()).rejects.toMatchObject({ code: "update_payload_invalid" });
+    const chunked = new AppUpdateService(config, async () => new Response("x".repeat(1024 * 1024 + 1)));
+    await expect(chunked.latest()).rejects.toMatchObject({ code: "update_payload_invalid" });
   });
 
   test("屏蔽云端内部错误码", async () => {

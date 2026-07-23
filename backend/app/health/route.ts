@@ -1,8 +1,6 @@
-import { NextResponse } from "next/server";
+import { dispatch } from "../../src/api/router";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export function GET(): NextResponse {
-  return NextResponse.json({ status: "ok", version: "1.0.0" });
-}
+export const GET = dispatch;

@@ -20,7 +20,10 @@ export async function uploadWithClient(client: PoolClient, uid: string, items: u
   const unique = new Map<string, CloudWish>();
   let parsed: CloudWish[]; try { parsed = z.array(cloudWishSchema).max(20_000).parse(items); }
   catch { throw new HttpError(422, "gacha_items_invalid", "抽卡记录格式无效"); }
-  for (const item of parsed) if (item.uid === uid) unique.set(item.id, item);
+  if (parsed.some((item) => item.uid !== uid)) {
+    throw new HttpError(403, "identity_mismatch", "抽卡记录 UID 与云端会话不一致");
+  }
+  for (const item of parsed) unique.set(item.id, item);
   const filtered = [...unique.values()].sort((left, right) => left.id.length - right.id.length || left.id.localeCompare(right.id));
   for (const item of filtered) {
     await client.query(`INSERT INTO gacha_records(uid,id,gacha_type,uigf_gacha_type,item_id,name,item_type,rank,time,payload)

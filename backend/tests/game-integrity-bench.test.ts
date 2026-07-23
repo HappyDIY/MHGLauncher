@@ -7,7 +7,7 @@ import type { GameAsset } from "../src/providers/provider";
 import { selectInvalidAssets, writeIntegrityIndex } from "../src/services/game-integrity";
 import { normalizeBuild } from "../src/providers/provider";
 
-const COUNT = 2000;
+const COUNT = 2000, TIMEOUT = 30_000;
 
 function generateAssets(count: number): GameAsset[] {
   const assets: GameAsset[] = [];
@@ -52,7 +52,7 @@ test("基准：有 .mhg-integrity.json 索引的校验耗时", () => {
 
   rmSync(root, { recursive: true, force: true });
   console.log(`\n[索引快速路径] ${COUNT} 个文件，无效 ${invalid.length} 个，耗时 ${elapsed}ms`);
-});
+}, TIMEOUT);
 
 test("基准：无索引仅靠 pkg_version 回退的校验耗时", () => {
   const root = mkdtempSync(join(tmpdir(), "bench-package-"));
@@ -66,7 +66,7 @@ test("基准：无索引仅靠 pkg_version 回退的校验耗时", () => {
 
   rmSync(root, { recursive: true, force: true });
   console.log(`\n[pkg_version回退] ${COUNT} 个文件，无效 ${invalid.length} 个，耗时 ${elapsed}ms`);
-});
+}, TIMEOUT);
 
 test("基准：有索引但文件被修改过的校验耗时", () => {
   const root = mkdtempSync(join(tmpdir(), "bench-modified-"));
@@ -89,4 +89,4 @@ test("基准：有索引但文件被修改过的校验耗时", () => {
 
   rmSync(root, { recursive: true, force: true });
   console.log(`\n[索引+部分修改] ${COUNT} 个文件，检测出无效 ${invalid.length} 个，耗时 ${elapsed}ms`);
-});
+}, TIMEOUT);

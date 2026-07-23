@@ -52,6 +52,13 @@ export function validateServerSettings(value: Settings): void {
   if (!Number.isFinite(value.requestTimeout) || value.requestTimeout < 1_000 || value.requestTimeout > 300_000) {
     throw new AppError("request_timeout_invalid", "MHG_REQUEST_TIMEOUT 必须位于 1000 到 300000 毫秒之间", 500);
   }
+  if (!Number.isInteger(value.downloadWorkers) || value.downloadWorkers < 1 || value.downloadWorkers > 32) {
+    throw new AppError("download_workers_invalid", "MHG_DOWNLOAD_WORKERS 必须是 1 到 32 之间的整数", 500);
+  }
+  if (!Number.isInteger(value.downloadSpeedLimitKB)
+    || value.downloadSpeedLimitKB < 0 || value.downloadSpeedLimitKB > 10_000_000) {
+    throw new AppError("download_speed_limit_invalid", "MHG_DOWNLOAD_SPEED_LIMIT 必须是有效的非负整数", 500);
+  }
   let cloudUrl: URL;
   try { cloudUrl = new URL(value.cloudBaseUrl ?? ""); }
   catch { throw new AppError("cloud_url_invalid", "MHG_CLOUD_BASE_URL 必须是有效 URL", 500); }

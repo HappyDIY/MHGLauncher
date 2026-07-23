@@ -18,6 +18,21 @@ struct SingleInstanceGuardTests {
         #expect(SingleInstanceGuard.acquire(lockURL: lockURL) != nil)
     }
 
+    @Test("启动锁拒绝符号链接且不改写目标")
+    func rejectsSymlinkLock() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "mhg-instance-link-\(UUID().uuidString)")
+        let target = directory.appending(path: "target")
+        let lockURL = directory.appending(path: "app.lock")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data("保留".utf8).write(to: target)
+        try FileManager.default.createSymbolicLink(at: lockURL, withDestinationURL: target)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        #expect(SingleInstanceGuard.acquire(lockURL: lockURL) == nil)
+        #expect(try Data(contentsOf: target) == Data("保留".utf8))
+    }
+
     @Test("启动锁路径支持环境变量覆盖")
     func lockPathOverride() {
         let url = SingleInstanceGuard.defaultLockURL(

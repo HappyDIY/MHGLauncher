@@ -21,8 +21,18 @@ final class SingleInstanceGuard {
             at: lockURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        let descriptor = open(lockURL.path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR)
+        let descriptor = open(
+            lockURL.path,
+            O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC,
+            S_IRUSR | S_IWUSR
+        )
         guard descriptor >= 0 else { return nil }
+        var info = stat()
+        guard fstat(descriptor, &info) == 0, info.st_mode & S_IFMT == S_IFREG else {
+            close(descriptor)
+            return nil
+        }
+        _ = fchmod(descriptor, S_IRUSR | S_IWUSR)
 
         guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
             close(descriptor)

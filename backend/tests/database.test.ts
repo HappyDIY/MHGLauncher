@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { expect, test } from "vitest";
@@ -16,6 +16,19 @@ test("复用旧 SQLite 数据并建立迁移记录", () => {
 test("数据库启用 WAL", () => expect(fixture().store.one("PRAGMA journal_mode")?.journal_mode).toBe("wal"));
 test("数据目录自动建立", () => { const app = fixture(); const marker = join(app.settings.dataDir, "marker"); writeFileSync(marker, "x"); expect(existsSync(marker)).toBe(true); });
 test("SQLite 驱动可读取原表", () => { const app = fixture(); expect(new Database(app.settings.databasePath, { readonly: true }).prepare("SELECT name FROM sqlite_master WHERE name='wishes'").get()).toBeTruthy(); });
+test("数据库与安全迁移备份仅允许当前用户读取", () => {
+  const root = mkdtempSync(join(tmpdir(), "mhg-database-mode-")), path = join(root, "data.db");
+  writeFileSync(path, "");
+  const store = new Store(path); store.close();
+  expect(statSync(path).mode & 0o777).toBe(0o600);
+  expect(statSync(`${path}.pre-security.bak`).mode & 0o777).toBe(0o600);
+});
+
+test("数据库拒绝符号链接路径", () => {
+  const root = mkdtempSync(join(tmpdir(), "mhg-database-link-")), target = join(root, "target");
+  writeFileSync(target, "保留内容"); symlinkSync(target, join(root, "data.db"));
+  expect(() => new Store(join(root, "data.db"))).toThrow("普通文件");
+});
 
 test("安全迁移保留跨 UID 同号祈愿并隔离坏时间", () => {
   const root = mkdtempSync(join(tmpdir(), "mhg-migration-")), path = join(root, "legacy.db");

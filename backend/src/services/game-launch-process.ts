@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { AppError } from "../core/errors";
 import type { GameLaunchStatus, GamePerformanceProfile } from "../core/models";
-import { launchEnvironment, runtimePaths } from "./game-launch-environment";
+import { launchEnvironment, runtimePaths, safeLaunchBase } from "./game-launch-environment";
 import { configureChineseGameLanguage } from "./game-launch-language";
 import { runCommand } from "./process-command";
 import { stopWineServer } from "./game-wine-server";
@@ -96,7 +96,7 @@ export class WineLaunchRunner implements GameLaunchRunner {
     mkdirSync(prefix, { recursive: true, mode: 0o700 });
     await stopWineServer(wineserver, prefix);
     const localeEnv = {
-      ...process.env, LANG: "zh_CN.UTF-8", LANGUAGE: "zh_CN:zh",
+      ...safeLaunchBase(process.env), LANG: "zh_CN.UTF-8", LANGUAGE: "zh_CN:zh",
       LC_ALL: "zh_CN.UTF-8", LC_MESSAGES: "zh_CN.UTF-8",
       WINEPREFIX: prefix, WINEARCH: "win64", WINEDEBUG: "-all",
       WINEMSYNC: profile === "optimized" ? "1" : "0", WINEESYNC: profile === "compatibility" ? "1" : "0",

@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import { existsSync, mkdirSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { securityMigrations } from "./database-security-migrations";
 
@@ -40,19 +40,30 @@ export class Store {
   readonly db: Database.Database;
   private readonly statements = new Map<string, Database.Statement>();
 
-	  constructor(path: string) {
-	    const existing = existsSync(path), backup = `${path}.pre-security.bak`;
-	    mkdirSync(dirname(path), { recursive: true });
-	    this.db = new Database(path);
-	    if (existing && !existsSync(backup)) {
-	      this.db.pragma("wal_checkpoint(FULL)");
-	      this.db.exec(`VACUUM INTO '${backup.replaceAll("'", "''")}'`);
-	    }
-	    this.db.exec(schema);
-	    this.runMigrations();
-	    const columns = this.db.prepare("PRAGMA table_info(wishes)").all() as { name: string }[];
-	    if (!columns.some(({ name }) => name === "uigf_gacha_type")) {
-	      this.db.exec("ALTER TABLE wishes ADD COLUMN uigf_gacha_type TEXT NOT NULL DEFAULT ''");
+  constructor(path: string) {
+    const previousUmask = process.umask(0o077);
+    try {
+      const existing = existsSync(path), backup = `${path}.pre-security.bak`;
+      mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+      if (existing && !lstatSync(path).isFile()) throw new Error("数据库路径必须是普通文件");
+      if (existsSync(backup) && !lstatSync(backup).isFile()) {
+        throw new Error("数据库备份路径必须是普通文件");
+      }
+      this.db = new Database(path);
+      chmodSync(path, 0o600);
+      if (existing && !existsSync(backup)) {
+        this.db.pragma("wal_checkpoint(FULL)");
+        this.db.exec(`VACUUM INTO '${backup.replaceAll("'", "''")}'`);
+      }
+      if (existsSync(backup)) chmodSync(backup, 0o600);
+      this.db.exec(schema);
+      this.runMigrations();
+      const columns = this.db.prepare("PRAGMA table_info(wishes)").all() as { name: string }[];
+      if (!columns.some(({ name }) => name === "uigf_gacha_type")) {
+        this.db.exec("ALTER TABLE wishes ADD COLUMN uigf_gacha_type TEXT NOT NULL DEFAULT ''");
+      }
+    } finally {
+      process.umask(previousUmask);
     }
   }
 
