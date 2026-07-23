@@ -14,8 +14,8 @@
   },
   "dependencies": {
     "better-sqlite3": "12.11.1",
-    "next": "16.2.9",
-    "protobufjs": "8.6.4",
+    "next": "16.2.11",
+    "protobufjs": "8.7.1",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "xxhash-wasm": "1.1.0",
