@@ -29,6 +29,25 @@ describe("云端认证工具", () => {
 	    expect(Object.fromEntries(request.searchParams)).toMatchObject({ gacha_type: "301", size: "20", end_id: "0" });
   });
 
+  test("抽卡服务网络波动时自动重试", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch")
+      .mockRejectedValueOnce(new TypeError("timeout"))
+      .mockRejectedValueOnce(new TypeError("timeout"))
+      .mockResolvedValue(Response.json({ retcode: 0, data: {
+        uid: "100000002", list: [{ uid: "100000002", id: "1", gacha_type: "301", item_id: "",
+          name: "角色", item_type: "角色", rank_type: "5", time: "2026-01-01 08:00:00" }],
+      } }));
+    await expect(verifyGachaUrl("https://public-operation-hk4e.mihoyo.com/gacha?authkey=x"))
+      .resolves.toMatchObject({ uid: "100000002" });
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
+  test("抽卡服务持续不可达时返回稳定错误", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("timeout"));
+    await expect(verifyGachaUrl("https://public-operation-hk4e.mihoyo.com/gacha?authkey=x"))
+      .rejects.toMatchObject({ status: 503, code: "gacha_upstream_unavailable" });
+  });
+
   test("内部异常不会把原文返回客户端", async () => {
     const response = fail(new Error("postgres password=secret"));
     expect(await response.json()).toEqual({ code: "internal_error", message: "云端服务异常" });
