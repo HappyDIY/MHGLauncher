@@ -5,6 +5,16 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
+for script in build-app.sh build-backend.sh build-frontend.sh; do
+  if "$root/scripts/$script" debug >/dev/null 2>&1; then
+    printf '%s 仍接受 debug 构建配置。\n' "$script" >&2
+    exit 1
+  fi
+done
+test ! -e "$root/debug-app.command"
+test ! -e "$root/scripts/build-backend-debug.sh"
+test ! -e "$root/scripts/build-debug-app.sh"
+
 configure() {
   cp "$root/packaging/Info.plist" "$work/Info.plist"
   env -u MHG_CLOUD_BASE_URL swift "$root/scripts/configure-cloud-server.swift" \

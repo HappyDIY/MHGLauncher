@@ -89,7 +89,7 @@ rm -rf "$out"
 mkdir -p "$out"
 : >"$component_file"
 
-"$root/scripts/build-backend.sh" release
+"$root/scripts/build-backend.sh"
 node_root="$("$root/scripts/fetch-node.sh")"
 
 backend_stage="$stage/backend"

@@ -104,7 +104,7 @@ npm run migrate      # tsx scripts/migrate.ts
 npm run owner:create # tsx scripts/create-owner.ts
 
 # frontend (Swift)
-cd frontend && swift build -c debug --arch arm64
+cd frontend && swift build -c release --arch arm64
 swift test
 swift test --filter APIClientTests          # single test class
 ```
@@ -116,17 +116,16 @@ scripts/test-all.sh          # full CI: source-line check + build config + all c
 scripts/test-backend.sh      # npm ci + typecheck + lint + test + source-line check
 scripts/test-frontend.sh     # swift test + source-line check
 scripts/test-features.sh     # backend feature matrix over a real Unix socket (fixture mode)
-scripts/build-app.sh [--debug|--release]   # builds backend + frontend, assembles dist/MHGLauncher.app
+scripts/build-app.sh          # builds release backend + frontend, assembles dist/MHGLauncher.app
 scripts/smoke-app.sh         # launches the built .app in fixture/smoke mode, verifies parent/child process teardown
 scripts/check-source-lines.sh   # enforce 200-line limit
 scripts/check-api-boundary.sh  # validates Swift/TypeScript API contract consistency
 ```
 
-Local dev / release from a terminal:
+Local release from a terminal:
 
 ```bash
-./debug-app.command     # build (if source changed) + run debug app, streams logs to the terminal
-./release-app.command   # build (if source changed via git-hash signature) + run release app
+./release-app.command   # selectively test, build changed release components, and run the app
 docker compose up       # runs cloud + admin + postgres locally
 ```
 

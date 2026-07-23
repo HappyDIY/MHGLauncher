@@ -3,20 +3,15 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
-mode="${1:-release}"
 
-case "$mode" in
-  --debug|debug|development) configuration="debug" ;;
-  --release|release|production) configuration="release" ;;
-  *)
-    printf '未知前端构建配置：%s\n' "$mode" >&2
-    exit 2
-    ;;
-esac
+if (( $# != 0 )); then
+  printf '前端仅保留 release 构建，不再接受构建配置参数。\n' >&2
+  exit 2
+fi
 
 cd "$root/frontend"
-swift build -c "$configuration" --arch arm64
+swift build -c release --arch arm64
 
-binary="$root/frontend/.build/arm64-apple-macosx/$configuration/MHGLauncher"
+binary="$root/frontend/.build/arm64-apple-macosx/release/MHGLauncher"
 test -x "$binary"
 file "$binary" | grep -q 'arm64'

@@ -4,42 +4,36 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 app="$root/dist/MHGLauncher.app"
 contents="$app/Contents"
-mode="${1:-release}"
+backend_dir="${MHG_BACKEND_DIR:-}"
 configured_plist="$(mktemp)"
 trap 'rm -f "$configured_plist"' EXIT
+
+if (( $# != 0 )); then
+  printf 'App 仅保留 release 构建，不再接受构建配置参数。\n' >&2
+  exit 2
+fi
 
 cp "$root/packaging/Info.plist" "$configured_plist"
 swift "$root/scripts/configure-cloud-server.swift" "$root/.env" "$configured_plist"
 
-case "$mode" in
-  --debug|debug|development)
-    backend_mode="debug"
-    frontend_configuration="debug"
-    ;;
-  --release|release|production)
-    backend_mode="release"
-    frontend_configuration="release"
-    ;;
-  *)
-    printf '未知 App 构建配置：%s\n' "$mode" >&2
-    exit 2
-    ;;
-esac
-
-"$root/scripts/build-backend.sh" "$backend_mode"
-"$root/scripts/build-frontend.sh" "$frontend_configuration"
+if [[ -z "$backend_dir" ]]; then
+  "$root/scripts/build-backend.sh"
+  backend_dir="$root/build/backend/dist/MHGLauncherBackend"
+fi
+test -d "$backend_dir/app"
+test "$(cat "$backend_dir/app/.build-mode")" = "release"
+"$root/scripts/build-frontend.sh"
 
 rm -rf "$app"
 mkdir -p "$contents/MacOS" "$contents/Resources/Backend"
 
 cp "$configured_plist" "$contents/Info.plist"
-cp "$root/frontend/.build/arm64-apple-macosx/$frontend_configuration/MHGLauncher" \
+cp "$root/frontend/.build/arm64-apple-macosx/release/MHGLauncher" \
   "$contents/MacOS/MHGLauncher"
-resource_bundle="$root/frontend/.build/arm64-apple-macosx/$frontend_configuration/MHGLauncher_MHGLauncher.bundle"
+resource_bundle="$root/frontend/.build/arm64-apple-macosx/release/MHGLauncher_MHGLauncher.bundle"
 test -d "$resource_bundle"
 cp -R "$resource_bundle" "$contents/Resources/"
-cp -R "$root/build/backend/dist/MHGLauncherBackend/app" \
-  "$contents/Resources/Backend/app"
+cp -R "$backend_dir/app" "$contents/Resources/Backend/app"
 
 build_icon() {
   local light="$1" out_icns="$2"
