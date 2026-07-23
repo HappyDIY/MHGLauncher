@@ -38,6 +38,7 @@ extension LauncherStore {
                 let loaded = try await settings
                 guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
                 value.notificationSettings = loaded
+                value.notificationConfirmedSettings = loaded
                 value.notificationError = nil
             } catch {
                 guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
@@ -154,35 +155,6 @@ extension LauncherStore {
             )
             await loadCompanionData()
             value.cloudMessage = "已取回 \(response.imported ?? 0) 条记录"
-        }
-    }
-
-    func updateNotificationSettings(
-        _ settings: NotificationSettings,
-        revertingTo previous: NotificationSettings
-    ) async {
-        do {
-            let saved: NotificationSettings = try await requireClient().put(
-                "/v1/notifications/settings", body: settings
-            )
-            guard value.notificationSettings == settings else { return }
-            value.notificationSettings = saved
-            value.notificationError = nil
-        } catch {
-            guard value.notificationSettings == settings else { return }
-            value.notificationSettings = previous
-            value.notificationError = Self.presentableMessage(error)
-        }
-    }
-
-    func evaluateNotifications() async {
-        guard let uid = selectedRole?.uid else { return }
-        do {
-            let events: [NotificationEvent] = try await requireClient().post("/v1/notifications/evaluate?uid=\(uid)")
-            value.notificationEvents = events
-            try await UserNotificationService().deliver(events)
-        } catch {
-            message = Self.presentableMessage(error)
         }
     }
 

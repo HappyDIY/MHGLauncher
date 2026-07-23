@@ -15,6 +15,9 @@ const settings = z.object({
   resin_full_enabled: z.boolean().optional(),
   gacha_refresh_enabled: z.boolean().optional(), version_update_enabled: z.boolean().optional(),
 }).strict();
+const notificationAcknowledgement = z.object({
+  keys: z.array(z.string().regex(/^[A-Za-z0-9:._-]{1,160}$/)).max(20),
+}).strict();
 const characterId = z.string().regex(/^(?:0|[1-9]\d{0,15})$/).refine((value) => Number(value) <= Number.MAX_SAFE_INTEGER);
 
 export async function valueRoute(app: Container, method: string, path: string, query: URLSearchParams, body: unknown): Promise<Response | null> {
@@ -53,6 +56,9 @@ export async function valueRoute(app: Container, method: string, path: string, q
   if (method === "POST" && path === "/cloud/revoke") { const value = cloudUid.parse(body); await app.cloud.revokeSession(value.uid, value.token); return new Response(null, { status: 204 }); }
   if (method === "GET" && path === "/notifications/settings") return json(app.notifications.get());
   if (method === "PUT" && path === "/notifications/settings") return json(app.notifications.update(settings.parse(body)));
+  if (method === "POST" && path === "/notifications/acknowledge") {
+    return json(app.notifications.acknowledge(notificationAcknowledgement.parse(body).keys));
+  }
   if (method === "POST" && path === "/notifications/evaluate") {
     const uid = query.get("uid") ?? app.accounts.selectedRole()?.uid ?? "";
     return json(app.notifications.evaluate(uid ? app.notes.get(uid) : null, await app.games.state()));

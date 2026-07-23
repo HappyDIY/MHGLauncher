@@ -68,6 +68,7 @@ struct DailyNote: Codable, Sendable {
     let maxResin: Int
     let finishedTasks: Int
     let totalTasks: Int
+    let extraTaskRewardReceived: Bool
     let expeditionsFinished: Int
     let expeditionsTotal: Int
     let currentHomeCoin: Int

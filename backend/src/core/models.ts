@@ -26,6 +26,7 @@ export interface CompanionSnapshot {
 }
 export interface DailyNote {
   uid: string; current_resin: number; max_resin: number; finished_tasks: number; total_tasks: number;
+  extra_task_reward_received: boolean;
   expeditions_finished: number; expeditions_total: number; current_home_coin: number; max_home_coin: number;
   weekly_boss_remaining: number; transformer_ready: boolean; refreshed_at: string;
 }

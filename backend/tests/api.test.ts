@@ -186,7 +186,7 @@ async function loginCookie(credential: string): Promise<void> {
 
 	  test("提醒时间只接受严格 HH:mm", async () => {
 	    for (const value of ["abc", "24:00", "9:30", "23:60"]) expect((await request("PUT", "/v1/notifications/settings", { daily_commission_time: value })).status).toBe(422);
-	    expect((await request("PUT", "/v1/notifications/settings", { daily_commission_time: "23:59" })).status).toBe(200);
+	    expect((await request("PUT", "/v1/notifications/settings", { daily_commission_time: "23:59" })).status).toBe(200); expect(await (await request("POST", "/v1/notifications/acknowledge", { keys: ["daily:100000001:2026-07-24"] })).json()).toEqual(["daily:100000001:2026-07-24"]); expect((await request("POST", "/v1/notifications/acknowledge", { keys: ["非法键"] })).status).toBe(422);
 	  });
 	});
 

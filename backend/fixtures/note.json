@@ -3,6 +3,7 @@
   "max_resin": 200,
   "finished_tasks": 3,
   "total_tasks": 4,
+  "extra_task_reward_received": false,
   "expeditions_finished": 2,
   "expeditions_total": 5,
   "current_home_coin": 1800,

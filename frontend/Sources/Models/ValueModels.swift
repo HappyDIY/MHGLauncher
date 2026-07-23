@@ -91,6 +91,10 @@ struct NotificationEvent: Codable, Sendable, Identifiable {
     let createdAt: Date
 }
 
+struct NotificationAcknowledgement: Codable, Sendable {
+    let keys: [String]
+}
+
 struct CloudLoginResult: Codable, Sendable {
     let uid: String
     let token: String

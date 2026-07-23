@@ -18,6 +18,9 @@ struct FeatureSurfaceTests {
             "消息提醒",
             "账号"
         ])
+        #expect(Destination(notificationValue: "notes") == .notes)
+        #expect(Destination(notificationValue: "gachaHistory") == .gachaHistory)
+        #expect(Destination(notificationValue: "unknown") == nil)
     }
 
     @Test("调试模式仅由明确环境变量开启")
@@ -105,6 +108,7 @@ struct FeatureSurfaceTests {
               "max_resin": 200,
               "finished_tasks": 3,
               "total_tasks": 4,
+              "extra_task_reward_received": false,
               "expeditions_finished": 2,
               "expeditions_total": 5,
               "current_home_coin": 1800,

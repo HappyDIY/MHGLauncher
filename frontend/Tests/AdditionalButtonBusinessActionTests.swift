@@ -68,7 +68,7 @@ struct AdditionalButtonBusinessActionTests {
         await store.refreshCharacters()
         await store.refreshSelectedCharacterDetail()
         if let entry = store.value.achievementEntries.first { await store.saveAchievement(entry, checked: true) }
-        await store.updateNotificationSettings(settings, revertingTo: settings)
+        await store.updateNotificationSettings(settings)
         await store.evaluateNotifications()
         await store.loginCloud()
         await store.uploadCloudAchievements()
@@ -95,11 +95,12 @@ struct AdditionalButtonBusinessActionTests {
         let store = LauncherStore(deviceOwnerAuthenticator: ValueAuthenticator())
         store.backend.useClient(APIClient(token: "fixture") { try await backend.respond($0) })
         store.value.notificationSettings = settings
+        store.value.notificationConfirmedSettings = settings
         var changed = settings
         changed.gachaRefreshEnabled = false
         store.value.notificationSettings = changed
 
-        await store.updateNotificationSettings(changed, revertingTo: settings)
+        await store.updateNotificationSettings(changed)
 
         #expect(store.value.notificationSettings == settings)
         #expect(store.value.notificationError != nil)
@@ -136,6 +137,7 @@ private actor ValueFakeBackend {
         case ("POST", "/v1/characters/1001/refresh"): return try json(character)
         case ("GET", "/v1/notifications/settings"), ("PUT", "/v1/notifications/settings"): return try json(settings)
         case ("POST", "/v1/notifications/evaluate"): return try json([NotificationEvent]())
+        case ("POST", "/v1/notifications/acknowledge"): return try json([String]())
         case ("GET", "/v1/achievements/goals"): return try json([goal])
         case ("GET", "/v1/achievements/archive"): return try json(archive)
         case ("GET", "/v1/achievements/snapshot"): return try json(snapshot)

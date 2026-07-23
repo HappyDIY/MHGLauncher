@@ -15,7 +15,9 @@ final class ValueStore {
     var achievementError: String?
     @ObservationIgnored var loadedRoleUID: String?
     var notificationSettings: NotificationSettings?
+    @ObservationIgnored var notificationConfirmedSettings: NotificationSettings?
     var notificationError: String?
+    var notificationPermissionMessage: String?
     var notificationEvents: [NotificationEvent] = []
     var cloudSession: CloudSession?
     var cloudMessage = ""

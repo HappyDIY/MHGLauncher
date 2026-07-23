@@ -13,6 +13,15 @@ enum Destination: String, CaseIterable, Identifiable {
     case account = "账号"
 
     var id: String { rawValue }
+
+    init?(notificationValue: String) {
+        switch notificationValue {
+        case "notes": self = .notes
+        case "gachaHistory": self = .gachaHistory
+        case "game": self = .game
+        default: return nil
+        }
+    }
     var icon: String {
         switch self {
         case .home: "house"

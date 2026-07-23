@@ -12,12 +12,6 @@ extension FocusedValues {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
-    }
-}
-
 struct AppCommands: Commands {
     @FocusedValue(\.launcherStore) private var store
 
@@ -189,6 +183,7 @@ struct MHGLauncherApp: App {
     private func startLauncherIfNeeded() async {
         guard !didStart else { return }
         didStart = true
+        appDelegate.store = store
         await store.bootstrap()
         if store.account != nil, store.message == nil { store.showStatus("账号登录成功") }
         await store.runNoteRefreshLoop()

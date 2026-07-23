@@ -127,6 +127,7 @@ final class LauncherStore {
             return
         }
         await refreshAccount()
+        await loadNotificationSettings()
         await refreshGame()
         await refreshSpeedLimit()
         let savedKB = UserDefaults.standard.integer(forKey: "downloadSpeedLimitKB")

@@ -59,6 +59,7 @@ enum InteractiveFixtures {
         maxResin: 200,
         finishedTasks: 4,
         totalTasks: 4,
+        extraTaskRewardReceived: false,
         expeditionsFinished: 3,
         expeditionsTotal: 5,
         currentHomeCoin: 1800,

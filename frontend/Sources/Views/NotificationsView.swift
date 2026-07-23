@@ -24,48 +24,62 @@ struct NotificationsView: View {
                 }
                 .disabled(store.appUpdate.isChecking || store.backend.client == nil)
             }
-            if store.selectedRole == nil {
-                ContentUnavailableView(
-                    "需要选择角色",
-                    systemImage: "person.crop.circle.badge.questionmark",
-                    description: Text("登录并选择角色后可配置便笺提醒。")
-                )
-            } else if let error = store.value.notificationError {
+            if let error = store.value.notificationError {
                 ContentUnavailableView {
                     Label("无法载入提醒设置", systemImage: "exclamationmark.triangle")
                 } description: { Text(error) } actions: {
-                    Button("重试") { Task { await store.loadValueData() } }
+                    Button("重试") { Task { await store.loadNotificationSettings() } }
                 }
                 .accessibilityLiveRegion(.assertive)
             } else if store.value.notificationSettings == nil {
                 ProgressView("正在载入提醒设置")
                     .accessibilityLiveRegion(.polite)
             } else {
-                GlassCard("实时便笺", icon: "note.text") {
-                    Toggle("每日委托", isOn: bool(\.dailyCommissionEnabled))
-                    DatePicker(
-                        "提醒时间",
-                        selection: notificationTime,
-                        displayedComponents: [.hourAndMinute]
+                if store.selectedRole == nil {
+                    ContentUnavailableView(
+                        "需要选择角色",
+                        systemImage: "person.crop.circle.badge.questionmark",
+                        description: Text("登录并选择角色后可配置便笺提醒。")
                     )
+                } else {
+                    GlassCard("实时便笺", icon: "note.text") {
+                        Toggle("每日委托", isOn: bool(\.dailyCommissionEnabled))
+                        DatePicker(
+                            "提醒时间",
+                            selection: notificationTime,
+                            displayedComponents: [.hourAndMinute]
+                        )
                         .datePickerStyle(.compact)
                         .frame(width: 120)
-                    Toggle("体力回满", isOn: bool(\.resinFullEnabled))
+                        Toggle("体力回满", isOn: bool(\.resinFullEnabled))
+                    }
                 }
                 GlassCard("更新", icon: "bell.badge") {
                     Toggle("卡池刷新", isOn: bool(\.gachaRefreshEnabled))
                     Toggle("游戏版本更新", isOn: bool(\.versionUpdateEnabled))
+                    if store.value.notificationSettings?.gachaRefreshEnabled == true,
+                       store.value.gachaResourceStatus?.isReady != true {
+                        Label("卡池提醒需要先下载历史卡池资源", systemImage: "tray.and.arrow.down")
+                        Button("前往历史卡池") { store.selectedDestination = .gachaHistory }
+                    }
+                    if let permission = store.value.notificationPermissionMessage {
+                        Label(permission, systemImage: "bell.slash")
+                            .foregroundStyle(.secondary)
+                    }
                     Button {
                         Task { await store.evaluateNotifications() }
                     } label: {
                         Label("立即检查", systemImage: "bell")
                     }
-                    .disabled(store.selectedRole == nil || store.isBusy)
+                    .disabled(store.isBusy)
                 }
             }
             Spacer()
         }
-        .task { await store.loadValueData(force: false) }
+        .task {
+            await store.loadNotificationSettings()
+            await store.loadGachaResources()
+        }
         .motionEntrance(.content)
     }
 
@@ -74,10 +88,9 @@ struct NotificationsView: View {
             store.value.notificationSettings?[keyPath: keyPath] ?? false
         } set: { newValue in
             guard var settings = store.value.notificationSettings else { return }
-            let previous = settings
             settings[keyPath: keyPath] = newValue
             store.value.notificationSettings = settings
-            scheduleSettingsUpdate(settings, revertingTo: previous)
+            scheduleSettingsUpdate(settings)
         }
     }
 
@@ -93,25 +106,21 @@ struct NotificationsView: View {
             ) ?? Date()
         } set: { newValue in
             guard var settings = store.value.notificationSettings else { return }
-            let previous = settings
             let fields = Calendar.current.dateComponents([.hour, .minute], from: newValue)
             settings.dailyCommissionTime = String(
                 format: "%02d:%02d", fields.hour ?? 0, fields.minute ?? 0
             )
             store.value.notificationSettings = settings
-            scheduleSettingsUpdate(settings, revertingTo: previous)
+            scheduleSettingsUpdate(settings)
         }
     }
 
-    private func scheduleSettingsUpdate(
-        _ settings: NotificationSettings,
-        revertingTo previous: NotificationSettings
-    ) {
+    private func scheduleSettingsUpdate(_ settings: NotificationSettings) {
         updateTask?.cancel()
         updateTask = Task {
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
-            await store.updateNotificationSettings(settings, revertingTo: previous)
+            await store.updateNotificationSettings(settings)
         }
     }
 }

@@ -1,17 +1,16 @@
-import AppKit
 import Foundation
 
 extension LauncherStore {
     func runNoteRefreshLoop() async {
         while !Task.isCancelled {
+            if credential != nil, selectedRole != nil {
+                await refreshNote()
+            }
+            await evaluateNotifications()
             do {
                 try await Task.sleep(for: .seconds(300))
             } catch {
                 return
-            }
-            if NSApplication.shared.isActive, credential != nil {
-                await refreshNote()
-                await evaluateNotifications()
             }
         }
     }
