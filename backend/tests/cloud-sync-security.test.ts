@@ -32,6 +32,16 @@ test("云端鉴权错误保留可行动原因", async () => {
 	  });
 });
 
+test("抽卡上游错误保留可重试原因", async () => {
+  const app = fixture(); app.settings.cloudBaseUrl = "https://cloud.example";
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json(
+    { code: "gacha_upstream_unavailable", message: "抽卡服务暂时不可用，请稍后重试" }, { status: 503 },
+  ));
+  await expect(app.cloud.login("https://example.com/gacha")).rejects.toMatchObject({
+    code: "gacha_upstream_unavailable", message: "抽卡服务暂时不可用，请稍后重试", status: 503,
+  });
+});
+
 test("本地代理先绑定云端会话 UID", async () => {
   const app = fixture(); app.settings.cloudBaseUrl = "https://cloud.example";
   const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ uid: "100000002" }));

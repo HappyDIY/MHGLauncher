@@ -23,6 +23,7 @@ const cloudAchievement = z.object({
 
 const forwardedCloudErrors = new Set([
   "gacha_url_invalid", "gacha_url_expired", "gacha_url_unverified", "gacha_item_invalid",
+  "gacha_upstream_invalid", "gacha_upstream_unavailable",
   "identity_mismatch", "reverify_required", "unauthorized",
   "achievement_items_invalid", "stored_data_invalid",
 ]);

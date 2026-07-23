@@ -42,7 +42,15 @@ function requestAddress(url: URL, address: string, signal: AbortSignal): Promise
         if (size > 1024 * 1024) request.destroy(new Error("response_too_large"));
         else chunks.push(chunk);
       });
-      response.on("end", () => resolve(new Response(Buffer.concat(chunks), { status: response.statusCode ?? 502 })));
+      response.on("end", () => {
+        const body = Buffer.concat(chunks);
+        try { JSON.parse(body.toString("utf8")); }
+        catch { reject(new Error("invalid_json_response")); return; }
+        resolve(new Response(body, {
+          status: response.statusCode ?? 502,
+          headers: { "Content-Type": response.headers["content-type"] ?? "application/json" },
+        }));
+      });
       response.on("error", reject);
     });
     request.on("error", reject);

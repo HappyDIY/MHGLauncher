@@ -15,7 +15,9 @@ export async function verifyGachaUrl(raw: string, requester: GachaRequester = re
   url.searchParams.set("size", "20");
 	  url.searchParams.set("end_id", "0");
   const response = await requester(url);
-  const payload = await response.json() as { retcode?: number; message?: string; data?: { uid?: unknown; list?: Record<string, any>[] } };
+  let payload: { retcode?: number; message?: string; data?: { uid?: unknown; list?: Record<string, any>[] } };
+  try { payload = await response.json() as typeof payload; }
+  catch { throw new HttpError(502, "gacha_upstream_invalid", "抽卡服务返回了无效响应，请稍后重试"); }
   if (!response.ok || Number(payload.retcode ?? 0) !== 0) throw new HttpError(422, "gacha_url_expired", payload.message ?? "抽卡 URL 不可用");
   const responseUid = String(payload.data?.uid ?? "");
   const itemUids = new Set((payload.data?.list ?? []).map((item) => String(item.uid ?? "")).filter(Boolean));

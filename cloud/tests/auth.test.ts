@@ -28,6 +28,13 @@ describe("云端认证工具", () => {
 	    expect(Object.fromEntries(request.searchParams)).toMatchObject({ gacha_type: "301", size: "20", end_id: "0" });
   });
 
+  test("上游返回非 JSON 时使用稳定错误", async () => {
+    const requester = vi.fn().mockResolvedValue(new Response("<html>blocked</html>", { status: 502 }));
+    await expect(verifyGachaUrl(
+      "https://public-operation-hk4e.mihoyo.com/gacha?authkey=x", requester,
+    )).rejects.toMatchObject({ code: "gacha_upstream_invalid", status: 502 });
+  });
+
   test("内部异常不会把原文返回客户端", async () => {
     const response = fail(new Error("postgres password=secret"));
     expect(await response.json()).toEqual({ code: "internal_error", message: "云端服务异常" });
