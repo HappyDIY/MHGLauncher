@@ -4,6 +4,18 @@ import Testing
 
 @Suite("本地 API 响应契约")
 struct APIContractResponseTests {
+    @Test("响应顶层字段名严格匹配")
+    func responseKeysMatchContract() throws {
+        for fixture in try APIContractCorpus.load().responses {
+            guard let model = fixture.model,
+                  case .object(let body) = fixture.body else {
+                Issue.record("响应语料缺少对象模型：\(fixture.name)")
+                continue
+            }
+            #expect(Set(body.keys) == expectedResponseKeys(model), "响应字段漂移：\(fixture.name)")
+        }
+    }
+
     @Test("真实后端响应语料均可由 Swift 生产模型解码")
     func responsesDecodeWithProductionModels() throws {
         let corpus = try APIContractCorpus.load()
@@ -47,5 +59,35 @@ struct APIContractResponseTests {
         #expect(throws: DecodingError.self) {
             try JSONDecoder.api.decode(GameJob.self, from: data)
         }
+    }
+}
+
+private func expectedResponseKeys(_ model: String) -> Set<String> {
+    switch model {
+    case "api_error": ["code", "message", "details"]
+    case "account": ["aid", "mid", "nickname", "credential_ref", "selected", "updated_at"]
+    case "game_state": [
+        "install_path", "installed_version", "available_version", "status", "update_kind",
+        "download_bytes", "predownload_version", "predownload_finished",
+    ]
+    case "game_job": [
+        "id", "kind", "status", "completed_bytes", "total_bytes", "message", "download_speed",
+        "chunks_completed", "chunks_total", "active_chunks", "last_update", "revision",
+    ]
+    case "game_launch": [
+        "id", "status", "message", "performance_profile", "metal_hud", "network_debug",
+        "wine_log", "progress", "logs", "started_at", "updated_at", "revision",
+    ]
+    case "wish_task": [
+        "id", "kind", "status", "progress", "logs", "result", "error", "revision", "target_uids",
+    ]
+    case "daily_note": [
+        "uid", "current_resin", "max_resin", "finished_tasks", "total_tasks",
+        "extra_task_reward_received", "expeditions_finished", "expeditions_total",
+        "current_home_coin", "max_home_coin", "weekly_boss_remaining", "transformer_ready",
+        "refreshed_at",
+    ]
+    case "companion_snapshot": ["wishes", "statistics", "banner_statistics", "note"]
+    default: []
     }
 }
