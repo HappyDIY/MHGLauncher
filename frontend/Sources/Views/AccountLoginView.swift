@@ -114,8 +114,7 @@ struct AccountLoginView: View {
         case "confirmed": "登录成功"
         case "expired": "二维码已过期"
         default:
-            if store.backend.isStarting { "正在启动本地服务…" }
-            else if let error = store.backend.errorMessage { error }
+            if let error = store.backend.errorMessage { error }
             else { "凭据将安全保存在 macOS 钥匙串" }
         }
     }

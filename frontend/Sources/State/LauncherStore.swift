@@ -19,6 +19,7 @@ final class LauncherStore {
         backend = dependencies.backend; runtimeInstaller = dependencies.runtimeInstaller
         keychain = dependencies.keychain; userSettings = dependencies.userSettings
         notifications = dependencies.notifications; clock = dependencies.clock
+        isInstallingCoreRuntime = dependencies.runtimeInstaller.installedCoreRuntime() == nil
         self.deviceOwnerAuthenticator = deviceOwnerAuthenticator
         gamePerformanceProfile = GamePerformanceProfile(
             rawValue: dependencies.userSettings.string(forKey: "gamePerformanceProfile") ?? ""
@@ -135,7 +136,6 @@ final class LauncherStore {
         if selectedRole != nil { await loadCompanionData(); await loadValueData() }
         Task { await checkForAppUpdate(silent: true) }
     }
-
     func retryBootstrap() async {
         await backend.stop()
         runtimeProgress = nil
