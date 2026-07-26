@@ -93,10 +93,10 @@ for path in "${changed_files[@]}"; do
     release-app.command|packaging/Info.plist|scripts/build-app.sh|scripts/build-backend.sh|scripts/build-frontend.sh|scripts/configure-cloud-server.swift|scripts/test-build-config.sh)
       select_suite build-config scripts/test-build-config.sh "$path"
       ;;
-    runtime/*|scripts/fetch-game-runtime.sh|scripts/test-game-runtime.sh)
+    runtime/*|scripts/fetch-game-runtime.sh|scripts/build-wine-runtime.sh|scripts/test-game-runtime.sh)
       select_suite game-runtime scripts/test-game-runtime.sh "$path"
       ;;
-    packaging/GAME_RUNTIME_NOTICES.md|packaging/HDiffPatch-LICENSE.txt|scripts/build-runtime-assets.sh|scripts/create-smoke-runtime-assets.sh|scripts/verify-runtime-assets.sh|scripts/publish-runtime-assets.sh|scripts/test-runtime-assets.sh)
+    packaging/GAME_RUNTIME_NOTICES.md|packaging/game-runtime-source-lock.json|packaging/patches/*|packaging/HDiffPatch-LICENSE.txt|scripts/build-runtime-assets.sh|scripts/create-smoke-runtime-assets.sh|scripts/verify-runtime-assets.sh|scripts/publish-runtime-assets.sh|scripts/test-runtime-assets.sh)
       select_suite runtime-assets scripts/test-runtime-assets.sh "$path"
       ;;
     scripts/check-api-boundary.sh)

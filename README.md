@@ -46,7 +46,7 @@ MHGLauncher 希望让 Mac 玩家少处理配置，多享受游戏。它不只负
 
 ### 不要求安装 CrossOver
 
-MHGLauncher 使用可审计的开源 Wine 与 DXMT 组件，不依赖 CrossOver.app，也不打包闭源 CrossOver 图形界面或应用代码。运行组件按固定版本下载并进行 SHA-256 校验。
+MHGLauncher 使用可审计的开源 Wine 与 DXMT 组件，不依赖 CrossOver.app，也不打包闭源 CrossOver 图形界面或应用代码。Wine 在本机从固定源码自主编译；其余运行组件按固定版本下载并进行 SHA-256 校验。
 
 ### 你的凭据留在钥匙串
 
@@ -67,7 +67,7 @@ MHGLauncher 使用可审计的开源 Wine 与 DXMT 组件，不依赖 CrossOver.
 - Xcode 26，包含 macOS 26 SDK
 - Git 与可用的网络连接
 
-无需单独安装 Node.js、npm、Wine 或 DXMT；项目脚本会下载并校验所需版本。
+无需单独安装 Node.js、npm、Wine 或 DXMT；项目脚本会下载、校验并从源码构建所需版本。
 
 ### 一条命令构建并运行
 
@@ -190,7 +190,7 @@ dist/MHGLauncher.app
 
 仓库当前尚未提供根级开源许可证。在许可证明确前，请勿将源码视为已获得复制、修改或再分发授权。第三方组件遵循各自许可证，详情见 [`packaging/GAME_RUNTIME_NOTICES.md`](packaging/GAME_RUNTIME_NOTICES.md)。
 
-感谢 [Snap.Hutao.Remastered][hutao-url] 提供业务逻辑参考，感谢 [Best README Template][template-url] 提供文档结构启发，也感谢 [YAAGL anime-game-wine][wine-url]、[DXMT][dxmt-url] 与 [HDiffPatch][hdiff-url] 等开源项目。
+感谢 [Snap.Hutao.Remastered][hutao-url] 提供业务逻辑参考，感谢 [Best README Template][template-url] 提供文档结构启发，也感谢 [Wine][wine-url]、[DXMT][dxmt-url] 与 [HDiffPatch][hdiff-url] 等开源项目。
 
 <p align="center">
   <a href="#readme-top">返回顶部</a>
@@ -207,6 +207,6 @@ dist/MHGLauncher.app
 [preview-shield]: https://img.shields.io/badge/%E7%8A%B6%E6%80%81-%E5%BC%80%E5%8F%91%E9%A2%84%E8%A7%88-E85D75?style=for-the-badge
 [hutao-url]: https://github.com/SnapHutaoRemasteringProject/Snap.Hutao.Remastered
 [template-url]: https://github.com/othneildrew/Best-README-Template
-[wine-url]: https://github.com/yaagl/anime-game-wine
+[wine-url]: https://gitlab.winehq.org/wine/wine
 [dxmt-url]: https://github.com/3Shain/dxmt
 [hdiff-url]: https://github.com/sisong/HDiffPatch

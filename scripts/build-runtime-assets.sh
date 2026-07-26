@@ -157,7 +157,7 @@ for architecture in x86_64-unix x86_64-windows; do
   done < <(find "$dxmt_dir" -type f)
 done
 find "$wine_stage/game-runtime/wine" -name .DS_Store -delete
-archive_component wine game wine-crossover-11.0-1 game-runtime/wine "$wine_stage"
+archive_component wine game wine-11.0-mhg1 game-runtime/wine "$wine_stage"
 
 msync_stage="$stage/msync"
 mkdir -p "$msync_stage/game-runtime/wine/bin" "$msync_stage/game-runtime/wine/lib/wine/x86_64-unix"
@@ -165,7 +165,7 @@ cp "$runtime_stage/full/wine/bin/wineserver" "$msync_stage/game-runtime/wine/bin
 cp "$runtime_stage/full/wine/lib/wine/x86_64-unix/ntdll.so" \
   "$msync_stage/game-runtime/wine/lib/wine/x86_64-unix/"
 grep -R -a -q 'WINEMSYNC' "$msync_stage/game-runtime/wine"
-archive_component msync game wine-crossover-11.0-1-msync game-runtime/wine "$msync_stage"
+archive_component msync game wine-11.0-mhg1-msync game-runtime/wine "$msync_stage"
 
 dxmt_stage="$stage/dxmt"
 mkdir -p "$dxmt_stage/game-runtime/wine/lib/wine"
