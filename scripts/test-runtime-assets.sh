@@ -5,6 +5,21 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 
+source_lock="$root/packaging/game-runtime-source-lock.json"
+jq -e '
+  .schemaVersion == 1 and
+  (.wineArtifact.version == "wine-crossover-11.0-1") and
+  (.wineArtifact.url | startswith("https://")) and
+  (.wineArtifact.sha256 | test("^[0-9a-f]{64}$")) and
+  (.wineArtifact.upstreamCommit | test("^[0-9a-f]{40}$")) and
+  ([.correspondingSources[].id] | sort == ["codeweavers-wine","macports-game-patches"]) and
+  all(.correspondingSources[];
+    (.url | startswith("https://")) and
+    (.sha256 | test("^[0-9a-f]{64}$")) and
+    (.cacheFile | test("^[A-Za-z0-9._-]+$")) and
+    (.requiredPaths | length > 0 and all(type == "string" and length > 0)))
+' "$source_lock" >/dev/null
+
 if "$root/scripts/build-runtime-assets.sh" '../../outside' >/dev/null 2>&1; then
   printf '构建脚本接受了不安全 tag。\n' >&2
   exit 1
