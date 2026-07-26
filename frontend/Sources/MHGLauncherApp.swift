@@ -66,7 +66,6 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut("5", modifiers: .command)
             .disabled(store == nil)
-
             Divider()
 
             if let store, !store.accounts.isEmpty {
@@ -94,6 +93,7 @@ struct AppCommands: Commands {
                     store?.selectedDestination = .account
                     Task { await store?.beginAddingAccount() }
                 }
+                .disabled(!FeatureFlags.multiAccountLoginEnabled)
                 Button("退出登录") {
                     Task { await store?.logout() }
                 }

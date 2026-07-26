@@ -20,6 +20,8 @@ struct AccountView: View {
                     }
                     .buttonStyle(.glassProminent)
                     .motionHover(.prominent)
+                    .disabled(!FeatureFlags.multiAccountLoginEnabled)
+                    .help("多账号登录暂不可用")
                     Button("退出当前账号", role: .destructive) {
                         Task { await store.logout() }
                     }
