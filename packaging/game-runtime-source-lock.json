@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "wineBuild": {
-    "version": "wine-11.0-mhg1",
+    "version": "wine-11.0-mhg2",
     "sourceId": "codeweavers-wine",
     "patchSourceId": "macports-game-patches",
     "buildPrefix": "/opt/mhglauncher-wine",

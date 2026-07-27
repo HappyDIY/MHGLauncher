@@ -1,4 +1,7 @@
-import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, rmSync } from "node:fs";
+import {
+  closeSync, copyFileSync, mkdirSync, openSync, readFileSync,
+  renameSync, rmSync, writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { AppError } from "../core/errors";
@@ -102,11 +105,17 @@ export class WineLaunchRunner implements GameLaunchRunner {
       ...safeLaunchBase(process.env), LANG: "zh_CN.UTF-8", LANGUAGE: "zh_CN:zh",
       LC_ALL: "zh_CN.UTF-8", LC_MESSAGES: "zh_CN.UTF-8",
       WINEPREFIX: prefix, WINEARCH: "win64", WINEDEBUG: "-all",
+      WINEDLLOVERRIDES: "mscoree,mshtml=",
       WINEMSYNC: profile === "optimized" ? "1" : "0", WINEESYNC: profile === "compatibility" ? "1" : "0",
     };
-    if (!existsSync(join(prefix, "system.reg"))) {
-      const result = await runCommand(wineboot, ["--init"], { env: localeEnv, timeout: 60_000 });
-      if (result.status !== 0) throw new AppError("wineprefix_init_failed", "Wine 运行环境初始化失败", 500);
+    if (!winePrefixReady(prefix, wine)) {
+      const result = await runCommand(wineboot, ["--init"], { env: localeEnv, timeout: 180_000 });
+      if (result.status !== 0) {
+        try { await stopWineServer(wineserver, prefix); }
+        catch { /* 保留原始初始化错误。 */ }
+        throw new AppError("wineprefix_init_failed", "Wine 运行环境初始化失败", 500);
+      }
+      markWinePrefixReady(prefix, wine);
     }
     await this.configureChineseLocale(wine, localeEnv);
     await this.configureRetinaMode(wine, localeEnv);
@@ -147,4 +156,26 @@ export function gameArguments(gameRoot: string, authTicket?: string): string[] {
   const args = [join(gameRoot, "YuanShen.exe"), "-force-d3d11"];
   if (authTicket) args.push(`login_auth_ticket=${authTicket}`);
   return args;
+}
+
+const prefixReadyFile = ".mhglauncher-wine-runtime";
+
+function winePrefixReady(prefix: string, wine: string): boolean {
+  try { return readFileSync(join(prefix, prefixReadyFile), "utf8") === wineRuntimeIdentity(wine); }
+  catch { return false; }
+}
+
+function markWinePrefixReady(prefix: string, wine: string): void {
+  const marker = join(prefix, prefixReadyFile), temporary = `${marker}.tmp`;
+  writeFileSync(temporary, wineRuntimeIdentity(wine), { mode: 0o600 });
+  renameSync(temporary, marker);
+}
+
+function wineRuntimeIdentity(wine: string): string {
+  try {
+    const provenance = readFileSync(join(dirname(dirname(wine)), "BUILD_PROVENANCE.json"), "utf8");
+    return `${wine}\n${provenance}`;
+  } catch {
+    return `${wine}\n`;
+  }
 }

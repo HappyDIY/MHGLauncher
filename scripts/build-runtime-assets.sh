@@ -18,6 +18,7 @@ signing_key="${MHG_RUNTIME_MANIFEST_SIGNING_KEY:-$HOME/.config/MHGLauncher/runti
 signing_public_key="DvswOM/iIXbp+jB12AmqWUqU/gYv7xG7RYWu7dIa+Sk="
 dxmt_url="https://github.com/3Shain/dxmt/releases/download/v0.80/dxmt-v0.80-builtin.tar.gz"
 dxmt_sha="8f260e36b5739e68f3bad613381441385c4dc7b85b78ba8de653d5a6a264529d"
+wine_version="$(jq -er '.wineBuild.version' "$root/packaging/game-runtime-source-lock.json")"
 
 cleanup() { rm -rf "$stage"; }
 trap cleanup EXIT
@@ -157,7 +158,7 @@ for architecture in x86_64-unix x86_64-windows; do
   done < <(find "$dxmt_dir" -type f)
 done
 find "$wine_stage/game-runtime/wine" -name .DS_Store -delete
-archive_component wine game wine-11.0-mhg1 game-runtime/wine "$wine_stage"
+archive_component wine game "$wine_version" game-runtime/wine "$wine_stage"
 
 msync_stage="$stage/msync"
 mkdir -p "$msync_stage/game-runtime/wine/bin" "$msync_stage/game-runtime/wine/lib/wine/x86_64-unix"
@@ -165,7 +166,7 @@ cp "$runtime_stage/full/wine/bin/wineserver" "$msync_stage/game-runtime/wine/bin
 cp "$runtime_stage/full/wine/lib/wine/x86_64-unix/ntdll.so" \
   "$msync_stage/game-runtime/wine/lib/wine/x86_64-unix/"
 grep -R -a -q 'WINEMSYNC' "$msync_stage/game-runtime/wine"
-archive_component msync game wine-11.0-mhg1-msync game-runtime/wine "$msync_stage"
+archive_component msync game "$wine_version-msync" game-runtime/wine "$msync_stage"
 
 dxmt_stage="$stage/dxmt"
 mkdir -p "$dxmt_stage/game-runtime/wine/lib/wine"

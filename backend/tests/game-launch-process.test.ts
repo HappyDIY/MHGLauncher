@@ -4,7 +4,9 @@ import { join } from "node:path";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 const spawnSyncMock = vi.fn(() => ({ status: 0, stdout: "" }));
-const runCommandMock = vi.fn(async () => ({ status: 0, stdout: "", stderr: "" }));
+const runCommandMock = vi.fn(async (_command: string, _args: string[], _options?: unknown) => (
+  { status: 0, stdout: "", stderr: "" }
+));
 
 vi.mock("node:child_process", () => ({
   spawnSync: spawnSyncMock,
@@ -51,6 +53,59 @@ describe("Wine 游戏进程启动器", () => {
       "/v", "RetinaMode", "/t", "REG_SZ", "/d", "Y", "/f",
     ], expect.objectContaining({ env: expect.any(Object) }));
     expect(existsSync(join(fixture.prefix, "drive_c", "windows", "system32", "winemetal.dll"))).toBe(true);
+  });
+
+  test("Wine 初始化禁止附加组件弹窗并只信任完成标记", async () => {
+    const fixture = makeRuntimeFixture();
+    mkdirSync(fixture.prefix, { recursive: true });
+    writeFileSync(join(fixture.prefix, "system.reg"), "尚未完成");
+    const runner = new WineLaunchRunner() as unknown as {
+      preflight: (
+        wine: string, wineboot: string, wineserver: string, winemetal: string,
+        prefix: string, profile: "optimized",
+      ) => Promise<void>;
+    };
+
+    await runner.preflight(
+      fixture.wine, fixture.wineboot, fixture.wineserver, fixture.winemetal,
+      fixture.prefix, "optimized",
+    );
+
+    expect(runCommandMock).toHaveBeenCalledWith(fixture.wineboot, ["--init"], {
+      env: expect.objectContaining({ WINEDLLOVERRIDES: "mscoree,mshtml=" }),
+      timeout: 180_000,
+    });
+    expect(existsSync(join(fixture.prefix, ".mhglauncher-wine-runtime"))).toBe(true);
+
+    runCommandMock.mockClear();
+    await runner.preflight(
+      fixture.wine, fixture.wineboot, fixture.wineserver, fixture.winemetal,
+      fixture.prefix, "optimized",
+    );
+    expect(runCommandMock.mock.calls.some((call) => call[0] === fixture.wineboot)).toBe(false);
+  });
+
+  test("Wine 初始化失败时清理残留服务", async () => {
+    const fixture = makeRuntimeFixture();
+    runCommandMock.mockImplementation(async (command) => command === fixture.wineboot
+      ? { status: 1, stdout: "", stderr: "初始化失败" }
+      : { status: 0, stdout: "", stderr: "" });
+    const runner = new WineLaunchRunner() as unknown as {
+      preflight: (
+        wine: string, wineboot: string, wineserver: string, winemetal: string,
+        prefix: string, profile: "optimized",
+      ) => Promise<void>;
+    };
+
+    await expect(runner.preflight(
+      fixture.wine, fixture.wineboot, fixture.wineserver, fixture.winemetal,
+      fixture.prefix, "optimized",
+    )).rejects.toThrow("Wine 运行环境初始化失败");
+
+    const stopCalls = runCommandMock.mock.calls.filter(([command, args]) => (
+      command === fixture.wineserver && args[0] === "-k"
+    ));
+    expect(stopCalls).toHaveLength(2);
   });
 
   test("米游社账号使用源项目兼容的登录票据参数", () => {

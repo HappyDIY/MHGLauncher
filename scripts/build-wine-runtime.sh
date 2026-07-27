@@ -85,7 +85,7 @@ done < <(read_lock ".sources[] | select(.id == \"$patch_id\") | .patches[]")
 prefix="$(read_lock '.wineBuild.buildPrefix')"
 configure=(
   "$source_root/configure" --build=x86_64-apple-darwin --prefix="$prefix"
-  --enable-win64 --disable-tests --with-mingw="$mingw_prefix/bin/x86_64-w64-mingw32-clang"
+  --enable-archs=i386,x86_64 --disable-tests --with-mingw=llvm-mingw
   --without-alsa --without-capi --with-coreaudio --without-cups --without-dbus
   --without-fontconfig --without-freetype --without-gettext --without-gphoto
   --without-gnutls --without-gssapi --without-gstreamer --without-krb5
@@ -104,6 +104,7 @@ configure=(
 built="$stage/install$prefix"
 [[ -x "$built/bin/wine" && -x "$built/bin/wineserver" ]]
 [[ -f "$built/lib/wine/x86_64-windows/wineboot.exe" ]]
+[[ -f "$built/lib/wine/i386-windows/rundll32.exe" ]]
 ln -s wine "$built/bin/wineboot"
 [[ -f "$built/lib/wine/x86_64-unix/ntdll.so" ]]
 grep -R -a -q 'WINEMSYNC' "$built/lib/wine"

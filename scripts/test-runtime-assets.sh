@@ -8,7 +8,7 @@ trap 'rm -rf "$stage"' EXIT
 source_lock="$root/packaging/game-runtime-source-lock.json"
 jq -e '
   .schemaVersion == 2 and
-  .wineBuild.version == "wine-11.0-mhg1" and
+  .wineBuild.version == "wine-11.0-mhg2" and
   (has("wineArtifact") | not) and
   .wineBuild.sourceId == "codeweavers-wine" and
   .wineBuild.patchSourceId == "macports-game-patches" and
@@ -28,6 +28,12 @@ jq -e '
 ' "$source_lock" >/dev/null
 
 bash -n "$root/scripts/build-wine-runtime.sh"
+grep -q -- '--enable-archs=i386,x86_64' "$root/scripts/build-wine-runtime.sh"
+grep -q -- '--with-mingw=llvm-mingw' "$root/scripts/build-wine-runtime.sh"
+if grep -q -- '--enable-win64' "$root/scripts/build-wine-runtime.sh"; then
+  printf 'Wine 构建仍是不能运行 Win32 程序的纯 Win64 配置。\n' >&2
+  exit 1
+fi
 while IFS= read -r local_patch; do
   patch_path="$root/$(jq -r '.path' <<<"$local_patch")"
   test -f "$patch_path"
