@@ -81,7 +81,7 @@ export class GachaResourceService {
       if (match) [id, item] = match;
     }
     if (!item) return { ...record, icon_url: null };
-    const category = item.kind === "角色" ? "GachaAvatarIcon" : "EquipIcon";
+    const category = item.kind === "角色" ? "AvatarIcon" : "EquipIcon";
     return { ...record, item_id: id, name: record.name || item.name, item_type: record.item_type || item.kind,
       rank: record.rank || item.rank, icon_url: this.imageCache.namedURL(category, item.icon, item.digest) };
   }
@@ -123,7 +123,7 @@ export class GachaResourceService {
     return Object.fromEntries(ids.flatMap((id) => {
       const item = snapshot.items[String(id)];
       if (!item) return [];
-      const category = item.kind === "角色" ? "GachaAvatarIcon" : "EquipIcon";
+      const category = item.kind === "角色" ? "AvatarIcon" : "EquipIcon";
       const url = this.imageCache.namedURL(category, item.icon, item.digest);
       return url ? [[item.name, url]] : [];
     }));

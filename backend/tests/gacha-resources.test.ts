@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, expect, test, vi } from "vitest";
@@ -50,6 +50,13 @@ test("新快照映射卡池、物品和角色全部分类素材", async () => {
   expect(service.enrich({ ...record(), item_id: "", name: "测试武器" })).toMatchObject({
     item_id: "11501", item_type: "武器", rank: 5, icon_url: expect.stringContaining("/cache/"),
   });
+  const sources = Object.values(JSON.parse(readFileSync(
+    join(dataDir, "resources", "image-cache", "index.json"), "utf8",
+  )) as Record<string, { url: string }>);
+  expect(sources.map(({ url }) => url)).toEqual(expect.arrayContaining([
+    "https://api.snaphutaorp.org/static/raw/AvatarIcon/Avatar_Test.png",
+    "https://api.snaphutaorp.org/static/raw/EquipIcon/Weapon_Test.png",
+  ]));
   const localized = service.enrichCharacter({
     ...character(), avatar_id: "10000001", payload: {
       id: 10000001, icon: "https://upload-bbs.mihoyo.com/old.png",
