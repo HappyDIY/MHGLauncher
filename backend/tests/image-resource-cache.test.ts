@@ -33,6 +33,26 @@ test("账号素材缓存拒绝非米游社来源", async () => {
   expect(cache.localURL("https://example.com/private.png")).toBeNull();
 });
 
+test("命名插图按元数据摘要换新缓存键", () => {
+  const root = mkdtempSync(join(tmpdir(), "mhg-image-cache-")); roots.push(root);
+  const cache = new ImageResourceCache(root);
+  const first = cache.namedURL("AvatarIcon", "UI_AvatarIcon_Test", "digest-a");
+  const second = cache.namedURL("AvatarIcon", "UI_AvatarIcon_Test", "digest-b");
+  expect(first).not.toBe(second);
+  expect(cache.namedURL("../unsafe", "UI_AvatarIcon_Test", "digest")).toBeNull();
+  expect(cache.namedURL("AvatarIcon", "../unsafe", "digest")).toBeNull();
+});
+
+test("代理缓存拒绝无效图片格式", async () => {
+  const root = mkdtempSync(join(tmpdir(), "mhg-image-cache-")); roots.push(root);
+  const cache = new ImageResourceCache(root);
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(Buffer.from("not-an-image")));
+  const local = cache.namedURL("AvatarIcon", "UI_AvatarIcon_Test", "digest")!;
+  await expect(cache.fetchFile(local.split("/").at(-1)!)).rejects.toMatchObject({
+    code: "image_cache_invalid",
+  });
+});
+
 function character(remote: string): GameCharacter {
   return {
     uid: "100000001", avatar_id: "10000005", name: "旅行者", element: "Geo",

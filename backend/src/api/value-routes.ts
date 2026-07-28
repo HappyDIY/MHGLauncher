@@ -7,6 +7,7 @@ import {
   cloudUidRequest as cloudUid, credentialRequest as credential,
   notificationAcknowledgementRequest as notificationAcknowledgement,
   notificationSettingsRequest as settings,
+  resourceSyncRequest as resourceSync,
 } from "./request-contracts";
 const characterId = z.string().regex(/^(?:0|[1-9]\d{0,15})$/).refine((value) => Number(value) <= Number.MAX_SAFE_INTEGER);
 
@@ -17,9 +18,15 @@ export async function valueRoute(app: Container, method: string, path: string, q
   if (method === "POST" && path === "/characters/refresh") return json(await app.characters.refresh(credential.parse(body).credential, role()));
   const character = match(path, /^\/characters\/([^/]+)\/refresh$/);
   if (method === "POST" && character) return json(await app.characters.refreshDetail(credential.parse(body).credential, role(), characterId.parse(character)));
-  if (method === "GET" && path === "/gacha-events") return json(app.gachaEvents.list());
+  if (method === "GET" && path === "/gacha-events") return json(await app.gachaEvents.list());
+  if (method === "GET" && path === "/resources/status") return json(app.gachaResources.resourceStatus());
+  if (method === "POST" && path === "/resources/sync") {
+    const force = resourceSync.parse(body).force;
+    await app.metadataRepository.sync(force);
+    return json(app.gachaResources.resourceStatus());
+  }
   if (method === "GET" && path === "/gacha-resources/status") return json(app.gachaResources.status());
-  if (method === "POST" && path === "/gacha-resources/install") return json(await app.gachaResources.install());
+  if (method === "POST" && path === "/gacha-resources/install") return json(await app.gachaResources.install(true));
   const achievementIcon = match(path, /^\/achievements\/resources\/icons\/([A-Za-z0-9_]{1,128})\.png$/);
   if (method === "GET" && achievementIcon) return new Response(Uint8Array.from(await app.achievementResources.icon(achievementIcon)), {
     headers: { "Content-Type": "image/png", "Cache-Control": "private, max-age=31536000, immutable" },

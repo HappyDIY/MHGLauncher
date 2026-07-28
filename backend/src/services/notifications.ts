@@ -98,7 +98,7 @@ export class NotificationService {
 
   private latestActiveGachaStart(now: Date): Date | null {
     try {
-      const starts = this.gachaResources.events().flatMap(({ started_at, ended_at }) => {
+      const starts = this.gachaResources.currentEvents().flatMap(({ started_at, ended_at }) => {
         if (!started_at) return [];
         const start = new Date(started_at);
         const end = ended_at ? new Date(ended_at) : null;

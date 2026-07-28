@@ -62,6 +62,19 @@ test("新安装在提升前崩溃时恢复完整暂存目录", () => {
   expect(readFileSync(join(game, "new"), "utf8")).toBe("y"); expect(existsSync(staging)).toBe(false);
 });
 
+test("备份前中断时保留原目录并清理暂存目录", () => {
+  const root = mkdtempSync(join(tmpdir(), "activate-")), game = join(root, "game");
+  const staging = join(root, "game.mhg-staging-crash");
+  mkdirSync(game); mkdirSync(staging); writeFileSync(join(game, "old"), "x");
+  writeFileSync(`${game}.mhg-activation.json`, JSON.stringify({
+    schema: 2, staging_name: "game.mhg-staging-crash", backup_name: "game.mhg-backup-crash",
+    phase: "backing_up", staging: identity(staging), destination: identity(game),
+  }));
+  recoverActivation(game);
+  expect(readFileSync(join(game, "old"), "utf8")).toBe("x");
+  expect(existsSync(staging)).toBe(false);
+});
+
 test("重启恢复备份完成前中断的提交", () => {
   const root = mkdtempSync(join(tmpdir(), "activate-")), game = join(root, "game"), staging = join(root, "game.mhg-staging-crash");
   const backup = join(root, "game.mhg-backup-crash"); mkdirSync(game); mkdirSync(staging); writeFileSync(join(game, "old"), "x");
@@ -89,6 +102,18 @@ test("恢复记录目录身份不符时不删除任何目录", () => {
   expect(() => recoverActivation(game)).toThrow("拒绝自动删除");
   expect(readFileSync(join(game, "user.txt"), "utf8")).toBe("keep");
   expect(existsSync(staging)).toBe(true); expect(existsSync(backup)).toBe(true);
+});
+
+test("恢复记录指向已消失的原目录时拒绝猜测", () => {
+  const root = mkdtempSync(join(tmpdir(), "activate-conflict-")), game = join(root, "game");
+  const staging = join(root, "game.mhg-staging-safe");
+  mkdirSync(staging);
+  writeFileSync(`${game}.mhg-activation.json`, JSON.stringify({
+    schema: 2, staging_name: "game.mhg-staging-safe", backup_name: "game.mhg-backup-safe",
+    phase: "backing_up", staging: identity(staging), destination: { dev: "0", ino: "0" },
+  }));
+  expect(() => recoverActivation(game)).toThrow("拒绝自动删除");
+  expect(existsSync(staging)).toBe(true);
 });
 
 function identity(path: string): { dev: string; ino: string } {

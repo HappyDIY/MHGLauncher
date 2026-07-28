@@ -7,14 +7,28 @@ import { readBoundedBody } from "./http-response";
 
 const imageName = /^[a-f0-9]{64}\.img$/;
 const imageKeys = new Set(["icon", "image", "side_icon"]);
+const namedImage = /^[A-Za-z0-9_]{1,128}$/;
+const categories = new Set([
+  "AvatarIcon", "EquipIcon", "RelicIcon", "Skill", "Talent",
+  "AchievementIcon", "GachaAvatarIcon", "GachaAvatarImg",
+]);
+type CacheIndex = Record<string, { url: string; digest: string }>;
 
 export class ImageResourceCache {
   private readonly root: string;
+  private readonly indexPath: string;
+  private readonly index: CacheIndex;
   private readonly pending = new Map<string, Promise<void>>();
 
-  constructor(dataDir: string) {
+  constructor(
+    dataDir: string,
+    private readonly apiBaseUrl = "https://api.snaphutaorp.org",
+    private readonly networkEnabled = true,
+  ) {
     this.root = join(dataDir, "resources", "image-cache");
+    this.indexPath = join(this.root, "index.json");
     mkdirSync(this.root, { recursive: true, mode: 0o700 });
+    this.index = this.readIndex();
   }
 
   async ensureCharacters(characters: GameCharacter[]): Promise<void> {
@@ -28,10 +42,15 @@ export class ImageResourceCache {
     await Promise.all(Array.from({ length: Math.min(8, urls.length) }, worker));
   }
 
-  localURL(remote: string | null | undefined): string | null {
+  localURL(remote: string | null | undefined, digest = "upstream"): string | null {
     if (!remote || !this.remoteURL(remote)) return null;
-    const name = this.name(remote);
-    return existsSync(join(this.root, name)) ? `/v1/gacha-resources/cache/${name}` : null;
+    return this.register(remote, digest);
+  }
+
+  namedURL(category: string, name: string, digest: string): string | null {
+    if (!categories.has(category) || !namedImage.test(name)) return null;
+    const remote = new URL(`/static/raw/${category}/${name}.png`, this.apiBaseUrl).href;
+    return this.register(remote, digest);
   }
 
   file(name: string): Buffer | null {
@@ -40,10 +59,26 @@ export class ImageResourceCache {
     return existsSync(path) ? readFileSync(path) : null;
   }
 
+  async fetchFile(name: string): Promise<Buffer | null> {
+    const current = this.file(name);
+    if (current) return current;
+    const source = imageName.test(name) ? this.index[name] ?? this.readIndex()[name] : undefined;
+    if (!source) return null;
+    const url = this.remoteURL(source.url);
+    if (!url) return null;
+    const path = join(this.root, name);
+    const active = this.pending.get(name) ?? this.download(url, path);
+    this.pending.set(name, active);
+    try { await active; return this.file(name); }
+    finally { this.pending.delete(name); }
+  }
+
   private async ensure(remote: string): Promise<void> {
     const url = this.remoteURL(remote);
     if (!url) return;
-    const name = this.name(remote), path = join(this.root, name);
+    const local = this.register(remote, "upstream");
+    if (!local) return;
+    const name = local.split("/").at(-1)!, path = join(this.root, name);
     if (existsSync(path)) return;
     const active = this.pending.get(name) ?? this.download(url, path);
     this.pending.set(name, active);
@@ -73,13 +108,32 @@ export class ImageResourceCache {
   }
 
   private remoteURL(value: string): URL | null {
+    if (!this.networkEnabled) return null;
     try {
       const url = new URL(value), host = url.hostname.toLowerCase();
+      const apiHost = new URL(this.apiBaseUrl).hostname.toLowerCase();
       return url.protocol === "https:" && !url.username && !url.password
-        && (host === "mihoyo.com" || host.endsWith(".mihoyo.com")) ? url : null;
+        && (host === apiHost || host === "static.snaphutaorp.org"
+          || host === "mihoyo.com" || host.endsWith(".mihoyo.com")) ? url : null;
     } catch { return null; }
   }
-  private name(remote: string): string { return `${createHash("sha256").update(remote).digest("hex")}.img`; }
+  private register(remote: string, digest: string): string | null {
+    if (!this.remoteURL(remote)) return null;
+    const name = this.name(remote, digest);
+    if (!this.index[name]) {
+      Object.assign(this.index, this.readIndex());
+      this.index[name] = { url: remote, digest };
+      writeFileSync(this.indexPath, JSON.stringify(this.index), { mode: 0o600 });
+    }
+    return `/v1/gacha-resources/cache/${name}`;
+  }
+  private name(remote: string, digest: string): string {
+    return `${createHash("sha256").update(`${remote}\0${digest}`).digest("hex")}.img`;
+  }
+  private readIndex(): CacheIndex {
+    try { return JSON.parse(readFileSync(this.indexPath, "utf8")) as CacheIndex; }
+    catch { return {}; }
+  }
 }
 
 function validImage(data: Buffer): boolean {

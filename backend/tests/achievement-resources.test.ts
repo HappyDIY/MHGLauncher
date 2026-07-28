@@ -1,65 +1,99 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { AchievementResources } from "../src/services/achievement-resources";
+import { MetadataRepository } from "../src/services/metadata-repository";
 
 const roots: string[] = [];
-const metadataBaseUrl = "https://metadata.example/Genshin/CHS/";
-const iconBaseUrl = "https://icons.example/AchievementIcon/";
-const achievement = [{
-  Id: 80001, Goal: 1, Order: 1, Title: "测试成就", Description: "测试描述",
-  Progress: 1, Version: "1.0", Icon: "UI_AchievementIcon_Test",
-}];
-const goal = [{ Id: 1, Order: 1, Name: "测试目标", Icon: "UI_AchievementIcon_Test" }];
-const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]);
-
+const fixtureDir = join(process.cwd(), "src", "mhglauncher", "data");
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-describe("成就独立资源", () => {
-  test("下载条目与插图并从用户数据目录复用", async () => {
-    const dataDir = mkdtempSync(join(tmpdir(), "mhg-achievement-resource-"));
-    roots.push(dataDir);
-    const calls: string[] = [];
-    const fetcher = async (input: string): Promise<Response> => {
-      calls.push(input);
-      if (input.endsWith("Achievement.json")) return response(JSON.stringify(achievement), "metadata-a");
-      if (input.endsWith("AchievementGoal.json")) return response(JSON.stringify(goal), "metadata-g");
-      if (input.endsWith("UI_AchievementIcon_Test.png")) return new Response(Uint8Array.from(png));
-      return new Response(null, { status: 404 });
-    };
-    const resources = new AchievementResources(dataDir, { metadataBaseUrl, iconBaseUrl, fetcher });
-
-    const loaded = await resources.metadata();
-    expect(loaded.achievements[0]?.Title).toBe("测试成就");
-    expect(loaded.goals[0]?.Name).toBe("测试目标");
-    expect(resources.iconUrl("UI_AchievementIcon_Test")).toBe(
-      "/v1/achievements/resources/icons/UI_AchievementIcon_Test.png",
-    );
-    expect(await resources.icon("UI_AchievementIcon_Test")).toEqual(png);
-    expect(calls).toHaveLength(3);
-
-    const offline = new AchievementResources(dataDir, {
-      metadataBaseUrl, iconBaseUrl,
-      fetcher: async () => { throw new Error("offline"); },
+describe("共享成就资料", () => {
+  test("fixture 模式从内置快照读取且不访问网络", async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "mhg-achievement-resource-")); roots.push(dataDir);
+    const fetcher = vi.spyOn(globalThis, "fetch");
+    const repository = new MetadataRepository({
+      dataDir, apiBaseUrl: "https://api.snaphutaorp.org", fixtureDir,
     });
-    expect((await offline.metadata()).achievements).toHaveLength(1);
-    expect(await offline.icon("UI_AchievementIcon_Test")).toEqual(png);
+    const resources = new AchievementResources(dataDir, repository, "https://api.snaphutaorp.org", false);
+    const loaded = await resources.metadata();
+    expect(loaded.achievements.length).toBeGreaterThan(0);
+    expect(loaded.goals.length).toBeGreaterThan(0);
+    expect(resources.iconUrl("UI_AchievementIcon_Test")).toBeNull();
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   test("拒绝越界插图名称", async () => {
-    const dataDir = mkdtempSync(join(tmpdir(), "mhg-achievement-resource-"));
-    roots.push(dataDir);
-    const resources = new AchievementResources(dataDir, {
-      metadataBaseUrl, iconBaseUrl,
-      fetcher: async () => new Response(null, { status: 404 }),
+    const dataDir = mkdtempSync(join(tmpdir(), "mhg-achievement-resource-")); roots.push(dataDir);
+    const repository = new MetadataRepository({
+      dataDir, apiBaseUrl: "https://api.snaphutaorp.org", fixtureDir,
     });
+    const resources = new AchievementResources(dataDir, repository, "https://api.snaphutaorp.org", false);
     await expect(resources.icon("../secret")).rejects.toMatchObject({ code: "achievement_icon_invalid" });
+  });
+
+  test("无新快照时读取旧成就缓存", async () => {
+    const dataDir = temporary(), root = join(dataDir, "resources", "achievements");
+    mkdirSync(root, { recursive: true });
+    writeFileSync(join(root, "Achievement.json"), JSON.stringify([{
+      Id: 1, Goal: 2, Order: 3, Title: "旧成就", Description: "描述",
+      Progress: 1, Version: "1.0",
+    }]));
+    writeFileSync(join(root, "AchievementGoal.json"), JSON.stringify([{
+      Id: 2, Order: 1, Name: "旧分类", Icon: "UI_AchievementIcon_Test",
+    }]));
+    const resources = new AchievementResources(
+      dataDir, emptyRepository(), "https://api.snaphutaorp.org",
+    );
+    await expect(resources.metadata()).resolves.toMatchObject({
+      achievements: [{ Title: "旧成就" }], goals: [{ Name: "旧分类" }],
+    });
+    expect(resources.iconUrl("bad/name")).toBeNull();
+  });
+
+  test("缺失或损坏缓存返回不可用", async () => {
+    const dataDir = temporary();
+    const resources = new AchievementResources(
+      dataDir, emptyRepository(), "https://api.snaphutaorp.org",
+    );
+    await expect(resources.metadata()).rejects.toMatchObject({
+      code: "achievement_resources_unavailable",
+    });
+    const root = join(dataDir, "resources", "achievements");
+    mkdirSync(root, { recursive: true });
+    writeFileSync(join(root, "Achievement.json"), "{");
+    writeFileSync(join(root, "AchievementGoal.json"), "[]");
+    await expect(resources.metadata()).rejects.toMatchObject({
+      code: "achievement_resources_unavailable",
+    });
+  });
+
+  test("成就插图通过本地缓存下载并拒绝无效内容", async () => {
+    const dataDir = temporary();
+    const resources = new AchievementResources(
+      dataDir, emptyRepository(), "https://api.snaphutaorp.org",
+    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(Buffer.from("89504e470d0a1a0a", "hex"), { status: 200 }),
+    );
+    await expect(resources.icon("UI_AchievementIcon_Test"))
+      .resolves.toEqual(Buffer.from("89504e470d0a1a0a", "hex"));
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("invalid", { status: 200 }));
+    await expect(resources.icon("UI_AchievementIcon_Other"))
+      .rejects.toMatchObject({ code: "image_cache_invalid" });
   });
 });
 
-function response(body: string, etag: string): Response {
-  return new Response(body, { headers: { ETag: etag, "Content-Type": "application/json" } });
+function temporary(): string {
+  const root = mkdtempSync(join(tmpdir(), "mhg-achievement-resource-")); roots.push(root); return root;
+}
+function emptyRepository(): MetadataRepository {
+  return {
+    ensure: vi.fn(async () => undefined), snapshot: () => undefined,
+  } as unknown as MetadataRepository;
 }

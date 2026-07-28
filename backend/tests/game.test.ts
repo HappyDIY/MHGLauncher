@@ -112,11 +112,16 @@ test("Sophon 更新通过暂存目录原子提交且取消终态任务幂等", a
 });
 
 test("仅含删除项的差分完成删除后才更新版本", async () => {
-  const { root, game, service, store } = serviceFor({ version: "5.8.0", kind: "version_diff", deprecated_files: ["old.dat"] });
+  const triggered: string[] = [];
+  const { root, game, service, store } = serviceFor(
+    { version: "5.8.0", kind: "version_diff", deprecated_files: ["old.dat"] },
+    (version) => triggered.push(version),
+  );
   writeFileSync(join(game, "old.dat"), "old");
   try {
     const job = await waitJob(service, await service.start("update", game));
     expect(job.status).toBe("completed"); expect(existsSync(join(game, "old.dat"))).toBe(false);
+    expect(triggered).toEqual(["5.8.0"]);
   } finally { store.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -155,12 +160,16 @@ test("资源任务在首个 await 前占用安装目录", async () => {
   } finally { store.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
-function serviceFor(build: Record<string, unknown>): { root: string; game: string; service: GameService; store: Store } {
+function serviceFor(
+  build: Record<string, unknown>, onInstalled?: (version: string) => void,
+): { root: string; game: string; service: GameService; store: Store } {
   const root = mkdtempSync(join(tmpdir(), "game-transaction-")), data = join(root, "data"), fixtures = join(root, "fixtures"), game = join(root, "game");
   mkdirSync(fixtures); mkdirSync(game); writeFileSync(join(game, "YuanShen.exe"), "game"); writeFileSync(join(game, "config.ini"), "game_version=5.7.0\n");
   writeFileSync(join(fixtures, "build.json"), JSON.stringify(build));
   const store = new Store(join(data, "test.db"));
-  return { root, game, store, service: new GameService(store, new FixtureProvider(fixtures), data) };
+  return { root, game, store, service: new GameService(
+    store, new FixtureProvider(fixtures), data, 4, 0, new ResourceCoordinator(), onInstalled,
+  ) };
 }
 
 async function waitJob(service: GameService, initial: Awaited<ReturnType<GameService["start"]>>): Promise<ReturnType<GameService["get"]>> {

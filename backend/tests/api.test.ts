@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import { fixture, request } from "./helpers";
-import { installGachaResourceFixture } from "./gacha-resource-fixture";
 import { dispatch } from "../src/api/router";
 describe("本地 API 契约", () => {
   beforeEach(() => fixture());
@@ -76,7 +75,6 @@ describe("本地 API 契约", () => {
   test("删除账号返回 204", async () => expect((await request("DELETE", "/v1/account")).status).toBe(204));
   test("同步旧端点已删除", async () => expect((await request("POST", "/v1/wishes/sync", { credential: "x" })).status).toBe(404));
   test("历史卡池插图端点需要鉴权", async () => expect((await request("GET", `/v1/gacha-resources/files/images/${"a".repeat(64)}.img`, undefined, "bad")).status).toBe(401));
-
   test("限速设置读写", async () => {
     const initial = await (await request("GET", "/v1/settings/speed-limit")).json();
     expect(initial.speed_limit_kb).toBe(0);
@@ -129,15 +127,12 @@ describe("本地 API 契约", () => {
 	    const body = { credential };
 	    const characters = await (await request("POST", "/v1/characters/refresh", body)).json();
 	    expect(characters[0].name).toBe("芙宁娜");
-	    expect(await (await request("GET", "/v1/gacha-resources/status")).json()).toMatchObject({ state: "missing", event_count: 0 });
-	    expect((await request("GET", "/v1/gacha-events")).status).toBe(409);
-      installGachaResourceFixture();
+	    expect(await (await request("GET", "/v1/gacha-resources/status")).json()).toMatchObject({ state: "ready", version: "fixture" });
+	    expect(await (await request("GET", "/v1/resources/status")).json()).toMatchObject({ state: "ready", oid: "fixture" });
 	    const events = await (await request("GET", "/v1/gacha-events")).json();
-	    expect(events).toHaveLength(1);
-	    expect(events[0].banner_url).toMatch(/^\/v1\/gacha-resources\/files\//);
-	    expect(events[0].orange_up_icons["阿蕾奇诺"]).toMatch(/^\/v1\/gacha-resources\/files\//);
-      const image = await request("GET", events[0].banner_url);
-      expect(Buffer.from(await image.arrayBuffer()).toString()).toBe("fixture-image");
+	    expect(events.length).toBeGreaterThan(0);
+	    expect(events[0].banner_url).toBeNull();
+	    expect(await (await request("POST", "/v1/resources/sync", { force: true })).json()).toMatchObject({ state: "ready" });
 });
 
 async function loginCookie(credential: string): Promise<void> {

@@ -58,19 +58,11 @@ describe("服务安全配置", () => {
     }))).not.toThrow();
   });
 
-  test("历史卡池资源仅接受 HTTPS 清单", () => {
-    expect(settings({ NODE_ENV: "test" }).gachaResourceManifestUrl).toContain("github.com/HappyDIY/MHGLauncher");
+  test("Snap Hutao API 仅接受 HTTPS 地址", () => {
+    expect(settings({ NODE_ENV: "test" }).hutaoApiBaseUrl).toBe("https://api.snaphutaorp.org");
     expect(() => validateServerSettings(settings({
       NODE_ENV: "test", MHG_API_TOKEN: "token",
-      MHG_GACHA_RESOURCE_MANIFEST_URL: "http://resource.example/manifest.json",
-    }))).toThrow("历史卡池资源");
-  });
-
-  test("成就资源仅接受 HTTPS 地址", () => {
-    expect(settings({ NODE_ENV: "test" }).achievementMetadataBaseUrl).toContain("Snap.Metadata");
-    expect(() => validateServerSettings(settings({
-      NODE_ENV: "test", MHG_API_TOKEN: "token",
-      MHG_ACHIEVEMENT_ICON_BASE_URL: "http://resource.example/icons/",
-    }))).toThrow("成就资源");
+      MHG_HUTAO_API_BASE_URL: "http://resource.example",
+    }))).toThrow("MHG_HUTAO_API_BASE_URL");
   });
 });

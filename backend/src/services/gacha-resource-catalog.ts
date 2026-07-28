@@ -25,8 +25,6 @@ const catalogSchema = z.object({
 }).strict();
 
 export type Catalog = z.infer<typeof catalogSchema>;
-export type CharacterAssetKind = keyof Catalog["character_assets"];
-export type Metadata = z.infer<typeof item>;
 
 export function readCatalog(root: string): Catalog {
   try {
@@ -36,11 +34,11 @@ export function readCatalog(root: string): Catalog {
     }
     return value;
   } catch {
-    throw new AppError("gacha_resource_invalid", "完整素材资源已损坏，请重新下载", 409);
+    throw new AppError("gacha_resource_invalid", "旧版游戏资料缓存已损坏，请刷新资料", 409);
   }
 }
 
-export function catalogFiles(catalog: Catalog): string[] {
+function catalogFiles(catalog: Catalog): string[] {
   return [
     ...catalog.events.flatMap(({ banner_file }) => banner_file ? [banner_file] : []),
     ...Object.values(catalog.items).flatMap((value) => value[3] ? [value[3]] : []),

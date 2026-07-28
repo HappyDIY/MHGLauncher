@@ -73,7 +73,7 @@ function fixture(initial: string, events: GachaEvent[] = []) {
   const root = mkdtempSync(join(tmpdir(), "mhg-notification-")); roots.push(root);
   const store = new Store(join(root, "test.db"));
   let now = new Date(initial);
-  const resources = { events: () => events } as unknown as GachaResourceService;
+  const resources = { currentEvents: () => events } as unknown as GachaResourceService;
   const service = new NotificationService(store, resources, () => now);
   return {
     service,

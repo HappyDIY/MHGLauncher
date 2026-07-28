@@ -13,9 +13,7 @@ export interface Settings {
   downloadSpeedLimitKB: number;
   socketPath: string;
   cloudBaseUrl?: string;
-  gachaResourceManifestUrl?: string;
-  achievementMetadataBaseUrl?: string;
-  achievementIconBaseUrl?: string;
+  hutaoApiBaseUrl?: string;
 }
 
 function integer(value: string | undefined, fallback: number): number {
@@ -36,12 +34,7 @@ export function settings(env: NodeJS.ProcessEnv = process.env): Settings {
     downloadSpeedLimitKB: integer(env.MHG_DOWNLOAD_SPEED_LIMIT, 0),
     socketPath: resolve(env.MHG_SOCKET_PATH ?? join(tmpdir(), `mhg-${process.pid}.sock`)),
     cloudBaseUrl: (env.MHG_CLOUD_BASE_URL ?? "http://localhost:3333").replace(/\/+$/, ""),
-    gachaResourceManifestUrl: env.MHG_GACHA_RESOURCE_MANIFEST_URL
-      ?? "https://github.com/HappyDIY/MHGLauncher/releases/latest/download/gacha-history-manifest.json",
-    achievementMetadataBaseUrl: env.MHG_ACHIEVEMENT_METADATA_BASE_URL
-      ?? "https://raw.githubusercontent.com/SnapHutaoRemasteringProject/Snap.Metadata/main/Genshin/CHS/",
-    achievementIconBaseUrl: env.MHG_ACHIEVEMENT_ICON_BASE_URL
-      ?? "https://api.snaphutaorp.org/static/raw/AchievementIcon/",
+    hutaoApiBaseUrl: (env.MHG_HUTAO_API_BASE_URL ?? "https://api.snaphutaorp.org").replace(/\/+$/, ""),
   };
 }
 
@@ -68,18 +61,10 @@ export function validateServerSettings(value: Settings): void {
   if (!secureProtocol || cloudUrl.username || cloudUrl.password) {
     throw new AppError("cloud_url_invalid", "MHG_CLOUD_BASE_URL 仅允许无凭据的 HTTPS URL，本地回环地址可使用 HTTP", 500);
   }
-  let resourceUrl: URL;
-  try { resourceUrl = new URL(value.gachaResourceManifestUrl ?? ""); }
-  catch { throw new AppError("gacha_resource_url_invalid", "历史卡池资源地址无效", 500); }
-  if (resourceUrl.protocol !== "https:" || resourceUrl.username || resourceUrl.password) {
-    throw new AppError("gacha_resource_url_invalid", "历史卡池资源必须使用无凭据的 HTTPS 地址", 500);
+  let hutaoUrl: URL;
+  try { hutaoUrl = new URL(value.hutaoApiBaseUrl ?? "https://api.snaphutaorp.org"); }
+  catch { throw new AppError("hutao_api_url_invalid", "MHG_HUTAO_API_BASE_URL 必须是有效 URL", 500); }
+  if (hutaoUrl.protocol !== "https:" || hutaoUrl.username || hutaoUrl.password) {
+    throw new AppError("hutao_api_url_invalid", "MHG_HUTAO_API_BASE_URL 仅允许无凭据的 HTTPS URL", 500);
   }
-	for (const raw of [value.achievementMetadataBaseUrl, value.achievementIconBaseUrl]) {
-	  let url: URL;
-	  try { url = new URL(raw ?? ""); }
-	  catch { throw new AppError("achievement_resource_url_invalid", "成就资源地址无效", 500); }
-	  if (url.protocol !== "https:" || url.username || url.password) {
-	    throw new AppError("achievement_resource_url_invalid", "成就资源必须使用无凭据的 HTTPS 地址", 500);
-	  }
-	}
 }

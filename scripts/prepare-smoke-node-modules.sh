@@ -17,7 +17,7 @@ if [[ ! -d "$cache" ]]; then
   cp "$root/backend/package.json" "$root/backend/package-lock.json" "$stage/app/"
   (
     cd "$stage/app"
-    PATH="$node_root/bin:$PATH" npm ci --omit=dev --no-audit --no-fund
+    PATH="$node_root/bin:$PATH" npm ci --omit=dev --no-audit --no-fund >&2
   )
   find "$stage/app/node_modules" \
     \( -name '*.md' -o -name '*.map' -o -name '*.tsbuildinfo' \) -type f -delete

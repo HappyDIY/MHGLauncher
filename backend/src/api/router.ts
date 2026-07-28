@@ -44,6 +44,9 @@ async function dispatchWith(app: Container, request: Request): Promise<Response>
 async function route(app: Container, method: string, path: string, query: URLSearchParams, body: unknown, signal: AbortSignal): Promise<Response> {
   if (method === "GET" && path === "/health") return json({ status: "ok", version: "1.0.0" });
   if (method === "GET" && path === "/app-update") return json(await app.appUpdates.latest());
+  if (method === "GET" && [
+    "/wishes", "/wishes/statistics", "/wishes/banner-statistics", "/characters",
+  ].includes(path)) await app.metadataRepository.ensure();
   if (method === "GET" && path === "/accounts") return json(app.accounts.list());
   if (method === "GET" && path === "/account") return json(app.accounts.get());
   if (method === "DELETE" && path === "/account") { app.accounts.logout(); return new Response(null, { status: 204 }); }
@@ -147,9 +150,9 @@ async function route(app: Container, method: string, path: string, query: URLSea
   }
   if (method === "POST" && path === "/notes/verification") { const value = verification.parse(body); return json({ xrpc_challenge: await app.notes.verify(value.credential, value.challenge, value.validate, value.xrpc_challenge_path) }); }
 	  const resourceFile = match(path, /^\/gacha-resources\/files\/(.+)$/);
-	  if (method === "GET" && resourceFile) { const data = app.gachaResources.file(resourceFile); if (!data) throw new AppError("image_missing", "历史卡池插图不存在", 404); return new Response(new Uint8Array(data), { headers: { "Content-Type": "application/octet-stream", "Cache-Control": "private, max-age=31536000, immutable" } }); }
+	  if (method === "GET" && resourceFile) { const data = await app.gachaResources.file(resourceFile); if (!data) throw new AppError("image_missing", "历史卡池插图不存在", 404); return image(data); }
 	  const cachedFile = match(path, /^\/gacha-resources\/cache\/(.+)$/);
-	  if (method === "GET" && cachedFile) { const data = app.gachaResources.cachedFile(cachedFile); if (!data) throw new AppError("image_missing", "本地素材不存在", 404); return new Response(new Uint8Array(data), { headers: { "Content-Type": "application/octet-stream", "Cache-Control": "private, max-age=31536000, immutable" } }); }
+	  if (method === "GET" && cachedFile) { const data = await app.gachaResources.fetchCachedFile(cachedFile); if (!data) throw new AppError("image_missing", "本地素材不存在", 404); return image(data); }
 	  const value = await valueRoute(app, method, path, query, body);
 	  if (value) return value;
 	  throw new AppError("not_found", "接口不存在", 404);
@@ -163,5 +166,17 @@ function authorize(app: Container, request: Request): void {
   if (left.length !== right.length || !timingSafeEqual(left, right)) throw new AppError("unauthorized", "本地服务鉴权失败", 401);
 }
 function json(value: unknown, status = 200): Response { return Response.json(value, { status }); }
+function image(value: Buffer): Response {
+  return new Response(new Uint8Array(value), { headers: {
+    "Content-Type": imageType(value), "Cache-Control": "private, max-age=31536000, immutable",
+  } });
+}
+function imageType(value: Buffer): string {
+  const hex = value.subarray(0, 12).toString("hex");
+  if (hex.startsWith("89504e470d0a1a0a")) return "image/png";
+  if (hex.startsWith("ffd8ff")) return "image/jpeg";
+  if (hex.startsWith("52494646")) return "image/webp";
+  return "application/octet-stream";
+}
 function match(path: string, expression: RegExp): string | null { const value = expression.exec(path)?.[1]; return value ? decodeURIComponent(value) : null; }
 function required(query: URLSearchParams, name: string): string { const value = query.get(name); if (!value) throw new AppError("validation_error", `${name} 不能为空`, 422); return value; }

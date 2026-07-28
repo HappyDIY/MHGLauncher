@@ -6,6 +6,7 @@ import Observation
 final class ValueStore {
     var gachaEvents: [GachaEvent] = []
     var gachaResourceStatus: GachaResourceStatus?
+    var resourceSyncStatus: ResourceSyncStatus?
     var achievementArchives: [AchievementArchive] = []
     var achievementGoals: [AchievementGoal] = []
     var achievementEntries: [AchievementEntry] = []

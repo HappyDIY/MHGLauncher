@@ -31,6 +31,8 @@ struct APIContractResponseTests {
             case "daily_note": _ = try JSONDecoder.api.decode(DailyNote.self, from: data)
             case "companion_snapshot":
                 _ = try JSONDecoder.api.decode(CompanionSnapshot.self, from: data)
+            case "resource_status":
+                _ = try JSONDecoder.api.decode(ResourceSyncStatus.self, from: data)
             default: Issue.record("未覆盖响应模型：\(fixture.model ?? "nil")")
             }
         }
@@ -88,6 +90,10 @@ private func expectedResponseKeys(_ model: String) -> Set<String> {
         "refreshed_at",
     ]
     case "companion_snapshot": ["wishes", "statistics", "banner_statistics", "note"]
+    case "resource_status": [
+        "state", "oid", "last_checked_at", "last_success_at", "trigger_game_version",
+        "using_legacy_cache", "error",
+    ]
     default: []
     }
 }

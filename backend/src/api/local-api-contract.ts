@@ -46,6 +46,12 @@ const wishTask = z.object({
   error_code: z.string().optional(), target_uids: z.array(z.string()).optional(),
   revision: z.number().optional(),
 }).strict();
+const resourceStatus = z.object({
+  state: z.enum(["missing", "syncing", "ready", "retry"]), oid: z.string().nullable(),
+  last_checked_at: z.string().nullable(), last_success_at: z.string().nullable(),
+  trigger_game_version: z.string().nullable(), using_legacy_cache: z.boolean(),
+  error: z.string().nullable(),
+}).strict();
 
 export const contractResponseSchemas = {
   account,
@@ -60,6 +66,7 @@ export const contractResponseSchemas = {
   game_job: gameJob,
   game_launch: gameLaunch,
   game_state: gameState,
+  resource_status: resourceStatus,
   wish_task: wishTask,
 } as const;
 
@@ -85,7 +92,8 @@ export const localApiEndpoints = [
   ["GET", "/v1/notes"], ["POST", "/v1/notes/refresh"], ["POST", "/v1/notes/verification"],
   ["GET", "/v1/characters"], ["POST", "/v1/characters/cache-assets"],
   ["POST", "/v1/characters/refresh"], ["POST", "/v1/characters/{avatar_id}/refresh"],
-  ["GET", "/v1/gacha-events"], ["GET", "/v1/gacha-resources/status"],
+  ["GET", "/v1/gacha-events"], ["GET", "/v1/resources/status"], ["POST", "/v1/resources/sync"],
+  ["GET", "/v1/gacha-resources/status"],
   ["POST", "/v1/gacha-resources/install"], ["GET", "/v1/gacha-resources/files/{path}"],
   ["GET", "/v1/gacha-resources/cache/{path}"], ["GET", "/v1/achievements/resources/icons/{name}.png"],
   ["GET", "/v1/achievements/archive"], ["GET", "/v1/achievements/goals"],

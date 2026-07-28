@@ -78,7 +78,7 @@ struct AdditionalButtonBusinessActionTests {
 
         #expect(store.message == nil)
         #expect(store.value.cloudMessage == "已取回 2 条记录")
-        #expect(await backend.saw("POST", "/v1/gacha-resources/install"))
+        #expect(await backend.saw("POST", "/v1/resources/sync"))
         #expect(await backend.saw("POST", "/v1/characters/cache-assets"))
         #expect(await backend.saw("GET", "/v1/companion/snapshot"))
         #expect(await backend.saw("POST", "/v1/characters/1001/refresh"))
@@ -130,8 +130,10 @@ private actor ValueFakeBackend {
         }
         switch (request.method, route) {
         case ("GET", "/v1/gacha-events"): return try json([event])
-        case ("GET", "/v1/gacha-resources/status"), ("POST", "/v1/gacha-resources/install"):
+        case ("GET", "/v1/gacha-resources/status"):
             return try json(resourceStatus)
+        case ("GET", "/v1/resources/status"), ("POST", "/v1/resources/sync"):
+            return try json(syncStatus)
         case ("GET", "/v1/characters"), ("POST", "/v1/characters/refresh"),
             ("POST", "/v1/characters/cache-assets"): return try json([character])
         case ("POST", "/v1/characters/1001/refresh"): return try json(character)
@@ -163,6 +165,7 @@ private let date = Date(timeIntervalSince1970: 1_782_144_000)
 private let settings = NotificationSettings(dailyCommissionEnabled: true, dailyCommissionTime: "08:00", resinFullEnabled: true, gachaRefreshEnabled: true, versionUpdateEnabled: true)
 private let event = GachaEvent(id: "event-1", version: "5.8", gachaType: "301", name: "卡池", startedAt: date, endedAt: date, orangeUp: ["角色"], purpleUp: [], bannerUrl: nil, updatedAt: date)
 private let resourceStatus = GachaResourceStatus(state: "ready", version: "fixture", eventCount: 1, imageCount: 1, installedBytes: 1, installedAt: date)
+private let syncStatus = ResourceSyncStatus(state: "ready", oid: "fixture", lastCheckedAt: date, lastSuccessAt: date, triggerGameVersion: nil, usingLegacyCache: false, error: nil)
 private let character = GameCharacter(uid: InteractiveFixtures.role.uid, avatarId: "1001", name: "旅行者", element: "Anemo", level: 90, rarity: 5, constellation: 0, fetter: 10, weaponName: "剑", weaponLevel: 90, iconUrl: nil, payload: nil, updatedAt: date)
 private let archive = AchievementArchive(id: InteractiveFixtures.role.uid, name: InteractiveFixtures.role.uid, selected: true, createdAt: date, updatedAt: date, revision: 0)
 private let goal = AchievementGoal(id: 1, order: 1, name: "天地万象", rewardCount: 5, iconUrl: nil)

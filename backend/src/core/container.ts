@@ -24,6 +24,7 @@ import { ResourceCoordinator } from "../services/resource-coordinator";
 import { GachaResourceService } from "../services/gacha-resources";
 import { AchievementResources } from "../services/achievement-resources";
 import { AppUpdateService } from "../services/app-updates";
+import { MetadataRepository } from "../services/metadata-repository";
 
 export class Container {
   readonly settings: Settings;
@@ -33,6 +34,7 @@ export class Container {
   readonly games: GameService;
   readonly launches: GameLaunchService;
   readonly gachaResources: GachaResourceService;
+  readonly metadataRepository: MetadataRepository;
   readonly notes: NoteService;
   readonly wishes: WishService;
 	  readonly wishTasks: WishTasks;
@@ -48,19 +50,28 @@ export class Container {
 
   constructor(config = settings()) {
     this.settings = config; mkdirSync(config.dataDir, { recursive: true });
+    const hutaoApiBaseUrl = config.hutaoApiBaseUrl ?? "https://api.snaphutaorp.org";
     this.store = new Store(config.databasePath);
 	    this.provider = config.providerMode === "fixture" ? new FixtureProvider(config.fixtureDir) : new LiveProvider(config);
 	    this.records = config.providerMode === "fixture" ? new FixtureGameRecordSource(config.fixtureDir) : new LiveGameRecordSource(config);
-    this.gachaResources = new GachaResourceService(config.dataDir, config.gachaResourceManifestUrl);
-	this.achievementResources = new AchievementResources(config.dataDir, {
-	  metadataBaseUrl: config.achievementMetadataBaseUrl ?? "",
-	  iconBaseUrl: config.achievementIconBaseUrl ?? "",
-	  localMetadataDir: config.providerMode === "fixture" ? join(process.cwd(), "src/mhglauncher/data") : undefined,
-	});
+    const fixtureMetadata = config.providerMode === "fixture"
+      ? join(config.fixtureDir, "..", "src", "mhglauncher", "data") : undefined;
+    this.metadataRepository = new MetadataRepository({
+      dataDir: config.dataDir, apiBaseUrl: hutaoApiBaseUrl, fixtureDir: fixtureMetadata,
+    });
+    this.gachaResources = new GachaResourceService(
+      config.dataDir, this.metadataRepository, hutaoApiBaseUrl, config.providerMode !== "fixture",
+    );
+	this.achievementResources = new AchievementResources(
+	  config.dataDir, this.metadataRepository, hutaoApiBaseUrl, config.providerMode !== "fixture",
+	);
     this.accounts = new AccountService(this.store, this.provider);
     this.preparedLogins = new PreparedLoginStore();
     const resources = new ResourceCoordinator();
-    this.games = new GameService(this.store, this.provider, config.dataDir, config.downloadWorkers, config.downloadSpeedLimitKB, resources);
+    this.games = new GameService(
+      this.store, this.provider, config.dataDir, config.downloadWorkers, config.downloadSpeedLimitKB,
+      resources, (version) => this.metadataRepository.trigger(version),
+    );
     this.launches = new GameLaunchService(
       config.dataDir, process.env.MHG_RUNTIME_ROOT ?? join(process.cwd(), "runtime"), undefined, undefined, resources,
     );

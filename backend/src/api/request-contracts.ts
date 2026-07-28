@@ -70,6 +70,7 @@ export const notificationSettingsRequest = z.object({
 export const notificationAcknowledgementRequest = z.object({
   keys: z.array(z.string().regex(/^[A-Za-z0-9:._-]{1,160}$/)).max(20),
 }).strict();
+export const resourceSyncRequest = z.object({ force: z.boolean().default(false) }).strict();
 
 export const contractRequestSchemas = {
   achievement_save: achievementSaveRequest,
@@ -81,6 +82,7 @@ export const contractRequestSchemas = {
   note_verification: noteVerificationRequest,
   notification_acknowledgement: notificationAcknowledgementRequest,
   notification_settings: notificationSettingsRequest,
+  resource_sync: resourceSyncRequest,
   speed_limit: speedLimitRequest,
   start_job: startJobRequest,
   start_launch: startLaunchRequest,

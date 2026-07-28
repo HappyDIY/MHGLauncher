@@ -1,10 +1,8 @@
 import { existsSync, mkdirSync, rmSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { createHash, randomUUID } from "node:crypto";
+import { join, resolve } from "node:path"; import { createHash, randomUUID } from "node:crypto";
 import { AppError } from "../core/errors";
 import type { GameJob, GameState, JobKind } from "../core/models";
-import type { Store } from "../core/database";
-import type { GameBuild, Provider } from "../providers/provider";
+import type { Store } from "../core/database"; import type { GameBuild, Provider } from "../providers/provider";
 import { DownloadControl } from "./download";
 import { activate } from "./installer";
 import { operationChunks, prepareBuild } from "./game-build";
@@ -31,7 +29,8 @@ export class GameService {
   private readonly notifier = new RevisionNotifier<GameJob>();
   private mutableSpeedLimitKB = 0;
   constructor(private readonly store: Store, private readonly provider: Provider, private readonly dataDir: string,
-    private readonly downloadWorkers = 4, downloadSpeedLimitKB = 0, private readonly coordinator = new ResourceCoordinator()) { this.mutableSpeedLimitKB = downloadSpeedLimitKB; }
+    private readonly downloadWorkers = 4, downloadSpeedLimitKB = 0, private readonly coordinator = new ResourceCoordinator(),
+    private readonly onInstalled?: (version: string) => void) { this.mutableSpeedLimitKB = downloadSpeedLimitKB; }
   setSpeedLimit(kb: number): void { this.mutableSpeedLimitKB = Math.max(0, kb); }
   getSpeedLimit(): number { return this.mutableSpeedLimitKB; }
   busy(): boolean { return [...this.jobs.values()].some(({ status }) => ["queued", "running", "pausing", "paused", "cancelling"].includes(status)); }
@@ -163,6 +162,7 @@ export class GameService {
       this.saveState(path, build.version); rmSync(job.kind === "verify" ? cache : this.cacheScopeFor(path), { recursive: true, force: true }); clearPredownloadStatus(cache);
       reporting.flush(); job.completed_bytes = job.total_bytes; job.download_speed = 0; job.status = "completed";
       job.message = job.kind === "install" ? "游戏资源安装完成" : job.kind === "verify" ? "游戏资源校验完成" : "游戏资源更新完成"; this.touch(job);
+      if (job.kind === "install" || job.kind === "update") this.onInstalled?.(build.version);
     } catch (error) {
       const failure = localStorageError(error);
       job.download_speed = 0; job.status = error instanceof DOMException && error.name === "AbortError" ? "cancelled" : "failed";

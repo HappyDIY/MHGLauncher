@@ -51,7 +51,7 @@ struct GachaHistoryView: View {
             }
             .buttonStyle(.glass)
             .motionHover()
-            .disabled(store.isBusy)
+            .disabled(store.value.resourceSyncStatus?.isSyncing == true)
             Button("同步记录", systemImage: "arrow.trianglehead.2.clockwise.rotate.90") {
                 Task { await store.syncWishes() }
             }
@@ -63,7 +63,7 @@ struct GachaHistoryView: View {
 
     private var subtitle: String {
         guard store.value.gachaResourceStatus?.isReady == true else {
-            return "历史、祈愿与角色素材一次下载后全部本地复用"
+            return "游戏资料尚未就绪，可刷新后继续使用"
         }
         guard let role = store.selectedRole else { return "请先登录账号并同步祈愿记录" }
         let count = visibleWishes.reduce(0) { $0 + $1.total }
@@ -85,7 +85,7 @@ struct GachaHistoryView: View {
             Button(resourceActionTitle) { Task { await store.installGachaResources() } }
                 .buttonStyle(.glass)
                 .motionHover()
-                .disabled(store.isBusy)
+                .disabled(store.value.resourceSyncStatus?.isSyncing == true)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .glassEffect(
@@ -166,24 +166,24 @@ struct GachaHistoryView: View {
     }
 
     private var emptyTitle: String {
-        if store.value.gachaResourceStatus?.state == "installing" { return "正在下载完整素材资源" }
-        if store.value.gachaResourceStatus?.isReady != true { return "完整素材资源尚未下载" }
+        if store.value.resourceSyncStatus?.isSyncing == true { return "正在刷新游戏资料" }
+        if store.value.gachaResourceStatus?.isReady != true { return "游戏资料尚未就绪" }
         return store.wishes.isEmpty ? "还没有祈愿记录" : "没有匹配的历史卡池"
     }
 
     private var emptyDescription: String {
         guard store.value.gachaResourceStatus?.isReady == true else {
-            return store.value.gachaResourceStatus?.state == "installing"
-                ? "正在校验并安装卡池、祈愿与角色全部素材，请保持应用运行。"
-                : "一次下载后，历史卡池、祈愿和我的角色页面将统一读取本地素材；资源不会写入主应用包。"
+            return store.value.resourceSyncStatus?.isSyncing == true
+                ? "正在同步并校验游戏资料，旧资料仍可继续使用。"
+                : "刷新后，历史卡池、祈愿、角色和成就将统一使用同一份资料。"
         }
         return store.wishes.isEmpty
             ? "同步祈愿记录后，这里会自动还原活动卡池、UP 与抽取结果。"
-            : "更新完整素材资源后重试，未落在活动时段内的记录仍可在祈愿记录页查看。"
+            : "刷新游戏资料后重试，未落在活动时段内的记录仍可在祈愿记录页查看。"
     }
 
     private var resourceActionTitle: String {
-        if store.value.gachaResourceStatus?.state == "installing" { return "正在下载" }
-        return store.value.gachaResourceStatus?.isReady == true ? "更新完整素材" : "下载完整素材"
+        if store.value.resourceSyncStatus?.isSyncing == true { return "正在刷新" }
+        return "刷新资料"
     }
 }

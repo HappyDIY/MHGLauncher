@@ -28,6 +28,22 @@ struct GachaResourceStatus: Codable, Sendable, Equatable {
 
 struct GachaResourceInstallRequest: Codable {}
 
+struct ResourceSyncRequest: Codable {
+    let force: Bool
+}
+
+struct ResourceSyncStatus: Codable, Sendable, Equatable {
+    let state: String
+    let oid: String?
+    let lastCheckedAt: Date?
+    let lastSuccessAt: Date?
+    let triggerGameVersion: String?
+    let usingLegacyCache: Bool
+    let error: String?
+
+    var isSyncing: Bool { state == "syncing" }
+}
+
 struct AchievementArchive: Codable, Sendable, Identifiable {
     let id: String
     let name: String

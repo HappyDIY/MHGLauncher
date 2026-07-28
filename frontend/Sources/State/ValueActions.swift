@@ -64,7 +64,10 @@ extension LauncherStore {
 
     func loadGachaResources() async {
         do {
-            let status: GachaResourceStatus = try await requireClient().get("/v1/gacha-resources/status")
+            let client = try requireClient()
+            async let syncStatus: ResourceSyncStatus = client.get("/v1/resources/status")
+            let status: GachaResourceStatus = try await client.get("/v1/gacha-resources/status")
+            value.resourceSyncStatus = try await syncStatus
             value.gachaResourceStatus = status
             guard status.isReady else {
                 value.gachaEvents = []
@@ -80,6 +83,13 @@ extension LauncherStore {
 
     func installGachaResources() async {
         let previous = value.gachaResourceStatus
+        let previousSync = value.resourceSyncStatus
+        value.resourceSyncStatus = ResourceSyncStatus(
+            state: "syncing", oid: previousSync?.oid,
+            lastCheckedAt: previousSync?.lastCheckedAt, lastSuccessAt: previousSync?.lastSuccessAt,
+            triggerGameVersion: previousSync?.triggerGameVersion,
+            usingLegacyCache: previousSync?.usingLegacyCache ?? false, error: nil
+        )
         value.gachaResourceStatus = GachaResourceStatus(
             state: "installing",
             version: previous?.version,
@@ -90,11 +100,13 @@ extension LauncherStore {
         )
         await perform {
             let client = try requireClient()
-            value.gachaResourceStatus = try await client.post(
-                "/v1/gacha-resources/install",
-                body: GachaResourceInstallRequest(),
+            value.resourceSyncStatus = try await client.post(
+                "/v1/resources/sync",
+                body: ResourceSyncRequest(force: true),
                 timeout: 3_600
             )
+            if let error = value.resourceSyncStatus?.error { message = error }
+            value.gachaResourceStatus = try await client.get("/v1/gacha-resources/status")
             value.gachaEvents = try await client.get("/v1/gacha-events")
             if activeWishUID != nil { try await reloadWishes(client: client) }
             if let uid = selectedRole?.uid {
@@ -107,11 +119,15 @@ extension LauncherStore {
                 if isCurrentCompanionData(uid: uid, generation: generation) {
                     characters = loaded
                 }
+                try await loadAchievementData(client: client, uid: uid, generation: generation)
             }
             await refreshGachaHistoryPresentation()
         }
         if value.gachaResourceStatus?.state == "installing" {
             value.gachaResourceStatus = previous
+        }
+        if value.resourceSyncStatus?.state == "syncing" {
+            value.resourceSyncStatus = previousSync
         }
     }
 

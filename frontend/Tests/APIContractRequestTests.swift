@@ -52,6 +52,7 @@ struct APIContractRequestTests {
                 )]
             )),
             ("cloud_uid", CloudUIDRequest(uid: "100000001", token: "fixture-token")),
+            ("resource_sync", ResourceSyncRequest(force: true)),
         ]
 
         #expect(corpus.version == 1)

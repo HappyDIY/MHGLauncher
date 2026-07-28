@@ -1,166 +1,188 @@
-import { randomUUID } from "node:crypto";
-import {
-  existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync,
-} from "node:fs";
-import { basename, join } from "node:path";
-import { z } from "zod";
-import { AppError } from "../core/errors";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { GameCharacter, GachaEvent, GachaResourceStatus, WishRecord } from "../core/models";
-import { localizeCharacter } from "./character-resource-enrichment";
-import { DownloadControl, hash } from "./download";
-import { streamDownload } from "./download-transfer";
-import { activate, extract, safeTarget, verify } from "./installer";
-import { catalogFiles, readCatalog, resourceFile, type Catalog, type Metadata } from "./gacha-resource-catalog";
-import { readBoundedBody } from "./http-response";
+import { AppError } from "../core/errors";
+import { safeTarget } from "./installer";
+import { readCatalog, resourceFile, type Catalog } from "./gacha-resource-catalog";
 import { ImageResourceCache } from "./image-resource-cache";
-const remoteManifestSchema = z.object({
-  schema_version: z.literal(1), version: z.string().min(1).max(64),
-  archive: z.object({
-    url: z.string().min(1).max(2_048), size: z.number().int().positive().max(2_000_000_000),
-    sha256: z.string().regex(/^[a-f0-9]{64}$/),
-  }).strict(),
-}).strict();
+import type { MetadataRepository, ResourceStatus } from "./metadata-repository";
+import type { MetadataSnapshot, SnapAssets } from "./snap-metadata";
+import { localizeCharacter } from "./character-resource-enrichment";
+
+type JSONObject = Record<string, unknown>;
+const assetCategory: Record<keyof SnapAssets, string> = {
+  avatars: "AvatarIcon", weapons: "EquipIcon", reliquaries: "RelicIcon", skills: "Skill", talents: "Talent",
+};
 
 export class GachaResourceService {
-  private readonly destination: string;
+  private readonly legacyRoot: string;
   private readonly imageCache: ImageResourceCache;
-  private catalogCache?: Catalog;
-  private installing = false;
+  private legacyCache?: Catalog;
 
-  constructor(private readonly dataDir: string, private readonly manifestUrl?: string) {
-    this.destination = join(dataDir, "resources", "gacha-history");
-    this.imageCache = new ImageResourceCache(dataDir);
+  constructor(
+    dataDir: string,
+    private readonly repository: MetadataRepository,
+    apiBaseUrl: string,
+    networkEnabled = true,
+  ) {
+    this.legacyRoot = join(dataDir, "resources", "gacha-history");
+    this.imageCache = new ImageResourceCache(dataDir, apiBaseUrl, networkEnabled);
   }
+
+  resourceStatus(): ResourceStatus { return this.repository.status(); }
 
   status(): GachaResourceStatus {
-    const catalog = this.catalog(false), descriptor = this.descriptor();
+    const current = this.repository.status(), snapshot = this.repository.snapshot(), legacy = this.legacy(false);
     return {
-      state: this.installing ? "installing" : catalog ? "ready" : "missing",
-      version: catalog?.version ?? null, event_count: catalog?.events.length ?? 0,
-      image_count: catalog ? new Set(this.files(catalog)).size : 0,
-      installed_bytes: Number(descriptor?.installed_bytes ?? 0),
-      installed_at: typeof descriptor?.installed_at === "string" ? descriptor.installed_at : null,
+      state: current.state === "syncing" ? "installing" : snapshot || legacy ? "ready" : "missing",
+      version: snapshot?.oid ?? legacy?.version ?? null,
+      event_count: snapshot?.events.length ?? legacy?.events.length ?? 0,
+      image_count: snapshot ? this.imageCount(snapshot) : legacy ? new Set(this.legacyFiles(legacy)).size : 0,
+      installed_bytes: 0, installed_at: snapshot?.activatedAt ?? null,
     };
   }
 
-  events(): GachaEvent[] {
-    const catalog = this.catalog(true)!;
-    return catalog.events.map(({ banner_file, ...value }) => ({
-      ...value, banner_url: banner_file ? this.endpoint(banner_file, catalog.version) : null,
-      orange_up_icons: this.iconURLs(value.orange_up, catalog),
-      purple_up_icons: this.iconURLs(value.purple_up, catalog),
-    }));
-  }
-
-  enrich(record: WishRecord): WishRecord {
-    const catalog = this.catalog(false);
-    if (!catalog) return { ...record, icon_url: null };
-    let id = record.item_id, metadata = catalog.items[id];
-    if (!metadata && record.name) {
-      const match = Object.entries(catalog.items).find(([, value]) => value[0] === record.name);
-      if (match) [id, metadata] = match;
-    }
-    if (!metadata) return { ...record, icon_url: null };
-    return {
-      ...record, item_id: id, name: record.name || metadata[0], item_type: record.item_type || metadata[1],
-      rank: record.rank || metadata[2], icon_url: metadata[3] ? this.endpoint(metadata[3], catalog.version) : null,
-    };
-  }
-
-  enrichCharacter(character: GameCharacter): GameCharacter {
-    const catalog = this.catalog(false);
-    return localizeCharacter(
-      character, catalog, (name) => this.endpoint(name, catalog?.version ?? "missing"),
-      (remote) => this.imageCache.localURL(remote),
-    );
-  }
-
-  async cacheCharacters(characters: GameCharacter[]): Promise<void> {
-    await this.imageCache.ensureCharacters(characters);
-  }
-
-  cachedFile(name: string): Buffer | null { return this.imageCache.file(name); }
-
-  file(name: string): Buffer | null {
-    if (!resourceFile.safeParse(name).success) return null;
-    const path = safeTarget(this.destination, name);
-    return existsSync(path) ? readFileSync(path) : null;
-  }
-
-  async install(): Promise<GachaResourceStatus> {
-    if (this.installing) throw new AppError("gacha_resource_busy", "历史卡池资源正在下载", 409);
-    if (!this.manifestUrl) throw new AppError("gacha_resource_unavailable", "历史卡池资源地址未配置", 503);
-    this.installing = true;
-    try { await this.installResource(); }
-    finally { this.installing = false; }
+  async install(force = true): Promise<GachaResourceStatus> {
+    await this.repository.sync(force);
     return this.status();
   }
 
-  private async installResource(): Promise<void> {
-    const manifest = await this.remoteManifest(), root = join(this.dataDir, "resources");
-    mkdirSync(root, { recursive: true, mode: 0o700 });
-    const archive = join(root, "gacha-history-download.zip");
-    const staging = join(root, `gacha-history.mhg-staging-${randomUUID()}`);
-    rmSync(archive, { force: true }); rmSync(`${archive}.part`, { force: true });
-    try {
-      const archiveUrl = this.archiveURL(manifest.archive.url);
-      await streamDownload(archiveUrl, `${archive}.part`, manifest.archive.size, basename(archive), new DownloadControl(), () => undefined);
-      if (hash(`${archive}.part`, "sha256") !== manifest.archive.sha256) {
-        throw new AppError("gacha_resource_hash_mismatch", "历史卡池资源校验失败", 502);
+  async events(): Promise<GachaEvent[]> {
+    const snapshot = await this.repository.ensure();
+    return snapshot ? this.snapshotEvents(snapshot) : this.legacyEvents();
+  }
+
+  currentEvents(): GachaEvent[] {
+    const snapshot = this.repository.snapshot();
+    return snapshot ? this.snapshotEvents(snapshot) : this.legacy(false) ? this.legacyEvents() : [];
+  }
+
+  private snapshotEvents(snapshot: MetadataSnapshot): GachaEvent[] {
+    return snapshot.events.map((event) => {
+      const names = (ids: number[]) => ids.flatMap((id) => snapshot.items[String(id)]?.name ?? []);
+      const orange = names(event.orange), purple = names(event.purple);
+      return {
+        id: `${event.version}-${event.order}-${event.type}-${event.name}`, version: event.version,
+        gacha_type: String(event.type), name: event.name, started_at: event.from, ended_at: event.to,
+        orange_up: orange, purple_up: purple, updated_at: event.to,
+        banner_url: this.imageCache.localURL(event.banner, snapshot.oid),
+        orange_up_icons: this.gachaIcons(event.orange, snapshot),
+        purple_up_icons: this.gachaIcons(event.purple, snapshot),
+      };
+    });
+  }
+
+  enrich(record: WishRecord): WishRecord {
+    const snapshot = this.repository.snapshot();
+    if (!snapshot) return this.legacyEnrich(record);
+    let id = record.item_id, item = snapshot.items[id];
+    if (!item && record.name) {
+      const match = Object.entries(snapshot.items).find(([, value]) => value.name === record.name);
+      if (match) [id, item] = match;
+    }
+    if (!item) return { ...record, icon_url: null };
+    const category = item.kind === "角色" ? "GachaAvatarIcon" : "EquipIcon";
+    return { ...record, item_id: id, name: record.name || item.name, item_type: record.item_type || item.kind,
+      rank: record.rank || item.rank, icon_url: this.imageCache.namedURL(category, item.icon, item.digest) };
+  }
+
+  enrichCharacter(character: GameCharacter): GameCharacter {
+    const snapshot = this.repository.snapshot();
+    if (!snapshot) return this.legacyCharacter(character);
+    const payload = clone(character.payload);
+    this.localizeImages(payload);
+    const rewrite = (value: unknown, kind: keyof SnapAssets, key: string) => {
+      const object = asObject(value), id = object?.[key];
+      const asset = id === undefined ? undefined : snapshot.assets[kind][String(id)];
+      if (object) object.icon = asset ? this.imageCache.namedURL(assetCategory[kind], asset[0], asset[1]) : null;
+    };
+    rewrite(payload, "avatars", "id"); rewrite(asObject(payload)?.base, "avatars", "id");
+    rewrite(asObject(payload)?.weapon, "weapons", "id"); rewrite(asObject(asObject(payload)?.base)?.weapon, "weapons", "id");
+    rewriteList(asObject(payload)?.relics, (value) => rewrite(value, "reliquaries", "id"));
+    rewriteList(asObject(payload)?.skills, (value) => rewrite(value, "skills", "skill_id"));
+    rewriteList(asObject(payload)?.constellations, (value) => rewrite(value, "talents", "id"));
+    const avatar = snapshot.assets.avatars[character.avatar_id];
+    return { ...character, payload, icon_url: avatar
+      ? this.imageCache.namedURL("AvatarIcon", avatar[0], avatar[1])
+      : this.imageCache.localURL(character.icon_url) };
+  }
+
+  async cacheCharacters(characters: GameCharacter[]): Promise<void> { await this.imageCache.ensureCharacters(characters); }
+  cachedFile(name: string): Buffer | null { return this.imageCache.file(name); }
+  async fetchCachedFile(name: string): Promise<Buffer | null> { return this.imageCache.fetchFile(name); }
+
+  async file(name: string): Promise<Buffer | null> {
+    if (resourceFile.safeParse(name).success) {
+      const path = safeTarget(this.legacyRoot, name);
+      if (existsSync(path)) return readFileSync(path);
+    }
+    return null;
+  }
+
+  private gachaIcons(ids: number[], snapshot: MetadataSnapshot): Record<string, string> {
+    return Object.fromEntries(ids.flatMap((id) => {
+      const item = snapshot.items[String(id)];
+      if (!item) return [];
+      const category = item.kind === "角色" ? "GachaAvatarIcon" : "EquipIcon";
+      const url = this.imageCache.namedURL(category, item.icon, item.digest);
+      return url ? [[item.name, url]] : [];
+    }));
+  }
+  private imageCount(snapshot: MetadataSnapshot): number {
+    return Object.values(snapshot.assets).reduce((total, values) => total + Object.keys(values).length, 0);
+  }
+  private localizeImages(value: unknown): void {
+    if (Array.isArray(value)) return value.forEach((item) => this.localizeImages(item));
+    const object = asObject(value);
+    if (!object) return;
+    for (const [key, child] of Object.entries(object)) {
+      if (["icon", "image", "side_icon"].includes(key)) {
+        object[key] = typeof child === "string" ? this.imageCache.localURL(child) : null;
+      } else {
+        this.localizeImages(child);
       }
-      renameSync(`${archive}.part`, archive); extract([archive], staging); verify(staging);
-      const catalog = readCatalog(staging);
-      if (catalog.version !== manifest.version) throw new AppError("gacha_resource_version_mismatch", "历史卡池资源版本不一致", 502);
-      writeFileSync(join(staging, ".resource.json"), JSON.stringify({
-        installed_bytes: manifest.archive.size, installed_at: new Date().toISOString(),
-      }));
-      activate(staging, this.destination); this.catalogCache = catalog;
-    } finally {
-      rmSync(archive, { force: true }); rmSync(`${archive}.part`, { force: true });
-      rmSync(staging, { recursive: true, force: true });
     }
   }
-
-  private async remoteManifest(): Promise<z.infer<typeof remoteManifestSchema>> {
-    const response = await fetch(this.manifestUrl!, { signal: AbortSignal.timeout(30_000) });
-    if (!response.ok) throw new AppError("gacha_resource_manifest_failed", `历史卡池资源清单下载失败：${response.status}`, 502);
-    const tooLarge = () => new AppError("gacha_resource_manifest_invalid", "历史卡池资源清单过大", 502);
-    const bytes = await readBoundedBody(response, 1024 * 1024, tooLarge);
-    try { return remoteManifestSchema.parse(JSON.parse(Buffer.from(bytes).toString("utf8"))); }
-    catch { throw new AppError("gacha_resource_manifest_invalid", "历史卡池资源清单无效", 502); }
-  }
-
-  private catalog(required: boolean): Catalog | undefined {
-    if (!this.catalogCache && existsSync(join(this.destination, "catalog.json"))) {
-      try { this.catalogCache = readCatalog(this.destination); }
-      catch (error) { if (required) throw error; }
+  private legacy(required: boolean): Catalog | undefined {
+    if (!this.legacyCache && existsSync(join(this.legacyRoot, "catalog.json"))) {
+      try { this.legacyCache = readCatalog(this.legacyRoot); } catch { /* 使用缺失状态。 */ }
     }
-    if (required && !this.catalogCache) throw new AppError("gacha_resource_missing", "请先下载历史卡池资源", 409);
-    return this.catalogCache;
+    if (required && !this.legacyCache) throw new AppError("gacha_resource_missing", "暂无可用游戏资料，请刷新后重试", 409);
+    return this.legacyCache;
   }
-
-  private files(catalog: Catalog): string[] {
-    return catalogFiles(catalog);
+  private legacyEvents(): GachaEvent[] {
+    const catalog = this.legacy(true)!;
+    return catalog.events.map(({ banner_file, ...event }) => ({ ...event,
+      banner_url: banner_file ? this.legacyEndpoint(banner_file, catalog.version) : null }));
   }
-
-  private iconURLs(names: string[], catalog: Catalog): Record<string, string> {
-    const byName = new Map<string, Metadata>(Object.values(catalog.items).map((value) => [value[0], value]));
-    return Object.fromEntries(names.flatMap((name) => byName.get(name)?.[3]
-      ? [[name, this.endpoint(byName.get(name)![3]!, catalog.version)]] : []));
+  private legacyEnrich(record: WishRecord): WishRecord {
+    const catalog = this.legacy(false), item = catalog?.items[record.item_id];
+    return item ? { ...record, name: record.name || item[0], item_type: record.item_type || item[1],
+      rank: record.rank || item[2], icon_url: item[3] ? this.legacyEndpoint(item[3], catalog!.version) : null }
+      : { ...record, icon_url: null };
   }
-
-  private endpoint(name: string, version: string): string {
+  private legacyCharacter(value: GameCharacter): GameCharacter {
+    const catalog = this.legacy(false);
+    return localizeCharacter(
+      value, catalog, (name) => this.legacyEndpoint(name, catalog?.version ?? "legacy"),
+      (remote) => this.imageCache.localURL(remote),
+    );
+  }
+  private legacyFiles(catalog: Catalog): string[] {
+    return [...catalog.events.flatMap(({ banner_file }) => banner_file ? [banner_file] : []),
+      ...Object.values(catalog.items).flatMap((item) => item[3] ? [item[3]] : [])];
+  }
+  private legacyEndpoint(name: string, version: string): string {
     return `/v1/gacha-resources/files/${name}?version=${encodeURIComponent(version)}`;
   }
-  private archiveURL(value: string): string {
-    const manifest = new URL(this.manifestUrl!), url = new URL(value, manifest);
-    if (url.protocol !== "https:" || url.origin !== manifest.origin || url.username || url.password) {
-      throw new AppError("gacha_resource_archive_url_invalid", "历史卡池资源包地址无效", 502);
-    }
-    return url.href;
-  }
-  private descriptor(): Record<string, unknown> | undefined {
-    try { return JSON.parse(readFileSync(join(this.destination, ".resource.json"), "utf8")) as Record<string, unknown>; }
-    catch { return undefined; }
-  }
+}
+
+function clone(value: unknown): JSONObject | undefined {
+  const object = asObject(value); return object ? structuredClone(object) : undefined;
+}
+function asObject(value: unknown): JSONObject | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as JSONObject : undefined;
+}
+function rewriteList(value: unknown, rewrite: (value: unknown) => void): void {
+  if (Array.isArray(value)) value.forEach(rewrite);
 }
