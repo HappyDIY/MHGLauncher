@@ -17,9 +17,10 @@ export class AchievementResources {
     private readonly repository: MetadataRepository,
     apiBaseUrl: string,
     networkEnabled = true,
+    imageCache?: ImageResourceCache,
   ) {
     this.legacyRoot = join(dataDir, "resources", "achievements");
-    this.imageCache = new ImageResourceCache(dataDir, apiBaseUrl, networkEnabled);
+    this.imageCache = imageCache ?? new ImageResourceCache(dataDir, apiBaseUrl, networkEnabled);
   }
 
   async metadata(): Promise<AchievementMetadataBundle> {

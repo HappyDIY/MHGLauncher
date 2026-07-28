@@ -23,7 +23,7 @@ await withPrivateSocketUmask(() => new Promise<void>((resolve, reject) => {
 await chmod(config.socketPath, 0o600);
 const listeningSocket = await socketIdentity(config.socketPath);
 process.stdout.write(`${JSON.stringify({ event: "ready", socket_path: config.socketPath })}\n`);
-container().metadataRepository.trigger();
+void container().syncMetadata();
 
 let closing = false;
 async function shutdown(): Promise<void> {

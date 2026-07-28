@@ -23,12 +23,12 @@ test("历史素材路由识别受支持的图片格式", async () => {
   }
 });
 
-test("容器把安装完成事件转发给资料仓库并可统一关闭", () => {
+test("容器把安装完成事件转发给完整资料同步并可统一关闭", () => {
   const app = globalThis.mhgContainer!;
-  const trigger = vi.spyOn(app.metadataRepository, "trigger").mockImplementation(() => undefined);
+  const sync = vi.spyOn(app, "syncMetadata").mockResolvedValue(app.metadataRepository.status());
   const games = app.games as unknown as { onInstalled?: (version: string) => void };
   games.onInstalled?.("6.0.0");
-  expect(trigger).toHaveBeenCalledWith("6.0.0");
+  expect(sync).toHaveBeenCalledWith(false, "6.0.0");
   closeContainer();
   expect(globalThis.mhgContainer).toBeUndefined();
 });

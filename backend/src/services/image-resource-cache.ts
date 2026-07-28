@@ -13,6 +13,9 @@ const categories = new Set([
   "AchievementIcon", "GachaAvatarIcon", "GachaAvatarImg",
 ]);
 type CacheIndex = Record<string, { url: string; digest: string }>;
+export type ImageResource =
+  | { category: string; name: string; digest: string }
+  | { remote: string; digest: string };
 
 export class ImageResourceCache {
   private readonly root: string;
@@ -51,6 +54,24 @@ export class ImageResourceCache {
     if (!categories.has(category) || !namedImage.test(name)) return null;
     const remote = new URL(`/static/raw/${category}/${name}.png`, this.apiBaseUrl).href;
     return this.register(remote, digest);
+  }
+
+  async preload(resources: ImageResource[]): Promise<void> {
+    const names = [...new Set(resources.flatMap((resource) => {
+      const local = "remote" in resource
+        ? this.localURL(resource.remote, resource.digest)
+        : this.namedURL(resource.category, resource.name, resource.digest);
+      const name = local?.split("/").at(-1);
+      return name ? [name] : [];
+    }))];
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < names.length) {
+        try { await this.fetchFile(names[cursor++]!); }
+        catch { /* 缺失素材会在下次启动时重试。 */ }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(8, names.length) }, worker));
   }
 
   file(name: string): Buffer | null {

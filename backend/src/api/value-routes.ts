@@ -22,7 +22,7 @@ export async function valueRoute(app: Container, method: string, path: string, q
   if (method === "GET" && path === "/resources/status") return json(app.gachaResources.resourceStatus());
   if (method === "POST" && path === "/resources/sync") {
     const force = resourceSync.parse(body).force;
-    await app.metadataRepository.sync(force);
+    await app.syncMetadata(force);
     return json(app.gachaResources.resourceStatus());
   }
   if (method === "GET" && path === "/gacha-resources/status") return json(app.gachaResources.status());

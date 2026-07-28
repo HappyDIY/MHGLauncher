@@ -24,9 +24,10 @@ export class GachaResourceService {
     private readonly repository: MetadataRepository,
     apiBaseUrl: string,
     networkEnabled = true,
+    imageCache?: ImageResourceCache,
   ) {
     this.legacyRoot = join(dataDir, "resources", "gacha-history");
-    this.imageCache = new ImageResourceCache(dataDir, apiBaseUrl, networkEnabled);
+    this.imageCache = imageCache ?? new ImageResourceCache(dataDir, apiBaseUrl, networkEnabled);
   }
 
   resourceStatus(): ResourceStatus { return this.repository.status(); }
