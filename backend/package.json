@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "next build && tsup server.ts --format esm --out-dir build --external next --external better-sqlite3",
+    "build": "next build && tsup",
     "start": "NODE_ENV=production node build/server.js",
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint . && knip",
