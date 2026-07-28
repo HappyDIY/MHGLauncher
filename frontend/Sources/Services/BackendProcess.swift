@@ -15,7 +15,7 @@ final class BackendProcess {
     var isReady: Bool { client != nil }
 
     func start(runtime: InstalledRuntime) async {
-        guard process == nil, !isStarting else { return }
+        guard client == nil, process == nil, !isStarting else { return }
         isStarting = true
         errorMessage = nil
         defer { isStarting = false }

@@ -92,7 +92,8 @@ private func expectedResponseKeys(_ model: String) -> Set<String> {
     case "companion_snapshot": ["wishes", "statistics", "banner_statistics", "note"]
     case "resource_status": [
         "state", "oid", "last_checked_at", "last_success_at", "trigger_game_version",
-        "using_legacy_cache", "error",
+        "using_legacy_cache", "error", "asset_state", "asset_completed", "asset_total",
+        "asset_failed", "initial_install_required",
     ]
     default: []
     }

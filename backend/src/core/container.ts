@@ -26,7 +26,7 @@ import { AchievementResources } from "../services/achievement-resources";
 import { AppUpdateService } from "../services/app-updates";
 import { MetadataRepository, type ResourceStatus } from "../services/metadata-repository";
 import { ImageResourceCache } from "../services/image-resource-cache";
-import { MetadataAssetCache } from "../services/metadata-asset-cache";
+import { MetadataAssetCache, type MetadataAssetStatus } from "../services/metadata-asset-cache";
 
 export class Container {
   readonly settings: Settings;
@@ -64,7 +64,7 @@ export class Container {
     });
     const networkEnabled = config.providerMode !== "fixture";
     const imageCache = new ImageResourceCache(config.dataDir, hutaoApiBaseUrl, networkEnabled);
-    this.metadataAssets = new MetadataAssetCache(this.metadataRepository, imageCache);
+    this.metadataAssets = new MetadataAssetCache(config.dataDir, this.metadataRepository, imageCache);
     this.gachaResources = new GachaResourceService(
       config.dataDir, this.metadataRepository, hutaoApiBaseUrl, networkEnabled, imageCache,
     );
@@ -96,6 +96,10 @@ export class Container {
     const status = await this.metadataRepository.sync(force, gameVersion);
     await this.metadataAssets.preload();
     return status;
+  }
+
+  resourceStatus(): ResourceStatus & MetadataAssetStatus {
+    return { ...this.metadataRepository.status(), ...this.metadataAssets.status() };
   }
 
   close(): void { this.launches.close(); this.store.close(); }

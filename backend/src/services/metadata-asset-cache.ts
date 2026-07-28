@@ -1,3 +1,5 @@
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { MetadataRepository } from "./metadata-repository";
 import { ImageResourceCache, type ImageResource } from "./image-resource-cache";
 import type { SnapAssets } from "./snap-metadata";
@@ -9,12 +11,32 @@ const categories: Record<keyof SnapAssets, string> = {
   skills: "Skill",
   talents: "Talent",
 };
+export interface MetadataAssetStatus {
+  asset_state: "missing" | "syncing" | "ready" | "retry";
+  asset_completed: number; asset_total: number; asset_failed: number;
+  initial_install_required: boolean;
+}
 
 export class MetadataAssetCache {
+  private readonly marker: string;
+  private current: MetadataAssetStatus;
+
   constructor(
+    dataDir: string,
     private readonly repository: MetadataRepository,
     private readonly images: ImageResourceCache,
-  ) {}
+  ) {
+    const root = join(dataDir, "resources", "image-cache");
+    mkdirSync(root, { recursive: true, mode: 0o700 });
+    this.marker = join(root, ".metadata-assets-ready.json");
+    const required = !existsSync(this.marker);
+    this.current = {
+      asset_state: required ? "missing" : "ready", asset_completed: 0,
+      asset_total: 0, asset_failed: 0, initial_install_required: required,
+    };
+  }
+
+  status(): MetadataAssetStatus { return { ...this.current }; }
 
   async preload(): Promise<void> {
     const snapshot = this.repository.snapshot();
@@ -33,6 +55,17 @@ export class MetadataAssetCache {
         category: "AchievementIcon", name: value.Icon, digest: snapshot.oid,
       });
     }
-    await this.images.preload(resources);
+    this.current = { ...this.current, asset_state: "syncing", asset_failed: 0 };
+    const result = await this.images.preload(resources, (progress) => {
+      this.current = { ...this.current, asset_state: "syncing",
+        asset_completed: progress.completed, asset_total: progress.total,
+        asset_failed: progress.failed };
+    });
+    writeFileSync(this.marker, JSON.stringify({
+      oid: snapshot.oid, completed_at: new Date().toISOString(), failed: result.failed,
+    }), { mode: 0o600 });
+    this.current = { asset_state: result.failed ? "retry" : "ready",
+      asset_completed: result.completed, asset_total: result.total, asset_failed: result.failed,
+      initial_install_required: false };
   }
 }

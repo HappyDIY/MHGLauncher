@@ -40,8 +40,17 @@ struct ResourceSyncStatus: Codable, Sendable, Equatable {
     let triggerGameVersion: String?
     let usingLegacyCache: Bool
     let error: String?
+    var assetState: String = "ready"
+    var assetCompleted: Int = 0
+    var assetTotal: Int = 0
+    var assetFailed: Int = 0
+    var initialInstallRequired: Bool = false
 
-    var isSyncing: Bool { state == "syncing" }
+    var isSyncing: Bool { state == "syncing" || assetState == "syncing" }
+    var assetProgress: Double {
+        guard assetTotal > 0 else { return 0 }
+        return Double(assetCompleted) / Double(assetTotal)
+    }
 }
 
 struct AchievementArchive: Codable, Sendable, Identifiable {

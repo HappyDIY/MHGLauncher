@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 @testable import MHGLauncher
 
@@ -24,6 +25,28 @@ struct RuntimeSetupPresentationTests {
 
         #expect(!store.isInstallingCoreRuntime)
         #expect(!store.backend.isReady)
+    }
+
+    @Test("首次资料下载界面显示进度与重试状态")
+    @MainActor
+    func metadataSetupProgress() throws {
+        let store = LauncherStore()
+        var status = ResourceSyncStatus(
+            state: "ready", oid: "fixture", lastCheckedAt: nil, lastSuccessAt: nil,
+            triggerGameVersion: nil, usingLegacyCache: false, error: nil
+        )
+        status.assetState = "syncing"; status.assetCompleted = 4; status.assetTotal = 8
+        status.initialInstallRequired = true
+        store.value.resourceSyncStatus = status
+        #expect(ImageRenderer(content: MetadataSetupView(store: store)
+            .frame(width: 800, height: 600)).nsImage != nil)
+        store.startInitialResourceRetry()
+
+        store.resourceSetupError = "资料下载失败"
+        status.assetTotal = 0
+        store.value.resourceSyncStatus = status
+        #expect(ImageRenderer(content: MetadataSetupView(store: store)
+            .frame(width: 800, height: 600)).nsImage != nil)
     }
 
     @MainActor

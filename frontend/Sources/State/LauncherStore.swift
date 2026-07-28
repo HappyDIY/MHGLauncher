@@ -75,7 +75,7 @@ final class LauncherStore {
     @ObservationIgnored var wishPresentationIntent = 0
     @ObservationIgnored var gachaHistoryPresentationIntent = 0
     @ObservationIgnored let achievementSelectionGate = AsyncSerialGate()
-    var message: String?
+    var message: String?; var resourceSetupError: String?
     var statusMessage: String?; var statusMessageRevision = 0
     var isWishOperationActive = false
     var wishOperation: WishOperationState? {
@@ -127,6 +127,7 @@ final class LauncherStore {
             message = backend.errorMessage
             return
         }
+        await prepareInitialResources(); if needsMetadataSetup { return }
         await refreshAccount()
         await loadNotificationSettings()
         await refreshGame()
@@ -141,7 +142,6 @@ final class LauncherStore {
         runtimeProgress = nil
         await bootstrap()
     }
-
     func checkGameRuntime() {
         gameRuntimeReady = runtimeInstaller.isGameInstalled()
     }

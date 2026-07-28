@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-
 struct RootView: View {
     @Bindable var store: LauncherStore
     @State private var confirmsClear = false
@@ -9,6 +8,8 @@ struct RootView: View {
         Group {
             if showsRuntimeSetup {
                 RuntimeSetupView(store: store)
+            } else if store.needsMetadataSetup {
+                MetadataSetupView(store: store)
             } else {
                 NavigationSplitView(columnVisibility: .constant(.all)) {
                     CodexSidebar(store: store)

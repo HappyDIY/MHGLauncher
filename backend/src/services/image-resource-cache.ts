@@ -16,6 +16,9 @@ type CacheIndex = Record<string, { url: string; digest: string }>;
 export type ImageResource =
   | { category: string; name: string; digest: string }
   | { remote: string; digest: string };
+export interface ImagePreloadProgress {
+  completed: number; total: number; failed: number;
+}
 
 export class ImageResourceCache {
   private readonly root: string;
@@ -56,7 +59,10 @@ export class ImageResourceCache {
     return this.register(remote, digest);
   }
 
-  async preload(resources: ImageResource[]): Promise<void> {
+  async preload(
+    resources: ImageResource[],
+    onProgress?: (progress: ImagePreloadProgress) => void,
+  ): Promise<ImagePreloadProgress> {
     const names = [...new Set(resources.flatMap((resource) => {
       const local = "remote" in resource
         ? this.localURL(resource.remote, resource.digest)
@@ -64,14 +70,19 @@ export class ImageResourceCache {
       const name = local?.split("/").at(-1);
       return name ? [name] : [];
     }))];
-    let cursor = 0;
+    let cursor = 0, completed = 0, failed = 0;
+    const progress = () => onProgress?.({ completed, total: names.length, failed });
+    progress();
     const worker = async () => {
       while (cursor < names.length) {
-        try { await this.fetchFile(names[cursor++]!); }
-        catch { /* 缺失素材会在下次启动时重试。 */ }
+        try {
+          if (!await this.fetchFile(names[cursor++]!)) failed += 1;
+        } catch { failed += 1; }
+        completed += 1; progress();
       }
     };
     await Promise.all(Array.from({ length: Math.min(8, names.length) }, worker));
+    return { completed, total: names.length, failed };
   }
 
   file(name: string): Buffer | null {

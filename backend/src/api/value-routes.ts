@@ -19,11 +19,11 @@ export async function valueRoute(app: Container, method: string, path: string, q
   const character = match(path, /^\/characters\/([^/]+)\/refresh$/);
   if (method === "POST" && character) return json(await app.characters.refreshDetail(credential.parse(body).credential, role(), characterId.parse(character)));
   if (method === "GET" && path === "/gacha-events") return json(await app.gachaEvents.list());
-  if (method === "GET" && path === "/resources/status") return json(app.gachaResources.resourceStatus());
+  if (method === "GET" && path === "/resources/status") return json(app.resourceStatus());
   if (method === "POST" && path === "/resources/sync") {
     const force = resourceSync.parse(body).force;
     await app.syncMetadata(force);
-    return json(app.gachaResources.resourceStatus());
+    return json(app.resourceStatus());
   }
   if (method === "GET" && path === "/gacha-resources/status") return json(app.gachaResources.status());
   if (method === "POST" && path === "/gacha-resources/install") return json(await app.gachaResources.install(true));

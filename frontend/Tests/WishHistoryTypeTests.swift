@@ -63,6 +63,22 @@ struct WishHistoryTypeTests {
         #expect(Set(history.map(\.phaseTitle)) == ["6.7版本 上半", "6.7版本 下半"])
     }
 
+    @Test("同期不同类型卡池保持稳定顺序")
+    func sortsConcurrentTypes() {
+        let events = [
+            event(id: "weapon", type: "302", name: "武器池"),
+            event(id: "role", type: "301", name: "角色池")
+        ]
+        let records = [
+            record(id: "1", name: "角色", type: "301"),
+            record(id: "2", name: "武器", type: "302")
+        ]
+
+        let history = HistoryWishEvent.make(events: events, records: records)
+
+        #expect(history.map(\.gachaType) == ["301", "302"])
+    }
+
     private func event(
         id: String,
         type: String,

@@ -18,7 +18,10 @@ test("启动预取全部资料插图并复用本地缓存", async () => {
   const fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
     new Response(Buffer.from("89504e470d0a1a0a", "hex")));
   const images = new ImageResourceCache(dataDir);
-  const cache = new MetadataAssetCache(repository(snapshot()), images);
+  const cache = new MetadataAssetCache(dataDir, repository(snapshot()), images);
+  expect(cache.status()).toMatchObject({
+    asset_state: "missing", initial_install_required: true,
+  });
   await cache.preload();
 
   const root = join(dataDir, "resources", "image-cache");
@@ -38,9 +41,15 @@ test("启动预取全部资料插图并复用本地缓存", async () => {
   ]));
   expect(Object.keys(index).every((name) => existsSync(join(root, name)))).toBe(true);
   expect(fetcher).toHaveBeenCalledTimes(8);
+  expect(cache.status()).toMatchObject({
+    asset_state: "ready", asset_completed: 8, asset_total: 8,
+    asset_failed: 0, initial_install_required: false,
+  });
 
   await cache.preload();
   expect(fetcher).toHaveBeenCalledTimes(8);
+  expect(new MetadataAssetCache(dataDir, repository(snapshot()), images).status())
+    .toMatchObject({ asset_state: "ready", initial_install_required: false });
 });
 
 function repository(value: MetadataSnapshot): MetadataRepository {

@@ -50,7 +50,9 @@ const resourceStatus = z.object({
   state: z.enum(["missing", "syncing", "ready", "retry"]), oid: z.string().nullable(),
   last_checked_at: z.string().nullable(), last_success_at: z.string().nullable(),
   trigger_game_version: z.string().nullable(), using_legacy_cache: z.boolean(),
-  error: z.string().nullable(),
+  error: z.string().nullable(), asset_state: z.enum(["missing", "syncing", "ready", "retry"]),
+  asset_completed: z.number().int().nonnegative(), asset_total: z.number().int().nonnegative(),
+  asset_failed: z.number().int().nonnegative(), initial_install_required: z.boolean(),
 }).strict();
 
 export const contractResponseSchemas = {
