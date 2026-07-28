@@ -6,6 +6,26 @@ built_app="$root/dist/MHGLauncher.app"
 app_pid=""
 backend_pid=""
 terminal_tty="$(tty 2>/dev/null || true)"
+skip_tests=0
+
+usage() {
+  printf '用法：%s [--skip-tests]\n' "$0"
+}
+
+for argument in "$@"; do
+  case "$argument" in
+    --skip-tests) skip_tests=1 ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      printf '未知参数：%s\n' "$argument" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
 
 is_markdown() {
   case "$1" in
@@ -127,7 +147,9 @@ if [[ -n "$test_baseline" ]] && [[ "$force_tests" != "1" ]]; then
     build_changed=0
 fi
 
-if (( frontend_changed == 0 && backend_changed == 0 &&
+if (( skip_tests == 1 )); then
+  printf '已按 --skip-tests 跳过所有测试。\n'
+elif (( frontend_changed == 0 && backend_changed == 0 &&
   api_changed == 0 && build_changed == 0 )); then
   printf '与上一次构建相比无测试相关变更，跳过测试。\n'
 else
@@ -180,10 +202,12 @@ fi
 
 resources="$cached_app/Contents/Resources"
 # 只有测试和构建均成功后才推进基线，失败的变更会在下次继续验证。
-printf '%s\n' "$frontend_test_hash" >"$resources/.release-test-frontend-signature"
-printf '%s\n' "$backend_test_hash" >"$resources/.release-test-backend-signature"
-printf '%s\n' "$api_test_hash" >"$resources/.release-test-api-signature"
-printf '%s\n' "$build_test_hash" >"$resources/.release-test-build-signature"
+if (( skip_tests == 0 )); then
+  printf '%s\n' "$frontend_test_hash" >"$resources/.release-test-frontend-signature"
+  printf '%s\n' "$backend_test_hash" >"$resources/.release-test-backend-signature"
+  printf '%s\n' "$api_test_hash" >"$resources/.release-test-api-signature"
+  printf '%s\n' "$build_test_hash" >"$resources/.release-test-build-signature"
+fi
 
 # 保留一个固定入口，避免用户从 Finder 打开的 dist App 落后于运行副本。
 rm -rf "$built_app"

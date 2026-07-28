@@ -75,6 +75,9 @@ MHGLauncher 使用可审计的开源 Wine 与 DXMT 组件，不依赖 CrossOver.
 git clone https://github.com/HappyDIY/MHGLauncher.git
 cd MHGLauncher
 ./release-app.command
+
+# 跳过所有测试直接构建并启动
+./release-app.command --skip-tests
 ```
 
 脚本会根据代码变化运行必要测试，随后构建并打开应用。关闭应用后，成品会保留在：
