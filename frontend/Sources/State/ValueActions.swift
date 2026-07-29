@@ -90,14 +90,13 @@ extension LauncherStore {
             triggerGameVersion: previousSync?.triggerGameVersion,
             usingLegacyCache: previousSync?.usingLegacyCache ?? false, error: nil
         )
-        value.gachaResourceStatus = GachaResourceStatus(
-            state: "installing",
-            version: previous?.version,
-            eventCount: previous?.eventCount ?? 0,
-            imageCount: previous?.imageCount ?? 0,
-            installedBytes: previous?.installedBytes ?? 0,
-            installedAt: previous?.installedAt
-        )
+        if previous?.isReady != true {
+            value.gachaResourceStatus = GachaResourceStatus(
+                state: "installing", version: previous?.version,
+                eventCount: previous?.eventCount ?? 0, imageCount: previous?.imageCount ?? 0,
+                installedBytes: previous?.installedBytes ?? 0, installedAt: previous?.installedAt
+            )
+        }
         await perform {
             let client = try requireClient()
             value.resourceSyncStatus = try await client.post(
@@ -126,7 +125,7 @@ extension LauncherStore {
         if value.gachaResourceStatus?.state == "installing" {
             value.gachaResourceStatus = previous
         }
-        if value.resourceSyncStatus?.state == "syncing" {
+        if value.resourceSyncStatus?.isSyncing == true {
             value.resourceSyncStatus = previousSync
         }
     }

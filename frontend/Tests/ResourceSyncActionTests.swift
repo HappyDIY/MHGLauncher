@@ -85,6 +85,21 @@ struct ResourceSyncActionTests {
         #expect(store.value.gachaResourceStatus?.isReady == true)
         #expect(store.message == "资料同步失败")
     }
+
+    @Test("图片同步后续失败时恢复刷新前状态")
+    @MainActor
+    func assetSyncFailureRestoresState() async {
+        let backend = ResourceSyncBackend(failSync: false, syncingAssets: true)
+        let store = LauncherStore()
+        store.backend.useClient(APIClient(token: "fixture") { try await backend.respond($0) })
+        store.value.resourceSyncStatus = status("ready")
+        store.value.gachaResourceStatus = gachaStatus
+
+        await store.installGachaResources()
+
+        #expect(store.value.resourceSyncStatus == status("ready"))
+        #expect(store.value.gachaResourceStatus == gachaStatus)
+    }
 }
 
 private actor InitialResourceBackend {
@@ -134,9 +149,11 @@ private actor InitialResourceBackend {
 
 private actor ResourceSyncBackend {
     let failSync: Bool
+    let syncingAssets: Bool
 
-    init(failSync: Bool) {
+    init(failSync: Bool, syncingAssets: Bool = false) {
         self.failSync = failSync
+        self.syncingAssets = syncingAssets
     }
 
     func respond(_ request: APIRequest) throws -> APIResponse {
@@ -148,7 +165,14 @@ private actor ResourceSyncBackend {
                     body: Data(#"{"code":"sync_failed","message":"资料同步失败","details":{}}"#.utf8)
                 )
             }
+            if syncingAssets {
+                var value = status("ready"); value.assetState = "syncing"
+                return try response(value)
+            }
             return try response(status("retry", error: "资料同步失败"))
+        }
+        if route == "/v1/gacha-resources/status", syncingAssets {
+            return APIResponse(status: 502, body: Data())
         }
         if route == "/v1/gacha-resources/status" { return try response(gachaStatus) }
         if route == "/v1/gacha-events" { return try response([GachaEvent]()) }
