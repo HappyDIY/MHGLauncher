@@ -90,7 +90,7 @@ for path in "${changed_files[@]}"; do
       select_suite backend scripts/test-backend.sh "$path"
       select_suite frontend scripts/test-frontend.sh "$path"
       ;;
-    release-app.command|packaging/Info.plist|scripts/build-app.sh|scripts/build-backend.sh|scripts/build-frontend.sh|scripts/configure-cloud-server.swift|scripts/ensure-local-signing-identity.sh|scripts/sign-local-app.sh|scripts/test-build-config.sh)
+    release-app.command|packaging/Info.plist|packaging/CodeSigning.plist|scripts/build-app.sh|scripts/build-backend.sh|scripts/build-frontend.sh|scripts/configure-cloud-server.swift|scripts/sign-app.sh|scripts/test-build-config.sh)
       select_suite build-config scripts/test-build-config.sh "$path"
       ;;
     runtime/*|scripts/fetch-game-runtime.sh|scripts/build-wine-runtime.sh|scripts/test-game-runtime.sh)

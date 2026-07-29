@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CertificateName</key>
+  <string>MHGLauncher Local Development</string>
+  <key>CertificateSHA1</key>
+  <string>D46CBEFE0B30700C24492D47DC38342E5E22E900</string>
+  <key>CertificateSHA256</key>
+  <string>048B13AF1A421DD99C52F5CDA9D2A9D7182D23F0C1D6C027C871BAFC82223D14</string>
+</dict>
+</plist>

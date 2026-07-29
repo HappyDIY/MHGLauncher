@@ -92,3 +92,4 @@ plutil -lint "$contents/Info.plist"
 file "$contents/MacOS/MHGLauncher" | grep -q 'arm64'
 test ! -e "$contents/Resources/Backend/node"
 test ! -e "$contents/Resources/GameRuntime"
+"$root/scripts/sign-app.sh" "$app"

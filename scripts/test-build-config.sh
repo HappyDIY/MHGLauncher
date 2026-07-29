@@ -14,12 +14,16 @@ done
 test ! -e "$root/debug-app.command"
 test ! -e "$root/scripts/build-backend-debug.sh"
 test ! -e "$root/scripts/build-debug-app.sh"
-bash -n "$root/scripts/ensure-local-signing-identity.sh"
-bash -n "$root/scripts/sign-local-app.sh"
-grep -q 'scripts/sign-local-app.sh.*cached_app' "$root/release-app.command"
-grep -q -- '--timestamp=none' "$root/scripts/sign-local-app.sh"
-grep -q -- '-T /usr/bin/codesign' \
-  "$root/scripts/ensure-local-signing-identity.sh"
+bash -n "$root/scripts/sign-app.sh"
+plutil -lint "$root/packaging/CodeSigning.plist" >/dev/null
+grep -q 'scripts/sign-app.sh.*app' "$root/scripts/build-app.sh"
+grep -q 'scripts/sign-app.sh.*cached_app' "$root/release-app.command"
+grep -q -- '--timestamp=none' "$root/scripts/sign-app.sh"
+grep -q 'CertificateSHA256' "$root/scripts/sign-app.sh"
+if grep -q -- '--sign -' "$root/scripts/sign-app.sh"; then
+  printf 'App 签名脚本不允许降级为 ad-hoc 签名。\n' >&2
+  exit 1
+fi
 
 configure() {
   cp "$root/packaging/Info.plist" "$work/Info.plist"
