@@ -35,19 +35,6 @@ test -d "$resource_bundle"
 cp -R "$resource_bundle" "$contents/Resources/"
 cp -R "$backend_dir/app" "$contents/Resources/Backend/app"
 
-build_icon() {
-  local light="$1" out_icns="$2"
-  local iconset="$(mktemp -d)/AppIcon.iconset"
-  mkdir -p "$iconset"
-  for size in 16 32 128 256 512; do
-    local half=$((size / 2))
-    sips -z $size $size "$light" --out "$iconset/icon_${size}x${size}.png" >/dev/null 2>&1
-    sips -z $((size * 2)) $((size * 2)) "$light" --out "$iconset/icon_${half}x${half}@2x.png" >/dev/null 2>&1
-  done
-  iconutil -c icns "$iconset" -o "$out_icns"
-  rm -rf "$(dirname "$iconset")"
-}
-
 compile_composer_icon() {
   local icon="$1"
   local developer_dir="${DEVELOPER_DIR:-}"
@@ -78,12 +65,13 @@ compile_composer_icon() {
 }
 
 composer_icon="$root/frontend/Sources/Resources/AppIcon.icon"
-icon_src="$root/frontend/Sources/Resources/Assets.xcassets/AppIcon.appiconset"
-if [[ -d "$composer_icon" ]] && compile_composer_icon "$composer_icon"; then
-  :
-elif [ -f "$icon_src/light.png" ]; then
-  printf '未找到 Icon Composer 编译工具，回退到静态 AppIcon.icns。\n' >&2
-  build_icon "$icon_src/light.png" "$contents/Resources/AppIcon.icns"
+if [[ ! -d "$composer_icon" ]]; then
+  printf '缺少原生 Icon Composer 图标：%s\n' "$composer_icon" >&2
+  exit 1
+fi
+if ! compile_composer_icon "$composer_icon"; then
+  printf '无法编译 Icon Composer 图标，请安装与目标系统匹配的最新版 Xcode。\n' >&2
+  exit 1
 fi
 
 chmod +x "$contents/MacOS/MHGLauncher"

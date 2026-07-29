@@ -1,9 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="portal" x1="270" y1="326" x2="752" y2="817" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E8FCFF"/>
+      <stop offset=".28" stop-color="#68E7F4"/>
+      <stop offset=".68" stop-color="#6FA8FF"/>
+      <stop offset="1" stop-color="#EEE9FF"/>
+    </linearGradient>
+  </defs>
   <path
     d="M310 349C222 449 210 596 278 708C348 822 494 867 623 815C756 762 828 626 797 489C784 431 756 383 716 344"
     fill="none"
-    stroke="#63DDEC"
+    stroke="url(#portal)"
     stroke-linecap="round"
     stroke-width="78"
+  />
+  <path
+    d="M306 343C221 449 217 589 281 693C350 804 490 846 615 797C742 747 811 619 786 498"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-linecap="round"
+    stroke-opacity=".62"
+    stroke-width="13"
   />
 </svg>

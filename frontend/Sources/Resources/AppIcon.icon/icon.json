@@ -1,26 +1,31 @@
 {
-  "fill" : {
-    "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
-  },
   "groups" : [
     {
       "layers" : [
         {
           "image-name" : "03-spark.svg",
           "name" : "03-spark"
-        },
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.3
+      }
+    },
+    {
+      "layers" : [
         {
-          "fill-specializations" : [
-            {
-              "appearance" : "dark",
-              "value" : {
-                "solid" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
-              }
-            }
-          ],
           "image-name" : "02-launch.svg",
           "name" : "02-launch"
-        },
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.4
+      }
+    },
+    {
+      "layers" : [
         {
           "image-name" : "01-portal.svg",
           "name" : "01-portal"
@@ -28,12 +33,20 @@
       ],
       "shadow" : {
         "kind" : "neutral",
-        "opacity" : 0.5
+        "opacity" : 0.35
       },
       "translucency" : {
         "enabled" : true,
-        "value" : 0.5
+        "value" : 0.35
       }
+    },
+    {
+      "layers" : [
+        {
+          "image-name" : "00-background.svg",
+          "name" : "00-background"
+        }
+      ]
     }
   ],
   "supported-platforms" : {
