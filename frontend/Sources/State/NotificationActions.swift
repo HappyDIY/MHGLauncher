@@ -30,7 +30,7 @@ extension LauncherStore {
         }
     }
 
-    func evaluateNotifications() async {
+    func evaluateNotifications(silent: Bool = false) async {
         do {
             var path = "/v1/notifications/evaluate"
             if let uid = selectedRole?.uid { path += "?uid=\(uid)" }
@@ -46,7 +46,7 @@ extension LauncherStore {
         } catch let error as UserNotificationDeliveryError {
             value.notificationPermissionMessage = error.localizedDescription
         } catch {
-            message = Self.presentableMessage(error)
+            if !silent { message = Self.presentableMessage(error) }
         }
     }
 }

@@ -4,9 +4,9 @@ extension LauncherStore {
     func runNoteRefreshLoop() async {
         while !Task.isCancelled {
             if credential != nil, selectedRole != nil {
-                await refreshNote()
+                await refreshNote(silent: true)
             }
-            await evaluateNotifications()
+            await evaluateNotifications(silent: true)
             do {
                 try await clock.sleep(for: .seconds(300))
             } catch {
@@ -38,7 +38,7 @@ extension LauncherStore {
         }
     }
 
-    func refreshNote() async {
+    func refreshNote(silent: Bool = false) async {
         isBusy = true
         defer { isBusy = false }
         do {
@@ -53,16 +53,17 @@ extension LauncherStore {
             if error.code == "verification_required",
                let gt = error.details?["gt"]?.stringValue,
                let challenge = error.details?["challenge"]?.stringValue {
+                guard !silent else { return }
                 noteVerification = GeetestChallenge(
                     gt: gt,
                     challenge: challenge,
                     xrpcChallengePath: error.details?["xrpc_challenge_path"]?.stringValue
                 )
-            } else {
+            } else if !silent {
                 message = Self.presentableMessage(error)
             }
         } catch {
-            message = Self.presentableMessage(error)
+            if !silent { message = Self.presentableMessage(error) }
         }
     }
 
