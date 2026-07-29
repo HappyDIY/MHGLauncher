@@ -35,7 +35,7 @@ export class GachaResourceService {
   status(): GachaResourceStatus {
     const current = this.repository.status(), snapshot = this.repository.snapshot(), legacy = this.legacy(false);
     return {
-      state: current.state === "syncing" ? "installing" : snapshot || legacy ? "ready" : "missing",
+      state: snapshot || legacy ? "ready" : current.state === "syncing" ? "installing" : "missing",
       version: snapshot?.oid ?? legacy?.version ?? null,
       event_count: snapshot?.events.length ?? legacy?.events.length ?? 0,
       image_count: snapshot ? this.imageCount(snapshot) : legacy ? new Set(this.legacyFiles(legacy)).size : 0,

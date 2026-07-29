@@ -103,6 +103,13 @@ test("没有任何资料时返回缺失状态和中文错误", async () => {
   expect(service.enrich(record()).icon_url).toBeNull();
 });
 
+test("后台刷新时继续提供已有的祈愿资料", () => {
+  const service = new GachaResourceService(
+    temporary(), fakeRepository(snapshot(), "syncing"), "https://api.snaphutaorp.org",
+  );
+  expect(service.status()).toMatchObject({ state: "ready", event_count: 1 });
+});
+
 function record() {
   return { id: "1", uid: "100000001", gacha_type: "301", uigf_gacha_type: "301",
     item_id: "10000096", name: "", item_type: "", rank: 0, time: "2026-01-01T00:00:00Z" };
@@ -111,9 +118,9 @@ function record() {
 function temporary(): string {
   const root = mkdtempSync(join(tmpdir(), "mhg-gacha-resource-")); roots.push(root); return root;
 }
-function fakeRepository(value?: MetadataSnapshot): MetadataRepository {
+function fakeRepository(value?: MetadataSnapshot, state = value ? "ready" : "missing"): MetadataRepository {
   return {
-    status: () => ({ state: value ? "ready" : "missing", oid: value?.oid ?? null,
+    status: () => ({ state, oid: value?.oid ?? null,
       last_checked_at: null, last_success_at: null, trigger_game_version: null,
       using_legacy_cache: !value, error: null }),
     snapshot: () => value, ensure: vi.fn(async () => value),
