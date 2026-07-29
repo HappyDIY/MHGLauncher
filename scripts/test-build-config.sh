@@ -14,6 +14,12 @@ done
 test ! -e "$root/debug-app.command"
 test ! -e "$root/scripts/build-backend-debug.sh"
 test ! -e "$root/scripts/build-debug-app.sh"
+bash -n "$root/scripts/ensure-local-signing-identity.sh"
+bash -n "$root/scripts/sign-local-app.sh"
+grep -q 'scripts/sign-local-app.sh.*cached_app' "$root/release-app.command"
+grep -q -- '--timestamp=none' "$root/scripts/sign-local-app.sh"
+grep -q -- '-T /usr/bin/codesign' \
+  "$root/scripts/ensure-local-signing-identity.sh"
 
 configure() {
   cp "$root/packaging/Info.plist" "$work/Info.plist"

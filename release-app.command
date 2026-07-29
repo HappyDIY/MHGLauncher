@@ -89,7 +89,8 @@ cached_app="$root/dist/$git_hash.app"
 signature_file="$cached_app/Contents/Resources/.release-source-signature"
 frontend_hash="$(content_signature \
   frontend packaging/Info.plist scripts/build-frontend.sh \
-  scripts/build-app.sh scripts/configure-cloud-server.swift)"
+  scripts/build-app.sh scripts/configure-cloud-server.swift \
+  scripts/ensure-local-signing-identity.sh scripts/sign-local-app.sh)"
 backend_hash="$(content_signature \
   backend scripts/build-backend.sh scripts/fetch-hpatchz.sh)"
 source_hash="$(printf '%s%s' "$frontend_hash" "$backend_hash" |
@@ -110,7 +111,8 @@ api_test_hash="$(content_signature \
 build_test_hash="$(content_signature \
   release-app.command packaging/Info.plist scripts/build-app.sh \
   scripts/build-backend.sh scripts/build-frontend.sh \
-  scripts/configure-cloud-server.swift scripts/test-build-config.sh)"
+  scripts/configure-cloud-server.swift scripts/ensure-local-signing-identity.sh \
+  scripts/sign-local-app.sh scripts/test-build-config.sh)"
 backend_cache="$root/build/backend-release-cache/$backend_hash/MHGLauncherBackend"
 run_dir="$root/build/release-run/$source_hash"
 run_app="$run_dir/MHGLauncher.app"
@@ -208,6 +210,9 @@ if (( skip_tests == 0 )); then
   printf '%s\n' "$api_test_hash" >"$resources/.release-test-api-signature"
   printf '%s\n' "$build_test_hash" >"$resources/.release-test-build-signature"
 fi
+
+# 使用稳定的本地证书重新签名，避免源码变化后 Keychain 将 App 识别为新程序。
+/bin/bash "$root/scripts/sign-local-app.sh" "$cached_app"
 
 # 保留一个固定入口，避免用户从 Finder 打开的 dist App 落后于运行副本。
 rm -rf "$built_app"
