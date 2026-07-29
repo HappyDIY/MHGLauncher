@@ -20,6 +20,9 @@ grep -q 'scripts/sign-app.sh.*app' "$root/scripts/build-app.sh"
 grep -q 'scripts/sign-app.sh.*cached_app' "$root/release-app.command"
 grep -q -- '--timestamp=none' "$root/scripts/sign-app.sh"
 grep -q 'CertificateSHA256' "$root/scripts/sign-app.sh"
+grep -q 'MHG_ALLOW_AD_HOC_SIGNING' "$root/scripts/sign-app.sh"
+grep -q 'MHG_ALLOW_AD_HOC_SIGNING.*"1"' \
+  "$root/.github/workflows/quality-gate.yml"
 if grep -q -- '--sign -' "$root/scripts/sign-app.sh"; then
   printf 'App 签名脚本不允许降级为 ad-hoc 签名。\n' >&2
   exit 1

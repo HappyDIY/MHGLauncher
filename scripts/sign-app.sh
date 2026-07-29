@@ -3,6 +3,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 keychain="${MHG_LOCAL_SIGNING_KEYCHAIN:-}"
+allow_ad_hoc="${MHG_ALLOW_AD_HOC_SIGNING:-0}"
 config="$root/packaging/CodeSigning.plist"
 
 if (( $# != 1 )) || [[ ! -d "$1/Contents" ]]; then
@@ -11,6 +12,14 @@ if (( $# != 1 )) || [[ ! -d "$1/Contents" ]]; then
 fi
 
 app="$1"
+if [[ "$allow_ad_hoc" == "1" ]]; then
+  ad_hoc_identity="-"
+  codesign --force --sign "$ad_hoc_identity" --timestamp=none "$app"
+  codesign --verify --deep --verbose=2 "$app"
+  printf '已使用 CI 专用 ad-hoc 签名。\n'
+  exit 0
+fi
+
 certificate_name="$(plutil -extract CertificateName raw "$config")"
 identity="$(plutil -extract CertificateSHA1 raw "$config")"
 expected_sha256="$(plutil -extract CertificateSHA256 raw "$config")"

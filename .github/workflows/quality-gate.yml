@@ -22,6 +22,7 @@ jobs:
       - name: Run launcher quality gate
         env:
           DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+          MHG_ALLOW_AD_HOC_SIGNING: "1"
         run: scripts/test-launcher.sh
 
   services:
