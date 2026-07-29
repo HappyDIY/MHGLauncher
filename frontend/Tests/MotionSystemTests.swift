@@ -1,3 +1,4 @@
+import SwiftUI
 import Testing
 @testable import MHGLauncher
 
@@ -85,5 +86,36 @@ struct MotionSystemTests {
             #expect(spec.shadowRadius == 0)
             #expect(spec.brightness > 0)
         }
+    }
+
+    @MainActor
+    @Test("游戏启动仪式覆盖完整等待阶段")
+    func gameLaunchCeremony() {
+        let store = LauncherStore()
+        store.isLaunchingGame = true
+        #expect(renderCeremony(store) != nil)
+
+        store.isLaunchingGame = false
+        for status in [
+            GameLaunchStatus.preparing,
+            .starting,
+            .waitingWindow
+        ] {
+            store.gameLaunch = gameLaunch(status)
+            #expect(renderCeremony(store) != nil)
+        }
+
+        store.gameLaunch = gameLaunch(.running)
+        #expect(renderCeremony(store) != nil)
+        store.gameLaunch = nil
+        #expect(renderCeremony(store) != nil)
+    }
+
+    @MainActor
+    private func renderCeremony(_ store: LauncherStore) -> NSImage? {
+        ImageRenderer(
+            content: GameLaunchCeremonyHost(store: store)
+                .frame(width: 800, height: 600)
+        ).nsImage
     }
 }

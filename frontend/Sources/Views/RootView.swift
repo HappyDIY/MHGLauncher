@@ -40,9 +40,8 @@ struct RootView: View {
             }
         }
         .motionAnimation(.content, value: store.statusMessage)
-        .overlay {
-            WishOperationHost(store: store)
-        }
+        .overlay { WishOperationHost(store: store) }
+        .overlay { GameLaunchCeremonyHost(store: store) }
         .motionAnimation(.emphasis, value: store.isWishOperationActive)
         .alert(
             "提示",
