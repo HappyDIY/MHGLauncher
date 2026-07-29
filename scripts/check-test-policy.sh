@@ -7,12 +7,34 @@ status=0
 reject() {
   local pattern="$1"
   shift
-  if rg -n "$pattern" "$@"; then
+  local result
+  if command -v rg >/dev/null 2>&1; then
+    if rg -n "$pattern" "$@"; then
+      status=1
+      return
+    else
+      result=$?
+    fi
+  elif grep -EnR \
+    --exclude-dir=.build \
+    --exclude-dir=.git \
+    --exclude-dir=.next \
+    --exclude-dir=build \
+    --exclude-dir=dist \
+    --exclude-dir=node_modules \
+    "$pattern" "$@"; then
     status=1
+    return
+  else
+    result=$?
+  fi
+  if (( result > 1 )); then
+    printf '测试策略扫描失败（退出码 %s）。\n' "$result" >&2
+    exit "$result"
   fi
 }
 
-reject '\b(describe|it|test)\.(skip|skipIf|runIf|only|todo)\b|\b(xdescribe|xit|xtest)\b' \
+reject '(^|[^[:alnum:]_])(describe|it|test)\.(skip|skipIf|runIf|only|todo)([^[:alnum:]_]|$)|(^|[^[:alnum:]_])(xdescribe|xit|xtest)([^[:alnum:]_]|$)' \
   "$root/backend/tests" "$root/cloud/tests" "$root/admin"
 reject 'XCTSkip|@Test\([^)]*\.disabled|@Suite\([^)]*\.disabled' "$root/frontend/Tests"
 
