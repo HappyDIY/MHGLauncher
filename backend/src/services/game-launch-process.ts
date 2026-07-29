@@ -63,7 +63,7 @@ export class WineLaunchRunner implements GameLaunchRunner {
     const probe = setInterval(() => {
       if (probing) return; probing = true;
       void runCommand(paths.probe, [String(child.pid ?? 0), snapshot], { timeout: 1_000 })
-        .then((result) => { if (result.status === 0) { clearInterval(probe); releaseGate("游戏窗口已显示，域名屏蔽已解除"); } })
+        .then((result) => { if (result.status === 0) { clearInterval(probe); releaseGate("游戏进程已就绪，域名屏蔽已解除"); } })
         .finally(() => { probing = false; });
     }, this.probeTiming.intervalMs);
     const fallback = setTimeout(() => {

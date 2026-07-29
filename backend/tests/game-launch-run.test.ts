@@ -93,7 +93,7 @@ describe("WineLaunchRunner.run", () => {
     await spawned();
 
     await vi.waitFor(() => {
-      expect(report).toHaveBeenCalledWith("running", "游戏窗口已显示，域名屏蔽已解除", 1);
+      expect(report).toHaveBeenCalledWith("running", "游戏进程已就绪，域名屏蔽已解除", 1);
     });
     expect(existsSync(join(fixture.sessionDir, "dns-gate"))).toBe(false);
     child.emit("exit", 0);

@@ -45,4 +45,19 @@ if "$stage/window-probe" invalid; then
   printf '窗口探针未拒绝无效进程组。\n' >&2
   exit 1
 fi
+printf '%s\n' \
+  '#include <unistd.h>' \
+  'int main(void){sleep(30);return 0;}' \
+  | xcrun clang -arch arm64 -x c - -o "$stage/YuanShen.exe"
+"$stage/YuanShen.exe" &
+game_pid="$!"
+trap 'kill "$game_pid" 2>/dev/null || true; rm -rf "$stage"' EXIT
+game_snapshot="$("$stage/window-probe" --snapshot | paste -sd, -)"
+if "$stage/window-probe" "$game_pid" "$game_snapshot"; then
+  printf '窗口探针错误接受了快照中已存在的游戏进程。\n' >&2
+  exit 1
+fi
+"$stage/window-probe" "$game_pid" ""
+kill "$game_pid"
+wait "$game_pid" 2>/dev/null || true
 printf '游戏运行时宿主组件测试通过。\n'

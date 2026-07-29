@@ -15,16 +15,41 @@ func isVisibleGameSize(_ window: [String: Any]) -> Bool {
          (bounds["Height"] as? NSNumber)?.doubleValue ?? 0 >= 360
 }
 
+func gameProcessIDs() -> Set<pid_t> {
+  let capacity = max(proc_listallpids(nil, 0), 0)
+  guard capacity > 0 else { return [] }
+  var pids = [pid_t](repeating: 0, count: Int(capacity))
+  let bytes = Int32(pids.count * MemoryLayout<pid_t>.stride)
+  let count = max(proc_listallpids(&pids, bytes), 0)
+  var matches = Set<pid_t>()
+  for pid in pids.prefix(Int(count)) where pid > 0 {
+    var name = [CChar](repeating: 0, count: 256)
+    guard proc_name(pid, &name, UInt32(name.count)) > 0 else { continue }
+    let value = String(cString: name).lowercased()
+    if value == "yuanshen.exe" || value == "genshinimpact.exe" { matches.insert(pid) }
+  }
+  return matches
+}
+
 if CommandLine.arguments == [CommandLine.arguments[0], "--snapshot"] {
   for window in windows where isVisibleGameSize(window) {
     if let number = window[kCGWindowNumber as String] as? NSNumber { print(number.intValue) }
   }
+  for pid in gameProcessIDs() { print("p:\(pid)") }
   exit(0)
 }
 
 guard CommandLine.arguments.count == 3,
       let processGroup = Int32(CommandLine.arguments[1]), processGroup > 0 else { exit(2) }
-let baseline = Set(CommandLine.arguments[2].split(separator: ",").compactMap { Int($0) })
+let snapshot = CommandLine.arguments[2].split(separator: ",")
+let baseline = Set(snapshot.compactMap { Int($0) })
+let baselineProcesses = Set(snapshot.compactMap { value -> pid_t? in
+  guard value.hasPrefix("p:") else { return nil }
+  return pid_t(value.dropFirst(2))
+})
+
+// Wine 的窗口宿主不一定与游戏进程同组；先识别明确的游戏进程名，避免误等到超时。
+if !gameProcessIDs().subtracting(baselineProcesses).isEmpty { exit(0) }
 
 for window in windows where isVisibleGameSize(window) {
   guard let owner = window[kCGWindowOwnerPID as String] as? NSNumber,
