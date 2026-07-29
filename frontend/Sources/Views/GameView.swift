@@ -81,7 +81,9 @@ struct GameView: View {
             .task(id: store.installPath) {
                 store.checkGameRuntime()
                 try? await Task.sleep(for: .milliseconds(400))
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled,
+                      !store.isBootstrapping,
+                      store.backend.client != nil else { return }
                 await store.refreshGame()
             }
         }
