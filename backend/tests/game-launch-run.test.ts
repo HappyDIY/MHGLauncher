@@ -93,9 +93,31 @@ describe("WineLaunchRunner.run", () => {
     await spawned();
 
     await vi.waitFor(() => {
-      expect(report).toHaveBeenCalledWith("running", "游戏进程已就绪，域名屏蔽已解除", 1);
+      expect(report).toHaveBeenCalledWith("running", "游戏窗口已显示，域名屏蔽已解除", 1);
     });
     expect(existsSync(join(fixture.sessionDir, "dns-gate"))).toBe(false);
+    child.emit("exit", 0);
+    await completion;
+  });
+
+  test("发现游戏进程时保留一次性域名门控", async () => {
+    const fixture = makeFixture();
+    const report = vi.fn();
+    mocks.runCommand.mockImplementation(async (...args: unknown[]) => {
+      const command = Array.isArray(args[1]) ? args[1] : [];
+      const isProbe = String(args[0]).endsWith("mhg-window-probe")
+        && command[0] !== "--snapshot";
+      return { status: isProbe ? 3 : 0, stdout: "", stderr: "" };
+    });
+    const completion = new WineLaunchRunner({ intervalMs: 5, timeoutMs: 1_000 })
+      .run(fixture.input, report);
+    await spawned();
+
+    await vi.waitFor(() => {
+      expect(report).toHaveBeenCalledWith("running", "游戏进程已创建，正在等待窗口", 0.9);
+    });
+    expect(existsSync(join(fixture.sessionDir, "dns-gate"))).toBe(true);
+
     child.emit("exit", 0);
     await completion;
   });

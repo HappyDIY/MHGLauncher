@@ -48,9 +48,6 @@ let baselineProcesses = Set(snapshot.compactMap { value -> pid_t? in
   return pid_t(value.dropFirst(2))
 })
 
-// Wine 的窗口宿主不一定与游戏进程同组；先识别明确的游戏进程名，避免误等到超时。
-if !gameProcessIDs().subtracting(baselineProcesses).isEmpty { exit(0) }
-
 for window in windows where isVisibleGameSize(window) {
   guard let owner = window[kCGWindowOwnerPID as String] as? NSNumber,
         let number = window[kCGWindowNumber as String] as? NSNumber else { continue }
@@ -60,5 +57,8 @@ for window in windows where isVisibleGameSize(window) {
   guard getpgid(owner.int32Value) == processGroup || isGameWindow || isNewWindow else { continue }
   exit(0)
 }
+
+// 进程已创建但窗口尚未出现，使用独立状态避免提前解除一次性网络门控。
+if !gameProcessIDs().subtracting(baselineProcesses).isEmpty { exit(3) }
 
 exit(1)

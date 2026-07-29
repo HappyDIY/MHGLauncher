@@ -57,7 +57,15 @@ if "$stage/window-probe" "$game_pid" "$game_snapshot"; then
   printf '窗口探针错误接受了快照中已存在的游戏进程。\n' >&2
   exit 1
 fi
-"$stage/window-probe" "$game_pid" ""
+window_snapshot="$(printf '%s\n' "$game_snapshot" | tr ',' '\n' | grep -v '^p:' | paste -sd, -)"
+set +e
+"$stage/window-probe" "$game_pid" "$window_snapshot"
+probe_status="$?"
+set -e
+if [[ "$probe_status" != "3" ]]; then
+  printf '窗口探针未区分已创建进程与可见窗口。\n' >&2
+  exit 1
+fi
 kill "$game_pid"
 wait "$game_pid" 2>/dev/null || true
 printf '游戏运行时宿主组件测试通过。\n'
