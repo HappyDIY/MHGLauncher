@@ -36,10 +36,12 @@ wine_id="$(read_lock '.wineBuild.sourceId')"
 patch_id="$(read_lock '.wineBuild.patchSourceId')"
 wine_archive="$source_cache/$(read_lock ".sources[] | select(.id == \"$wine_id\") | .cacheFile")"
 patch_archive="$source_cache/$(read_lock ".sources[] | select(.id == \"$patch_id\") | .cacheFile")"
+freetype_archive="$source_cache/$(read_lock '.sources[] | select(.id == "freetype") | .cacheFile')"
 bison_archive="$tool_cache/$(read_lock '.buildTools[] | select(.id == "bison") | .cacheFile')"
 mingw_archive="$tool_cache/$(read_lock '.buildTools[] | select(.id == "llvm-mingw") | .cacheFile')"
 fetch_entry sources "$wine_id" "$wine_archive"
 fetch_entry sources "$patch_id" "$patch_archive"
+fetch_entry sources freetype "$freetype_archive"
 fetch_entry buildTools bison "$bison_archive"
 fetch_entry buildTools llvm-mingw "$mingw_archive"
 
@@ -71,7 +73,9 @@ trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/source" "$stage/patches" "$stage/build" "$stage/install"
 tar -xf "$wine_archive" -C "$stage/source"
 tar -xf "$patch_archive" -C "$stage/patches"
+tar -xf "$freetype_archive" -C "$stage/source"
 source_root="$stage/source/$(read_lock ".sources[] | select(.id == \"$wine_id\") | .sourceRoot")"
+freetype_root="$stage/source/$(read_lock '.sources[] | select(.id == "freetype") | .sourceRoot')"
 [[ "$(cat "$source_root/VERSION")" == "Wine version 11.0" ]]
 while IFS= read -r local_patch; do
   local_path="$root/$(jq -r '.path' <<<"$local_patch")"
@@ -83,11 +87,20 @@ while IFS= read -r patch_path; do
 done < <(read_lock ".sources[] | select(.id == \"$patch_id\") | .patches[]")
 
 prefix="$(read_lock '.wineBuild.buildPrefix')"
+(
+  cd "$freetype_root"
+  CC="/usr/bin/clang -arch x86_64" CFLAGS="-O2 -arch x86_64" LDFLAGS="-arch x86_64" \
+    "$freetype_root/configure" --host=x86_64-apple-darwin --prefix="$stage/freetype-install" \
+    --disable-static --enable-shared --with-zlib=no --with-bzip2=no --with-png=no \
+    --with-harfbuzz=no --with-brotli=no >/dev/null
+  make -s -j "$jobs" >/dev/null
+  make -s install >/dev/null
+)
 configure=(
   "$source_root/configure" --build=x86_64-apple-darwin --prefix="$prefix"
   --enable-archs=i386,x86_64 --disable-tests --with-mingw=llvm-mingw
   --without-alsa --without-capi --with-coreaudio --without-cups --without-dbus
-  --without-fontconfig --without-freetype --without-gettext --without-gphoto
+  --without-fontconfig --with-freetype --without-gettext --without-gphoto
   --without-gnutls --without-gssapi --without-gstreamer --without-krb5
   --without-netapi --without-opencl --without-opengl --without-oss --without-pcap
   --without-pcsclite --without-pulse --without-sane --without-sdl --without-udev
@@ -96,6 +109,8 @@ configure=(
 (
   cd "$stage/build"
   PATH="$bison_prefix/bin:$mingw_prefix/bin:/usr/bin:/bin" \
+    FREETYPE_CFLAGS="-I$stage/freetype-install/include/freetype2" \
+    FREETYPE_LIBS="-L$stage/freetype-install/lib -lfreetype" \
     CC="/usr/bin/clang -arch x86_64" CXX="/usr/bin/clang++ -arch x86_64" \
     CFLAGS="-O2 -arch x86_64" LDFLAGS="-arch x86_64" "${configure[@]}"
   PATH="$bison_prefix/bin:$mingw_prefix/bin:/usr/bin:/bin" make -s -j "$jobs" install-lib DESTDIR="$stage/install"
@@ -108,6 +123,14 @@ built="$stage/install$prefix"
 ln -s wine "$built/bin/wineboot"
 [[ -f "$built/lib/wine/x86_64-unix/ntdll.so" ]]
 grep -R -a -q 'WINEMSYNC' "$built/lib/wine"
+grep -R -a -q 'FT_Init_FreeType' "$built/lib/wine"
+cp "$stage/freetype-install/lib/libfreetype.6.dylib" "$built/lib/"
+install_name_tool -id '@rpath/libfreetype.6.dylib' "$built/lib/libfreetype.6.dylib"
+while IFS= read -r module; do
+  install_name_tool -add_rpath '@loader_path/../..' "$module"
+done < <(grep -R -a -l 'libfreetype.6.dylib' "$built/lib/wine/x86_64-unix")
+mkdir -p "$built/share/licenses"
+cp "$freetype_root/docs/FTL.TXT" "$built/share/licenses/FreeType-FTL.txt"
 rm -rf "$output"
 mkdir -p "$(dirname "$output")"
 cp -R "$built" "$output"
@@ -118,8 +141,10 @@ jq -n \
   --arg version "$(read_lock '.wineBuild.version')" \
   --arg sourceSha "$(read_lock ".sources[] | select(.id == \"$wine_id\") | .sha256")" \
   --arg patchSha "$(read_lock ".sources[] | select(.id == \"$patch_id\") | .sha256")" \
+  --arg freetypeSha "$(read_lock '.sources[] | select(.id == "freetype") | .sha256')" \
   --arg compilerSha "$(read_lock '.buildTools[] | select(.id == "llvm-mingw") | .sha256')" \
   '{schemaVersion:1, version:$version, sourceSha256:$sourceSha,
-    patchSetSha256:$patchSha, compilerSha256:$compilerSha, locallyCompiled:true}' \
+    patchSetSha256:$patchSha, freetypeSha256:$freetypeSha,
+    compilerSha256:$compilerSha, locallyCompiled:true}' \
   >"$output/BUILD_PROVENANCE.json"
 printf 'Wine 已从固定源码自主编译：%s\n' "$output"

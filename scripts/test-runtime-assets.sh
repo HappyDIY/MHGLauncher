@@ -8,14 +8,14 @@ trap 'rm -rf "$stage"' EXIT
 source_lock="$root/packaging/game-runtime-source-lock.json"
 jq -e '
   .schemaVersion == 2 and
-  .wineBuild.version == "wine-11.0-mhg2" and
+  .wineBuild.version == "wine-11.0-mhg3" and
   (has("wineArtifact") | not) and
   .wineBuild.sourceId == "codeweavers-wine" and
   .wineBuild.patchSourceId == "macports-game-patches" and
   (.wineBuild.localPatches | length > 0 and
     all((.path | startswith("packaging/patches/")) and
       (.sha256 | test("^[0-9a-f]{64}$")))) and
-  ([.sources[].id] | sort == ["codeweavers-wine","macports-game-patches"]) and
+  ([.sources[].id] | sort == ["codeweavers-wine","freetype","macports-game-patches"]) and
   all(.sources[];
     (.url | startswith("https://")) and
     (.sha256 | test("^[0-9a-f]{64}$")) and
@@ -30,6 +30,12 @@ jq -e '
 bash -n "$root/scripts/build-wine-runtime.sh"
 grep -q -- '--enable-archs=i386,x86_64' "$root/scripts/build-wine-runtime.sh"
 grep -q -- '--with-mingw=llvm-mingw' "$root/scripts/build-wine-runtime.sh"
+grep -q -- '--with-freetype' "$root/scripts/build-wine-runtime.sh"
+grep -q -- 'libfreetype.6.dylib' "$root/scripts/build-wine-runtime.sh"
+if grep -q -- '--without-freetype' "$root/scripts/build-wine-runtime.sh"; then
+  printf 'Wine 构建禁用了首选项窗口所需的字体引擎。\n' >&2
+  exit 1
+fi
 if grep -q -- '--enable-win64' "$root/scripts/build-wine-runtime.sh"; then
   printf 'Wine 构建仍是不能运行 Win32 程序的纯 Win64 配置。\n' >&2
   exit 1

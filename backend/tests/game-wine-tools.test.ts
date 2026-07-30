@@ -13,12 +13,8 @@ afterEach(() => {
 });
 
 test("生成 Wine 内置工具参数", () => {
-  expect(wineToolArguments({
-    action: "preferences", command: "win10", performance_profile: "baseline",
-  })).toEqual(["winecfg.exe", "/v", "win10"]);
-  expect(() => wineToolArguments({
-    action: "preferences", command: "winxp", performance_profile: "baseline",
-  })).toThrow("不支持所选的 Windows 版本");
+  expect(wineToolArguments({ action: "preferences", performance_profile: "baseline" }))
+    .toEqual(["winecfg.exe"]);
   expect(wineToolArguments({ action: "run", command: " regedit ", performance_profile: "compatibility" }))
     .toEqual(["regedit"]);
   expect(wineToolArguments({ action: "run", command: "\"C:\\Program Files\\app.exe\" --flag", performance_profile: "baseline" }))

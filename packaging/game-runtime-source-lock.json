@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "wineBuild": {
-    "version": "wine-11.0-mhg2",
+    "version": "wine-11.0-mhg3",
     "sourceId": "codeweavers-wine",
     "patchSourceId": "macports-game-patches",
     "buildPrefix": "/opt/mhglauncher-wine",
@@ -33,6 +33,15 @@
         "macports-wine-d96d5a6ba5b9391afb3a4d5a0c2b7c2c05c86452/emulators/wine-devel/files/dwproton/gi-timeout/0009-HACK-ws2_32-Allow-changing-request-timeout-with-WINE.patch",
         "macports-wine-d96d5a6ba5b9391afb3a4d5a0c2b7c2c05c86452/emulators/wine-devel/files/mf/0003-mfreadwrite-reader-Rely-on-the-video-processor-sampl.patch"
       ]
+    },
+    {
+      "id": "freetype",
+      "version": "2.13.3",
+      "url": "https://download-mirror.savannah.gnu.org/releases/freetype/freetype-2.13.3.tar.xz",
+      "sha256": "0550350666d427c74daeb85d5ac7bb353acba5f76956395995311a9c6f063289",
+      "cacheFile": "freetype-2.13.3.tar.xz",
+      "sourceRoot": "freetype-2.13.3",
+      "licensePath": "docs/FTL.TXT"
     }
   ],
   "buildTools": [

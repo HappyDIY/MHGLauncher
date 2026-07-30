@@ -5,7 +5,6 @@ struct GameLaunchAdvancedMenu: View {
     @State private var editor: AdvancedLaunchEditor?
     @State private var draftArguments = ""
     @State private var command = ""
-    @State private var wineVersion = WineWindowsVersion.windows10
 
     var body: some View {
         Menu {
@@ -13,7 +12,7 @@ struct GameLaunchAdvancedMenu: View {
             Divider()
             Button("打开 Wine 文件目录", systemImage: "folder", action: openExplorer)
             .disabled(wineToolsDisabled)
-            Button("Wine 首选项…", systemImage: "gearshape", action: showPreferences)
+            Button("打开 Wine 首选项", systemImage: "gearshape", action: openPreferences)
             .disabled(wineToolsDisabled)
             Button("运行命令…", systemImage: "terminal", action: showCommand)
             .disabled(wineToolsDisabled)
@@ -29,16 +28,8 @@ struct GameLaunchAdvancedMenu: View {
     func editorView(_ selection: AdvancedLaunchEditor) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(selection.title).font(.headline)
-            if selection == .preferences {
-                Picker("Windows 版本", selection: $wineVersion) {
-                    ForEach(WineWindowsVersion.allCases) { version in
-                        Text(version.title).tag(version)
-                    }
-                }
-            } else {
-                TextField(selection.placeholder, text: selection == .arguments ? $draftArguments : $command)
-                    .textFieldStyle(.roundedBorder)
-            }
+            TextField(selection.placeholder, text: selection == .arguments ? $draftArguments : $command)
+                .textFieldStyle(.roundedBorder)
             HStack {
                 Spacer()
                 Button("取消", role: .cancel, action: dismissEditor)
@@ -61,13 +52,6 @@ struct GameLaunchAdvancedMenu: View {
         presentEditor(.command)
     }
 
-    func showPreferences() {
-        wineVersion = WineWindowsVersion(
-            rawValue: store.userSettings.string(forKey: "wineWindowsVersion") ?? ""
-        ) ?? .windows10
-        presentEditor(.preferences)
-    }
-
     func presentEditor(_ selection: AdvancedLaunchEditor) {
         Task { @MainActor in
             await Task.yield()
@@ -79,20 +63,20 @@ struct GameLaunchAdvancedMenu: View {
         Task { await store.startWineTool(.explorer) }
     }
 
+    func openPreferences() {
+        Task { await store.startWineTool(.preferences) }
+    }
+
     func dismissEditor() {
         editor = nil
     }
 
     func submit(_ selection: AdvancedLaunchEditor) {
-        switch selection {
-        case .arguments:
+        if selection == .arguments {
             store.gameLaunchArguments = draftArguments
             store.showStatus("启动参数已保存")
-        case .command:
+        } else {
             Task { await store.startWineTool(.run, command: command) }
-        case .preferences:
-            store.userSettings.set(wineVersion.rawValue, forKey: "wineWindowsVersion")
-            Task { await store.startWineTool(.preferences, command: wineVersion.rawValue) }
         }
         editor = nil
     }
@@ -106,35 +90,8 @@ struct GameLaunchAdvancedMenu: View {
 enum AdvancedLaunchEditor: String, Identifiable {
     case arguments
     case command
-    case preferences
     var id: Self { self }
-    var title: String {
-        switch self {
-        case .arguments: "自定义启动参数"
-        case .command: "运行 Windows 命令"
-        case .preferences: "Wine 首选项"
-        }
-    }
+    var title: String { self == .arguments ? "自定义启动参数" : "运行 Windows 命令" }
     var placeholder: String { self == .arguments ? "启动参数" : "Windows 命令" }
-    var actionTitle: String {
-        switch self {
-        case .arguments: "保存"
-        case .command: "运行"
-        case .preferences: "应用"
-        }
-    }
-}
-
-enum WineWindowsVersion: String, CaseIterable, Identifiable {
-    case windows10 = "win10"
-    case windows81 = "win81"
-    case windows7 = "win7"
-    var id: Self { self }
-    var title: String {
-        switch self {
-        case .windows10: "Windows 10"
-        case .windows81: "Windows 8.1"
-        case .windows7: "Windows 7"
-        }
-    }
+    var actionTitle: String { self == .arguments ? "保存" : "运行" }
 }

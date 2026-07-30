@@ -52,13 +52,7 @@ export class GameWineToolService {
 }
 
 export function wineToolArguments(input: WineToolInput): string[] {
-  if (input.action === "preferences") {
-    const version = input.command ?? "win10";
-    if (!["win10", "win81", "win7"].includes(version)) {
-      throw new AppError("wine_version_invalid", "不支持所选的 Windows 版本", 422);
-    }
-    return ["winecfg.exe", "/v", version];
-  }
+  if (input.action === "preferences") return ["winecfg.exe"];
   const command = input.command?.trim();
   if (!command) throw new AppError("wine_command_missing", "请输入要运行的 Windows 命令", 422);
   return parseArgsStringToArgv(command);
