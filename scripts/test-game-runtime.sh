@@ -57,7 +57,7 @@ if "$stage/window-probe" "$game_pid" "$game_snapshot"; then
   printf '窗口探针错误接受了快照中已存在的游戏进程。\n' >&2
   exit 1
 fi
-window_snapshot="$(printf '%s\n' "$game_snapshot" | tr ',' '\n' | grep -v '^p:' | paste -sd, -)"
+window_snapshot="$(printf '%s\n' "$game_snapshot" | tr ',' '\n' | awk '!/^p:/' | paste -sd, -)"
 set +e
 "$stage/window-probe" "$game_pid" "$window_snapshot"
 probe_status="$?"
