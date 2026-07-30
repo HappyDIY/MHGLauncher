@@ -8,6 +8,43 @@ struct AchievementPresentation {
     let finishDescription: String
 }
 
+private struct AchievementFilter {
+    let text: String
+    let achievementID: Int?
+    let searchesVersion: Bool
+    let selectedGoal: Int?
+    let dailyOnly: Bool
+
+    init(text: String, selectedGoal: Int?, dailyOnly: Bool) {
+        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.text = normalized
+        achievementID = Int(normalized)
+        searchesVersion = Self.isVersionQuery(normalized)
+        self.selectedGoal = selectedGoal
+        self.dailyOnly = dailyOnly
+    }
+
+    func matches(_ entry: AchievementEntry) -> Bool {
+        guard !dailyOnly || entry.isDailyQuest else { return false }
+        guard selectedGoal == nil || entry.goal == selectedGoal else { return false }
+        guard !text.isEmpty else { return true }
+        if let achievementID { return entry.achievementId == achievementID }
+        if searchesVersion {
+            return entry.version.localizedCaseInsensitiveContains(text)
+        }
+        return entry.title.localizedCaseInsensitiveContains(text)
+            || entry.description.localizedCaseInsensitiveContains(text)
+    }
+
+    private static func isVersionQuery(_ text: String) -> Bool {
+        guard text.count >= 3 else { return false }
+        let prefix = text.prefix(3)
+        return prefix.first?.wholeNumberValue != nil
+            && prefix.dropFirst().first == "."
+            && prefix.last?.wholeNumberValue != nil
+    }
+}
+
 enum AchievementGoalSelection {
     static func restore(uid: String, goals: [AchievementGoal], defaults: UserDefaults = .standard) -> Int? {
         let ordered = goals.sorted { $0.order < $1.order }
@@ -33,7 +70,22 @@ extension AchievementsView {
     }
 
     var achievementPresentation: AchievementPresentation {
-        var entries = store.value.achievementEntries.filter(matchesFilters)
+        let allEntries = store.value.achievementEntries
+        let filter = AchievementFilter(
+            text: searchText,
+            selectedGoal: selectedGoal,
+            dailyOnly: dailyOnly
+        )
+        var entries: [AchievementEntry] = []
+        entries.reserveCapacity(allEntries.count)
+        var stats: [Int: (finished: Int, total: Int)] = [:]
+        for entry in allEntries {
+            var value = stats[entry.goal] ?? (0, 0)
+            value.total += 1
+            if isChecked(entry) { value.finished += 1 }
+            stats[entry.goal] = value
+            if filter.matches(entry) { entries.append(entry) }
+        }
         if uncompletedFirst {
             entries.sort {
                 let lhsChecked = isChecked($0)
@@ -47,14 +99,8 @@ extension AchievementsView {
         }
         let goals = store.value.achievementGoals
             .sorted { $0.order < $1.order }
-        let stats = store.value.achievementEntries.reduce(into: [Int: (Int, Int)]()) { result, entry in
-            var value = result[entry.goal] ?? (0, 0)
-            value.1 += 1
-            if isChecked(entry) { value.0 += 1 }
-            result[entry.goal] = value
-        }
-        let total = store.value.achievementEntries.count
-        let finished = stats.values.reduce(0) { $0 + $1.0 }
+        let total = allEntries.count
+        let finished = stats.values.reduce(0) { $0 + $1.finished }
         let percent = total == 0 ? 0 : Double(finished) / Double(total)
         let description = "\(finished)/\(total) - \(percent.formatted(.percent.precision(.fractionLength(2))))"
         return AchievementPresentation(
@@ -87,16 +133,4 @@ extension AchievementsView {
         }
     }
 
-    private func matchesFilters(_ entry: AchievementEntry) -> Bool {
-        guard !dailyOnly || entry.isDailyQuest else { return false }
-        guard selectedGoal == nil || entry.goal == selectedGoal else { return false }
-        let text = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return true }
-        if let id = Int(text) { return entry.achievementId == id }
-        if text.range(of: #"^\d\.\d"#, options: .regularExpression) != nil {
-            return entry.version.localizedCaseInsensitiveContains(text)
-        }
-        return entry.title.localizedCaseInsensitiveContains(text)
-            || entry.description.localizedCaseInsensitiveContains(text)
-    }
 }

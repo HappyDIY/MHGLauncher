@@ -8,7 +8,10 @@ struct CharacterIcon: View {
         ZStack(alignment: .bottomTrailing) {
             Rectangle()
                 .fill(character.elementColor.opacity(0.11))
-            CachedAsyncImage(url: character.iconUrl) {
+            CachedAsyncImage(
+                url: character.iconUrl,
+                maxPixelDimension: Int(ceil(size * 2))
+            ) {
                 Image(systemName: "person.fill")
                     .font(.system(size: size * 0.4))
                     .foregroundStyle(character.elementColor)

@@ -44,6 +44,18 @@ struct AchievementPresentationTests {
         #expect(view.achievementPresentation.goals.map(\.id) == [1, 2])
     }
 
+    @Test("版本搜索只匹配版本字段")
+    func searchesVersionWithoutPerEntryRegex() {
+        let store = LauncherStore()
+        store.value.achievementEntries = [
+            entry(id: 1, goal: 1, status: 0, daily: false, version: "5.4"),
+            entry(id: 2, goal: 1, status: 0, daily: false, version: "5.5")
+        ]
+        let view = AchievementsView(store: store, searchText: "5.4")
+
+        #expect(view.achievementPresentation.entries.map(\.achievementId) == [1])
+    }
+
     @Test("首次选择第一项并恢复 UID 上次位置")
     func restoresGoalSelectionForUid() {
         let store = LauncherStore()
@@ -63,12 +75,18 @@ struct AchievementPresentationTests {
         ) == 2)
     }
 
-    private func entry(id: Int, goal: Int, status: Int, daily: Bool) -> AchievementEntry {
+    private func entry(
+        id: Int,
+        goal: Int,
+        status: Int,
+        daily: Bool,
+        version: String = "1.0"
+    ) -> AchievementEntry {
         AchievementEntry(
             archiveId: "archive", achievementId: id, current: status > 0 ? 1 : 0,
             status: status, timestamp: status > 0 ? 1 : 0, updatedAt: "",
             goal: goal, order: id, title: "成就 \(id)", description: "",
-            progress: 1, version: "1.0", rewardCount: 5, iconUrl: nil,
+            progress: 1, version: version, rewardCount: 5, iconUrl: nil,
             isDailyQuest: daily
         )
     }

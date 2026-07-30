@@ -9,7 +9,13 @@ actor ImageMemoryCache {
     nonisolated(unsafe) let cache = NSCache<NSString, NSImage>()
     private var inFlight: [String: Task<NSImage?, Never>] = [:]
 
-    init() { cache.countLimit = 256 }
+    init() {
+        cache.countLimit = 256
+        let physicalMemory = ProcessInfo.processInfo.physicalMemory
+        let minimum = UInt64(128 * 1_024 * 1_024)
+        let maximum = UInt64(512 * 1_024 * 1_024)
+        cache.totalCostLimit = Int(min(max(physicalMemory / 32, minimum), maximum))
+    }
 
     nonisolated func cachedImage(forKey key: String) -> NSImage? {
         cache.object(forKey: key as NSString)
@@ -24,8 +30,22 @@ actor ImageMemoryCache {
         inFlight[key] = task
         let result = await task.value
         inFlight[key] = nil
-        if let result { cache.setObject(result, forKey: key as NSString) }
+        if let result {
+            cache.setObject(
+                result,
+                forKey: key as NSString,
+                cost: Self.decodedCost(of: result)
+            )
+        }
         return result
+    }
+
+    nonisolated static func decodedCost(of image: NSImage) -> Int {
+        image.representations.reduce(0) { total, representation in
+            let pixels = max(representation.pixelsWide, 0)
+                * max(representation.pixelsHigh, 0)
+            return total + pixels * 4
+        }
     }
 }
 

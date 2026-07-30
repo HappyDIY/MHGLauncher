@@ -5,21 +5,22 @@ struct CharacterBrowserView: View {
     @State private var elementFilter = CharacterElementFilter.all
 
     var body: some View {
+        let characters = filteredCharacters
         VStack(spacing: 0) {
             CharacterBrowserControls(
                 searchText: $store.characterSearchText,
                 elementFilter: $elementFilter,
-                countText: countText,
+                countText: countText(for: characters),
                 roleSummary: roleSummary
             )
             Divider()
-            browserContent
+            browserContent(characters)
         }
     }
 
     @ViewBuilder
-    private var browserContent: some View {
-        if filteredCharacters.isEmpty {
+    private func browserContent(_ characters: [GameCharacter]) -> some View {
+        if characters.isEmpty {
             ContentUnavailableView(
                 "未找到角色",
                 systemImage: "magnifyingglass",
@@ -27,17 +28,17 @@ struct CharacterBrowserView: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            characterGrid
+            characterGrid(characters)
         }
     }
 
-    private var characterGrid: some View {
+    private func characterGrid(_ characters: [GameCharacter]) -> some View {
         ScrollView {
             LazyVGrid(
                 columns: [GridItem(.adaptive(minimum: 142, maximum: 190), spacing: 12)],
                 spacing: 12
             ) {
-                ForEach(filteredCharacters) { character in
+                ForEach(characters) { character in
                     Button {
                         store.selectCharacter(character)
                     } label: {
@@ -80,10 +81,10 @@ struct CharacterBrowserView: View {
         store.characterSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var countText: String {
+    private func countText(for characters: [GameCharacter]) -> String {
         normalizedQuery.isEmpty && elementFilter == .all
             ? "\(store.characters.count) 位"
-            : "\(filteredCharacters.count) / \(store.characters.count)"
+            : "\(characters.count) / \(store.characters.count)"
     }
 
     private var emptyDescription: String {

@@ -80,7 +80,10 @@ struct CharacterReliquarySection: View {
                     ForEach(relics) { relic in
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                CachedAsyncImage(url: relic.icon) {
+                                CachedAsyncImage(
+                                    url: relic.icon,
+                                    maxPixelDimension: 96
+                                ) {
                                     Image(systemName: "seal.fill")
                                         .foregroundStyle(.orange)
                                 }

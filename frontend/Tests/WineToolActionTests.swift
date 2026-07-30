@@ -69,11 +69,20 @@ struct WineToolActionTests {
         }
         menu.showArguments(); menu.submit(.arguments)
         menu.showCommand(); menu.dismissEditor()
-        menu.openExplorer(); try await Task.sleep(for: .milliseconds(20))
-        menu.openPreferences(); try await Task.sleep(for: .milliseconds(20))
-        menu.submit(.command); try await Task.sleep(for: .milliseconds(20))
+        menu.openExplorer(); try await waitForWineTool(store)
+        menu.openPreferences(); try await waitForWineTool(store)
+        menu.submit(.command); try await waitForWineTool(store)
         #expect(!menu.wineToolsDisabled)
         try await transport.verify()
+    }
+
+    @MainActor
+    private func waitForWineTool(_ store: LauncherStore) async throws {
+        await Task.yield()
+        for _ in 0..<100 where store.isStartingWineTool {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(!store.isStartingWineTool)
     }
 
     private func wineToolStep(

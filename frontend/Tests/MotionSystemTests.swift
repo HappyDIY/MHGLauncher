@@ -89,6 +89,30 @@ struct MotionSystemTests {
     }
 
     @MainActor
+    @Test("过渡只在动画帧启用离屏合成")
+    func transitionCompositionLifetime() {
+        let identity = MotionTransitionValues(
+            opacity: 1,
+            offset: .zero,
+            scale: 1,
+            blur: 0
+        )
+        var active = MotionTransitionValues(
+            opacity: 0,
+            offset: CGSize(width: 0, height: 12),
+            scale: 0.96,
+            blur: 8
+        )
+        let values = active.animatableData
+        active.animatableData = values
+
+        #expect(active.opacity == 0)
+        #expect(active.offset.height == 12)
+        #expect(renderTransition(identity) != nil)
+        #expect(renderTransition(active) != nil)
+    }
+
+    @MainActor
     @Test("游戏启动仪式覆盖完整等待阶段")
     func gameLaunchCeremony() {
         let store = LauncherStore()
@@ -116,6 +140,15 @@ struct MotionSystemTests {
         ImageRenderer(
             content: GameLaunchCeremonyHost(store: store)
                 .frame(width: 800, height: 600)
+        ).nsImage
+    }
+
+    @MainActor
+    private func renderTransition(_ values: MotionTransitionValues) -> NSImage? {
+        ImageRenderer(
+            content: Text("动画")
+                .modifier(values)
+                .frame(width: 160, height: 80)
         ).nsImage
     }
 }

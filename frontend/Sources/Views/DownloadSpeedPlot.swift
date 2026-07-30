@@ -1,4 +1,3 @@
-import Charts
 import SwiftUI
 
 struct DownloadSpeedPlot: View, Animatable {
@@ -11,44 +10,11 @@ struct DownloadSpeedPlot: View, Animatable {
     }
 
     var body: some View {
-        let data = SpeedPlotData(vector: animatableData, count: sampleCount)
-        Chart {
-            AreaPlot(
-                data,
-                x: .value("时间", \.time),
-                y: .value("速度", \.megabytesPerSecond)
-            )
-            .foregroundStyle(
-                LinearGradient(
-                    colors: [.accentColor.opacity(0.18), .accentColor.opacity(0.02)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            LinePlot(
-                data,
-                x: .value("时间", \.time),
-                y: .value("速度", \.megabytesPerSecond)
-            )
-            .foregroundStyle(Color.accentColor)
-            .interpolationMethod(.catmullRom)
-        }
-        .chartXAxis(.hidden)
-        .chartYAxis {
-            AxisMarks(position: .leading) { value in
-                AxisGridLine().foregroundStyle(.secondary.opacity(0.15))
-                AxisValueLabel {
-                    if let number = value.as(Double.self) {
-                        Text(String(format: "%.0f MB/s", number))
-                    }
-                }
-            }
-        }
+        DownloadSpeedPlotCanvas(
+            vector: animatableData,
+            count: sampleCount
+        )
         .frame(height: 92)
-        .transaction { transaction in
-            transaction.animation = nil
-            transaction.disablesAnimations = true
-        }
     }
 }
 
@@ -109,24 +75,5 @@ struct SpeedPlotVector: VectorArithmetic {
             result += speeds[index] * speeds[index]
         }
         return result
-    }
-}
-
-private struct SpeedPlotPoint {
-    let time: Date
-    let megabytesPerSecond: Double
-}
-
-private struct SpeedPlotData: RandomAccessCollection {
-    let vector: SpeedPlotVector
-    let count: Int
-    var startIndex: Int { 0 }
-    var endIndex: Int { count }
-
-    subscript(position: Int) -> SpeedPlotPoint {
-        SpeedPlotPoint(
-            time: Date(timeIntervalSinceReferenceDate: vector.times[position]),
-            megabytesPerSecond: vector.speeds[position] / 1_048_576
-        )
     }
 }

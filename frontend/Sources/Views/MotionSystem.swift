@@ -92,21 +92,53 @@ enum LauncherMotion {
     }
 }
 
-private struct MotionTransitionValues: ViewModifier {
-    let opacity: Double
-    let offset: CGSize
-    let scale: CGFloat
-    let blur: CGFloat
+struct MotionTransitionValues: AnimatableModifier {
+    var opacity: Double
+    var offset: CGSize
+    var scale: CGFloat
+    var blur: CGFloat
 
+    nonisolated var animatableData: AnimatablePair<
+        Double,
+        AnimatablePair<CGFloat, AnimatablePair<CGFloat, AnimatablePair<CGFloat, CGFloat>>>
+    > {
+        get {
+            AnimatablePair(
+                opacity,
+                AnimatablePair(
+                    offset.width,
+                    AnimatablePair(offset.height, AnimatablePair(scale, blur))
+                )
+            )
+        }
+        set {
+            opacity = newValue.first
+            offset.width = newValue.second.first
+            offset.height = newValue.second.second.first
+            scale = newValue.second.second.second.first
+            blur = newValue.second.second.second.second
+        }
+    }
+
+    @ViewBuilder
     func body(content: Content) -> some View {
-        // 先合成为单层，再施加位移/缩放/模糊/透明，使动画每帧只栅格化一次子树，
-        // 而非对玻璃、材质、图片、文本逐层重复合成。视觉结果保持一致。
-        content
-            .compositingGroup()
-            .opacity(opacity)
-            .offset(offset)
-            .scaleEffect(scale)
-            .blur(radius: blur)
+        if isIdentity {
+            // 动画稳定后移除离屏层。恒等变换下逐像素结果不变，却能避免图片、
+            // 材质等常驻纹理在滚动和窗口缩放时反复参与合成。
+            content
+        } else {
+            // 动画帧仍先合成为单层，完整保留位移、缩放、模糊和透明效果。
+            content
+                .compositingGroup()
+                .opacity(opacity)
+                .offset(offset)
+                .scaleEffect(scale)
+                .blur(radius: blur)
+        }
+    }
+
+    private var isIdentity: Bool {
+        opacity == 1 && offset == .zero && scale == 1 && blur == 0
     }
 }
 

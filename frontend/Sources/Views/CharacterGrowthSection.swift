@@ -37,7 +37,10 @@ struct CharacterSkillStrip: View {
                             ZStack {
                                 Circle()
                                     .fill(Color.secondary.opacity(0.2))
-                                CachedAsyncImage(url: skill.icon) {
+                                CachedAsyncImage(
+                                    url: skill.icon,
+                                    maxPixelDimension: 96
+                                ) {
                                     Image(systemName: "sparkles")
                                         .foregroundStyle(.secondary)
                                 }

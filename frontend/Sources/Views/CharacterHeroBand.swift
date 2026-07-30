@@ -95,7 +95,10 @@ private struct CharacterWeaponOverview: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(.primary.opacity(0.06))
-                CachedAsyncImage(url: character.payload?.weapon?.icon) {
+                CachedAsyncImage(
+                    url: character.payload?.weapon?.icon,
+                    maxPixelDimension: 128
+                ) {
                     Image(systemName: "sword")
                         .font(.title2)
                         .foregroundStyle(.secondary)
