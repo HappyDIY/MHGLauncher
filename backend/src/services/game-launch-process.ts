@@ -8,6 +8,7 @@ import { AppError } from "../core/errors";
 import type { GameLaunchStatus, GamePerformanceProfile } from "../core/models";
 import { launchEnvironment, runtimePaths, safeLaunchBase } from "./game-launch-environment";
 import { configureChineseGameLanguage } from "./game-launch-language";
+import { createGameLaunchLink, removeGameLaunchLink } from "./game-launch-link";
 import { runCommand } from "./process-command";
 import { stopWineServer } from "./game-wine-server";
 
@@ -43,13 +44,19 @@ export class WineLaunchRunner implements GameLaunchRunner {
       ? join(input.sessionDir, "wine.log")
       : join(input.dataDir, "logs", "game-launch.log");
     mkdirSync(dirname(logPath), { recursive: true, mode: 0o700 });
-    const descriptor = openSync(logPath, "a", 0o600);
-    const exeArgs = gameArguments(input.gameRoot, input.authTicket);
+    const gameLink = createGameLaunchLink(input.gameRoot, input.sessionDir);
+    let descriptor: number;
+    try { descriptor = openSync(logPath, "a", 0o600); }
+    catch (error) { removeGameLaunchLink(gameLink); throw error; }
+    const exeArgs = gameArguments(input.authTicket);
     let child: ReturnType<typeof spawn>;
     try {
       child = spawn(paths.wine, exeArgs, {
-        cwd: input.gameRoot, detached: true, env, stdio: ["ignore", descriptor, descriptor],
+        cwd: gameLink, detached: true, env, stdio: ["ignore", descriptor, descriptor],
       });
+    } catch (error) {
+      removeGameLaunchLink(gameLink);
+      throw error;
     } finally {
       closeSync(descriptor);
     }
@@ -83,7 +90,8 @@ export class WineLaunchRunner implements GameLaunchRunner {
       const finish = async (code: number, error?: unknown): Promise<void> => {
         if (cleaned || finishing) return; finishing = true; cleanup();
         try {
-          await stopWineServer(paths.wineserver, prefix);
+          try { await stopWineServer(paths.wineserver, prefix); }
+          finally { removeGameLaunchLink(gameLink); }
           cleaned = true;
           if (!reported) { reported = true; if (error) reject(error); else resolve(code); }
         } catch (stopError) { if (!reported) { reported = true; reject(stopError); } }
@@ -159,8 +167,8 @@ export class WineLaunchRunner implements GameLaunchRunner {
 
 }
 
-export function gameArguments(gameRoot: string, authTicket?: string): string[] {
-  const args = [join(gameRoot, "YuanShen.exe"), "-force-d3d11"];
+export function gameArguments(authTicket?: string): string[] {
+  const args = ["YuanShen.exe", "-force-d3d11"];
   if (authTicket) args.push(`login_auth_ticket=${authTicket}`);
   return args;
 }

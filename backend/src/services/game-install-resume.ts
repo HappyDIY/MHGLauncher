@@ -9,6 +9,10 @@ import { readGameStaging } from "./game-staging";
 const OFFICIAL_DIRECTORY = "Genshin Impact Game";
 const STAGING_TOKEN = ".mhg-staging-";
 
+export function defaultGameInstallPath(dataDir: string): string {
+  return join(dataDir, "Games", OFFICIAL_DIRECTORY);
+}
+
 export interface InstallResume { destination: string; source: string; version: string }
 export interface GameOperationPaths {
   detected: ReturnType<typeof detectGame>; resume: InstallResume | null;

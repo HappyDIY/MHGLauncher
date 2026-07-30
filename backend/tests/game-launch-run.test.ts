@@ -1,7 +1,5 @@
 import { EventEmitter } from "node:events";
-import {
-  existsSync, mkdtempSync, mkdirSync, rmSync, statSync, writeFileSync,
-} from "node:fs";
+import { existsSync, lstatSync, mkdtempSync, mkdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -41,31 +39,39 @@ describe("WineLaunchRunner.run", () => {
   });
 
   test("正常退出会等待 Wine Server 并清理域名门禁", async () => {
-    const fixture = makeFixture();
-    const report = vi.fn();
+    const fixture = makeFixture(), report = vi.fn();
     const completion = new WineLaunchRunner().run(fixture.input, report);
     await spawned();
 
+    const args = mocks.spawn.mock.calls[0]?.[1] as string[], options = mocks.spawn.mock.calls[0]?.[2] as { cwd: string };
+    expect(args[0]).toBe("YuanShen.exe"); expect(lstatSync(options.cwd).isSymbolicLink()).toBe(true);
+    expect(realpathSync(options.cwd)).toBe(realpathSync(fixture.input.gameRoot));
     child.emit("exit", 0);
 
     await expect(completion).resolves.toBe(0);
     expect(report).toHaveBeenCalledWith("waiting_window", expect.any(String), 0.82);
     expect(existsSync(join(fixture.sessionDir, "dns-gate"))).toBe(false);
+    expect(existsSync(join(fixture.sessionDir, "game"))).toBe(false);
     expect(statSync(join(fixture.dataDir, "logs", "game-launch.log")).mode & 0o777).toBe(0o600);
   });
 
   test("spawn 失败会关闭日志并返回原始错误", async () => {
-    const fixture = makeFixture();
-    const failure = new Error("spawn failed");
+    const fixture = makeFixture(), failure = new Error("spawn failed");
     mocks.spawn.mockImplementationOnce(() => { throw failure; });
 
     await expect(new WineLaunchRunner().run(fixture.input, vi.fn())).rejects.toBe(failure);
+    expect(existsSync(join(fixture.sessionDir, "game"))).toBe(false);
     expect(statSync(join(fixture.dataDir, "logs", "game-launch.log")).mode & 0o777).toBe(0o600);
   });
 
+  test("日志打开失败会清理启动软链接", async () => {
+    const fixture = makeFixture(); mkdirSync(join(fixture.dataDir, "logs", "game-launch.log"), { recursive: true });
+    await expect(new WineLaunchRunner().run(fixture.input, vi.fn())).rejects.toMatchObject({ code: "EISDIR" });
+    expect(existsSync(join(fixture.sessionDir, "game"))).toBe(false);
+  });
+
   test("子进程错误会清理并拒绝", async () => {
-    const fixture = makeFixture();
-    const failure = new Error("child error");
+    const fixture = makeFixture(), failure = new Error("child error");
     const completion = new WineLaunchRunner().run(fixture.input, vi.fn());
     await spawned();
 
@@ -157,6 +163,7 @@ describe("WineLaunchRunner.run", () => {
 
     await expect(completion).rejects.toMatchObject({ code: "wine_server_stop_failed" });
     expect(existsSync(join(fixture.sessionDir, "dns-gate"))).toBe(false);
+    expect(existsSync(join(fixture.sessionDir, "game"))).toBe(false);
   });
 });
 
@@ -169,8 +176,7 @@ function makeFixture(): {
   controller: AbortController; dataDir: string; sessionDir: string;
 } {
   const root = mkdtempSync(join(tmpdir(), "mhg-launch-run-")); roots.push(root);
-  const runtimeRoot = join(root, "runtime"), dataDir = join(root, "data");
-  const gameRoot = join(root, "game"), sessionDir = join(root, "session");
+  const runtimeRoot = join(root, "runtime"), dataDir = join(root, "data"), gameRoot = join(root, "game"), sessionDir = join(root, "session");
   const files = [
     "wine/bin/wine", "wine/bin/wineboot", "wine/bin/wineserver",
     "wine/lib/wine/x86_64-windows/winemetal.dll", "bin/mhg-window-probe",

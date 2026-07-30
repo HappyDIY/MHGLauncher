@@ -109,12 +109,12 @@ describe("Wine 游戏进程启动器", () => {
   });
 
   test("米游社账号使用源项目兼容的登录票据参数", () => {
-    expect(gameArguments("/games/Genshin Impact Game", "ticket-value")).toEqual([
-      "/games/Genshin Impact Game/YuanShen.exe",
+    expect(gameArguments("ticket-value")).toEqual([
+      "YuanShen.exe",
       "-force-d3d11",
       "login_auth_ticket=ticket-value",
     ]);
-    expect(gameArguments("/games/Genshin Impact Game")).not.toContainEqual(
+    expect(gameArguments()).not.toContainEqual(
       expect.stringContaining("login_auth_ticket="),
     );
   });

@@ -20,7 +20,7 @@ import { pruneTerminal } from "./task-retention";
 import { installGameResources } from "./game-resource-install";
 import { managedPath, writeManagedFile } from "./managed-file";
 import { makeGameResourceProgress } from "./game-resource-progress";
-import { assertFreshInstallDestination, findInstallResume, gameOperationPaths, type GameOperationPaths } from "./game-install-resume";
+import { assertFreshInstallDestination, defaultGameInstallPath, findInstallResume, gameOperationPaths, type GameOperationPaths } from "./game-install-resume";
 import { localStorageError } from "./storage-error";
 import { cleanupStaleUpdateStaging, clearGameStagingMarkers, finishGameStaging, stageGameExisting, type GameStagingRecord } from "./game-staging";
 export class GameService {
@@ -36,7 +36,7 @@ export class GameService {
   busy(): boolean { return [...this.jobs.values()].some(({ status }) => ["queued", "running", "pausing", "paused", "cancelling"].includes(status)); }
   async state(requested?: string): Promise<GameState> {
     const stored = this.store.one("SELECT install_path FROM game_state WHERE id=1");
-    const input = requested || String(stored?.install_path ?? ""), detected = input ? detectGame(input) : null;
+    const input = requested || String(stored?.install_path ?? "") || defaultGameInstallPath(this.dataDir), detected = detectGame(input);
     const resume = input && !detected ? findInstallResume(input) : null;
     const candidate = detected?.path ?? resume?.destination ?? input, source = detected?.path ?? resume?.source ?? "";
     const version = detected?.version ?? resume?.version ?? "";
