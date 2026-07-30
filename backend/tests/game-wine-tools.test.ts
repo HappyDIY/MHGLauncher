@@ -13,12 +13,11 @@ afterEach(() => {
 });
 
 test("生成 Wine 内置工具参数", () => {
-  expect(wineToolArguments({ action: "explorer", performance_profile: "optimized" })).toEqual(["explorer", "C:\\"]);
-  expect(wineToolArguments({ action: "preferences", performance_profile: "baseline" })).toEqual(["winecfg"]);
+  expect(wineToolArguments({ action: "preferences", performance_profile: "baseline" })).toEqual(["winecfg.exe"]);
   expect(wineToolArguments({ action: "run", command: " regedit ", performance_profile: "compatibility" }))
-    .toEqual(["start", "regedit"]);
+    .toEqual(["regedit"]);
   expect(wineToolArguments({ action: "run", command: "\"C:\\Program Files\\app.exe\" --flag", performance_profile: "baseline" }))
-    .toEqual(["start", "C:\\Program Files\\app.exe", "--flag"]);
+    .toEqual(["C:\\Program Files\\app.exe", "--flag"]);
   expect(() => wineToolArguments({ action: "run", command: " ", performance_profile: "optimized" }))
     .toThrow("请输入要运行的 Windows 命令");
 });
@@ -30,10 +29,24 @@ test("使用既有 Wine 容器启动工具且不经过 shell", async () => {
   });
   const service = new GameWineToolService(fixture.dataDir, fixture.runtimeRoot, () => false, spawn as never);
   await service.start({ action: "run", command: "cmd /c dir", performance_profile: "optimized" });
-  expect(spawn).toHaveBeenCalledWith(fixture.wine, ["start", "cmd", "/c", "dir"], expect.objectContaining({
-    detached: true, stdio: "ignore", env: expect.objectContaining({ WINEPREFIX: fixture.prefix }),
+  expect(spawn).toHaveBeenCalledWith(fixture.wine, ["cmd", "/c", "dir"], expect.objectContaining({
+    detached: true, stdio: "ignore", env: expect.objectContaining({
+      WINEPREFIX: fixture.prefix, WINEDLLOVERRIDES: "winedbg.exe=d",
+    }),
   }));
   expect(child.unref).toHaveBeenCalledOnce();
+});
+
+test("文件管理器改用 Finder 打开 Wine 系统盘", async () => {
+  const fixture = readyFixture(), child = new FakeChild();
+  const spawn = vi.fn(() => {
+    queueMicrotask(() => child.emit("spawn")); return child;
+  });
+  const service = new GameWineToolService(fixture.dataDir, fixture.runtimeRoot, () => false, spawn as never);
+  await service.start({ action: "explorer", performance_profile: "optimized" });
+  expect(spawn).toHaveBeenCalledWith("/usr/bin/open", [join(fixture.prefix, "drive_c")], expect.objectContaining({
+    detached: true, stdio: "ignore",
+  }));
 });
 
 test("游戏运行时拒绝启动 Wine 工具", async () => {

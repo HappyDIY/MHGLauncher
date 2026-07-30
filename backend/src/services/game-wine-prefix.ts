@@ -47,6 +47,7 @@ export function prefixEnvironment(
     ...safeLaunchBase(base), LANG: "zh_CN.UTF-8", LANGUAGE: "zh_CN:zh",
     LC_ALL: "zh_CN.UTF-8", LC_MESSAGES: "zh_CN.UTF-8",
     WINEPREFIX: prefix, WINEARCH: "win64", WINEDEBUG: "-all",
+    WINEDLLOVERRIDES: "winedbg.exe=d",
     WINEMSYNC: profile === "optimized" ? "1" : "0", WINEESYNC: profile === "compatibility" ? "1" : "0",
   };
 }

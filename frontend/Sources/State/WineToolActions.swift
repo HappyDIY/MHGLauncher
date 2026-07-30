@@ -14,6 +14,17 @@ extension LauncherStore {
                 performanceProfile: gamePerformanceProfile
             )
             let _: EmptyResponse = try await client.post("/v1/game/wine-tools", body: request)
+            showStatus(action.successMessage)
+        }
+    }
+}
+
+extension WineToolAction {
+    var successMessage: String {
+        switch self {
+        case .explorer: "已打开 Wine 文件目录"
+        case .preferences: "已启动 Wine 首选项"
+        case .run: "已运行 Windows 命令"
         }
     }
 }

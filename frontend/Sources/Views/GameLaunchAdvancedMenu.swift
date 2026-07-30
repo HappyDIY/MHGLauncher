@@ -10,7 +10,7 @@ struct GameLaunchAdvancedMenu: View {
         Menu {
             Button("自定义启动参数…", systemImage: "text.append", action: showArguments)
             Divider()
-            Button("打开 Wine 文件管理器", systemImage: "folder", action: openExplorer)
+            Button("打开 Wine 文件目录", systemImage: "folder", action: openExplorer)
             .disabled(wineToolsDisabled)
             Button("打开 Wine 首选项", systemImage: "gearshape", action: openPreferences)
             .disabled(wineToolsDisabled)
@@ -44,12 +44,19 @@ struct GameLaunchAdvancedMenu: View {
 
     func showArguments() {
         draftArguments = store.gameLaunchArguments
-        editor = .arguments
+        presentEditor(.arguments)
     }
 
     func showCommand() {
         command = ""
-        editor = .command
+        presentEditor(.command)
+    }
+
+    func presentEditor(_ selection: AdvancedLaunchEditor) {
+        Task { @MainActor in
+            await Task.yield()
+            editor = selection
+        }
     }
 
     func openExplorer() {
@@ -67,6 +74,7 @@ struct GameLaunchAdvancedMenu: View {
     func submit(_ selection: AdvancedLaunchEditor) {
         if selection == .arguments {
             store.gameLaunchArguments = draftArguments
+            store.showStatus("启动参数已保存")
         } else {
             Task { await store.startWineTool(.run, command: command) }
         }
