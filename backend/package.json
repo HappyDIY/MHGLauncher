@@ -24,6 +24,7 @@
     "protobufjs": "8.7.1",
     "react": "19.2.7",
     "react-dom": "19.2.7",
+    "string-argv": "0.3.2",
     "xxhash-wasm": "1.1.0",
     "zod": "4.4.3"
   },

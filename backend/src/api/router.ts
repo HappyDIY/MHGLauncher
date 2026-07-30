@@ -15,7 +15,7 @@ import {
   noteVerificationRequest as verification, roleSyncRequest as roleSync,
   selectAccountRequest as selectAccount, selectRoleRequest as selectRole,
   speedLimitRequest as speedLimit, startJobRequest as startJob,
-  startLaunchRequest as startLaunch,
+  startLaunchRequest as startLaunch, wineToolRequest as wineTool,
 } from "./request-contracts";
 const cookieLogin = credential;
 const characterId = z.string().regex(/^(?:0|[1-9]\d{0,15})$/).refine((value) => Number(value) <= Number.MAX_SAFE_INTEGER);
@@ -106,6 +106,9 @@ async function route(app: Container, method: string, path: string, query: URLSea
     }
     const { credential: ignored, ...launch } = value; void ignored;
     return json(app.launches.start({ ...launch, auth_ticket: authTicket }), 202);
+  }
+  if (method === "POST" && path === "/game/wine-tools") {
+    await app.wineTools.start(wineTool.parse(body)); return json({}, 202);
   }
   const launchStop = match(path, /^\/game\/launches\/([^/]+)\/stop$/);
   if (method === "POST" && launchStop) return json(app.launches.stop(launchStop), 202);

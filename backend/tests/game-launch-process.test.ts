@@ -14,8 +14,9 @@ vi.mock("node:child_process", () => ({
 }));
 vi.mock("../src/services/process-command", () => ({ runCommand: runCommandMock }));
 
-const { WineLaunchRunner, gameArguments } = await import("../src/services/game-launch-process");
+const { gameArguments } = await import("../src/services/game-launch-process");
 const { safeLaunchBase } = await import("../src/services/game-launch-environment");
+const { prepareWinePrefix } = await import("../src/services/game-wine-prefix");
 
 const roots: string[] = [];
 
@@ -28,25 +29,7 @@ describe("Wine 游戏进程启动器", () => {
 
   test("预启动时异步启用 Wine Retina 模式", async () => {
     const fixture = makeRuntimeFixture();
-    const runner = new WineLaunchRunner() as unknown as {
-      preflight: (
-        wine: string,
-        wineboot: string,
-        wineserver: string,
-        winemetal: string,
-        prefix: string,
-        profile: "optimized",
-      ) => Promise<void>;
-    };
-
-    await runner.preflight(
-      fixture.wine,
-      fixture.wineboot,
-      fixture.wineserver,
-      fixture.winemetal,
-      fixture.prefix,
-      "optimized",
-    );
+    await prepareWinePrefix(fixture.runtimeRoot, fixture.dataDir, "optimized");
 
     expect(runCommandMock).toHaveBeenCalledWith(fixture.wine, [
       "reg", "add", "HKCU\\Software\\Wine\\Mac Driver",
@@ -59,17 +42,7 @@ describe("Wine 游戏进程启动器", () => {
     const fixture = makeRuntimeFixture();
     mkdirSync(fixture.prefix, { recursive: true });
     writeFileSync(join(fixture.prefix, "system.reg"), "尚未完成");
-    const runner = new WineLaunchRunner() as unknown as {
-      preflight: (
-        wine: string, wineboot: string, wineserver: string, winemetal: string,
-        prefix: string, profile: "optimized",
-      ) => Promise<void>;
-    };
-
-    await runner.preflight(
-      fixture.wine, fixture.wineboot, fixture.wineserver, fixture.winemetal,
-      fixture.prefix, "optimized",
-    );
+    await prepareWinePrefix(fixture.runtimeRoot, fixture.dataDir, "optimized");
 
     expect(runCommandMock).toHaveBeenCalledWith(fixture.wineboot, ["--init"], {
       env: expect.objectContaining({ WINEDLLOVERRIDES: "mscoree,mshtml=" }),
@@ -78,10 +51,7 @@ describe("Wine 游戏进程启动器", () => {
     expect(existsSync(join(fixture.prefix, ".mhglauncher-wine-runtime"))).toBe(true);
 
     runCommandMock.mockClear();
-    await runner.preflight(
-      fixture.wine, fixture.wineboot, fixture.wineserver, fixture.winemetal,
-      fixture.prefix, "optimized",
-    );
+    await prepareWinePrefix(fixture.runtimeRoot, fixture.dataDir, "optimized");
     expect(runCommandMock.mock.calls.some((call) => call[0] === fixture.wineboot)).toBe(false);
   });
 
@@ -90,16 +60,8 @@ describe("Wine 游戏进程启动器", () => {
     runCommandMock.mockImplementation(async (command) => command === fixture.wineboot
       ? { status: 1, stdout: "", stderr: "初始化失败" }
       : { status: 0, stdout: "", stderr: "" });
-    const runner = new WineLaunchRunner() as unknown as {
-      preflight: (
-        wine: string, wineboot: string, wineserver: string, winemetal: string,
-        prefix: string, profile: "optimized",
-      ) => Promise<void>;
-    };
-
-    await expect(runner.preflight(
-      fixture.wine, fixture.wineboot, fixture.wineserver, fixture.winemetal,
-      fixture.prefix, "optimized",
+    await expect(prepareWinePrefix(
+      fixture.runtimeRoot, fixture.dataDir, "optimized",
     )).rejects.toThrow("Wine 运行环境初始化失败");
 
     const stopCalls = runCommandMock.mock.calls.filter(([command, args]) => (
@@ -109,9 +71,11 @@ describe("Wine 游戏进程启动器", () => {
   });
 
   test("米游社账号使用源项目兼容的登录票据参数", () => {
-    expect(gameArguments("ticket-value")).toEqual([
+    expect(gameArguments("-popupwindow \"value with spaces\"", "ticket-value")).toEqual([
       "YuanShen.exe",
       "-force-d3d11",
+      "-popupwindow",
+      "value with spaces",
       "login_auth_ticket=ticket-value",
     ]);
     expect(gameArguments()).not.toContainEqual(
@@ -132,12 +96,19 @@ describe("Wine 游戏进程启动器", () => {
 });
 
 function makeRuntimeFixture(): {
-  wine: string; wineboot: string; wineserver: string; winemetal: string; prefix: string;
+  runtimeRoot: string; dataDir: string; wine: string; wineboot: string; wineserver: string;
+  winemetal: string; prefix: string;
 } {
   const root = mkdtempSync(join(tmpdir(), "mhg-launch-runner-")); roots.push(root);
-  const runtime = join(root, "runtime"), prefix = join(root, "prefix");
-  const wine = join(runtime, "wine"), wineboot = join(runtime, "wineboot");
-  const wineserver = join(runtime, "wineserver"), winemetal = join(runtime, "winemetal.dll");
-  mkdirSync(runtime, { recursive: true }); writeFileSync(winemetal, "fixture");
-  return { wine, wineboot, wineserver, winemetal, prefix };
+  const runtimeRoot = join(root, "runtime"), dataDir = join(root, "data"), prefix = join(dataDir, "wineprefix");
+  const wine = join(runtimeRoot, "wine/bin/wine"), wineboot = join(runtimeRoot, "wine/bin/wineboot");
+  const wineserver = join(runtimeRoot, "wine/bin/wineserver");
+  const winemetal = join(runtimeRoot, "wine/lib/wine/x86_64-windows/winemetal.dll");
+  for (const path of [
+    wine, wineboot, wineserver, winemetal, join(runtimeRoot, "bin/mhg-window-probe"),
+    join(runtimeRoot, "lib/libmhg_dns_gate.dylib"), join(runtimeRoot, "assets/mhypbase.dll"),
+  ]) {
+    mkdirSync(join(path, ".."), { recursive: true }); writeFileSync(path, "fixture");
+  }
+  return { runtimeRoot, dataDir, wine, wineboot, wineserver, winemetal, prefix };
 }

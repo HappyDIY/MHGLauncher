@@ -1,8 +1,8 @@
 import { EventEmitter } from "node:events";
-import { existsSync, lstatSync, mkdtempSync, mkdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, lstatSync, mkdirSync, realpathSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { cleanupLaunchFixtures, makeLaunchFixture as makeFixture } from "./game-launch-run-fixture";
 
 const mocks = vi.hoisted(() => ({
   spawn: vi.fn(),
@@ -22,7 +22,6 @@ class FakeChild extends EventEmitter {
   pid = 42;
 }
 
-const roots: string[] = [];
 let child: FakeChild;
 
 describe("WineLaunchRunner.run", () => {
@@ -35,7 +34,7 @@ describe("WineLaunchRunner.run", () => {
 
   afterEach(() => {
     vi.useRealTimers();
-    for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+    cleanupLaunchFixtures();
   });
 
   test("正常退出会等待 Wine Server 并清理域名门禁", async () => {
@@ -67,6 +66,15 @@ describe("WineLaunchRunner.run", () => {
   test("日志打开失败会清理启动软链接", async () => {
     const fixture = makeFixture(); mkdirSync(join(fixture.dataDir, "logs", "game-launch.log"), { recursive: true });
     await expect(new WineLaunchRunner().run(fixture.input, vi.fn())).rejects.toMatchObject({ code: "EISDIR" });
+    expect(existsSync(join(fixture.sessionDir, "game"))).toBe(false);
+  });
+
+  test("状态报告器失败会停止会话并清理软链接", async () => {
+    const fixture = makeFixture(), failure = new Error("report failed");
+    const report = vi.fn((status: string) => {
+      if (status === "waiting_window") throw failure;
+    });
+    await expect(new WineLaunchRunner().run(fixture.input, report)).rejects.toBe(failure);
     expect(existsSync(join(fixture.sessionDir, "game"))).toBe(false);
   });
 
@@ -169,32 +177,4 @@ describe("WineLaunchRunner.run", () => {
 
 async function spawned(): Promise<void> {
   await vi.waitFor(() => expect(mocks.spawn).toHaveBeenCalledOnce());
-}
-
-function makeFixture(): {
-  input: Parameters<InstanceType<typeof WineLaunchRunner>["run"]>[0];
-  controller: AbortController; dataDir: string; sessionDir: string;
-} {
-  const root = mkdtempSync(join(tmpdir(), "mhg-launch-run-")); roots.push(root);
-  const runtimeRoot = join(root, "runtime"), dataDir = join(root, "data"), gameRoot = join(root, "game"), sessionDir = join(root, "session");
-  const files = [
-    "wine/bin/wine", "wine/bin/wineboot", "wine/bin/wineserver",
-    "wine/lib/wine/x86_64-windows/winemetal.dll", "bin/mhg-window-probe",
-    "lib/libmhg_dns_gate.dylib", "assets/mhypbase.dll",
-  ];
-  for (const file of files) {
-    const path = join(runtimeRoot, file);
-    mkdirSync(join(path, ".."), { recursive: true });
-    writeFileSync(path, "fixture");
-  }
-  mkdirSync(gameRoot, { recursive: true });
-  const controller = new AbortController();
-  return {
-    controller, dataDir, sessionDir,
-    input: {
-      gameRoot, runtimeRoot, dataDir, sessionDir, signal: controller.signal,
-      profile: "optimized", metalHud: false, networkDebug: false,
-      wineLog: false, framePacing: 120,
-    },
-  };
 }

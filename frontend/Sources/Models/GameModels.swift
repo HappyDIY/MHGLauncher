@@ -149,5 +149,18 @@ struct StartGameLaunchRequest: Codable, Sendable {
     let networkDebug: Bool
     let wineLog: Bool
     let framePacing: Int
+    let launchArguments: String
     let credential: String?
+}
+
+enum WineToolAction: String, Codable, Sendable {
+    case explorer
+    case preferences
+    case run
+}
+
+struct WineToolRequest: Codable, Sendable {
+    let action: WineToolAction
+    let command: String?
+    let performanceProfile: GamePerformanceProfile
 }

@@ -21,7 +21,13 @@ struct APIContractRequestTests {
                 networkDebug: false,
                 wineLog: false,
                 framePacing: 120,
+                launchArguments: "-popupwindow",
                 credential: "stoken=fixture; mid=mid"
+            )),
+            ("wine_tool", WineToolRequest(
+                action: .run,
+                command: "regedit",
+                performanceProfile: .optimized
             )),
             ("login_transaction", LoginCommitRequest(
                 transactionId: "00000000-0000-4000-8000-000000000001"

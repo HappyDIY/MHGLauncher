@@ -26,7 +26,7 @@ final class LauncherStore {
         ) ?? .optimized
         metalHudEnabled = dependencies.userSettings.bool(forKey: "metalHudEnabled")
         networkDebugEnabled = dependencies.userSettings.bool(forKey: "networkDebugEnabled")
-        wineLogEnabled = dependencies.userSettings.bool(forKey: "wineLogEnabled")
+        wineLogEnabled = dependencies.userSettings.bool(forKey: "wineLogEnabled"); gameLaunchArguments = dependencies.userSettings.string(forKey: "gameLaunchArguments") ?? ""
     }
     var runtimeProgress: RuntimeProgress?; var runtimeErrorMessage: String?
     var isBootstrapping = false; var isInstallingCoreRuntime = false
@@ -41,14 +41,14 @@ final class LauncherStore {
     @ObservationIgnored var gameJobIntent = 0
     @ObservationIgnored var gameLaunchIntent = 0
     @ObservationIgnored var launchPollingTask: Task<Void, Never>?
-    var isLaunchingGame = false
-    var isStoppingGame = false
+    var isLaunchingGame = false; var isStoppingGame = false
     var gamePerformanceProfile: GamePerformanceProfile { didSet {
         userSettings.set(gamePerformanceProfile.rawValue, forKey: "gamePerformanceProfile")
     } }
     var metalHudEnabled: Bool { didSet { userSettings.set(metalHudEnabled, forKey: "metalHudEnabled") } }
     var networkDebugEnabled: Bool { didSet { userSettings.set(networkDebugEnabled, forKey: "networkDebugEnabled") } }
     var wineLogEnabled: Bool { didSet { userSettings.set(wineLogEnabled, forKey: "wineLogEnabled") } }
+    var gameLaunchArguments: String { didSet { userSettings.set(gameLaunchArguments, forKey: "gameLaunchArguments") } }; var isStartingWineTool = false
     var wishes: [WishRecord] = []
     var wishResultCatalog = WishResultCatalog(records: [])
     var wishOverviewSummary = WishOverviewSummary(records: [])

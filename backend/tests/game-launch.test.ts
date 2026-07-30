@@ -13,8 +13,10 @@ import { ResourceCoordinator } from "../src/services/resource-coordinator";
 const roots: string[] = [];
 
 class FixtureRunner implements GameLaunchRunner {
+  lastInput?: LaunchRunInput;
   constructor(private readonly code = 0) {}
   async run(input: LaunchRunInput, report: LaunchReporter): Promise<number> {
+    this.lastInput = input;
     if (input.networkDebug) {
       writeFileSync(join(input.sessionDir, "dns.log"), "1782140400000\t4321\tgetaddrinfo/A\texample.com\tallowed\t0\t1.2.3.4\n");
     }
@@ -45,12 +47,13 @@ describe("游戏启动会话", () => {
 
   test("启动期间替换 DLL 并在退出后恢复", async () => {
     const fixture = makeFixture();
-    const service = new GameLaunchService(fixture.data, fixture.runtime, new FixtureRunner(), fixture.integrity);
-    const launch = service.start({ install_path: fixture.game, performance_profile: "optimized", metal_hud: true, network_debug: true, wine_log: false, frame_pacing: 60 });
+    const runner = new FixtureRunner(), service = new GameLaunchService(fixture.data, fixture.runtime, runner, fixture.integrity);
+    const launch = service.start({ install_path: fixture.game, performance_profile: "optimized", metal_hud: true, network_debug: true, wine_log: false, frame_pacing: 60, launch_arguments: "-popupwindow" });
     await waitFor(() => service.get(launch.id).status === "exited");
     expect(readFileSync(join(fixture.game, "mhypbase.dll"), "utf8")).toBe("original-dll");
     expect(service.get(launch.id)).toMatchObject({ status: "exited", metal_hud: true, progress: 1 });
     expect(service.get(launch.id).logs.map((entry) => entry.message)).toContain("域名屏蔽已解除");
+    expect(runner.lastInput?.launchArguments).toBe("-popupwindow");
     expect(service.get(launch.id).logs.map((entry) => entry.message)).toContain(
       "DNS · PID 4321 · getaddrinfo/A · example.com · 成功 → 1.2.3.4",
     );

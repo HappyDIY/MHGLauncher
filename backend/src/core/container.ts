@@ -27,6 +27,7 @@ import { AppUpdateService } from "../services/app-updates";
 import { MetadataRepository, type ResourceStatus } from "../services/metadata-repository";
 import { ImageResourceCache } from "../services/image-resource-cache";
 import { MetadataAssetCache, type MetadataAssetStatus } from "../services/metadata-asset-cache";
+import { GameWineToolService } from "../services/game-wine-tools";
 
 export class Container {
   readonly settings: Settings;
@@ -35,6 +36,7 @@ export class Container {
   readonly accounts: AccountService;
   readonly games: GameService;
   readonly launches: GameLaunchService;
+  readonly wineTools: GameWineToolService;
   readonly gachaResources: GachaResourceService;
   readonly metadataRepository: MetadataRepository;
   private readonly metadataAssets: MetadataAssetCache;
@@ -80,6 +82,9 @@ export class Container {
     );
     this.launches = new GameLaunchService(
       config.dataDir, process.env.MHG_RUNTIME_ROOT ?? join(process.cwd(), "runtime"), undefined, undefined, resources,
+    );
+    this.wineTools = new GameWineToolService(
+      config.dataDir, process.env.MHG_RUNTIME_ROOT ?? join(process.cwd(), "runtime"), () => this.launches.active(),
     );
     this.notes = new NoteService(this.store, this.provider);
 	    this.wishes = new WishService(this.store, this.provider, this.gachaResources, this.records);

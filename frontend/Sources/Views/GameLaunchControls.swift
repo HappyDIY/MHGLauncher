@@ -43,6 +43,7 @@ struct GameLaunchControls: View {
                         .disabled(store.isStoppingGame)
                         .motionTransition(.selection)
                 }
+                GameLaunchAdvancedMenu(store: store)
                 if let launch = store.gameLaunch {
                     Label(launch.status.title, systemImage: launch.status.icon)
                         .font(.caption)

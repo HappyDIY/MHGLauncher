@@ -77,6 +77,7 @@ extension LauncherStore {
                 networkDebug: networkDebugEnabled,
                 wineLog: wineLogEnabled,
                 framePacing: Self.preferredFrameRate(for: NSScreen.main?.maximumFramesPerSecond ?? 0),
+                launchArguments: gameLaunchArguments,
                 credential: launchCredential
             )
             let launch: GameLaunch = try await client.post("/v1/game/launch", body: request)

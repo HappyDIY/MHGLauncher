@@ -101,6 +101,7 @@ struct APIClientTests {
         let body = StartGameLaunchRequest(
             installPath: "/tmp/game", performanceProfile: .optimized,
             metalHud: true, networkDebug: true, wineLog: false, framePacing: 120,
+            launchArguments: "-popupwindow",
             credential: "stoken=fixture; mid=mid"
         )
         let launch: GameLaunch = try await client.post("/v1/game/launch", body: body)

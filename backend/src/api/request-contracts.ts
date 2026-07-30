@@ -45,7 +45,13 @@ export const startLaunchRequest = z.object({
   performance_profile: z.enum(["optimized", "compatibility", "baseline"]).default("optimized"),
   metal_hud: z.boolean().default(false), network_debug: z.boolean().default(false),
   wine_log: z.boolean().default(false), frame_pacing: z.number().int().min(0).max(240).default(0),
+  launch_arguments: z.string().max(4096).refine((value) => !value.includes("\0")).default(""),
   credential: z.string().min(1).max(16_384).optional(),
+}).strict();
+export const wineToolRequest = z.object({
+  action: z.enum(["explorer", "preferences", "run"]),
+  command: z.string().max(4096).refine((value) => !value.includes("\0")).optional(),
+  performance_profile: z.enum(["optimized", "compatibility", "baseline"]).default("optimized"),
 }).strict();
 export const cloudUidRequest = z.object({
   uid: z.string().regex(/^\d{9,10}$/), token: z.string().min(1).max(1024),
@@ -86,4 +92,5 @@ export const contractRequestSchemas = {
   speed_limit: speedLimitRequest,
   start_job: startJobRequest,
   start_launch: startLaunchRequest,
+  wine_tool: wineToolRequest,
 } as const;

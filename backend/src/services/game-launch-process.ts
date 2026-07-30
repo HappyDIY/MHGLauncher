@@ -1,22 +1,19 @@
-import {
-  closeSync, copyFileSync, mkdirSync, openSync, readFileSync,
-  renameSync, rmSync, writeFileSync,
-} from "node:fs";
+import { closeSync, mkdirSync, openSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { spawn, spawnSync } from "node:child_process";
-import { AppError } from "../core/errors";
+import { spawn } from "node:child_process";
+import { parseArgsStringToArgv } from "string-argv";
 import type { GameLaunchStatus, GamePerformanceProfile } from "../core/models";
-import { launchEnvironment, runtimePaths, safeLaunchBase } from "./game-launch-environment";
-import { configureChineseGameLanguage } from "./game-launch-language";
+import { launchEnvironment } from "./game-launch-environment";
 import { createGameLaunchLink, removeGameLaunchLink } from "./game-launch-link";
 import { runCommand } from "./process-command";
 import { stopWineServer } from "./game-wine-server";
+import { prepareWinePrefix } from "./game-wine-prefix";
 
 export interface LaunchRunInput {
   gameRoot: string; runtimeRoot: string; dataDir: string; sessionDir: string;
   profile: GamePerformanceProfile; metalHud: boolean; networkDebug: boolean; wineLog: boolean;
   framePacing: number; signal: AbortSignal;
-  authTicket?: string;
+  authTicket?: string; launchArguments?: string;
 }
 export type LaunchReporter = (status: GameLaunchStatus, message?: string, progress?: number) => void;
 export interface GameLaunchRunner { run(input: LaunchRunInput, report: LaunchReporter): Promise<number> }
@@ -26,10 +23,9 @@ export class WineLaunchRunner implements GameLaunchRunner {
   constructor(private readonly probeTiming: LaunchProbeTiming = { intervalMs: 250, timeoutMs: 30_000 }) {}
 
   async run(input: LaunchRunInput, report: LaunchReporter): Promise<number> {
-    const paths = runtimePaths(input.runtimeRoot), prefix = join(input.dataDir, "wineprefix");
     if (input.signal.aborted) return 0;
     report("preparing", "正在初始化 Wine 容器", 0.3);
-    await this.preflight(paths.wine, paths.wineboot, paths.wineserver, paths.winemetal, prefix, input.profile);
+    const { paths, prefix } = await prepareWinePrefix(input.runtimeRoot, input.dataDir, input.profile);
     if (input.signal.aborted) return 0;
     report("starting", "Wine 容器已切换为简体中文", 0.55);
     const env = launchEnvironment(
@@ -48,7 +44,7 @@ export class WineLaunchRunner implements GameLaunchRunner {
     let descriptor: number;
     try { descriptor = openSync(logPath, "a", 0o600); }
     catch (error) { removeGameLaunchLink(gameLink); throw error; }
-    const exeArgs = gameArguments(input.authTicket);
+    const exeArgs = gameArguments(input.launchArguments, input.authTicket);
     let child: ReturnType<typeof spawn>;
     try {
       child = spawn(paths.wine, exeArgs, {
@@ -83,7 +79,7 @@ export class WineLaunchRunner implements GameLaunchRunner {
     const fallback = setTimeout(() => {
       clearInterval(probe); releaseGate("窗口探针超时，已自动解除域名屏蔽");
     }, this.probeTiming.timeoutMs);
-    let terminate = (): void => undefined;
+    let terminate: (() => void) | undefined;
     const completion = new Promise<number>((resolve, reject) => {
       let cleaned = false, reported = false, finishing = false;
       const cleanup = (): void => { clearInterval(probe); clearTimeout(fallback); rmSync(gate, { force: true }); };
@@ -103,94 +99,18 @@ export class WineLaunchRunner implements GameLaunchRunner {
       child.once("exit", (code) => { input.signal.removeEventListener("abort", stop); void finish(code ?? 1); });
     });
     try { report("waiting_window", "游戏进程已创建，正在等待窗口", 0.82); }
-    catch (error) { terminate(); await completion.catch(() => undefined); throw error; }
+    catch (error) {
+      terminate?.();
+      try { await completion; } catch { /* 保留报告器错误。 */ }
+      throw error;
+    }
     return await completion;
   }
 
-  private async preflight(
-    wine: string, wineboot: string, wineserver: string, winemetal: string,
-    prefix: string, profile: GamePerformanceProfile,
-  ): Promise<void> {
-    if (spawnSync("/usr/bin/arch", ["-x86_64", "/usr/bin/true"], { timeout: 5_000 }).status !== 0) {
-      throw new AppError("rosetta_missing", "请先安装 Rosetta 2 后再启动游戏", 409);
-    }
-    mkdirSync(prefix, { recursive: true, mode: 0o700 });
-    await stopWineServer(wineserver, prefix);
-    const localeEnv = {
-      ...safeLaunchBase(process.env), LANG: "zh_CN.UTF-8", LANGUAGE: "zh_CN:zh",
-      LC_ALL: "zh_CN.UTF-8", LC_MESSAGES: "zh_CN.UTF-8",
-      WINEPREFIX: prefix, WINEARCH: "win64", WINEDEBUG: "-all",
-      WINEDLLOVERRIDES: "mscoree,mshtml=",
-      WINEMSYNC: profile === "optimized" ? "1" : "0", WINEESYNC: profile === "compatibility" ? "1" : "0",
-    };
-    if (!winePrefixReady(prefix, wine)) {
-      const result = await runCommand(wineboot, ["--init"], { env: localeEnv, timeout: 180_000 });
-      if (result.status !== 0) {
-        try { await stopWineServer(wineserver, prefix); }
-        catch { /* 保留原始初始化错误。 */ }
-        throw new AppError("wineprefix_init_failed", "Wine 运行环境初始化失败", 500);
-      }
-      markWinePrefixReady(prefix, wine);
-    }
-    await this.configureChineseLocale(wine, localeEnv);
-    await this.configureRetinaMode(wine, localeEnv);
-    await configureChineseGameLanguage(wine, localeEnv);
-    await stopWineServer(wineserver, prefix);
-    const system32 = join(prefix, "drive_c", "windows", "system32"); mkdirSync(system32, { recursive: true });
-    copyFileSync(winemetal, join(system32, "winemetal.dll"));
-  }
-
-  private async configureChineseLocale(wine: string, env: NodeJS.ProcessEnv): Promise<void> {
-    const values: Array<[string, string, string, string]> = [
-      ["HKCU\\Control Panel\\International", "LocaleName", "REG_SZ", "zh-CN"],
-      ["HKCU\\Control Panel\\International", "Locale", "REG_SZ", "00000804"],
-      ["HKCU\\Control Panel\\Desktop", "PreferredUILanguages", "REG_MULTI_SZ", "zh-CN"],
-      ["HKCU\\Control Panel\\International\\User Profile", "Languages", "REG_MULTI_SZ", "zh-Hans-CN"],
-      ["HKLM\\System\\CurrentControlSet\\Control\\Nls\\Language", "Default", "REG_SZ", "0804"],
-      ["HKLM\\System\\CurrentControlSet\\Control\\Nls\\Language", "InstallLanguage", "REG_SZ", "0804"],
-      ["HKLM\\System\\CurrentControlSet\\Control\\Nls\\CodePage", "ACP", "REG_SZ", "936"],
-      ["HKLM\\System\\CurrentControlSet\\Control\\Nls\\CodePage", "OEMCP", "REG_SZ", "936"],
-    ];
-    for (const [key, name, type, value] of values) {
-      const result = await runCommand(wine, ["reg", "add", key, "/v", name, "/t", type, "/d", value, "/f"], { env });
-      if (result.status !== 0) throw new AppError("wine_locale_failed", "Wine 中文环境配置失败", 500);
-    }
-  }
-
-  private async configureRetinaMode(wine: string, env: NodeJS.ProcessEnv): Promise<void> {
-    const result = await runCommand(wine, [
-      "reg", "add", "HKCU\\Software\\Wine\\Mac Driver",
-      "/v", "RetinaMode", "/t", "REG_SZ", "/d", "Y", "/f",
-    ], { env });
-    if (result.status !== 0) throw new AppError("wine_retina_failed", "Wine 高分辨率模式配置失败", 500);
-  }
-
 }
 
-export function gameArguments(authTicket?: string): string[] {
-  const args = ["YuanShen.exe", "-force-d3d11"];
+export function gameArguments(custom = "", authTicket?: string): string[] {
+  const args = ["YuanShen.exe", "-force-d3d11", ...parseArgsStringToArgv(custom)];
   if (authTicket) args.push(`login_auth_ticket=${authTicket}`);
   return args;
-}
-
-const prefixReadyFile = ".mhglauncher-wine-runtime";
-
-function winePrefixReady(prefix: string, wine: string): boolean {
-  try { return readFileSync(join(prefix, prefixReadyFile), "utf8") === wineRuntimeIdentity(wine); }
-  catch { return false; }
-}
-
-function markWinePrefixReady(prefix: string, wine: string): void {
-  const marker = join(prefix, prefixReadyFile), temporary = `${marker}.tmp`;
-  writeFileSync(temporary, wineRuntimeIdentity(wine), { mode: 0o600 });
-  renameSync(temporary, marker);
-}
-
-function wineRuntimeIdentity(wine: string): string {
-  try {
-    const provenance = readFileSync(join(dirname(dirname(wine)), "BUILD_PROVENANCE.json"), "utf8");
-    return `${wine}\n${provenance}`;
-  } catch {
-    return `${wine}\n`;
-  }
 }

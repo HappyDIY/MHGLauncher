@@ -14,7 +14,7 @@ import { ResourceCoordinator, type ResourceLease } from "./resource-coordinator"
 import { pruneLaunches } from "./game-launch-retention";
 export interface StartLaunch {
   install_path: string; performance_profile: GamePerformanceProfile; metal_hud: boolean;
-  network_debug: boolean; wine_log: boolean; frame_pacing: number; auth_ticket?: string;
+  network_debug: boolean; wine_log: boolean; frame_pacing: number; launch_arguments?: string; auth_ticket?: string;
 }
 export class GameLaunchService {
   private readonly launches = new Map<string, GameLaunch>();
@@ -55,7 +55,7 @@ export class GameLaunchService {
     };
     this.notifier.mark(launch.id, launch); this.persist(launch); this.launches.set(launch.id, launch);
     const controller = new AbortController(); this.controllers.set(launch.id, controller);
-    setImmediate(() => void this.execute(launch, detected.path, input.frame_pacing, controller.signal, input.wine_log, lease, input.auth_ticket));
+    setImmediate(() => void this.execute(launch, detected.path, input, controller.signal, lease));
     return launch;
     } catch (error) { this.coordinator.release(lease); throw error; }
   }
@@ -80,7 +80,7 @@ export class GameLaunchService {
   recovery(): { pending: boolean; warnings: string[] } { return { pending: this.guardian.pending(), warnings: this.guardian.warnings() }; }
   async drain(): Promise<void> { await this.guardian.drain(() => this.active()); }
   close(): void { this.guardian.close(); }
-  private async execute(launch: GameLaunch, gameRoot: string, framePacing: number, signal: AbortSignal, wineLog: boolean, lease: ResourceLease, authTicket?: string): Promise<void> {
+  private async execute(launch: GameLaunch, gameRoot: string, input: StartLaunch, signal: AbortSignal, lease: ResourceLease): Promise<void> {
     const sessionDir = join(this.dataDir, "launches", launch.id);
     let journal: DllJournal | null = null, code: number | null = null, failure: unknown = null;
     try {
@@ -90,7 +90,8 @@ export class GameLaunchService {
       code = await this.runner.run({
         gameRoot, runtimeRoot: this.runtimeRoot, dataDir: this.dataDir, sessionDir,
         profile: launch.performance_profile, metalHud: launch.metal_hud,
-        networkDebug: launch.network_debug, wineLog, framePacing, signal, authTicket,
+        networkDebug: launch.network_debug, wineLog: input.wine_log, framePacing: input.frame_pacing,
+        signal, authTicket: input.auth_ticket, launchArguments: input.launch_arguments ?? "",
       }, (status, message = "", progress) => this.update(launch, status, message, progress));
     } catch (error) {
       failure = error;

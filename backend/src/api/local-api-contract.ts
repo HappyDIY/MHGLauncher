@@ -85,6 +85,7 @@ export const localApiEndpoints = [
   ["GET", "/v1/game/jobs/{id}"], ["POST", "/v1/game/jobs/{id}/control"],
   ["GET", "/v1/settings/speed-limit"], ["POST", "/v1/settings/speed-limit"],
   ["POST", "/v1/game/launch"], ["POST", "/v1/game/launches/{id}/stop"],
+  ["POST", "/v1/game/wine-tools"],
   ["GET", "/v1/game/launches/recovery"], ["GET", "/v1/game/launches/{id}"],
   ["POST", "/v1/wishes/tasks/sync"], ["POST", "/v1/wishes/tasks/import"],
   ["POST", "/v1/wishes/tasks/import-url"], ["GET", "/v1/wishes/tasks/{id}"],
