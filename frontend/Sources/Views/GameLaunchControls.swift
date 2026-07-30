@@ -67,7 +67,7 @@ struct GameLaunchControls: View {
             Button("停止游戏", role: .destructive) { Task { await store.stopGame() } }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("启动器将终止 Wine 会话并恢复临时修改的游戏文件。")
+            Text("启动器将终止 Wine 会话并结束当前游戏进程。")
         }
     }
 

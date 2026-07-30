@@ -64,7 +64,7 @@ final class BackendProcess {
         let deadline = ContinuousClock.now + .seconds(5)
         while process.isRunning && ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(50)) }
         if process.isRunning {
-            errorMessage = "本地服务正在等待游戏退出并恢复临时文件"
+            errorMessage = "本地服务正在等待游戏退出并清理启动会话"
             return
         }
         cleanup(process)

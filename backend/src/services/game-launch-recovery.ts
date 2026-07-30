@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import type { DllJournal } from "./game-launch-files";
-import { restoreDll } from "./game-launch-files";
+import { commitDll, restoreDll } from "./game-launch-files";
 import { detectGame } from "./game-detection";
 import { AppError } from "../core/errors";
 
@@ -24,7 +24,8 @@ export function recoverInterruptedDlls(dataDir: string): DllRecoveryResult {
   parsed.sort((left, right) => right.generation.localeCompare(left.generation));
   for (const journal of parsed) {
     try {
-      const result = restoreDll(journal); pending ||= result.pending;
+      const result = journal.phase === "installed" ? commitDll(journal) : restoreDll(journal);
+      pending ||= result.pending;
       if (result.warning) warnings.push(result.warning);
     } catch (error) {
       pending = true;

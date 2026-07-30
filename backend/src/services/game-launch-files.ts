@@ -54,6 +54,12 @@ export function prepareDll(
   return journal;
 }
 
+export function commitDll(journal: DllJournal | null): DllRestoreResult {
+  if (!journal) return { warning: "", pending: false };
+  if (journal.schema !== 2) return { warning: "mhypbase.dll 恢复记录版本无效", pending: true };
+  finishJournal(journal); return { warning: "", pending: false };
+}
+
 export function restoreDll(journal: DllJournal | null): DllRestoreResult {
   if (!journal) return { warning: "", pending: false };
   if (journal.schema !== 2) return { warning: "mhypbase.dll 恢复记录版本无效", pending: true };

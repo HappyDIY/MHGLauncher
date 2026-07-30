@@ -3,7 +3,7 @@ import { closeSync, existsSync, fstatSync, openSync, readFileSync, readSync } fr
 import { join } from "node:path";
 import { AppError } from "../core/errors";
 import type { GameLaunch, GamePerformanceProfile } from "../core/models";
-import { type DllIntegrity, type DllJournal, MHYPBASE_INTEGRITY, prepareDll, restoreDll } from "./game-launch-files";
+import { type DllIntegrity, type DllJournal, MHYPBASE_INTEGRITY, commitDll, prepareDll } from "./game-launch-files";
 import { type GameLaunchRunner, WineLaunchRunner } from "./game-launch-process";
 import { DllRecoveryGuardian } from "./game-launch-guardian";
 import { ensureGameConfiguration } from "./game-config";
@@ -72,7 +72,7 @@ export class GameLaunchService {
   stop(id: string): GameLaunch {
     const launch = this.get(id);
     if (["exited", "stopped", "failed"].includes(launch.status)) return launch;
-    this.update(launch, "stopping", "正在安全停止游戏并恢复临时文件");
+    this.update(launch, "stopping", "正在安全停止游戏");
     this.controllers.get(id)?.abort();
     return launch;
   }
@@ -99,10 +99,10 @@ export class GameLaunchService {
       try {
       let warning = "", pending = false;
       if (failure instanceof AppError && failure.code === "wine_server_stop_failed") {
-        warning = "Wine 进程尚未确认退出，DLL 恢复记录已交由守护任务"; pending = true;
+        warning = "Wine 进程尚未确认退出，DLL 会话记录已交由守护任务"; pending = true;
       } else {
-        try { const result = restoreDll(journal); warning = result.warning; pending = result.pending; }
-        catch (error) { warning = error instanceof Error ? error.message : "DLL 恢复失败"; pending = true; }
+        try { const result = commitDll(journal); warning = result.warning; pending = result.pending; }
+        catch (error) { warning = error instanceof Error ? error.message : "DLL 会话清理失败"; pending = true; }
       }
       if (pending || failure) this.guardian.refresh();
       if (failure) {
@@ -110,7 +110,7 @@ export class GameLaunchService {
         this.update(launch, "failed", warning ? `${message}；${warning}` : message);
       } else {
         const stopped = launch.status === "stopping", status = stopped ? "stopped" : code === 0 ? "exited" : "failed";
-        const message = stopped ? "游戏已停止，临时文件已恢复" : code === 0 ? "游戏已正常退出" : `游戏进程退出码：${code}`;
+        const message = stopped ? "游戏已停止" : code === 0 ? "游戏已正常退出" : `游戏进程退出码：${code}`;
         this.update(launch, status, warning || message, 1);
       }
       } catch (error) {
@@ -189,7 +189,7 @@ export class GameLaunchService {
   }
   private finishRecovered(): void {
     for (const launch of this.launches.values()) if (!["exited", "stopped", "failed"].includes(launch.status)) {
-      this.update(launch, "exited", this.guardian.warnings().at(-1) ?? "游戏已退出，临时文件已由恢复守护任务还原", 1);
+      this.update(launch, "exited", this.guardian.warnings().at(-1) ?? "游戏已退出，DLL 会话已由恢复守护任务清理", 1);
     }
   }
   private canReadLogs(id: string): boolean {
