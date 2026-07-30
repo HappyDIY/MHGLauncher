@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import {
-  mkdirSync, mkdtempSync, rmSync, writeFileSync,
+  mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -13,7 +13,12 @@ afterEach(() => {
 });
 
 test("生成 Wine 内置工具参数", () => {
-  expect(wineToolArguments({ action: "preferences", performance_profile: "baseline" })).toEqual(["winecfg.exe"]);
+  expect(wineToolArguments({
+    action: "preferences", command: "win10", performance_profile: "baseline",
+  })).toEqual(["winecfg.exe", "/v", "win10"]);
+  expect(() => wineToolArguments({
+    action: "preferences", command: "winxp", performance_profile: "baseline",
+  })).toThrow("不支持所选的 Windows 版本");
   expect(wineToolArguments({ action: "run", command: " regedit ", performance_profile: "compatibility" }))
     .toEqual(["regedit"]);
   expect(wineToolArguments({ action: "run", command: "\"C:\\Program Files\\app.exe\" --flag", performance_profile: "baseline" }))
@@ -22,19 +27,33 @@ test("生成 Wine 内置工具参数", () => {
     .toThrow("请输入要运行的 Windows 命令");
 });
 
-test("使用既有 Wine 容器启动工具且不经过 shell", async () => {
+test("使用既有 Wine 容器直接启动图形工具", async () => {
   const fixture = readyFixture(), child = new FakeChild();
   const spawn = vi.fn(() => {
     queueMicrotask(() => child.emit("spawn")); return child;
   });
   const service = new GameWineToolService(fixture.dataDir, fixture.runtimeRoot, () => false, spawn as never);
-  await service.start({ action: "run", command: "cmd /c dir", performance_profile: "optimized" });
-  expect(spawn).toHaveBeenCalledWith(fixture.wine, ["cmd", "/c", "dir"], expect.objectContaining({
+  await service.start({ action: "run", command: "regedit /silent", performance_profile: "optimized" });
+  expect(spawn).toHaveBeenCalledWith(fixture.wine, ["regedit", "/silent"], expect.objectContaining({
     detached: true, stdio: "ignore", env: expect.objectContaining({
       WINEPREFIX: fixture.prefix, WINEDLLOVERRIDES: "winedbg.exe=d",
     }),
   }));
   expect(child.unref).toHaveBeenCalledOnce();
+});
+
+test("cmd.exe 通过可见的终端会话启动", async () => {
+  const fixture = readyFixture(), child = new FakeChild();
+  const spawn = vi.fn(() => {
+    queueMicrotask(() => child.emit("spawn")); return child;
+  });
+  const service = new GameWineToolService(fixture.dataDir, fixture.runtimeRoot, () => false, spawn as never);
+  await service.start({ action: "run", command: "cmd.exe", performance_profile: "optimized" });
+  expect(spawn).toHaveBeenCalledWith("/usr/bin/open", expect.any(Array), expect.any(Object));
+  const call = spawn.mock.calls[0] as unknown as [string, string[]];
+  const launcher = call[1][0]!;
+  expect(launcher).toMatch(/console-.+\.command$/);
+  expect(readFileSync(launcher, "utf8")).toContain("'cmd.exe'");
 });
 
 test("文件管理器改用 Finder 打开 Wine 系统盘", async () => {

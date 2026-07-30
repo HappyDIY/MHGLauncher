@@ -53,7 +53,7 @@ struct WineToolActionTests {
     func advancedMenuActions() async throws {
         let transport = ScriptedTransport([
             try wineToolStep(.explorer),
-            try wineToolStep(.preferences),
+            try wineToolStep(.preferences, command: "win10"),
             try wineToolStep(.run, command: ""),
         ])
         let client = APIClient(token: "fixture") { try await transport.respond($0) }
@@ -64,13 +64,17 @@ struct WineToolActionTests {
         _ = menu.body
         _ = menu.editorView(.arguments)
         _ = menu.editorView(.command)
-        for editor in [AdvancedLaunchEditor.arguments, .command] {
+        _ = menu.editorView(.preferences)
+        for editor in [AdvancedLaunchEditor.arguments, .command, .preferences] {
             _ = editor.id; _ = editor.title; _ = editor.placeholder; _ = editor.actionTitle
+        }
+        for version in WineWindowsVersion.allCases {
+            _ = version.id; _ = version.title
         }
         menu.showArguments(); menu.submit(.arguments)
         menu.showCommand(); menu.dismissEditor()
         menu.openExplorer(); try await waitForWineTool(store)
-        menu.openPreferences(); try await waitForWineTool(store)
+        menu.showPreferences(); menu.submit(.preferences); try await waitForWineTool(store)
         menu.submit(.command); try await waitForWineTool(store)
         #expect(!menu.wineToolsDisabled)
         try await transport.verify()

@@ -23,7 +23,7 @@ extension WineToolAction {
     var successMessage: String {
         switch self {
         case .explorer: "已打开 Wine 文件目录"
-        case .preferences: "已启动 Wine 首选项"
+        case .preferences: "Wine 首选项已应用"
         case .run: "已运行 Windows 命令"
         }
     }
