@@ -15,8 +15,8 @@ description: 在 Mac 上安装、运行和参与开发 MHGLauncher。
       这里集中记录 MHGLauncher 当前版本的使用方式与技术约定。
     </p>
     <nav class="home-actions" aria-label="快速入口">
-      <a class="home-action primary" href="/guide/getting-started.html">开始使用</a>
-      <a class="home-action" href="/development/architecture.html">了解架构</a>
+      <a class="home-action primary" href="./guide/getting-started.html">开始使用</a>
+      <a class="home-action" href="./development/architecture.html">了解架构</a>
     </nav>
   </section>
 
@@ -33,17 +33,17 @@ description: 在 Mac 上安装、运行和参与开发 MHGLauncher。
       <article class="audience-card">
         <h3>普通用户</h3>
         <p>了解构建限制、首次登录、游戏安装更新、祈愿记录和云同步。</p>
-        <a href="/guide/getting-started.html">打开用户手册 →</a>
+        <a href="./guide/getting-started.html">打开用户手册 →</a>
       </article>
       <article class="audience-card">
         <h3>项目贡献者</h3>
         <p>熟悉四组件架构、Unix Socket API、fixture 测试与运行时打包。</p>
-        <a href="/development/architecture.html">打开开发指南 →</a>
+        <a href="./development/architecture.html">打开开发指南 →</a>
       </article>
       <article class="audience-card">
         <h3>服务运维者</h3>
         <p>使用 Docker Compose 部署可选云端与管理后台，并管理生产密钥。</p>
-        <a href="/operations/self-hosting.html">打开部署文档 →</a>
+        <a href="./operations/self-hosting.html">打开部署文档 →</a>
       </article>
     </div>
   </section>

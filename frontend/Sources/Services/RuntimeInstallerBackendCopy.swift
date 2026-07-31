@@ -1,6 +1,24 @@
 import Foundation
 
 extension RuntimeInstaller {
+    func backendDependenciesReady(at app: URL) -> Bool {
+        let packageURL = app.appending(path: "package.json")
+        guard let data = try? Data(contentsOf: packageURL),
+              let package = try? JSONDecoder().decode(BackendPackage.self, from: data) else {
+            return false
+        }
+        return package.dependencies.allSatisfy { name, expectedVersion in
+            let installedURL = app.appending(path: "node_modules")
+                .appending(path: name)
+                .appending(path: "package.json")
+            guard let data = try? Data(contentsOf: installedURL),
+                  let installed = try? JSONDecoder().decode(InstalledPackage.self, from: data) else {
+                return false
+            }
+            return installed.version == expectedVersion
+        }
+    }
+
     func copyBackendApp(to destination: URL) throws {
         let source = try bundledBackendSource()
         let modules = destination.appending(path: "node_modules")
@@ -48,4 +66,12 @@ extension RuntimeInstaller {
         // 后端代码热替换时，运行时资产安装的依赖目录必须保留。
         try fileManager.moveItem(at: backup, to: destination)
     }
+}
+
+private struct BackendPackage: Decodable {
+    let dependencies: [String: String]
+}
+
+private struct InstalledPackage: Decodable {
+    let version: String
 }

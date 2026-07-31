@@ -63,7 +63,9 @@ final class RuntimeInstaller: @unchecked Sendable {
         try Task.checkCancellation()
         if let installed = installedCoreRuntime() {
             try copyBackendApp(to: installed.backendAppURL)
-            return installed
+            if backendDependenciesReady(at: installed.backendAppURL) {
+                return installed
+            }
         }
         let loaded = try await loadManifest()
         let manifest = loaded.manifest

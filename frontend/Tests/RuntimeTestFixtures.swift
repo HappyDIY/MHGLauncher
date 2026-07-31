@@ -15,6 +15,7 @@ struct CoreFixture {
             at: backend.appending(path: "build"), withIntermediateDirectories: true
         )
         try Data("server".utf8).write(to: backend.appending(path: "build/server.js"))
+        try Data(#"{"dependencies":{}}"#.utf8).write(to: backend.appending(path: "package.json"))
         let original = try [
             makeComponent(
                 id: "node", file: "node.tar.gz", root: root,

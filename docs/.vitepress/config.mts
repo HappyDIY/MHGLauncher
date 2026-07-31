@@ -7,7 +7,7 @@ export default defineConfig({
   title: "MHGLauncher",
   titleTemplate: ":title | MHGLauncher 官方文档",
   description: "MHGLauncher 的用户手册、开发者指南与云服务运维文档。",
-  base: "/",
+  base: "/docs/",
   lastUpdated: true,
   head: [
     ["link", { rel: "icon", type: "image/png", href: "/logo-64.png" }],
