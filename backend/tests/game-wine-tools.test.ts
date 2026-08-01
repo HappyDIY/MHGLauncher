@@ -23,33 +23,37 @@ test("生成 Wine 内置工具参数", () => {
     .toThrow("请输入要运行的 Windows 命令");
 });
 
-test("使用既有 Wine 容器直接启动图形工具", async () => {
+test("Wine 工具通过可见的终端会话启动", async () => {
   const fixture = readyFixture(), child = new FakeChild();
   const spawn = vi.fn(() => {
     queueMicrotask(() => child.emit("spawn")); return child;
   });
   const service = new GameWineToolService(fixture.dataDir, fixture.runtimeRoot, () => false, spawn as never);
   await service.start({ action: "run", command: "regedit /silent", performance_profile: "optimized" });
-  expect(spawn).toHaveBeenCalledWith(fixture.wine, ["regedit", "/silent"], expect.objectContaining({
-    detached: true, stdio: "ignore", env: expect.objectContaining({
-      WINEPREFIX: fixture.prefix, WINEDLLOVERRIDES: "winedbg.exe=d",
-    }),
+  expect(spawn).toHaveBeenCalledWith("/usr/bin/open", expect.any(Array), expect.objectContaining({
+    detached: true, stdio: "ignore",
   }));
+  const call = spawn.mock.calls[0] as unknown as [string, string[]];
+  const launcher = call[1][0]!;
+  const script = readFileSync(launcher, "utf8");
+  expect(launcher).toMatch(/launch-.+\.command$/);
+  expect(script).toContain("'regedit' '/silent'");
+  expect(script).toContain(`'WINEPREFIX=${fixture.prefix}'`);
   expect(child.unref).toHaveBeenCalledOnce();
 });
 
-test("cmd.exe 通过可见的终端会话启动", async () => {
+test("Wine 首选项通过可见的终端会话启动", async () => {
   const fixture = readyFixture(), child = new FakeChild();
   const spawn = vi.fn(() => {
     queueMicrotask(() => child.emit("spawn")); return child;
   });
   const service = new GameWineToolService(fixture.dataDir, fixture.runtimeRoot, () => false, spawn as never);
-  await service.start({ action: "run", command: "cmd.exe", performance_profile: "optimized" });
+  await service.start({ action: "preferences", performance_profile: "optimized" });
   expect(spawn).toHaveBeenCalledWith("/usr/bin/open", expect.any(Array), expect.any(Object));
   const call = spawn.mock.calls[0] as unknown as [string, string[]];
   const launcher = call[1][0]!;
-  expect(launcher).toMatch(/console-.+\.command$/);
-  expect(readFileSync(launcher, "utf8")).toContain("'cmd.exe'");
+  expect(launcher).toMatch(/launch-.+\.command$/);
+  expect(readFileSync(launcher, "utf8")).toContain("'winecfg.exe'");
 });
 
 test("文件管理器改用 Finder 打开 Wine 系统盘", async () => {

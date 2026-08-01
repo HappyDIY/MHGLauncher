@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 @testable import MHGLauncher
 
@@ -54,24 +55,33 @@ struct WineToolActionTests {
         let transport = ScriptedTransport([
             try wineToolStep(.explorer),
             try wineToolStep(.preferences),
-            try wineToolStep(.run, command: ""),
         ])
         let client = APIClient(token: "fixture") { try await transport.respond($0) }
         let store = LauncherStore()
         store.backend.useClient(client)
         store.gameRuntimeReady = true
-        let menu = GameLaunchAdvancedMenu(store: store)
+        var presentedEditor: AdvancedLaunchEditor?
+        let menu = GameLaunchAdvancedMenu(
+            store: store,
+            editor: Binding(
+                get: { presentedEditor },
+                set: { presentedEditor = $0 }
+            )
+        )
         _ = menu.body
-        _ = menu.editorView(.arguments)
-        _ = menu.editorView(.command)
+        let controls = GameLaunchControls(store: store)
+        _ = controls.body
+        _ = controls.advancedEditorView(.arguments)
+        _ = controls.advancedEditorView(.command)
+        _ = GameLaunchAdvancedEditor(store: store, selection: .arguments).body
+        _ = GameLaunchAdvancedEditor(store: store, selection: .command).body
         for editor in [AdvancedLaunchEditor.arguments, .command] {
             _ = editor.id; _ = editor.title; _ = editor.placeholder; _ = editor.actionTitle
         }
-        menu.showArguments(); menu.submit(.arguments)
-        menu.showCommand(); menu.dismissEditor()
+        menu.showArguments(); #expect(presentedEditor == .arguments)
+        menu.showCommand(); #expect(presentedEditor == .command)
         menu.openExplorer(); try await waitForWineTool(store)
         menu.openPreferences(); try await waitForWineTool(store)
-        menu.submit(.command); try await waitForWineTool(store)
         #expect(!menu.wineToolsDisabled)
         try await transport.verify()
     }

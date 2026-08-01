@@ -11,6 +11,8 @@ struct RuntimeBackendDependencyTests {
         let app = try tempDir()
         let module = app.appending(path: "node_modules/string-argv")
         try FileManager.default.createDirectory(at: module, withIntermediateDirectories: true)
+        try Data("invalid".utf8).write(to: app.appending(path: "package.json"))
+        #expect(!installer.backendDependenciesReady(at: app))
         try Data(#"{"dependencies":{"string-argv":"0.3.2"}}"#.utf8)
             .write(to: app.appending(path: "package.json"))
         try Data(#"{"version":"0.3.1"}"#.utf8)

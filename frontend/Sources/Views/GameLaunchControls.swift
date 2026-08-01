@@ -3,6 +3,7 @@ import SwiftUI
 struct GameLaunchControls: View {
     @Bindable var store: LauncherStore
     @State private var confirmsStop = false
+    @State private var advancedEditor: AdvancedLaunchEditor?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -43,7 +44,7 @@ struct GameLaunchControls: View {
                         .disabled(store.isStoppingGame)
                         .motionTransition(.selection)
                 }
-                GameLaunchAdvancedMenu(store: store)
+                GameLaunchAdvancedMenu(store: store, editor: $advancedEditor)
                 if let launch = store.gameLaunch {
                     Label(launch.status.title, systemImage: launch.status.icon)
                         .font(.caption)
@@ -69,6 +70,12 @@ struct GameLaunchControls: View {
         } message: {
             Text("启动器将终止 Wine 会话并结束当前游戏进程。")
         }
+        .sheet(item: $advancedEditor, content: advancedEditorView)
+    }
+
+    @ViewBuilder
+    func advancedEditorView(_ selection: AdvancedLaunchEditor) -> some View {
+        GameLaunchAdvancedEditor(store: store, selection: selection)
     }
 
     private var launchIsActive: Bool {

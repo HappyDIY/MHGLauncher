@@ -2,9 +2,7 @@ import SwiftUI
 
 struct GameLaunchAdvancedMenu: View {
     @Bindable var store: LauncherStore
-    @State private var editor: AdvancedLaunchEditor?
-    @State private var draftArguments = ""
-    @State private var command = ""
+    @Binding var editor: AdvancedLaunchEditor?
 
     var body: some View {
         Menu {
@@ -21,42 +19,14 @@ struct GameLaunchAdvancedMenu: View {
         }
         .menuStyle(.button)
         .disabled(store.isStartingWineTool)
-        .sheet(item: $editor, content: editorView)
-    }
-
-    @ViewBuilder
-    func editorView(_ selection: AdvancedLaunchEditor) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(selection.title).font(.headline)
-            TextField(selection.placeholder, text: selection == .arguments ? $draftArguments : $command)
-                .textFieldStyle(.roundedBorder)
-            HStack {
-                Spacer()
-                Button("取消", role: .cancel, action: dismissEditor)
-                Button(selection.actionTitle) { submit(selection) }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(selection == .command && command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-        }
-        .padding(20)
-        .frame(width: 460)
     }
 
     func showArguments() {
-        draftArguments = store.gameLaunchArguments
-        presentEditor(.arguments)
+        editor = .arguments
     }
 
     func showCommand() {
-        command = ""
-        presentEditor(.command)
-    }
-
-    func presentEditor(_ selection: AdvancedLaunchEditor) {
-        Task { @MainActor in
-            await Task.yield()
-            editor = selection
-        }
+        editor = .command
     }
 
     func openExplorer() {
@@ -67,23 +37,49 @@ struct GameLaunchAdvancedMenu: View {
         Task { await store.startWineTool(.preferences) }
     }
 
-    func dismissEditor() {
-        editor = nil
-    }
-
-    func submit(_ selection: AdvancedLaunchEditor) {
-        if selection == .arguments {
-            store.gameLaunchArguments = draftArguments
-            store.showStatus("启动参数已保存")
-        } else {
-            Task { await store.startWineTool(.run, command: command) }
-        }
-        editor = nil
-    }
-
     var wineToolsDisabled: Bool {
         guard let status = store.gameLaunch?.status else { return false }
         return ![.stopped, .exited, .failed].contains(status)
+    }
+}
+
+struct GameLaunchAdvancedEditor: View {
+    @Bindable var store: LauncherStore
+    let selection: AdvancedLaunchEditor
+    @Environment(\.dismiss) private var dismiss
+    @State private var text: String
+
+    init(store: LauncherStore, selection: AdvancedLaunchEditor) {
+        self.store = store
+        self.selection = selection
+        _text = State(initialValue: selection == .arguments ? store.gameLaunchArguments : "")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(selection.title).font(.headline)
+            TextField(selection.placeholder, text: $text)
+                .textFieldStyle(.roundedBorder)
+            HStack {
+                Spacer()
+                Button("取消", role: .cancel) { dismiss() }
+                Button(selection.actionTitle, action: submit)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(selection == .command && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 460)
+    }
+
+    func submit() {
+        if selection == .arguments {
+            store.gameLaunchArguments = text
+            store.showStatus("启动参数已保存")
+        } else {
+            Task { await store.startWineTool(.run, command: text) }
+        }
+        dismiss()
     }
 }
 
