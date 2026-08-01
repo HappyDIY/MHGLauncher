@@ -1,7 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
 import { parseArgsStringToArgv } from "string-argv";
 import type { GamePerformanceProfile } from "../core/models";
 import { AppError } from "../core/errors";
@@ -30,15 +28,13 @@ export class GameWineToolService {
         this.runtimeRoot, this.dataDir, input.performance_profile, false,
       );
       const opensPrefix = input.action === "explorer";
-      const wineArgs = opensPrefix ? [] : wineToolArguments(input);
-      const args = opensPrefix
-        ? [join(prefix, "drive_c")]
-        : [createWineToolLauncher(
-            this.dataDir, paths.wine, wineArgs,
-            prefixEnvironment(process.env, prefix, input.performance_profile),
-          )];
-      const child = this.spawnTool("/usr/bin/open", args, {
-        detached: true, env: process.env,
+      const executable = opensPrefix ? "/usr/bin/open" : paths.wine;
+      const args = opensPrefix ? [join(prefix, "drive_c")] : wineToolLaunchArguments(input);
+      const env = opensPrefix
+        ? process.env
+        : prefixEnvironment(process.env, prefix, input.performance_profile);
+      const child = this.spawnTool(executable, args, {
+        detached: true, env,
         stdio: "ignore",
       });
       await waitForSpawn(child); child.unref();
@@ -55,22 +51,12 @@ export function wineToolArguments(input: WineToolInput): string[] {
   return parseArgsStringToArgv(command);
 }
 
-function createWineToolLauncher(
-  dataDir: string, wine: string, args: string[], env: NodeJS.ProcessEnv,
-): string {
-  const directory = join(dataDir, "wine-tools");
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const path = join(directory, `launch-${randomUUID()}.command`);
-  const values = Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined);
-  const command = ["/usr/bin/env", ...values.map(([key, value]) => `${key}=${value}`), wine, ...args];
-  const body = `#!/bin/zsh\nrm -f -- "$0"\nexec ${command.map(shellQuote).join(" ")}\n`;
-  writeFileSync(path, body, { mode: 0o700 });
-  chmodSync(path, 0o700);
-  return path;
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", "'\\''")}'`;
+export function wineToolLaunchArguments(input: WineToolInput): string[] {
+  const args = wineToolArguments(input);
+  const executable = args[0]?.split(/[\\/]/).at(-1)?.toLowerCase();
+  return executable === "cmd" || executable === "cmd.exe"
+    ? ["wineconsole.exe", ...args]
+    : args;
 }
 
 function waitForSpawn(child: ChildProcess): Promise<void> {

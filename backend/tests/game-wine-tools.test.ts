@@ -1,11 +1,11 @@
 import { EventEmitter } from "node:events";
-import {
-  mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync,
-} from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
-import { GameWineToolService, wineToolArguments } from "../src/services/game-wine-tools";
+import {
+  GameWineToolService, wineToolArguments, wineToolLaunchArguments,
+} from "../src/services/game-wine-tools";
 
 const roots: string[] = [];
 afterEach(() => {
@@ -19,41 +19,35 @@ test("生成 Wine 内置工具参数", () => {
     .toEqual(["regedit"]);
   expect(wineToolArguments({ action: "run", command: "\"C:\\Program Files\\app.exe\" --flag", performance_profile: "baseline" }))
     .toEqual(["C:\\Program Files\\app.exe", "--flag"]);
+  expect(wineToolLaunchArguments({ action: "run", command: "cmd.exe /k ver", performance_profile: "baseline" }))
+    .toEqual(["wineconsole.exe", "cmd.exe", "/k", "ver"]);
   expect(() => wineToolArguments({ action: "run", command: " ", performance_profile: "optimized" }))
     .toThrow("请输入要运行的 Windows 命令");
 });
 
-test("Wine 工具通过可见的终端会话启动", async () => {
+test("图形 Wine 工具由 Wine 直接启动", async () => {
   const fixture = readyFixture(), child = new FakeChild();
   const spawn = vi.fn(() => {
     queueMicrotask(() => child.emit("spawn")); return child;
   });
   const service = new GameWineToolService(fixture.dataDir, fixture.runtimeRoot, () => false, spawn as never);
   await service.start({ action: "run", command: "regedit /silent", performance_profile: "optimized" });
-  expect(spawn).toHaveBeenCalledWith("/usr/bin/open", expect.any(Array), expect.objectContaining({
-    detached: true, stdio: "ignore",
+  expect(spawn).toHaveBeenCalledWith(fixture.wine, ["regedit", "/silent"], expect.objectContaining({
+    detached: true, stdio: "ignore", env: expect.objectContaining({ WINEPREFIX: fixture.prefix }),
   }));
-  const call = spawn.mock.calls[0] as unknown as [string, string[]];
-  const launcher = call[1][0]!;
-  const script = readFileSync(launcher, "utf8");
-  expect(launcher).toMatch(/launch-.+\.command$/);
-  expect(script).toContain("'regedit' '/silent'");
-  expect(script).toContain(`'WINEPREFIX=${fixture.prefix}'`);
   expect(child.unref).toHaveBeenCalledOnce();
 });
 
-test("Wine 首选项通过可见的终端会话启动", async () => {
+test("cmd.exe 通过 Wine 控制台主机启动", async () => {
   const fixture = readyFixture(), child = new FakeChild();
   const spawn = vi.fn(() => {
     queueMicrotask(() => child.emit("spawn")); return child;
   });
   const service = new GameWineToolService(fixture.dataDir, fixture.runtimeRoot, () => false, spawn as never);
-  await service.start({ action: "preferences", performance_profile: "optimized" });
-  expect(spawn).toHaveBeenCalledWith("/usr/bin/open", expect.any(Array), expect.any(Object));
-  const call = spawn.mock.calls[0] as unknown as [string, string[]];
-  const launcher = call[1][0]!;
-  expect(launcher).toMatch(/launch-.+\.command$/);
-  expect(readFileSync(launcher, "utf8")).toContain("'winecfg.exe'");
+  await service.start({ action: "run", command: "cmd.exe", performance_profile: "optimized" });
+  expect(spawn).toHaveBeenCalledWith(
+    fixture.wine, ["wineconsole.exe", "cmd.exe"], expect.any(Object),
+  );
 });
 
 test("文件管理器改用 Finder 打开 Wine 系统盘", async () => {

@@ -184,7 +184,7 @@ final class RuntimeInstaller: @unchecked Sendable {
             tag: runtime.tag,
             appVersion: RuntimeManifest.appVersion(bundle: bundle),
             scope: .game
-        )
+        ) && gameRuntimeSupportsWindowsUI(runtime)
     }
 
     private func prepare(stage: URL) throws {

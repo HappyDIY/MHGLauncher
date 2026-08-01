@@ -32,6 +32,9 @@ grep -q -- '--enable-archs=i386,x86_64' "$root/scripts/build-wine-runtime.sh"
 grep -q -- '--with-mingw=llvm-mingw' "$root/scripts/build-wine-runtime.sh"
 grep -q -- '--with-freetype' "$root/scripts/build-wine-runtime.sh"
 grep -q -- 'libfreetype.6.dylib' "$root/scripts/build-wine-runtime.sh"
+grep -q -- 'game-runtime/wine/lib/libfreetype.6.dylib' "$root/scripts/build-runtime-assets.sh"
+grep -q -- 'game-runtime/wine/lib/wine/x86_64-windows/wineconsole.exe' "$root/scripts/build-runtime-assets.sh"
+grep -q -- 'game-runtime/wine/lib/wine/x86_64-windows/winecfg.exe' "$root/scripts/build-runtime-assets.sh"
 if grep -q -- '--without-freetype' "$root/scripts/build-wine-runtime.sh"; then
   printf 'Wine 构建禁用了首选项窗口所需的字体引擎。\n' >&2
   exit 1

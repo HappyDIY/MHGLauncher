@@ -197,6 +197,9 @@ jq -s \
     requiredPaths:["node/bin/node","backend/app/node_modules","backend/hpatchz","game-runtime/bin/mhg-window-probe",
       "game-runtime/lib/libmhg_dns_gate.dylib","game-runtime/wine/bin/wine","game-runtime/wine/bin/wineboot",
       "game-runtime/wine/bin/wineserver","game-runtime/wine/lib/wine/x86_64-windows/winemetal.dll",
+      "game-runtime/wine/lib/libfreetype.6.dylib",
+      "game-runtime/wine/lib/wine/x86_64-windows/wineconsole.exe",
+      "game-runtime/wine/lib/wine/x86_64-windows/winecfg.exe",
       "game-runtime/assets/mhypbase.dll"],components:.}' \
   "$component_file" >"$out/runtime-manifest.json"
 sign_manifest "$out/runtime-manifest.json" "$out/runtime-manifest.json.sig"
