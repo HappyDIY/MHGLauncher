@@ -3,18 +3,11 @@ import Foundation
 extension RuntimeArchive {
     static func validateTarGzip(_ archiveURL: URL) async throws {
         let output = try await runTarListing(arguments: ["-tzf", archiveURL.path])
-        var current = Data()
-        for byte in output {
-            if byte == 0x0A {
-                try validateTarPath(current)
-                current.removeAll(keepingCapacity: true)
-            } else {
-                current.append(byte)
-            }
-        }
-        if !current.isEmpty { try validateTarPath(current) }
+        let entries = Array(output).split(separator: 0x0A).map { Data($0) }
+        for entry in entries { try validateTarPath(entry) }
         try validateTarEntryTypes(
-            try await runTarListing(arguments: ["-tvzf", archiveURL.path])
+            try await runTarListing(arguments: ["-tvzf", archiveURL.path]),
+            entries: entries
         )
     }
 
@@ -35,12 +28,48 @@ extension RuntimeArchive {
         }
     }
 
-    private static func validateTarEntryTypes(_ data: Data) throws {
-        for line in data.split(separator: 0x0A) where !line.isEmpty {
-            guard line.first == 0x2D || line.first == 0x64 else {
+    static func validateTarEntryTypes(_ data: Data, entries: [Data]) throws {
+        let lines = Array(data).split(separator: 0x0A).map { Data($0) }
+        guard lines.count == entries.count else {
+            throw RuntimeInstallError.archiveTraversal("压缩包目录不一致")
+        }
+        for (line, entry) in zip(lines, entries) {
+            if line.first == 0x2D || line.first == 0x64 { continue }
+            if line.first == 0x6C {
+                try validateSymlink(line: line, entry: entry)
+            } else {
                 throw RuntimeInstallError.archiveTraversal("链接或特殊文件")
             }
         }
+    }
+
+    private static func validateSymlink(line: Data, entry: Data) throws {
+        guard let listing = String(data: line, encoding: .utf8),
+              let path = String(data: entry, encoding: .utf8) else {
+            throw RuntimeInstallError.archiveTraversal("无效 UTF-8 链接")
+        }
+        let marker = "\(path) -> "
+        guard let range = listing.range(of: marker, options: .backwards) else {
+            throw RuntimeInstallError.archiveTraversal("无效符号链接")
+        }
+        let target = String(listing[range.upperBound...])
+        guard symlinkTargetIsContained(target, entry: path) else {
+            throw RuntimeInstallError.archiveTraversal(path)
+        }
+    }
+
+    private static func symlinkTargetIsContained(_ target: String, entry: String) -> Bool {
+        guard !target.isEmpty, !target.hasPrefix("/") else { return false }
+        var components = entry.split(separator: "/").dropLast().filter { $0 != "." }
+        for part in target.split(separator: "/", omittingEmptySubsequences: false) {
+            if part == ".." {
+                guard !components.isEmpty else { return false }
+                components.removeLast()
+            } else if part != "." && !part.isEmpty {
+                components.append(part)
+            }
+        }
+        return true
     }
 
     private static func runTarListing(arguments: [String]) async throws -> Data {
