@@ -5,7 +5,7 @@ import Testing
 struct CoreFixture {
     let environment: [String: String]
 
-    init(corruptFirstComponent: Bool = false) throws {
+    init(corruptFirstComponent: Bool = false, missingBackendDependency: Bool = false) throws {
         let root = try tempDir()
         let assets = root.appending(path: "assets")
         let backend = root.appending(path: "backend-app")
@@ -15,7 +15,10 @@ struct CoreFixture {
             at: backend.appending(path: "build"), withIntermediateDirectories: true
         )
         try Data("server".utf8).write(to: backend.appending(path: "build/server.js"))
-        try Data(#"{"dependencies":{}}"#.utf8).write(to: backend.appending(path: "package.json"))
+        let package = missingBackendDependency
+            ? #"{"dependencies":{"string-argv":"0.3.2"}}"#
+            : #"{"dependencies":{}}"#
+        try Data(package.utf8).write(to: backend.appending(path: "package.json"))
         let original = try [
             makeComponent(
                 id: "node", file: "node.tar.gz", root: root,

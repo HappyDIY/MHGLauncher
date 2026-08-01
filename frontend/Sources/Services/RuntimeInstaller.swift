@@ -63,7 +63,7 @@ final class RuntimeInstaller: @unchecked Sendable {
         try Task.checkCancellation()
         if let installed = installedCoreRuntime() {
             try copyBackendApp(to: installed.backendAppURL)
-            if backendDependenciesReady(at: installed.backendAppURL) {
+            if corePayloadReady(at: installed.rootURL) {
                 return installed
             }
         }
@@ -81,6 +81,9 @@ final class RuntimeInstaller: @unchecked Sendable {
                 destination: stage,
                 progress: progress
             )
+            guard corePayloadReady(at: stage) else {
+                throw RuntimeInstallError.incompatibleCoreRuntime
+            }
             try RuntimeInstallLedger.write(
                 manifest: manifest, manifestData: loaded.data, scope: .core, root: stage
             )

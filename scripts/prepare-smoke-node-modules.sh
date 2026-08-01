@@ -28,4 +28,6 @@ if [[ ! -d "$cache" ]]; then
   mv "$stage/app/node_modules" "$cache"
 fi
 
+shasum -a 256 "$root/backend/package-lock.json" | awk '{print $1}' >"$cache/.package-lock.sha256"
+
 printf '%s\n' "$cache"

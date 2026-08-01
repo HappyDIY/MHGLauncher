@@ -8,6 +8,8 @@ manifest="$asset_dir/runtime-manifest.json"
 app_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$root/packaging/Info.plist")"
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
+runtime="$stage/runtime"
+mkdir -p "$runtime"
 
 sha256() { shasum -a 256 "$1" | awk '{print $1}'; }
 size() { stat -f %z "$1"; }
@@ -33,6 +35,10 @@ jq -e --argjson expected "$expected" '(.components | map({key:.id,value:.install
   all($expected | to_entries[]; $actual[.key] == .value) and
   (if ($expected | length) == 3 then ([.components[] | select(.kind == "core") | .id] | sort) == (["hpatchz","node","node_modules"] | sort) else ($actual | length) == ($expected | length) end)' \
   "$manifest" >/dev/null || fail "运行时组件集合或安装根目录无效。"
+modules_version="$(shasum -a 256 "$root/backend/package-lock.json" | awk '{print substr($1, 1, 16)}')"
+jq -e --arg version "$modules_version" \
+  '.components[] | select(.id == "node_modules") | .version == $version' \
+  "$manifest" >/dev/null || fail "后端依赖资产不是由当前 package-lock.json 生成。"
 
 : >"$stage/referenced"
 while IFS= read -r component; do
@@ -53,7 +59,27 @@ while IFS= read -r component; do
   fi
   test "$(size "$path")" = "$expected_size" || fail "运行时资产大小不匹配：$file"
   test "$(sha256 "$path")" = "$expected_sha" || fail "运行时资产摘要不匹配：$file"
+  if [[ "$(jq -r '.kind' <<<"$component")" == "core" ]]; then
+    tar -xzf "$path" -C "$runtime"
+  fi
 done < <(jq -c '.components[]' "$manifest")
+
+cp "$root/backend/package.json" "$runtime/backend/app/package.json"
+lock_digest="$(shasum -a 256 "$root/backend/package-lock.json" | awk '{print $1}')"
+installed_lock_digest="$(cat "$runtime/backend/app/node_modules/.package-lock.sha256" 2>/dev/null || true)"
+test "$installed_lock_digest" = "$lock_digest" || fail "后端依赖资产缺少当前锁文件指纹。"
+node_version="$("$runtime/node/bin/node" --version | sed 's/^v//')"
+manifest_node_version="$(jq -r '.components[] | select(.id == "node") | .version' "$manifest")"
+test "$node_version" = "$manifest_node_version" || fail "Node 资产版本与 manifest 不一致。"
+(
+  cd "$runtime/backend/app"
+  "$runtime/node/bin/node" -e '
+    const package = require("./package.json");
+    for (const name of Object.keys(package.dependencies || {})) require.resolve(name);
+    const Database = require("better-sqlite3");
+    new Database(":memory:").close();
+  '
+) >/dev/null 2>&1 || fail "后端依赖缺失或原生模块与 Node ABI 不兼容。"
 
 while IFS= read -r path; do
   name="$(basename "$path")"

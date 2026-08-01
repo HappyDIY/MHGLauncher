@@ -8,6 +8,7 @@ enum RuntimeInstallError: LocalizedError, Equatable {
     case archiveTraversal(String)
     case processFailed(String)
     case unsafePromotion
+    case incompatibleCoreRuntime
 
     var errorDescription: String? {
         switch self {
@@ -18,6 +19,7 @@ enum RuntimeInstallError: LocalizedError, Equatable {
         case let .archiveTraversal(path): "运行时压缩包包含不安全路径：\(path)"
         case let .processFailed(command): "运行时命令执行失败：\(command)"
         case .unsafePromotion: "运行时提升记录不安全，已拒绝删除文件"
+        case .incompatibleCoreRuntime: "下载的核心运行时与当前应用不兼容，请更新应用后重试"
         }
     }
 }

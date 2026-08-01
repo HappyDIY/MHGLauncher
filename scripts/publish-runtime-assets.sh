@@ -15,16 +15,19 @@ command -v gh >/dev/null || {
   printf '未找到 GitHub CLI：请先安装 gh 并登录。\n' >&2
   exit 1
 }
+create_release=0
 if draft="$(gh release view "$tag" --json isDraft --jq '.isDraft' 2>/dev/null)"; then
   [[ "$draft" == "true" ]] || { printf '拒绝修改已公开的不可变 Release：%s\n' "$tag" >&2; exit 1; }
   count="$(gh release view "$tag" --json assets --jq '.assets | length')"
   [[ "$count" == 0 ]] || { printf 'Draft Release 已包含资产，拒绝覆盖：%s\n' "$tag" >&2; exit 1; }
 else
-  [[ -f "$asset_dir/runtime-manifest.json" ]] || "$root/scripts/build-runtime-assets.sh" "$tag"
-  MHG_REQUIRE_RUNTIME_SIGNATURE=1 "$root/scripts/verify-runtime-assets.sh" "$asset_dir" all
-  gh release create "$tag" --draft --title "$tag" --notes "MHGLauncher $tag runtime assets"
+  create_release=1
 fi
 
+"$root/scripts/build-runtime-assets.sh" "$tag"
 MHG_REQUIRE_RUNTIME_SIGNATURE=1 "$root/scripts/verify-runtime-assets.sh" "$asset_dir" all
+if (( create_release == 1 )); then
+  gh release create "$tag" --draft --title "$tag" --notes "MHGLauncher $tag runtime assets"
+fi
 gh release upload "$tag" "$asset_dir"/*
 printf '运行时资产已上传到 GitHub Release：%s\n' "$tag"

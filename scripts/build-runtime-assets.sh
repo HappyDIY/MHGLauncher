@@ -117,11 +117,14 @@ archive_component node core 24.17.0 node "$node_stage"
 modules_stage="$stage/node_modules"
 mkdir -p "$modules_stage/backend/app"
 mv "$backend_stage/backend/app/node_modules" "$modules_stage/backend/app/node_modules"
+shasum -a 256 "$root/backend/package-lock.json" | awk '{print $1}' \
+  >"$modules_stage/backend/app/node_modules/.package-lock.sha256"
 mv "$stage/backend-sbom.cdx.json" "$modules_stage/backend/app/SBOM.cdx.json"
 jq -r '.packages | to_entries[] | select(.key | startswith("node_modules/")) | select(.value.dev != true) |
   "\(.value.name // .key)\t\(.value.version // "unknown")\t\(.value.license // "UNKNOWN")"' \
   "$root/backend/package-lock.json" >"$modules_stage/backend/app/THIRD_PARTY_NOTICES.txt"
-archive_component node_modules core "$(jq -r '.version' "$root/backend/package-lock.json")" \
+modules_version="$(shasum -a 256 "$root/backend/package-lock.json" | awk '{print substr($1, 1, 16)}')"
+archive_component node_modules core "$modules_version" \
   backend/app/node_modules "$modules_stage"
 
 hpatch_stage="$stage/hpatchz"

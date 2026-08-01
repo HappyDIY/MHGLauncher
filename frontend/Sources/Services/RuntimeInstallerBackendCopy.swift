@@ -1,13 +1,21 @@
 import Foundation
 
 extension RuntimeInstaller {
+    func corePayloadReady(at root: URL) -> Bool {
+        let app = root.appending(path: "backend/app")
+        return fileManager.isExecutableFile(atPath: root.appending(path: "node/bin/node").path)
+            && fileManager.isExecutableFile(atPath: root.appending(path: "backend/hpatchz").path)
+            && fileManager.fileExists(atPath: app.appending(path: "build/server.js").path)
+            && backendDependenciesReady(at: app)
+    }
+
     func backendDependenciesReady(at app: URL) -> Bool {
         let packageURL = app.appending(path: "package.json")
         guard let data = try? Data(contentsOf: packageURL),
               let package = try? JSONDecoder().decode(BackendPackage.self, from: data) else {
             return false
         }
-        return package.dependencies.allSatisfy { name, expectedVersion in
+        guard package.dependencies.allSatisfy({ name, expectedVersion in
             let installedURL = app.appending(path: "node_modules")
                 .appending(path: name)
                 .appending(path: "package.json")
@@ -16,7 +24,18 @@ extension RuntimeInstaller {
                 return false
             }
             return installed.version == expectedVersion
-        }
+        }) else { return false }
+        return backendLockMatches(at: app)
+    }
+
+    private func backendLockMatches(at app: URL) -> Bool {
+        let lock = app.appending(path: "package-lock.json")
+        guard fileManager.fileExists(atPath: lock.path) else { return true }
+        let marker = app.appending(path: "node_modules/.package-lock.sha256")
+        guard let data = try? Data(contentsOf: lock),
+              let installed = try? String(contentsOf: marker, encoding: .utf8) else { return false }
+        return installed.trimmingCharacters(in: .whitespacesAndNewlines)
+            == RuntimeInstallLedger.digest(data)
     }
 
     func copyBackendApp(to destination: URL) throws {
