@@ -82,11 +82,23 @@ enum RuntimeInstallLedger {
         paths.allSatisfy { relative in
             guard RuntimeManifest.isSafeRelativePath(relative) else { return false }
             var current = root
+            var traversed: [Substring] = []
             for component in relative.split(separator: "/") {
+                traversed.append(component)
                 current.append(path: String(component))
                 var info = stat()
-                guard lstat(current.path, &info) == 0,
-                      info.st_mode & S_IFMT != S_IFLNK else { return false }
+                guard lstat(current.path, &info) == 0 else { return false }
+                if info.st_mode & S_IFMT == S_IFLNK {
+                    // Wine 将 wineboot 链接到同目录的 wine；仅放行这一项固定关系。
+                    let path = traversed.joined(separator: "/")
+                    let target = current.deletingLastPathComponent().appending(path: "wine")
+                    var targetInfo = stat()
+                    guard path == "game-runtime/wine/bin/wineboot",
+                          (try? FileManager.default.destinationOfSymbolicLink(atPath: current.path)) == "wine",
+                          lstat(target.path, &targetInfo) == 0,
+                          targetInfo.st_mode & S_IFMT == S_IFREG
+                    else { return false }
+                }
             }
             return true
         }
