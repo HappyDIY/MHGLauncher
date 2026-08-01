@@ -13,6 +13,9 @@ for script in build-app.sh build-backend.sh build-frontend.sh; do
 done
 test ! -e "$root/debug-app.command"
 test ! -e "$root/scripts/build-backend-debug.sh"
+grep -q 'rm -rf .next' "$root/scripts/build-backend.sh"
+grep -q 'better-sqlite3-mhg-alias' "$root/scripts/build-backend.sh"
+grep -q -- '--strict --verbose=2' "$root/scripts/sign-app.sh"
 test ! -e "$root/scripts/build-debug-app.sh"
 bash -n "$root/scripts/sign-app.sh"
 plutil -lint "$root/packaging/CodeSigning.plist" >/dev/null

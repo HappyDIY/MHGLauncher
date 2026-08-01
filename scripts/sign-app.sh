@@ -15,7 +15,7 @@ app="$1"
 if [[ "$allow_ad_hoc" == "1" ]]; then
   ad_hoc_identity="-"
   codesign --force --sign "$ad_hoc_identity" --timestamp=none "$app"
-  codesign --verify --deep --verbose=2 "$app"
+  codesign --verify --deep --strict --verbose=2 "$app"
   printf '已使用 CI 专用 ad-hoc 签名。\n'
   exit 0
 fi
@@ -43,7 +43,7 @@ if ! printf '%s\n' "$identity_list" |
 fi
 
 codesign "${sign_args[@]}" "$app"
-codesign --verify --deep --verbose=2 "$app"
+codesign --verify --deep --strict --verbose=2 "$app"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
