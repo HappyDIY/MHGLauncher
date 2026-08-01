@@ -96,9 +96,8 @@ enum RuntimeArchive {
     ) async throws -> URL {
         let destination = cacheURL.appending(path: file)
         if isValid(destination, size: size, sha256: expected) { return destination }
-        let candidates = sources.isEmpty
-            ? [RuntimeDownloadSource(id: "manifest", baseURL: manifest.assetBaseURL)]
-            : sources
+        let official = RuntimeDownloadSource(id: "manifest", baseURL: manifest.assetBaseURL)
+        let candidates = sources.isEmpty ? [official] : sources + [official]
         var checksumFailed = false
         for candidate in candidates {
             try Task.checkCancellation()
