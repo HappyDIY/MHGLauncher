@@ -43,7 +43,7 @@ struct RuntimeManifest: Codable, Equatable, Sendable {
     }
 
     static func appVersion(bundle: Bundle = .main) -> String {
-        (bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)?.nonempty ?? "0.1.0"
+        (bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)?.nonempty ?? "0.1.1"
     }
 
     func isValid(expectedTag: String, appVersion: String) -> Bool {

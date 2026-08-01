@@ -35,6 +35,7 @@ grep -q -- 'libfreetype.6.dylib' "$root/scripts/build-wine-runtime.sh"
 grep -q -- 'game-runtime/wine/lib/libfreetype.6.dylib' "$root/scripts/build-runtime-assets.sh"
 grep -q -- 'game-runtime/wine/lib/wine/x86_64-windows/wineconsole.exe' "$root/scripts/build-runtime-assets.sh"
 grep -q -- 'game-runtime/wine/lib/wine/x86_64-windows/winecfg.exe' "$root/scripts/build-runtime-assets.sh"
+grep -q -- '--package-lock-only' "$root/scripts/build-runtime-assets.sh"
 if grep -q -- '--without-freetype' "$root/scripts/build-wine-runtime.sh"; then
   printf 'Wine 构建禁用了首选项窗口所需的字体引擎。\n' >&2
   exit 1
@@ -69,8 +70,8 @@ if "$root/scripts/build-runtime-assets.sh" v0.2.0 >/dev/null 2>&1; then
   exit 1
 fi
 
-manifest="$("$root/scripts/create-smoke-runtime-assets.sh" "$stage/assets" v0.1.0)"
-jq -e '.schemaVersion == 2 and .tag == "v0.1.0" and .appVersion == "0.1.0" and .platform == "darwin" and .hostArchitecture == "arm64"' "$manifest" >/dev/null
+manifest="$("$root/scripts/create-smoke-runtime-assets.sh" "$stage/assets" v0.1.1)"
+jq -e '.schemaVersion == 2 and .tag == "v0.1.1" and .appVersion == "0.1.1" and .platform == "darwin" and .hostArchitecture == "arm64"' "$manifest" >/dev/null
 "$root/scripts/verify-runtime-assets.sh" "$stage/assets" core >/dev/null
 
 jq -c '.components[]' "$manifest" | while IFS= read -r component; do
@@ -96,7 +97,7 @@ if [[ "$*" == *"--json isDraft"* ]]; then printf 'false\n'; exit 0; fi
 exit 1
 EOF
 chmod +x "$fake/gh"
-if PATH="$fake:$PATH" "$root/scripts/publish-runtime-assets.sh" v0.1.0 >/dev/null 2>&1; then
+if PATH="$fake:$PATH" "$root/scripts/publish-runtime-assets.sh" v0.1.1 >/dev/null 2>&1; then
   printf '发布脚本允许修改公开 Release。\n' >&2
   exit 1
 fi

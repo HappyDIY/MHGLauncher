@@ -17,7 +17,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-manifest="$("$root/scripts/create-smoke-runtime-assets.sh" "$assets" v0.1.0)"
+manifest="$("$root/scripts/create-smoke-runtime-assets.sh" "$assets" v0.1.1)"
 
 MHG_DATA_DIR="$data" \
 MHG_INSTANCE_LOCK_PATH="$data/app.lock" \

@@ -13,8 +13,10 @@ struct InteractiveSurfaceTests {
             store.selectedDestination = destination
             render(AnyView(RootView(store: store)), name: destination.rawValue)
         }
+        let setupStore = LauncherStore()
+        setupStore.isInstallingCoreRuntime = false
         render(
-            AnyView(RuntimeSetupView(store: LauncherStore())),
+            AnyView(RuntimeSetupView(store: setupStore)),
             name: "运行时准备"
         )
         render(
@@ -71,6 +73,7 @@ struct InteractiveSurfaceTests {
     @MainActor
     private func fixtureStore() async -> LauncherStore {
         let store = LauncherStore()
+        store.isInstallingCoreRuntime = false
         store.backend.useClient(APIClient(token: "fixture") { _ in
             APIResponse(status: 200, body: Data("{}".utf8))
         })

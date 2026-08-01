@@ -99,7 +99,8 @@ cp -R "$root/build/backend/dist/MHGLauncherBackend/app/." "$backend_stage/backen
 (
   cd "$backend_stage/backend/app"
   PATH="$node_root/bin:$PATH" npm_config_build_from_source=true npm ci --omit=dev
-  PATH="$node_root/bin:$PATH" npm sbom --omit=dev --sbom-format cyclonedx >"$stage/backend-sbom.cdx.json"
+  PATH="$node_root/bin:$PATH" npm sbom --omit=dev --package-lock-only \
+    --sbom-format cyclonedx >"$stage/backend-sbom.cdx.json"
 )
 find "$backend_stage/backend/app/node_modules" \
   \( -name '*.map' -o -name '*.tsbuildinfo' \) -type f -delete

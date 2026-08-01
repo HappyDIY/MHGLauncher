@@ -57,7 +57,7 @@ struct CoreFixture {
             "MHG_DATA_DIR": data.path,
             "MHG_BACKEND_APP_DIR": backend.path,
             "MHG_RUNTIME_MANIFEST_URL": manifestURL.path,
-            "MHG_RUNTIME_TAG": "v0.1.0"
+            "MHG_RUNTIME_TAG": "v0.1.1"
         ]
     }
 }
@@ -69,8 +69,8 @@ func runtimeManifest(
 ) -> RuntimeManifest {
     RuntimeManifest(
         schemaVersion: 2,
-        tag: "v0.1.0",
-        appVersion: "0.1.0",
+        tag: "v0.1.1",
+        appVersion: "0.1.1",
         platform: "darwin",
         hostArchitecture: "arm64",
         guestArchitecture: "x86_64",

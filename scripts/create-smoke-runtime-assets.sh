@@ -3,7 +3,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 out="${1:?缺少输出目录}"
-tag="${2:-v0.1.0}"
+tag="${2:-v0.1.1}"
 app_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$root/packaging/Info.plist")"
 [[ "$tag" == "v$app_version" ]] || { printf 'Smoke runtime tag 与 App 版本不一致。\n' >&2; exit 2; }
 stage="$(mktemp -d)"
