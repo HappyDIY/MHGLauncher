@@ -1,0 +1,2 @@
+# 第三方 vendored 源码不计入项目代码量统计
+frontend/Vendor
