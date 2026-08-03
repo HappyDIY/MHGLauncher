@@ -81,8 +81,6 @@ for path in "${changed_files[@]}"; do
       ;;
     backend/*) select_suite backend scripts/test-backend.sh "$path" ;;
     frontend/*) select_suite frontend scripts/test-frontend.sh "$path" ;;
-    cloud/*) select_suite cloud scripts/test-cloud.sh "$path" ;;
-    admin/*) select_suite admin scripts/test-admin.sh "$path" ;;
     contracts/local-api/*)
       select_suite api-boundary scripts/check-api-boundary.sh "$path"
       ;;
@@ -108,12 +106,6 @@ for path in "${changed_files[@]}"; do
     scripts/test-frontend.sh)
       select_suite frontend scripts/test-frontend.sh "$path"
       ;;
-    scripts/test-cloud.sh|docker-compose.yml)
-      select_suite cloud scripts/test-cloud.sh "$path"
-      ;;
-    scripts/test-admin.sh)
-      select_suite admin scripts/test-admin.sh "$path"
-      ;;
     scripts/check-source-lines.sh)
       select_suite source-lines scripts/check-source-lines.sh "$path"
       ;;
@@ -123,7 +115,7 @@ for path in "${changed_files[@]}"; do
     scripts/check-toolchain.sh)
       select_suite toolchain scripts/check-toolchain.sh "$path"
       ;;
-    AGENTS.md|CLAUDE.md|*.md|.gitignore) ;;
+    AGENTS.md|CLAUDE.md|*.md|.gitignore|.env.example) ;;
     scripts/test-ai.sh|scripts/test-all.sh|scripts/test-launcher.sh|scripts/test-services.sh|.github/*|.codex/*|scripts/*)
       select_suite full scripts/test-all.sh "$path"
       ;;

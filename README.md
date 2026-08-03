@@ -21,14 +21,14 @@
   [![开发预览][preview-shield]][project-url]
   [![质量门禁][quality-shield]][quality-url]
 
-  [开始使用](docs/guide/getting-started.md) ·
-  [用户手册](docs/guide/first-launch.md) ·
-  [开发指南](docs/development/architecture.md) ·
-  [部署运维](docs/operations/self-hosting.md)
+  [开始使用](https://github.com/HappyDIY/MHGLauncher-Docs/blob/main/guide/getting-started.md) ·
+  [用户手册](https://github.com/HappyDIY/MHGLauncher-Docs/blob/main/guide/first-launch.md) ·
+  [开发指南](https://github.com/HappyDIY/MHGLauncher-Docs/blob/main/development/architecture.md) ·
+  [部署运维](https://github.com/HappyDIY/MHGLauncher-Docs/blob/main/operations/self-hosting.md)
 </div>
 
 > [!WARNING]
-> MHGLauncher 是仍在开发中的非官方第三方项目，与米哈游、HoYoverse 及其关联方无隶属、授权或合作关系。通过兼容层运行游戏存在账号处罚、数据损坏或运行异常等风险，请在使用前阅读[隐私与风险](docs/guide/security.md)。
+> MHGLauncher 是仍在开发中的非官方第三方项目，与米哈游、HoYoverse 及其关联方无隶属、授权或合作关系。通过兼容层运行游戏存在账号处罚、数据损坏或运行异常等风险，请在使用前阅读[隐私与风险](https://github.com/HappyDIY/MHGLauncher-Docs/blob/main/guide/security.md)。
 
 ## 能做什么
 
@@ -54,23 +54,24 @@ cd MHGLauncher
 ./release-app.command
 ```
 
-发布构建必须使用 `packaging/CodeSigning.plist` 中指定的项目统一证书及其私钥。证书缺失或指纹不一致时构建会终止，不会自动改用临时签名。完整流程见[构建与运行](docs/guide/getting-started.md)。
+发布构建必须使用 `packaging/CodeSigning.plist` 中指定的项目统一证书及其私钥。证书缺失或指纹不一致时构建会终止，不会自动改用临时签名。完整流程见[构建与运行](https://github.com/HappyDIY/MHGLauncher-Docs/blob/main/guide/getting-started.md)。
 
 ## 官方文档
 
-文档源码位于 `docs/`，可直接在 GitHub 阅读：
+文档源码位于独立的 [MHGLauncher-Docs](https://github.com/HappyDIY/MHGLauncher-Docs) 项目，可直接在 GitHub 阅读：
 
 | 文档 | 内容 |
 | --- | --- |
-| [用户手册](docs/guide/getting-started.md) | 构建、首次启动、游戏管理、旅行数据、云同步与故障排查 |
-| [开发者指南](docs/development/architecture.md) | 四组件架构、本地开发、API 边界、测试和运行时打包 |
-| [自托管云服务](docs/operations/self-hosting.md) | PostgreSQL、cloud、admin、密钥、健康检查与备份 |
-| [常见问题](docs/reference/faq.md) | 平台范围、账号、兼容层和数据同步 |
+| [用户手册](https://github.com/HappyDIY/MHGLauncher-Docs/blob/main/guide/getting-started.md) | 构建、首次启动、游戏管理、旅行数据、云同步与故障排查 |
+| [开发者指南](https://github.com/HappyDIY/MHGLauncher-Docs/blob/main/development/architecture.md) | 启动器架构、本地开发、API 边界、测试和运行时打包 |
+| [自托管云服务](https://github.com/HappyDIY/MHGLauncher-Docs/blob/main/operations/self-hosting.md) | PostgreSQL、cloud、admin、密钥、健康检查与备份 |
+| [常见问题](https://github.com/HappyDIY/MHGLauncher-Docs/blob/main/reference/faq.md) | 平台范围、账号、兼容层和数据同步 |
 
-本地启动 VitePress：
+本地启动文档站：
 
 ```bash
-cd docs
+git clone https://github.com/HappyDIY/MHGLauncher-Docs.git ../MHGLauncher-Docs
+cd ../MHGLauncher-Docs
 npm ci
 npm run dev
 ```
@@ -83,11 +84,12 @@ npm run dev
 | --- | --- |
 | `frontend/` | Swift 6.2 / SwiftUI macOS App |
 | `backend/` | 本地 Next.js API、SQLite、游戏与玩家数据服务 |
-| `cloud/` | 可选的 Next.js / PostgreSQL 云同步服务 |
-| `admin/` | 云服务管理后台 |
+| `contracts/` | 本地 API 契约语料与边界检查输入 |
 | `scripts/` | 构建、测试、运行时和发布工具 |
+| [MHGLauncher-Cloud](https://github.com/HappyDIY/MHGLauncher-Cloud) | 可选的 Next.js / PostgreSQL 云同步服务与管理后台 |
+| [MHGLauncher-Docs](https://github.com/HappyDIY/MHGLauncher-Docs) | 用户手册、开发指南和部署运维文档 |
 
-架构、通信边界和 Provider 约定见[系统架构](docs/development/architecture.md)。
+架构、通信边界和 Provider 约定见[系统架构](https://github.com/HappyDIY/MHGLauncher-Docs/blob/main/development/architecture.md)。
 
 ## 支持范围
 
@@ -103,7 +105,7 @@ npm run dev
 
 发现问题或有新的想法，欢迎提交 [Issue][issues-url]。代码贡献请从 `main` 创建分支，使用简体中文 Conventional Commits，并在提交前确保 `scripts/test-ai.sh` 返回 `passed`。
 
-实现细节不明确时，优先参考 [Snap.Hutao.Remastered][hutao-url]，并在平台差异允许的情况下保持行为兼容。详细要求见[参与贡献](docs/development/contributing.md)。
+实现细节不明确时，优先参考 [Snap.Hutao.Remastered][hutao-url]，并在平台差异允许的情况下保持行为兼容。详细要求见[参与贡献](https://github.com/HappyDIY/MHGLauncher-Docs/blob/main/development/contributing.md)。
 
 ## 许可证与致谢
 

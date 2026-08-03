@@ -2,7 +2,7 @@
 
 ## What this is
 
-MHGLauncher is a macOS game launcher for Genshin Impact (国服/CN server) with cloud sync. It is a monorepo of four independently-built components plus supporting scripts. The UI and all user-facing strings are in Simplified Chinese; keep new user-facing text and error messages in Chinese to match.
+MHGLauncher is the macOS launcher project for Genshin Impact (国服/CN server). The launcher repository contains the Swift app, local backend, API contracts, and release tooling. The optional cloud service and documentation are maintained in the sibling projects `../MHGLauncher-Cloud` and `../MHGLauncher-Docs`. The UI and all user-facing strings are in Simplified Chinese; keep new user-facing text and error messages in Chinese to match.
 
 ## Reference Implementation
 - The Windows .NET/C# project
@@ -20,10 +20,12 @@ MHGLauncher is a macOS game launcher for Genshin Impact (国服/CN server) with 
 
 - **`frontend/`** — Native macOS app in Swift 6.2 / SwiftUI (SwiftPM package, `arm64` + macOS 26 only). Runs the backend as a child process and talks to it over a Unix domain socket. State lives in `@Observable` stores (`LauncherStore`, `ValueStore`); views are split across many small files under `Sources/Views`.
 - **`backend/`** — Local sidecar server: Next.js 16 (route handlers only, no UI) started via a custom `server.ts` that listens on a Unix socket, not a TCP port. Uses `better-sqlite3` for local storage. This is the heart of the app — all game install/patch/launch/wish/account logic lives in `src/services/` and `src/providers/`.
-- **`cloud/`** — Optional remote sync service: Next.js 16 API + PostgreSQL (`pg`). Stores wish/achievement history keyed by game UID. Deployed via `docker-compose.yml`.
-- **`admin/`** — Next.js 16 admin panel (port 3400) for operators: manages releases, users, audit log, security. Does not touch the DB directly for cloud data — it calls the cloud service's `/api/admin/v1` endpoints over an internal URL with a service token (see `admin/lib/cloud.ts`).
+- **`contracts/`** — Versioned local API contract corpus shared by the Swift app and backend.
+- **`scripts/`** — Toolchain, build, test, runtime, and release automation for the launcher.
+- **`../MHGLauncher-Cloud/`** — Separate optional remote sync service and admin panel project. It contains the Next.js 16 cloud API, PostgreSQL deployment, and operator console.
+- **`../MHGLauncher-Docs/`** — Separate VitePress documentation project.
 
-Data flow: `frontend (Swift)` ⇄ Unix socket ⇄ `backend (Next.js/SQLite)` ⇄ HTTPS ⇄ `cloud (Next.js/Postgres)`; `admin` ⇄ HTTP+service-token ⇄ `cloud`.
+Data flow: `frontend (Swift)` ⇄ Unix socket ⇄ `backend (Next.js/SQLite)` ⇄ HTTPS ⇄ `MHGLauncher-Cloud`; the cloud project's admin panel ⇄ HTTP+service-token ⇄ cloud API.
 
 ## Architecture and Security Rules
 
@@ -89,19 +91,14 @@ Data flow: `frontend (Swift)` ⇄ Unix socket ⇄ `backend (Next.js/SQLite)` ⇄
 Per-component (run from each dir; scripts assume the fetched Node toolchain is on PATH — the `scripts/*.sh` wrappers handle that for you):
 
 ```bash
-# backend / cloud / admin  (Node/TS)
-npm run dev          # backend: tsx server.ts (socket); admin: next dev -p 3400; cloud: next dev
+# backend (Node/TS)
+npm run dev          # backend: tsx server.ts (socket)
 npm run build
 npm run typecheck    # next typegen && tsc --noEmit
-npm run lint         # backend: eslint + knip; admin: eslint
+npm run lint         # backend: eslint + knip
 npm test             # vitest run
 npx vitest run tests/api.test.ts          # single backend test file
 npx vitest run -t "name of test"          # single test by name
-
-# admin only
-npm run test:e2e     # playwright
-npm run migrate      # tsx scripts/migrate.ts
-npm run owner:create # tsx scripts/create-owner.ts
 
 # frontend (Swift)
 cd frontend && swift build -c release --arch arm64
@@ -112,7 +109,7 @@ swift test --filter APIClientTests          # single test class
 Repo-level orchestration scripts (`scripts/`, each self-contained, fetch their own toolchain):
 
 ```bash
-scripts/test-all.sh          # full CI: source-line check + build config + all component tests + app build + smoke tests
+scripts/test-all.sh          # launcher quality gate: build, tests, app assembly, and smoke tests
 scripts/test-ai.sh           # silent diff-aware AI gate; emits one structured JSON result
 scripts/test-backend.sh      # npm ci + typecheck + lint + test + source-line check
 scripts/test-frontend.sh     # swift test + source-line check
@@ -126,20 +123,26 @@ scripts/check-api-boundary.sh  # validates Swift/TypeScript API contract consist
 Local release from a terminal:
 
 ```bash
-./release-app.command   # selectively test, build changed release components, and run the app
-docker compose up       # runs cloud + admin + postgres locally
+./release-app.command   # selectively test, build changed launcher components, and run the app
+
+# Cloud project (run from ../MHGLauncher-Cloud)
+scripts/test-services.sh    # cloud + admin tests with PostgreSQL
+docker compose up           # cloud + admin + PostgreSQL local environment
+
+# Docs project (run from ../MHGLauncher-Docs)
+npm run dev                 # VitePress development server
 ```
 
 ## Testing Expectations
 
-- Backend/cloud use **Vitest**; frontend uses **XCTest** (`swift test`); admin also has **Playwright** e2e.
+- Backend uses **Vitest**; frontend uses **XCTest** (`swift test`). The cloud project uses Vitest for both services and Playwright for admin e2e.
 - AI/LLM agents must run `scripts/test-ai.sh` after making changes and immediately
   before committing. Do not commit unless its JSON `status` is `passed`.
 - `scripts/test-ai.sh` must remain silent while tests run and emit exactly one
   structured JSON document when complete. Detailed suite output belongs only in
   the reported `build/ai-tests/...` log files.
 - New backend behavior should be exercisable in `fixture` mode so `test-features.sh` / `smoke-*.sh` can hit it without network. Fixtures live in `backend/fixtures/`.
-- `scripts/test-all.sh` is the authoritative pre-merge gate. Individual `test-*.sh` scripts let you run one component.
+- `scripts/test-all.sh` is the launcher repository's authoritative pre-merge gate. `../MHGLauncher-Cloud/scripts/test-services.sh` is the cloud project's service gate.
 - Every network provider needs deterministic fixture-backed tests.
 - Any change that crosses the Swift frontend and TypeScript backend boundary
   must run the relevant type checks on both sides, or clearly document why one

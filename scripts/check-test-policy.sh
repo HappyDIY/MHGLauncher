@@ -35,7 +35,7 @@ reject() {
 }
 
 reject '(^|[^[:alnum:]_])(describe|it|test)\.(skip|skipIf|runIf|only|todo)([^[:alnum:]_]|$)|(^|[^[:alnum:]_])(xdescribe|xit|xtest)([^[:alnum:]_]|$)' \
-  "$root/backend/tests" "$root/cloud/tests" "$root/admin"
+  "$root/backend/tests"
 reject 'XCTSkip|@Test\([^)]*\.disabled|@Suite\([^)]*\.disabled' "$root/frontend/Tests"
 
 if (( status != 0 )); then
