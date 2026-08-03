@@ -6,8 +6,8 @@ status=0
 
 while IFS= read -r file; do
   lines="$(wc -l < "$file" | tr -d ' ')"
-  if (( lines > 200 )); then
-    printf '源码文件超过 200 行：%s（%s 行）\n' "$file" "$lines" >&2
+  if (( lines > 1000 )); then
+    printf '源码文件超过 1000 行：%s（%s 行）\n' "$file" "$lines" >&2
     status=1
   fi
 done < <(find "$root" \

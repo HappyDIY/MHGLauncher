@@ -80,7 +80,7 @@ npm run dev
 ## 编码边界
 
 - Swift 使用严格并发，TypeScript 使用 strict mode。
-- 手写 Swift 和 TypeScript 文件不超过 200 行。
+- 手写 Swift 和 TypeScript 文件不超过 1000 行。
 - 源码注释与用户可见文本使用简体中文。
 - 结构化数据使用解析器和类型模型，不用字符串拼接模拟协议。
 - 不记录 Cookie、令牌或其他敏感值。

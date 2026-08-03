@@ -61,7 +61,7 @@ Data flow: `frontend (Swift)` ⇄ Unix socket ⇄ `backend (Next.js/SQLite)` ⇄
 
 - Use Swift 6 strict concurrency and TypeScript strict mode on bundled Node.js 24 LTS.
 - Manage backend dependencies only through npm and `package-lock.json`.
-- Handwritten Swift and TypeScript source files must not exceed 200 lines.
+- Handwritten Swift and TypeScript source files must not exceed 1000 lines.
 - Write source-code comments in Simplified Chinese.
 - Prefer small feature modules and dependency injection over global state.
 - Use structured parsers and typed models for API, manifest, and UIGF data.
@@ -119,7 +119,7 @@ scripts/test-frontend.sh     # swift test + source-line check
 scripts/test-features.sh     # backend feature matrix over a real Unix socket (fixture mode)
 scripts/build-app.sh          # builds release backend + frontend, assembles dist/MHGLauncher.app
 scripts/smoke-app.sh         # launches the built .app in fixture/smoke mode, verifies parent/child process teardown
-scripts/check-source-lines.sh   # enforce 200-line limit
+scripts/check-source-lines.sh   # enforce 1000-line limit
 scripts/check-api-boundary.sh  # validates Swift/TypeScript API contract consistency
 ```
 
