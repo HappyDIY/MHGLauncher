@@ -9,7 +9,7 @@ seconds="${1:-20}"          # 采样时长（秒）
 interval_ms="${2:-100}"     # 采样间隔（毫秒）
 limit="${3:-10}"            # 整机归一化峰值上限（%），超过则脚本退出码非零
 
-# 只匹配 Swift 前端可执行文件，排除 node 后端与本脚本自身。
+# 只匹配 Swift App 可执行文件，排除本脚本自身。
 pid="$(pgrep -x MHGLauncher | head -1 || true)"
 if [[ -z "$pid" ]]; then
   echo "未找到运行中的 MHGLauncher 前端进程。请先运行 ./release-app.command 启动应用。" >&2

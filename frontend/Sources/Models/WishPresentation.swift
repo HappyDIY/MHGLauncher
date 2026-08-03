@@ -97,7 +97,7 @@ extension WishBannerDetail {
     var isLimitedPool: Bool { gachaType == "301" || gachaType == "302" }
 
     // 每个限定五星所需的原石数量：依据平均 UP 出金抽数 × 单抽 160 原石推算。
-    // 旧版后端未提供平均 UP 出金时返回 0。
+    // 旧版数据未提供平均 UP 出金时返回 0。
     var primogemsPerLimitedFiveStar: Int {
         averageUpPity.map { Int(($0 * 160).rounded()) } ?? 0
     }

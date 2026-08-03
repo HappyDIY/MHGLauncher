@@ -122,7 +122,6 @@ struct NotificationAcknowledgement: Codable, Sendable {
 
 struct CloudLoginResult: Codable, Sendable {
     let uid: String
-    let token: String
     let tokenRef: String
     let reverifiedAt: Date
 }
@@ -134,14 +133,6 @@ struct CloudSession: Codable, Sendable {
     let updatedAt: Date
 }
 
-struct GachaURLRequest: Codable {
-    let gachaUrl: String
-}
-
-struct CloudUIDRequest: Codable {
-    let uid: String
-    let token: String
-}
 
 struct AchievementSaveRequest: Codable {
     let archiveId: String

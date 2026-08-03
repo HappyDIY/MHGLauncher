@@ -1,38 +1,29 @@
 import Foundation
 
 extension LauncherStore {
-    func commitPreparedLogin(_ prepared: PreparedLogin, client: APIClient) async throws {
+    func commitPreparedLogin(_ prepared: PreparedLogin, client: LauncherClient) async throws {
         guard prepared.expiresAt > .now else {
             await abortPreparedLogin(prepared.transactionId, client: client)
             throw LauncherError.loginExpired
         }
-        let accountKey = keychainAccount(for: prepared.identity.aid)
-        let previous = try keychain.read(account: accountKey)
         do {
-            try keychain.save(prepared.identity.credential, account: accountKey)
-            let response: LoginCompleteResponse = try await client.post(
-                "/v1/auth/commit", body: LoginCommitRequest(transactionId: prepared.transactionId)
-            )
+            let response = try await client.accounts.commitLogin(prepared.transactionId)
             await acceptLogin(response, client: client)
         } catch {
-            if let previous { try? keychain.save(previous, account: accountKey) }
-            else { try? keychain.delete(account: accountKey) }
             await abortPreparedLogin(prepared.transactionId, client: client)
             throw error
         }
     }
 
-    func abortPreparedLogin(_ transactionId: String, client: APIClient) async {
-        let _: EmptyResponse? = try? await client.post(
-            "/v1/auth/abort", body: LoginCommitRequest(transactionId: transactionId)
-        )
+    func abortPreparedLogin(_ transactionId: String, client: LauncherClient) async {
+        await client.accounts.abortLogin(transactionId)
     }
 
-    private func acceptLogin(_ response: LoginCompleteResponse, client: APIClient) async {
+    private func acceptLogin(_ response: LoginCompleteResponse, client: LauncherClient) async {
         _ = startCompanionSelection()
         _ = resetCompanionData()
         account = response.account; roles = response.roles
-        accounts = (try? await client.get("/v1/accounts")) ?? [response.account]
+        accounts = (try? await client.accounts.list()) ?? [response.account]
         loginFormPresented = false; clearLoginSecrets(); showStatus("账号登录成功")
         await loadCompanionData()
         await loadValueData()

@@ -89,7 +89,7 @@ struct WishOperationState: Identifiable, Sendable {
     var status: WishOperationStatus = .running
     var progress: Double?
     var logs: [WishOperationLog] = []
-    private var lastBackendSequence = 0
+    private var lastSequence = 0
 
     init(kind: WishOperationKind) {
         self.kind = kind
@@ -114,7 +114,7 @@ struct WishOperationState: Identifiable, Sendable {
     }
 
     mutating func apply(_ task: WishTaskSnapshot) {
-        for entry in task.logs where entry.sequence > lastBackendSequence {
+        for entry in task.logs where entry.sequence > lastSequence {
             logs.append(
                 WishOperationLog(
                     id: "\(task.id)-\(entry.sequence)",
@@ -123,7 +123,7 @@ struct WishOperationState: Identifiable, Sendable {
                 )
             )
         }
-        lastBackendSequence = max(lastBackendSequence, task.logs.last?.sequence ?? 0)
+        lastSequence = max(lastSequence, task.logs.last?.sequence ?? 0)
         progress = task.progress.map { min(max($0, 0), 1) }
         status = task.status == .failed ? .failed : .running
         trimLogs()

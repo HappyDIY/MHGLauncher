@@ -8,15 +8,7 @@ extension LauncherStore {
         await perform {
             let client = try requireClient()
             let path = installPath.trimmingCharacters(in: .whitespacesAndNewlines)
-            let state: GameState
-            if path.isEmpty {
-                state = try await client.get("/v1/game/status")
-            } else {
-                state = try await client.get(
-                    "/v1/game/status/path",
-                    query: [URLQueryItem(name: "install_path", value: path)]
-                )
-            }
+            let state = try await client.game.status(path.isEmpty ? nil : path)
             guard gameStateIntent == intent else { return }
             gameState = state
             if path.isEmpty || state.status != .notInstalled {
@@ -28,17 +20,14 @@ extension LauncherStore {
     func refreshSpeedLimit() async {
         await perform {
             let client = try requireClient()
-            let response: SpeedLimitResponse = try await client.get("/v1/settings/speed-limit")
-            speedLimitKB = response.speedLimitKb
+            speedLimitKB = try await client.game.speedLimit()
         }
     }
 
     func setSpeedLimit(_ kb: Int) async {
         await perform {
             let client = try requireClient()
-            let request = SpeedLimitRequest(speedLimitKb: kb)
-            let response: SpeedLimitResponse = try await client.post("/v1/settings/speed-limit", body: request)
-            speedLimitKB = response.speedLimitKb
+            speedLimitKB = try await client.game.setSpeedLimit(kb)
             userSettings.set(speedLimitKB, forKey: "downloadSpeedLimitKB")
         }
     }
@@ -69,7 +58,6 @@ extension LauncherStore {
             }
             try await ensureGameRuntime()
             let client = try requireClient()
-            let launchCredential = try requireLaunchCredential()
             let request = StartGameLaunchRequest(
                 installPath: installPath,
                 performanceProfile: gamePerformanceProfile,
@@ -77,10 +65,9 @@ extension LauncherStore {
                 networkDebug: networkDebugEnabled,
                 wineLog: wineLogEnabled,
                 framePacing: Self.preferredFrameRate(for: NSScreen.main?.maximumFramesPerSecond ?? 0),
-                launchArguments: gameLaunchArguments,
-                credential: launchCredential
+                launchArguments: gameLaunchArguments
             )
-            let launch: GameLaunch = try await client.post("/v1/game/launch", body: request)
+            let launch = try await client.game.launch(request)
             gameLaunchIntent += 1
             let intent = gameLaunchIntent
             launchPollingTask?.cancel()
@@ -95,7 +82,7 @@ extension LauncherStore {
         defer { isStoppingGame = false }
         await perform {
             let client = try requireClient()
-            let updated: GameLaunch = try await client.post("/v1/game/launches/\(launch.id)/stop")
+            let updated = try await client.game.stopLaunch(launch.id)
             guard gameLaunch?.id == launch.id else { return }
             applyGameLaunch(updated)
         }
@@ -106,17 +93,12 @@ extension LauncherStore {
         return maximum % 60 == 0 ? maximum : 0
     }
 
-    private func pollLaunch(_ id: String, intent: Int, client: APIClient) async {
+    private func pollLaunch(_ id: String, intent: Int, client: LauncherClient) async {
         do {
-            var revision = gameLaunch?.revision
-            while !Task.isCancelled {
-                let launch: GameLaunch = try await client.get(
-                    "/v1/game/launches/\(id)",
-                    query: LongPollQuery.items(after: revision)
-                )
+            let events = client.game.launchEvents(id, gameLaunch?.revision)
+            for try await launch in events {
                 guard gameLaunchIntent == intent, gameLaunch?.id == id else { return }
                 applyGameLaunch(launch)
-                revision = launch.revision
                 if [.stopped, .exited, .failed].contains(launch.status) { return }
             }
         } catch is CancellationError {

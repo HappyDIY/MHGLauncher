@@ -56,10 +56,10 @@ struct RuntimeManifest: Codable, Equatable, Sendable {
                 && Self.isSafeFileName($0.file) && Self.isSafeRelativePath($0.installRoot)
                 && ($0.parts ?? []).allSatisfy(Self.isValidPart)
         }
-        return schemaVersion == 2 && tag == expectedTag && tag == "v\(appVersion)"
+        return schemaVersion == 3 && tag == expectedTag && tag == "v\(appVersion)"
             && self.appVersion == appVersion && platform == "darwin" && hostArchitecture == "arm64"
             && guestArchitecture == "x86_64" && Set(ids).count == ids.count && Set(files).count == files.count
-            && core == ["node", "node_modules", "hpatchz"]
+            && core == ["hpatchz"]
             && (game.isEmpty || game == ["host", "wine", "msync", "dxmt", "mhypbase"])
             && pathsValid && componentsValid
     }
@@ -106,8 +106,6 @@ struct RuntimeProgress: Equatable, Sendable {
 struct InstalledRuntime: Equatable, Sendable {
     let tag: String
     let rootURL: URL
-    let backendAppURL: URL
-    let nodeURL: URL
     let hpatchzURL: URL
     let gameRuntimeURL: URL
 }

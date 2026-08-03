@@ -90,48 +90,10 @@ rm -rf "$out"
 mkdir -p "$out"
 : >"$component_file"
 
-"$root/scripts/build-backend.sh"
-node_root="$("$root/scripts/fetch-node.sh")"
-
-backend_stage="$stage/backend"
-mkdir -p "$backend_stage/backend/app"
-cp -R "$root/build/backend/dist/MHGLauncherBackend/app/." "$backend_stage/backend/app/"
-(
-  cd "$backend_stage/backend/app"
-  PATH="$node_root/bin:$PATH" npm_config_build_from_source=true npm ci --omit=dev
-  PATH="$node_root/bin:$PATH" npm sbom --omit=dev --package-lock-only \
-    --sbom-format cyclonedx >"$stage/backend-sbom.cdx.json"
-)
-find "$backend_stage/backend/app/node_modules" \
-  \( -name '*.map' -o -name '*.tsbuildinfo' \) -type f -delete
-find "$backend_stage/backend/app/node_modules" \
-  \( -type d -name test -o -type d -name tests -o -type d -name docs -o -type d -name examples \) \
-  -prune -exec rm -rf {} +
-
-node_stage="$stage/node"
-mkdir -p "$node_stage/node/bin"
-cp "$node_root/bin/node" "$node_stage/node/bin/node"
-cp "$node_root/LICENSE" "$node_stage/node/LICENSE"
-chmod +x "$node_stage/node/bin/node"
-archive_component node core 24.17.0 node "$node_stage"
-
-modules_stage="$stage/node_modules"
-mkdir -p "$modules_stage/backend/app"
-mv "$backend_stage/backend/app/node_modules" "$modules_stage/backend/app/node_modules"
-shasum -a 256 "$root/backend/package-lock.json" | awk '{print $1}' \
-  >"$modules_stage/backend/app/node_modules/.package-lock.sha256"
-mv "$stage/backend-sbom.cdx.json" "$modules_stage/backend/app/SBOM.cdx.json"
-jq -r '.packages | to_entries[] | select(.key | startswith("node_modules/")) | select(.value.dev != true) |
-  "\(.value.name // .key)\t\(.value.version // "unknown")\t\(.value.license // "UNKNOWN")"' \
-  "$root/backend/package-lock.json" >"$modules_stage/backend/app/THIRD_PARTY_NOTICES.txt"
-modules_version="$(shasum -a 256 "$root/backend/package-lock.json" | awk '{print substr($1, 1, 16)}')"
-archive_component node_modules core "$modules_version" \
-  backend/app/node_modules "$modules_stage"
-
 hpatch_stage="$stage/hpatchz"
-mkdir -p "$hpatch_stage/backend"
-"$root/scripts/fetch-hpatchz.sh" "$hpatch_stage/backend"
-archive_component hpatchz core 4.12.2 backend "$hpatch_stage"
+mkdir -p "$hpatch_stage/tools"
+"$root/scripts/fetch-hpatchz.sh" "$hpatch_stage/tools"
+archive_component hpatchz core 4.12.2 tools "$hpatch_stage"
 
 runtime_stage="$stage/runtime"
 "$root/scripts/fetch-game-runtime.sh" "$runtime_stage/full"
@@ -196,9 +158,9 @@ jq -s \
   --arg appVersion "$app_version" \
   --arg generatedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg assetBaseURL "$asset_base" \
-  '{schemaVersion:2,tag:$tag,appVersion:$appVersion,platform:"darwin",hostArchitecture:"arm64",
+  '{schemaVersion:3,tag:$tag,appVersion:$appVersion,platform:"darwin",hostArchitecture:"arm64",
     guestArchitecture:"x86_64",generatedAt:$generatedAt,assetBaseURL:$assetBaseURL,
-    requiredPaths:["node/bin/node","backend/app/node_modules","backend/hpatchz","game-runtime/bin/mhg-window-probe",
+    requiredPaths:["tools/hpatchz","game-runtime/bin/mhg-window-probe",
       "game-runtime/lib/libmhg_dns_gate.dylib","game-runtime/wine/bin/wine","game-runtime/wine/bin/wineboot",
       "game-runtime/wine/bin/wineserver","game-runtime/wine/lib/wine/x86_64-windows/winemetal.dll",
       "game-runtime/wine/lib/libfreetype.6.dylib",

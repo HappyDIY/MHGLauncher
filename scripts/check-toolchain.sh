@@ -1,15 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-root="$(cd "$(dirname "$0")/.." && pwd)"
-node_root="$("$root/scripts/fetch-node.sh")"
-node_version="$("$node_root/bin/node" --version)"
-
-if [[ "$node_version" != "v24.17.0" ]]; then
-  printf 'Node.js 版本不匹配：期望 v24.17.0，实际 %s\n' "$node_version" >&2
-  exit 1
-fi
-
 if [[ "$(uname -s)" == "Darwin" ]]; then
   export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
   [[ "$(uname -m)" == "arm64" ]] || {
@@ -31,4 +22,4 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
   fi
 fi
 
-printf '工具链检查通过：Node.js %s。\n' "$node_version"
+printf 'Swift 工具链检查通过。\n'

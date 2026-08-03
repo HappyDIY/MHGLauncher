@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 enum RuntimeInstallError: LocalizedError, Equatable {
     case invalidManifest
-    case missingBundledBackend
+    case missingRuntimeTool
     case downloadFailed(String)
     case checksumMismatch(String)
     case archiveTraversal(String)
@@ -13,7 +13,7 @@ enum RuntimeInstallError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .invalidManifest: "运行时清单无效"
-        case .missingBundledBackend: "应用内缺少后端资源"
+        case .missingRuntimeTool: "缺少运行时工具"
         case let .downloadFailed(file): "无法下载 \(file)"
         case let .checksumMismatch(file): "\(file) 校验失败"
         case let .archiveTraversal(path): "运行时压缩包包含不安全路径：\(path)"

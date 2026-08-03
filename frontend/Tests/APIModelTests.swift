@@ -23,7 +23,7 @@ struct APIModelTests {
         #expect(account.credentialRef == "keychain:current")
     }
 
-    @Test("解码后端生成的带小数秒时间")
+    @Test("解码 Core 生成的带小数秒时间")
     func decodeAccountWithFractionalSeconds() throws {
         let data = Data(
             """
@@ -87,7 +87,7 @@ struct APIModelTests {
         #expect(record.iconUrl == nil)
     }
 
-    @Test("解码后端祈愿任务快照")
+    @Test("解码 Core 祈愿任务快照")
     func decodeWishTask() throws {
         let data = Data(
             """

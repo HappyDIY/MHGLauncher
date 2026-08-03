@@ -7,14 +7,10 @@ extension LauncherStore {
         let generation = companionDataGeneration
         do {
             let client = try requireClient()
-            async let loadedCharacters: [GameCharacter] = client.get(
-                "/v1/characters", query: [URLQueryItem(name: "uid", value: uid)]
-            )
-            async let settings: NotificationSettings = client.get("/v1/notifications/settings")
-            async let goals: [AchievementGoal] = client.get("/v1/achievements/goals")
-            async let cloudSession: CloudSession? = client.get(
-                "/v1/cloud/session", query: [URLQueryItem(name: "uid", value: uid)]
-            )
+            async let loadedCharacters = client.companion.characters(uid)
+            async let settings = client.notifications.settings()
+            async let goals = client.achievements.goals()
+            async let cloudSession = client.cloud.session(uid)
             do {
                 try await loadAchievementData(client: client, uid: uid, generation: generation)
                 guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
@@ -65,8 +61,8 @@ extension LauncherStore {
     func loadGachaResources() async {
         do {
             let client = try requireClient()
-            async let syncStatus: ResourceSyncStatus = client.get("/v1/resources/status")
-            let status: GachaResourceStatus = try await client.get("/v1/gacha-resources/status")
+            async let syncStatus = client.resources.status()
+            let status = try await client.resources.gachaStatus()
             value.resourceSyncStatus = try await syncStatus
             value.gachaResourceStatus = status
             guard status.isReady else {
@@ -74,7 +70,7 @@ extension LauncherStore {
                 await refreshGachaHistoryPresentation()
                 return
             }
-            value.gachaEvents = try await requireClient().get("/v1/gacha-events")
+            value.gachaEvents = try await client.resources.gachaEvents()
             await refreshGachaHistoryPresentation()
         } catch {
             message = Self.presentableMessage(error)
@@ -99,22 +95,14 @@ extension LauncherStore {
         }
         await perform {
             let client = try requireClient()
-            value.resourceSyncStatus = try await client.post(
-                "/v1/resources/sync",
-                body: ResourceSyncRequest(force: true),
-                timeout: 3_600
-            )
+            value.resourceSyncStatus = try await client.resources.sync(true)
             if let error = value.resourceSyncStatus?.error { message = error }
-            value.gachaResourceStatus = try await client.get("/v1/gacha-resources/status")
-            value.gachaEvents = try await client.get("/v1/gacha-events")
+            value.gachaResourceStatus = try await client.resources.gachaStatus()
+            value.gachaEvents = try await client.resources.gachaEvents()
             if activeWishUID != nil { try await reloadWishes(client: client) }
             if let uid = selectedRole?.uid {
                 let generation = companionDataGeneration
-                let loaded: [GameCharacter] = try await client.post(
-                    "/v1/characters/cache-assets",
-                    body: GachaResourceInstallRequest(),
-                    timeout: 3_600
-                )
+                let loaded = try await client.companion.cacheCharacterAssets()
                 if isCurrentCompanionData(uid: uid, generation: generation) {
                     characters = loaded
                 }
@@ -132,11 +120,7 @@ extension LauncherStore {
 
     func loginCloud() async {
         await perform {
-            let result: CloudLoginResult = try await requireClient().post(
-                "/v1/cloud/login/account",
-                body: CredentialRequest(credential: try requireCredential())
-            )
-            try keychain.save(result.token, account: cloudKeychainAccount(uid: result.uid))
+            let result = try await requireClient().cloud.login()
             value.cloudSession = CloudSession(uid: result.uid, tokenRef: result.tokenRef, reverifiedAt: result.reverifiedAt, updatedAt: result.reverifiedAt)
             value.cloudMessage = "已登录 UID \(result.uid)"
         }
@@ -149,11 +133,8 @@ extension LauncherStore {
             return
         }
         await perform {
-            let response: CountResponse = try await requireClient().post(
-                "/v1/cloud/wishes/upload",
-                body: CloudUIDRequest(uid: uid, token: try cloudToken(uid: uid))
-            )
-            value.cloudMessage = "已上传 \(response.uploaded ?? 0) 条记录"
+            let count = try await requireClient().cloud.uploadWishes(uid)
+            value.cloudMessage = "已上传 \(count) 条记录"
         }
     }
 
@@ -164,22 +145,10 @@ extension LauncherStore {
             return
         }
         await perform {
-            let response: CountResponse = try await requireClient().post(
-                "/v1/cloud/wishes/retrieve",
-                body: CloudUIDRequest(uid: uid, token: try cloudToken(uid: uid))
-            )
+            let count = try await requireClient().cloud.retrieveWishes(uid)
             await loadCompanionData()
-            value.cloudMessage = "已取回 \(response.imported ?? 0) 条记录"
+            value.cloudMessage = "已取回 \(count) 条记录"
         }
-    }
-
-    func cloudKeychainAccount(uid: String) -> String { "cloud:\(uid)" }
-
-    func cloudToken(uid: String) throws -> String {
-        guard let token = try keychain.read(account: cloudKeychainAccount(uid: uid)) else {
-            throw LauncherError.credentialMissing
-        }
-        return token
     }
 
 }

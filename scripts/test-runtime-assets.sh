@@ -35,7 +35,6 @@ grep -q -- 'libfreetype.6.dylib' "$root/scripts/build-wine-runtime.sh"
 grep -q -- 'game-runtime/wine/lib/libfreetype.6.dylib' "$root/scripts/build-runtime-assets.sh"
 grep -q -- 'game-runtime/wine/lib/wine/x86_64-windows/wineconsole.exe' "$root/scripts/build-runtime-assets.sh"
 grep -q -- 'game-runtime/wine/lib/wine/x86_64-windows/winecfg.exe' "$root/scripts/build-runtime-assets.sh"
-grep -q -- '--package-lock-only' "$root/scripts/build-runtime-assets.sh"
 if grep -q -- '--without-freetype' "$root/scripts/build-wine-runtime.sh"; then
   printf 'Wine 构建禁用了首选项窗口所需的字体引擎。\n' >&2
   exit 1
@@ -71,7 +70,7 @@ if "$root/scripts/build-runtime-assets.sh" v0.2.0 >/dev/null 2>&1; then
 fi
 
 manifest="$("$root/scripts/create-smoke-runtime-assets.sh" "$stage/assets" v0.1.1)"
-jq -e '.schemaVersion == 2 and .tag == "v0.1.1" and .appVersion == "0.1.1" and .platform == "darwin" and .hostArchitecture == "arm64"' "$manifest" >/dev/null
+jq -e '.schemaVersion == 3 and .tag == "v0.1.1" and .appVersion == "0.1.1" and .platform == "darwin" and .hostArchitecture == "arm64"' "$manifest" >/dev/null
 "$root/scripts/verify-runtime-assets.sh" "$stage/assets" core >/dev/null
 
 jq -c '.components[]' "$manifest" | while IFS= read -r component; do
@@ -104,8 +103,7 @@ fi
 
 app="$root/dist/MHGLauncher.app"
 if [[ -d "$app" ]]; then
-  test ! -e "$app/Contents/Resources/Backend/node"
-  test ! -e "$app/Contents/Resources/Backend/MHGLauncherBackend/node"
+  test ! -e "$app/Contents/Resources/Backend"
   test ! -e "$app/Contents/Resources/GameRuntime"
 fi
 

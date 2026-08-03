@@ -15,9 +15,7 @@ extension LauncherStore {
             }
             let client = try requireClient()
             let path = installPath.trimmingCharacters(in: .whitespacesAndNewlines)
-            let checkPath = path.isEmpty ? "/v1/game/status" : "/v1/game/status/path"
-            let query = path.isEmpty ? [] : [URLQueryItem(name: "install_path", value: path)]
-            let state: GameState = try await client.get(checkPath, query: query)
+            let state = try await client.game.status(path.isEmpty ? nil : path)
             guard gameJobIntent == intent else { return }
             guard state.status != .notInstalled || kind == .install else {
                 message = "所选目录中未检测到游戏客户端"
@@ -27,13 +25,7 @@ extension LauncherStore {
                 message = "请先完成常规更新或资源修复后再预下载"
                 return
             }
-            let spaceCheck: SpaceCheckResult = try await client.get(
-                "/v1/game/space-check",
-                query: [
-                    URLQueryItem(name: "install_path", value: state.installPath),
-                    URLQueryItem(name: "kind", value: kind.rawValue)
-                ]
-            )
+            let spaceCheck = try await client.game.spaceCheck(state.installPath, kind)
             guard gameJobIntent == intent else { return }
             guard spaceCheck.sufficient else {
                 let available = ByteCountFormatter.string(
@@ -45,8 +37,7 @@ extension LauncherStore {
                 message = "磁盘空间不足：需要 \(required)，可用 \(available)"
                 return
             }
-            let request = StartJobRequest(kind: kind, installPath: state.installPath)
-            let job: GameJob = try await client.post("/v1/game/jobs", body: request)
+            let job = try await client.game.startJob(kind, state.installPath)
             guard gameJobIntent == intent else { return }
             gameJob = job
             pendingGameJobKind = nil
@@ -58,17 +49,13 @@ extension LauncherStore {
         await perform {
             guard let job = gameJob else { return }
             let client = try requireClient()
-            let request = ControlJobRequest(action: action)
-            let updated: GameJob = try await client.post(
-                "/v1/game/jobs/\(job.id)/control", body: request
-            )
+            let updated = try await client.game.controlJob(job.id, action)
             guard gameJob?.id == job.id else { return }
             applyGameJob(updated)
         }
     }
 
-    private func pollJob(_ id: String, intent: Int, client: APIClient) async throws {
-        var revision = gameJob?.revision
+    private func pollJob(_ id: String, intent: Int, client: LauncherClient) async throws {
         let scheduler = DisplayLinkFrameScheduler()
         let presenter = LatestDisplayFrameCoalescer<GameJob>(
             scheduler: scheduler
@@ -76,13 +63,10 @@ extension LauncherStore {
             self?.applyGameJob(job)
         }
         defer { presenter.cancel() }
-        while !Task.isCancelled {
-            let job: GameJob = try await client.get(
-                "/v1/game/jobs/\(id)", query: LongPollQuery.items(after: revision)
-            )
+        let events = client.game.jobEvents(id, gameJob?.revision)
+        for try await job in events {
             guard gameJobIntent == intent, gameJob?.id == id else { return }
             presenter.submit(job)
-            revision = job.revision
             if [.completed, .cancelled, .failed].contains(job.status) {
                 presenter.flush()
                 await refreshGame()

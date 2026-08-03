@@ -17,7 +17,7 @@ fail() { printf '%s\n' "$1" >&2; exit 1; }
 
 test -f "$manifest" || fail "缺少 runtime-manifest.json。"
 jq -e --arg version "$app_version" '
-  .schemaVersion == 2 and .tag == ("v" + $version) and .appVersion == $version and
+  .schemaVersion == 3 and .tag == ("v" + $version) and .appVersion == $version and
   .platform == "darwin" and .hostArchitecture == "arm64" and .guestArchitecture == "x86_64" and
   (.requiredPaths | type == "array" and length > 0 and all(type == "string" and length > 0)) and
   (.components | type == "array" and length > 0) and
@@ -26,19 +26,15 @@ jq -e --arg version "$app_version" '
     ((.version | type) == "string" and (.version | length) > 0) and (.file | test("^[A-Za-z0-9._+-]+$")) and
     (.installRoot | test("^[A-Za-z0-9._()/-]+$") and (contains("..") | not)) and
     ((.size | type) == "number" and .size > 0) and (.sha256 | test("^[0-9a-f]{64}$")))' "$manifest" >/dev/null \
-  || fail "运行时 manifest v2 契约无效。"
+  || fail "运行时 manifest v3 契约无效。"
 
-expected_core='{"node":"node","node_modules":"backend/app/node_modules","hpatchz":"backend"}'
-expected_all='{"node":"node","node_modules":"backend/app/node_modules","hpatchz":"backend","host":"game-runtime","wine":"game-runtime/wine","msync":"game-runtime/wine","dxmt":"game-runtime/wine/lib/wine","mhypbase":"game-runtime/assets"}'
+expected_core='{"hpatchz":"tools"}'
+expected_all='{"hpatchz":"tools","host":"game-runtime","wine":"game-runtime/wine","msync":"game-runtime/wine","dxmt":"game-runtime/wine/lib/wine","mhypbase":"game-runtime/assets"}'
 expected="$expected_all"; [[ "$scope" == "core" ]] && expected="$expected_core"
 jq -e --argjson expected "$expected" '(.components | map({key:.id,value:.installRoot}) | from_entries) as $actual |
   all($expected | to_entries[]; $actual[.key] == .value) and
-  (if ($expected | length) == 3 then ([.components[] | select(.kind == "core") | .id] | sort) == (["hpatchz","node","node_modules"] | sort) else ($actual | length) == ($expected | length) end)' \
+  (if ($expected | length) == 1 then ([.components[] | select(.kind == "core") | .id] == ["hpatchz"]) else ($actual | length) == ($expected | length) end)' \
   "$manifest" >/dev/null || fail "运行时组件集合或安装根目录无效。"
-modules_version="$(shasum -a 256 "$root/backend/package-lock.json" | awk '{print substr($1, 1, 16)}')"
-jq -e --arg version "$modules_version" \
-  '.components[] | select(.id == "node_modules") | .version == $version' \
-  "$manifest" >/dev/null || fail "后端依赖资产不是由当前 package-lock.json 生成。"
 
 : >"$stage/referenced"
 while IFS= read -r component; do
@@ -64,22 +60,7 @@ while IFS= read -r component; do
   fi
 done < <(jq -c '.components[]' "$manifest")
 
-cp "$root/backend/package.json" "$runtime/backend/app/package.json"
-lock_digest="$(shasum -a 256 "$root/backend/package-lock.json" | awk '{print $1}')"
-installed_lock_digest="$(cat "$runtime/backend/app/node_modules/.package-lock.sha256" 2>/dev/null || true)"
-test "$installed_lock_digest" = "$lock_digest" || fail "后端依赖资产缺少当前锁文件指纹。"
-node_version="$("$runtime/node/bin/node" --version | sed 's/^v//')"
-manifest_node_version="$(jq -r '.components[] | select(.id == "node") | .version' "$manifest")"
-test "$node_version" = "$manifest_node_version" || fail "Node 资产版本与 manifest 不一致。"
-(
-  cd "$runtime/backend/app"
-  "$runtime/node/bin/node" -e '
-    const package = require("./package.json");
-    for (const name of Object.keys(package.dependencies || {})) require.resolve(name);
-    const Database = require("better-sqlite3");
-    new Database(":memory:").close();
-  '
-) >/dev/null 2>&1 || fail "后端依赖缺失或原生模块与 Node ABI 不兼容。"
+test -x "$runtime/tools/hpatchz" || fail "hpatchz 未按 schema v3 安装到 tools/hpatchz。"
 
 while IFS= read -r path; do
   name="$(basename "$path")"

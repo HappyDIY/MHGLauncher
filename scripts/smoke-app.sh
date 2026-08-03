@@ -6,24 +6,18 @@ app="$root/dist/MHGLauncher.app"
 executable="$app/Contents/MacOS/MHGLauncher"
 log="$(mktemp)"
 data="$(mktemp -d)"
-assets="$(mktemp -d)"
 
 cleanup() {
-  [[ -n "${backend_pid:-}" ]] && kill "$backend_pid" 2>/dev/null || true
   [[ -n "${app_pid:-}" ]] && kill "$app_pid" 2>/dev/null || true
   [[ -n "${launcher_pid:-}" ]] && kill "$launcher_pid" 2>/dev/null || true
   rm -f "$log"
-  rm -rf "$data" "$assets"
+  rm -rf "$data"
 }
 trap cleanup EXIT
-
-manifest="$("$root/scripts/create-smoke-runtime-assets.sh" "$assets" v0.1.1)"
 
 MHG_DATA_DIR="$data" \
 MHG_INSTANCE_LOCK_PATH="$data/app.lock" \
 MHG_PROVIDER_MODE=fixture \
-MHG_FIXTURE_DIR="$root/backend/fixtures" \
-MHG_RUNTIME_MANIFEST_URL="$manifest" \
 MHG_SMOKE_MODE=1 \
 "$executable" >"$log" 2>&1 &
 launcher_pid=$!
@@ -31,18 +25,13 @@ launcher_pid=$!
 for _ in {1..100}; do
   app_pid="$(pgrep -f "^$executable$" | tail -n 1 || true)"
   if [[ -n "$app_pid" ]] && kill -0 "$app_pid" 2>/dev/null; then
-    backend_pid="$(pgrep -P "$app_pid" -f '/node .*build/server.js' | head -n 1 || true)"
-    if [[ -n "$backend_pid" ]]; then
-      sleep 0.5
-      kill -0 "$backend_pid" 2>/dev/null && break
-      backend_pid=""
-    fi
+    break
   fi
   sleep 0.1
 done
-if [[ -z "$app_pid" || -z "$backend_pid" ]]; then
+if [[ -z "$app_pid" ]]; then
   cat "$log" >&2
-  printf '未观察到 App 与后端的父子进程关系\n' >&2
+  printf '未观察到 App 进程\n' >&2
   exit 1
 fi
 
@@ -57,7 +46,7 @@ for _ in {1..600}; do
     printf 'App bootstrap 报告失败\n' >&2
     exit 1
   fi
-  if ! kill -0 "$app_pid" 2>/dev/null || ! kill -0 "$backend_pid" 2>/dev/null; then
+  if ! kill -0 "$app_pid" 2>/dev/null; then
     cat "$log" >&2
     printf 'App bootstrap 完成前进程已退出\n' >&2
     exit 1
@@ -70,16 +59,32 @@ if [[ -z "$bootstrap_ready" ]]; then
   exit 1
 fi
 
+children="$(pgrep -P "$app_pid" || true)"
+if [[ -n "$children" ]]; then
+  ps -p "$children" -o pid,ppid,command >&2 || true
+  printf 'Fixture 启动不应产生后台子进程\n' >&2
+  exit 1
+fi
+if find "$data" -type s -print -quit | grep -q .; then
+  printf '纯 Swift App 不应创建 Unix Socket\n' >&2
+  exit 1
+fi
+
 kill "$app_pid"
 
 for _ in {1..50}; do
-  if ! kill -0 "$app_pid" 2>/dev/null && ! kill -0 "$backend_pid" 2>/dev/null; then
+  if ! kill -0 "$app_pid" 2>/dev/null; then
     app_pid=""
-    backend_pid=""
-    exit 0
+    break
   fi
   sleep 0.1
 done
 
-printf 'App 或后端进程未正常退出：%s %s\n' "$app_pid" "$backend_pid" >&2
-exit 1
+if [[ -n "$app_pid" ]]; then
+  printf 'App 进程未正常退出：%s\n' "$app_pid" >&2
+  exit 1
+fi
+if find "$data/launches" -name dll-journal.json -print -quit 2>/dev/null | grep -q .; then
+  printf '退出后仍存在未恢复的启动文件记录\n' >&2
+  exit 1
+fi

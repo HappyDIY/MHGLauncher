@@ -12,8 +12,8 @@ struct WishOperationModelTests {
         #expect(operation.logs.count == 2)
     }
 
-    @Test("后端任务日志只应用一次")
-    func appliesBackendLogsOnce() {
+    @Test("Core 任务日志只应用一次")
+    func appliesCoreLogsOnce() {
         var operation = WishOperationState(kind: .sync)
         let task = WishTaskSnapshot(
             id: "task-1",

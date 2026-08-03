@@ -143,6 +143,15 @@ struct MotionSystemTests {
         ).nsImage
     }
 
+    private func gameLaunch(_ status: GameLaunchStatus) -> GameLaunch {
+        GameLaunch(
+            id: "launch-1", status: status, message: "", performanceProfile: .optimized,
+            metalHud: false, networkDebug: false, wineLog: false,
+            progress: status == .stopped ? 1 : 0.5, logs: [],
+            startedAt: "2026-07-06T00:00:00Z", updatedAt: "2026-07-06T00:00:01Z", revision: 1
+        )
+    }
+
     @MainActor
     private func renderTransition(_ values: MotionTransitionValues) -> NSImage? {
         ImageRenderer(

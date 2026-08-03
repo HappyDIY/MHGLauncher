@@ -13,7 +13,7 @@ extension LauncherStore {
                 command: command,
                 performanceProfile: gamePerformanceProfile
             )
-            let _: EmptyResponse = try await client.post("/v1/game/wine-tools", body: request)
+            try await client.game.runWineTool(request)
             showStatus(action.successMessage)
         }
     }

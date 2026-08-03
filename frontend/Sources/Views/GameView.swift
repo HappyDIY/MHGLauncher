@@ -83,7 +83,7 @@ struct GameView: View {
                 try? await Task.sleep(for: .milliseconds(400))
                 guard !Task.isCancelled,
                       !store.isBootstrapping,
-                      store.backend.client != nil else { return }
+                      store.coreHost.client != nil else { return }
                 await store.refreshGame()
             }
         }

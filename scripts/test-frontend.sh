@@ -7,7 +7,5 @@ export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Develope
 cd "$root/frontend"
 swift test --enable-code-coverage
 coverage="$(swift test --show-codecov-path)"
-"$root/scripts/check-coverage.mjs" frontend \
-  "$coverage" \
-  "$root/quality/coverage-baseline.json"
+swift "$root/scripts/check-coverage.swift" "$coverage" "$root/quality/coverage-baseline.json"
 "$root/scripts/check-source-lines.sh"

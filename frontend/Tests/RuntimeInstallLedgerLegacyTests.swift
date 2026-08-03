@@ -8,9 +8,7 @@ struct RuntimeInstallLedgerLegacyTests {
     func recognizesLegacyMarkers() throws {
         let core = try tempDir()
         try create(".core-complete", under: core)
-        try create("node/bin/node", under: core)
-        try create("backend/app/node_modules/fixture", under: core)
-        try create("backend/hpatchz", under: core)
+        try create("tools/hpatchz", under: core)
         #expect(RuntimeInstallLedger.isReady(
             root: core, tag: "vtest", appVersion: "1.0.0", scope: .core
         ))

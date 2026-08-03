@@ -31,33 +31,20 @@ rm -rf "$out"
 mkdir -p "$out"
 : >"$component_file"
 
-node_root="$("$root/scripts/fetch-node.sh")"
-node_stage="$stage/node"
-mkdir -p "$node_stage/node/bin"
-cp "$node_root/bin/node" "$node_stage/node/bin/node"
-chmod +x "$node_stage/node/bin/node"
-archive_component node 24.17.0 node "$node_stage"
-
-modules_stage="$stage/modules"
-mkdir -p "$modules_stage/backend/app"
-ln -s "$("$root/scripts/prepare-smoke-node-modules.sh")" "$modules_stage/backend/app/node_modules"
-modules_version="$(shasum -a 256 "$root/backend/package-lock.json" | awk '{print substr($1, 1, 16)}')"
-archive_component node_modules "$modules_version" backend/app/node_modules "$modules_stage"
-
 hpatch_stage="$stage/hpatchz"
-mkdir -p "$hpatch_stage/backend"
-printf '#!/bin/sh\nexit 0\n' >"$hpatch_stage/backend/hpatchz"
-chmod +x "$hpatch_stage/backend/hpatchz"
-archive_component hpatchz smoke backend "$hpatch_stage"
+mkdir -p "$hpatch_stage/tools"
+printf '#!/bin/sh\nexit 0\n' >"$hpatch_stage/tools/hpatchz"
+chmod +x "$hpatch_stage/tools/hpatchz"
+archive_component hpatchz smoke tools "$hpatch_stage"
 
 jq -s \
   --arg tag "$tag" \
   --arg appVersion "$app_version" \
   --arg generatedAt "1970-01-01T00:00:00Z" \
   --arg assetBaseURL "file://$out" \
-  '{schemaVersion:2,tag:$tag,appVersion:$appVersion,platform:"darwin",hostArchitecture:"arm64",
+  '{schemaVersion:3,tag:$tag,appVersion:$appVersion,platform:"darwin",hostArchitecture:"arm64",
     guestArchitecture:"x86_64",generatedAt:$generatedAt,assetBaseURL:$assetBaseURL,
-    requiredPaths:["node/bin/node","backend/app/node_modules","backend/hpatchz"],components:.}' \
+    requiredPaths:["tools/hpatchz"],components:.}' \
   "$component_file" >"$out/runtime-manifest.json"
 
 printf '%s\n' "$out/runtime-manifest.json"

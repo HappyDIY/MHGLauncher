@@ -4,9 +4,9 @@ extension LauncherStore {
     func refreshAccount() async {
         await perform {
             let client = try requireClient()
-            accounts = try await client.get("/v1/accounts")
-            account = try await client.get("/v1/account")
-            roles = try await client.get("/v1/roles")
+            accounts = try await client.accounts.list()
+            account = try await client.accounts.selected()
+            roles = try await client.accounts.roles()
         }
     }
 
@@ -15,7 +15,7 @@ extension LauncherStore {
             let client = try requireClient()
             showAccountLogin()
             let attempt = startQRLoginAttempt()
-            let session: QRSession = try await client.post("/v1/auth/qr-sessions")
+            let session = try await client.accounts.createQRSession()
             guard applyQRSession(session, attempt: attempt) else { return }
             try await pollQR(session.id, attempt: attempt, client: client)
         }
@@ -29,17 +29,14 @@ extension LauncherStore {
             let client = try requireClient()
             mobileCaptchaSession = nil
             mobileCaptchaVerification = nil
-            let session: MobileCaptchaSession = try await client.post(
-                "/v1/auth/mobile-captcha",
-                body: MobileCaptchaRequest(mobile: loginMobile)
-            )
+            let session = try await client.accounts.sendMobileCaptcha(loginMobile)
             guard isCurrentLoginGeneration(generation) else { return }
             mobileCaptchaSession = session
             mobileCaptchaVerification = mobileCaptchaSession?.verification.map {
                 MobileCaptchaVerificationContext(mobile: loginMobile, verification: $0)
             }
             message = "验证码已发送"
-        } catch let error as APIErrorPayload {
+        } catch let error as LauncherCoreError {
             if error.code == "verification_required", let value = mobileVerification(from: error) {
                 mobileCaptchaVerification = value
             } else {
@@ -57,9 +54,8 @@ extension LauncherStore {
         defer { isBusy = false }
         do {
             let client = try requireClient()
-            let session: MobileCaptchaSession = try await client.post(
-                "/v1/auth/mobile-captcha/verification",
-                body: MobileCaptchaVerificationRequest(
+            let session = try await client.accounts.verifyMobileCaptcha(
+                MobileCaptchaVerificationRequest(
                     mobile: verification.mobile,
                     sessionId: verification.verification.sessionId,
                     challenge: challenge,
@@ -70,7 +66,7 @@ extension LauncherStore {
             mobileCaptchaSession = session
             mobileCaptchaVerification = nil
             message = "验证码已发送"
-        } catch let error as APIErrorPayload {
+        } catch let error as LauncherCoreError {
             message = Self.presentableMessage(error)
         } catch {
             message = Self.presentableMessage(error)
@@ -88,10 +84,7 @@ extension LauncherStore {
                 actionType: session.actionType,
                 aigis: session.aigis
             )
-            let prepared: PreparedLogin = try await client.post(
-                "/v1/auth/mobile-login",
-                body: request
-            )
+            let prepared = try await client.accounts.prepareMobileLogin(request)
             guard isCurrentLoginGeneration(generation) else { await abortPreparedLogin(prepared.transactionId, client: client); return }
             try await commitPreparedLogin(prepared, client: client)
         }
@@ -101,13 +94,7 @@ extension LauncherStore {
         let generation = startLoginGeneration()
         await perform {
             let client = try requireClient()
-            let request = CookieLoginRequest(
-                credential: loginCookie
-            )
-            let prepared: PreparedLogin = try await client.post(
-                "/v1/auth/cookie-login",
-                body: request
-            )
+            let prepared = try await client.accounts.prepareCookieLogin(loginCookie)
             guard isCurrentLoginGeneration(generation) else { await abortPreparedLogin(prepared.transactionId, client: client); return }
             try await commitPreparedLogin(prepared, client: client)
         }
@@ -119,14 +106,10 @@ extension LauncherStore {
         _ = resetCompanionData()
         await perform {
             let client = try requireClient()
-            let oldAid = account?.aid
-            let key = oldAid.map { keychainAccount(for: $0) }, previous = try key.flatMap { try keychain.read(account: $0) }
-            if let key { try keychain.delete(account: key) }
-            do { try await client.delete("/v1/account") }
-            catch { if let key, let previous { try? keychain.save(previous, account: key) }; throw error }
-            accounts = try await client.get("/v1/accounts")
-            account = try await client.get("/v1/account")
-            roles = try await client.get("/v1/roles")
+            try await client.accounts.logout()
+            accounts = try await client.accounts.list()
+            account = try await client.accounts.selected()
+            roles = try await client.accounts.roles()
             qrSession = nil
             loginFormPresented = false
             mobileCaptchaVerification = nil
@@ -138,15 +121,12 @@ extension LauncherStore {
         let intent = startCompanionSelection()
         await perform {
             let client = try requireClient()
-            let response: AccountSelectionResponse = try await client.post(
-                "/v1/account/select",
-                body: ["aid": value.aid]
-            )
+            let response = try await client.accounts.selectAccount(value.aid)
             guard isCurrentCompanionSelection(intent) else { return }
             _ = resetCompanionData()
             account = response.account
             roles = response.roles
-            accounts = try await client.get("/v1/accounts")
+            accounts = try await client.accounts.list()
             guard isCurrentCompanionSelection(intent) else { return }
             await loadCompanionData()
             await loadValueData()
@@ -157,10 +137,7 @@ extension LauncherStore {
         let intent = startCompanionSelection()
         await perform {
             let client = try requireClient()
-            let selected: GameRole = try await client.post(
-                "/v1/roles/select",
-                body: ["uid": value.uid]
-            )
+            let selected = try await client.accounts.selectRole(value.uid)
             guard isCurrentCompanionSelection(intent) else { return }
             _ = resetCompanionData()
             roles = roles.map { role in
@@ -177,9 +154,9 @@ extension LauncherStore {
         }
     }
 
-    private func pollQR(_ id: String, attempt: Int, client: APIClient) async throws {
+    private func pollQR(_ id: String, attempt: Int, client: LauncherClient) async throws {
         while !Task.isCancelled {
-            let result: QRResult = try await client.get("/v1/auth/qr-sessions/\(id)")
+            let result = try await client.accounts.queryQRSession(id)
             guard applyQRSession(result.session, attempt: attempt) else {
                 if let prepared = result.preparedLogin { await abortPreparedLogin(prepared.transactionId, client: client) }
                 return

@@ -41,7 +41,7 @@ struct AccountLoginView: View {
                 }
                 .buttonStyle(.glassProminent)
                 .motionHover(.prominent)
-                .disabled(store.isBusy || !store.backend.isReady)
+                .disabled(store.isBusy || store.coreHost.state != .ready)
             }
         }
         .motionAnimation(.emphasis, value: store.qrSession?.url)
@@ -114,7 +114,7 @@ struct AccountLoginView: View {
         case "confirmed": "登录成功"
         case "expired": "二维码已过期"
         default:
-            if let error = store.backend.errorMessage { error }
+            if case .failed(_, let error) = store.coreHost.state { error }
             else { "凭据将安全保存在 macOS 钥匙串" }
         }
     }

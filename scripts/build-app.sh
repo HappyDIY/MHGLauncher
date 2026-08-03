@@ -4,7 +4,6 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 app="$root/dist/MHGLauncher.app"
 contents="$app/Contents"
-backend_dir="${MHG_BACKEND_DIR:-}"
 configured_plist="$(mktemp)"
 trap 'rm -f "$configured_plist"' EXIT
 
@@ -16,16 +15,10 @@ fi
 cp "$root/packaging/Info.plist" "$configured_plist"
 swift "$root/scripts/configure-cloud-server.swift" "$root/.env" "$configured_plist"
 
-if [[ -z "$backend_dir" ]]; then
-  "$root/scripts/build-backend.sh"
-  backend_dir="$root/build/backend/dist/MHGLauncherBackend"
-fi
-test -d "$backend_dir/app"
-test "$(cat "$backend_dir/app/.build-mode")" = "release"
 "$root/scripts/build-frontend.sh"
 
 rm -rf "$app"
-mkdir -p "$contents/MacOS" "$contents/Resources/Backend"
+mkdir -p "$contents/MacOS" "$contents/Resources"
 
 cp "$configured_plist" "$contents/Info.plist"
 cp "$root/frontend/.build/arm64-apple-macosx/release/MHGLauncher" \
@@ -33,7 +26,6 @@ cp "$root/frontend/.build/arm64-apple-macosx/release/MHGLauncher" \
 resource_bundle="$root/frontend/.build/arm64-apple-macosx/release/MHGLauncher_MHGLauncher.bundle"
 test -d "$resource_bundle"
 cp -R "$resource_bundle" "$contents/Resources/"
-cp -R "$backend_dir/app" "$contents/Resources/Backend/app"
 
 compile_composer_icon() {
   local icon="$1"
@@ -78,6 +70,9 @@ chmod +x "$contents/MacOS/MHGLauncher"
 
 plutil -lint "$contents/Info.plist"
 file "$contents/MacOS/MHGLauncher" | grep -q 'arm64'
-test ! -e "$contents/Resources/Backend/node"
-test ! -e "$contents/Resources/GameRuntime"
+test ! -e "$contents/Resources/Backend"
+if find "$app" -type f \( -name '*.js' -o -name '*.ts' \) | grep -q .; then
+  printf 'App 包中不应包含 JavaScript 或 TypeScript 文件。\n' >&2
+  exit 1
+fi
 "$root/scripts/sign-app.sh" "$app"

@@ -56,7 +56,7 @@ struct CachedAsyncImage<Placeholder: View>: View {
     let maxPixelDimension: Int?
     @ViewBuilder let placeholder: () -> Placeholder
 
-    @Environment(\.apiClient) private var client
+    @Environment(\.launcherClient) private var client
     @State private var image: NSImage?
     @State private var loading = false
 
@@ -113,11 +113,8 @@ struct CachedAsyncImage<Placeholder: View>: View {
             let result = await ImageMemoryCache.shared.load(forKey: key) { [client, pixelDimension] () -> NSImage? in
                 do {
                     let data: Data
-                    if url.scheme == nil, let client {
-                        data = try await client.download(url.relativeString)
-                    } else {
-                        data = try await URLSession.shared.data(from: url).0
-                    }
+                    guard let client else { return nil }
+                    data = try await client.images.load(url)
                     return CachedImageDecoder.decode(
                         data,
                         maxPixelDimension: pixelDimension

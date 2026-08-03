@@ -4,9 +4,9 @@ import Testing
 
 @Suite("全新运行时安装")
 struct RuntimeFreshInstallTests {
-    @Test("首次安装拒绝缺少后端依赖的运行时")
+    @Test("首次安装拒绝缺少 hpatchz 的运行时")
     func rejectsIncompleteCoreRuntime() async throws {
-        let fixture = try CoreFixture(missingBackendDependency: true)
+        let fixture = try CoreFixture(missingRuntimeTool: true)
         let installer = RuntimeInstaller(environment: fixture.environment)
         await #expect(throws: RuntimeInstallError.incompatibleCoreRuntime) {
             _ = try await installer.ensureCore()

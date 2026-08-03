@@ -5,34 +5,16 @@ import Testing
 struct CoreFixture {
     let environment: [String: String]
 
-    init(corruptFirstComponent: Bool = false, missingBackendDependency: Bool = false) throws {
+    init(corruptFirstComponent: Bool = false, missingRuntimeTool: Bool = false) throws {
         let root = try tempDir()
         let assets = root.appending(path: "assets")
-        let backend = root.appending(path: "backend-app")
         let data = root.appending(path: "data")
         try FileManager.default.createDirectory(at: assets, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(
-            at: backend.appending(path: "build"), withIntermediateDirectories: true
-        )
-        try Data("server".utf8).write(to: backend.appending(path: "build/server.js"))
-        let package = missingBackendDependency
-            ? #"{"dependencies":{"string-argv":"0.3.2"}}"#
-            : #"{"dependencies":{}}"#
-        try Data(package.utf8).write(to: backend.appending(path: "package.json"))
-        let original = try [
-            makeComponent(
-                id: "node", file: "node.tar.gz", root: root,
-                assets: assets, executable: "node/bin/node"
-            ),
-            makeComponent(
-                id: "node_modules", file: "modules.tar.gz", root: root,
-                assets: assets, marker: "backend/app/node_modules/.keep"
-            ),
-            makeComponent(
-                id: "hpatchz", file: "hpatchz.tar.gz", root: root,
-                assets: assets, executable: "backend/hpatchz"
-            )
-        ]
+        let original = try [makeComponent(
+            id: "hpatchz", file: "hpatchz.tar.gz", root: root,
+            assets: assets,
+            executable: missingRuntimeTool ? "tools/not-hpatchz" : "tools/hpatchz"
+        )]
         let components = original.enumerated().map { index, component in
             guard index == 0 && corruptFirstComponent else { return component }
             return RuntimeComponent(
@@ -49,13 +31,12 @@ struct CoreFixture {
         let manifest = runtimeManifest(
             components: components,
             assets: assets,
-            requiredPaths: ["node/bin/node", "backend/app/node_modules", "backend/hpatchz"]
+            requiredPaths: ["tools/hpatchz"]
         )
         let manifestURL = root.appending(path: "runtime-manifest.json")
         try JSONEncoder().encode(manifest).write(to: manifestURL)
         environment = [
             "MHG_DATA_DIR": data.path,
-            "MHG_BACKEND_APP_DIR": backend.path,
             "MHG_RUNTIME_MANIFEST_URL": manifestURL.path,
             "MHG_RUNTIME_TAG": "v0.1.1"
         ]
@@ -68,7 +49,7 @@ func runtimeManifest(
     requiredPaths: [String]
 ) -> RuntimeManifest {
     RuntimeManifest(
-        schemaVersion: 2,
+        schemaVersion: 3,
         tag: "v0.1.1",
         appVersion: "0.1.1",
         platform: "darwin",

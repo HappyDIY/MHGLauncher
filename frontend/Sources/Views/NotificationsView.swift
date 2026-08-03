@@ -22,7 +22,7 @@ struct NotificationsView: View {
                 } label: {
                     Label("检查更新", systemImage: "arrow.clockwise")
                 }
-                .disabled(store.appUpdate.isChecking || store.backend.client == nil)
+                .disabled(store.appUpdate.isChecking || store.coreHost.client == nil)
             }
             if let error = store.value.notificationError {
                 ContentUnavailableView {

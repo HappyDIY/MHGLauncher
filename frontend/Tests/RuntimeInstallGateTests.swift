@@ -43,8 +43,6 @@ private actor GateSignal {
 
 private let runtime = InstalledRuntime(
     tag: "test", rootURL: URL(fileURLWithPath: "/tmp/runtime"),
-    backendAppURL: URL(fileURLWithPath: "/tmp/runtime/backend"),
-    nodeURL: URL(fileURLWithPath: "/tmp/runtime/node"),
-    hpatchzURL: URL(fileURLWithPath: "/tmp/runtime/hpatchz"),
+    hpatchzURL: URL(fileURLWithPath: "/tmp/runtime/tools/hpatchz"),
     gameRuntimeURL: URL(fileURLWithPath: "/tmp/runtime/game")
 )

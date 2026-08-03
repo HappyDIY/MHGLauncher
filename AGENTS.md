@@ -1,173 +1,61 @@
 # AGENTS.md
 
-## What this is
+## 项目
 
-MHGLauncher is the macOS launcher project for Genshin Impact (国服/CN server). The launcher repository contains the Swift app, local backend, API contracts, and release tooling. The optional cloud service and documentation are maintained in the sibling projects `../MHGLauncher-Cloud` and `../MHGLauncher-Docs`. The UI and all user-facing strings are in Simplified Chinese; keep new user-facing text and error messages in Chinese to match.
+MHGLauncher 是原神国服 macOS 启动器，使用 Swift 6.2、SwiftUI 与 SwiftPM，目标平台为 macOS 26 arm64。应用采用纯 Swift 单进程架构。可选云服务和文档位于 `../MHGLauncher-Cloud` 与 `../MHGLauncher-Docs`。
 
-## Reference Implementation
-- The Windows .NET/C# project
-  [Snap.Hutao.Remastered](${HOME}/Documents/Snap.Hutao.Remastered)
-  serves as the primary reference implementation for MHGLauncher.
-- A significant portion of MHGLauncher's business logic is derived from the
-  reference project.
-- When implementation details are unclear or bugs occur, developers should
-  investigate the corresponding implementation in the reference project before
-  introducing new behavior.
-- Unless platform-specific requirements dictate otherwise, maintain behavioral
-  compatibility with the reference implementation.
+Windows 参考实现是 `${HOME}/Documents/Snap.Hutao.Remastered`。业务行为不明确时先核对参考实现，除平台差异外保持兼容。所有用户可见文本和源码注释使用简体中文。
 
-## Repository Layout
+## 架构
 
-- **`frontend/`** — Native macOS app in Swift 6.2 / SwiftUI (SwiftPM package, `arm64` + macOS 26 only). Runs the backend as a child process and talks to it over a Unix domain socket. State lives in `@Observable` stores (`LauncherStore`, `ValueStore`); views are split across many small files under `Sources/Views`.
-- **`backend/`** — Local sidecar server: Next.js 16 (route handlers only, no UI) started via a custom `server.ts` that listens on a Unix socket, not a TCP port. Uses `better-sqlite3` for local storage. This is the heart of the app — all game install/patch/launch/wish/account logic lives in `src/services/` and `src/providers/`.
-- **`contracts/`** — Versioned local API contract corpus shared by the Swift app and backend.
-- **`scripts/`** — Toolchain, build, test, runtime, and release automation for the launcher.
-- **`../MHGLauncher-Cloud/`** — Separate optional remote sync service and admin panel project. It contains the Next.js 16 cloud API, PostgreSQL deployment, and operator console.
-- **`../MHGLauncher-Docs/`** — Separate VitePress documentation project.
+- `frontend/Sources/Services/LauncherClient.swift` 定义 UI 可见的类型化领域 Client。
+- `frontend/Sources/Core/LauncherCoreHost.swift` 是组合根和生命周期入口。
+- `frontend/Sources/Core/Persistence` 使用 GRDB；`Core/Providers` 负责所有米哈游、HoYoLAB、Sophon、Snap.Metadata 与云端网络访问；`Core/Services` 和 `Core/Game` 实现业务。
+- UI 不得感知路由、JSON、Socket、凭据或云令牌。Core 根据数据库中的 `credential_ref` 从 Keychain 读取秘密。
+- 游戏任务、启动会话和祈愿任务使用 `AsyncThrowingStream`。
+- 内部图片使用 `mhg-resource://`，只能由 `ImageClient` 安全解析。
 
-Data flow: `frontend (Swift)` ⇄ Unix socket ⇄ `backend (Next.js/SQLite)` ⇄ HTTPS ⇄ `MHGLauncher-Cloud`; the cloud project's admin panel ⇄ HTTP+service-token ⇄ cloud API.
+禁止引入本地 HTTP、Unix Socket、Bearer Token、Node.js、Next.js、npm 或 JavaScript/TypeScript。远端服务仅通过受限制的 HTTPS `URLSession` 访问。
 
-## Architecture and Security Rules
+## 安全
 
-- Keep the frontend and backend separated by a typed, versioned HTTP API over
-  a per-launch Unix domain socket.
-- Never expose the local backend through a TCP listener.
-- Create each Unix socket with mode `0600`.
-- Require the per-launch bearer token on every API route, including health or
-  readiness routes unless an explicitly documented bootstrap requirement makes
-  authentication impossible.
-- Store account credentials, cookies, refresh tokens, and other secrets in
-  macOS Keychain. Never persist or log secrets in SQLite, UserDefaults,
-  fixtures, snapshots, crash reports, analytics, or test output.
-- Keep all miHoYo and HoYoLAB network access behind the `Provider` abstraction
-  so tests and local smoke runs do not require a live account or external
-  network access.
-- Keep game launching behind typed launch-session and job APIs. Restore every
-  temporary game-file, environment, or configuration change after the game
-  process exits, fails to start, or is cancelled.
-- Bundle or download only auditable open-source Wine and DXMT components. Do
-  not depend on proprietary CrossOver application code.
-- Do not add features outside the documented product scope without an explicit
-  product decision.
-- `mhypbase.dll` is launcher-managed. Ignore it during game update/repair/verification/cleanup, and always restore the pinned compatibility version if modified.
+- 凭据、Cookie、刷新令牌和云令牌只存 Keychain，绝不写入 SQLite、UserDefaults、日志、诊断、fixture 或测试输出。
+- 启动时设置私有 umask；托管目录为 `0700`，数据库、索引、状态与诊断文件为 `0600`。
+- 所有文件操作拒绝符号链接与路径逃逸。游戏失败、取消或退出后恢复临时修改。
+- `mhypbase.dll` 由启动器管理，安装、更新、修复、校验和清理均忽略它；发现不一致时恢复固定兼容版本。
+- Provider 网络层必须限制 HTTPS 主机、重定向、响应大小、超时和日志内容，并支持完全离线 fixture 测试。
 
-## Architecture notes
+## 数据与依赖
 
-- **Backend dependency injection**: everything hangs off a single lazy `Container` (`backend/src/core/container.ts`) exposed as a global singleton via `container()`. Services receive their collaborators through the constructor here. When adding a service, wire it into `Container`.
-- **Backend routing is manual**: `backend/src/api/router.ts` (and `value-routes.ts`) is one big hand-written `dispatch`/`route` function matching method + path with regexes and Zod-validated bodies. There is no framework router. All requests carry a `Bearer` token (`MHG_API_TOKEN`, checked with `timingSafeEqual`); the socket file is `chmod 0600`.
-- **Provider abstraction**: `backend/src/providers/provider.ts` defines the `Provider` interface (miHoYo/HoYoLAB APIs, QR/mobile/cookie login, game builds, wishes, notes). Two implementations: `LiveProvider` (real network) and `FixtureProvider` (deterministic offline data from `backend/fixtures/`). Mode is chosen by `MHG_PROVIDER_MODE=fixture|live`. Tests and smoke scripts run in `fixture` mode.
-- **Frontend↔backend lifecycle**: `BackendProcess.swift` spawns the bundled `node build/server.js`, passes a per-launch random token + socket path via env, and waits for a `{"event":"ready","socket_path":...}` line on stdout. The backend self-terminates if its parent PID disappears (`MHG_PARENT_PID`). `APIClient` sends requests over `UnixSocketTransport`. Long-poll endpoints (jobs, launches, wish tasks) use `?after=&wait=` query params.
-- **Game runtime**: the game runs under a locally source-built Wine 11.0 + DXMT translation layer, assembled by `scripts/fetch-game-runtime.sh` from pinned sources and checksummed build inputs. `hpatchz` (HDiffPatch) applies binary patches. These are *not* bundled in the built app — they are downloaded/installed at runtime into Application Support.
+- 数据库路径保持 `~/Library/Application Support/MHGLauncher/mhglauncher.db`，兼容 v1-v8，当前 schema 为 v9。首次 Swift 写入前 WAL checkpoint 并创建 `0600` 的 `mhglauncher.db.pre-swift.bak`。
+- 固定依赖：GRDB 7.10.0、SwiftProtobuf 1.38.1、swift-libgit2 1.0.1、xxHash 0.8.3、zstd 1.5.7。Sophon `.proto` 与生成的 `.pb.swift` 一并提交。
+- 运行时清单为 schema v3：Core 仅含 `tools/hpatchz`；Wine、DXMT、msync、host、`mhypbase` 属于 game 组件。
+- 下载的第三方二进制必须固定来源、版本、许可证和 SHA-256。不得依赖 CrossOver 专有代码。
 
-## Code Standards
+## 代码规范
 
-- Use Swift 6 strict concurrency and TypeScript strict mode on bundled Node.js 24 LTS.
-- Manage backend dependencies only through npm and `package-lock.json`.
-- Handwritten Swift and TypeScript source files must not exceed 1000 lines.
-- Write source-code comments in Simplified Chinese.
-- Prefer small feature modules and dependency injection over global state.
-- Use structured parsers and typed models for API, manifest, and UIGF data.
-- After changing API contracts, shared models, job payloads, or persisted data
-  shapes, verify frontend and backend consistency together. Pay particular
-  attention to Swift and TypeScript variable types, optionality, enum raw values,
-  JSON field names, and numeric/string/bool detail payloads so decode failures
-  cannot hide the real backend error.
+- 启用 Swift 6 严格并发。手写 Swift 文件不超过 1000 行。
+- 使用 actor 隔离数据库、元数据、缓存、任务、启动会话、Git 与进程状态。
+- 优先小型领域模块和依赖注入；测试使用内存 Keychain、临时目录、`URLProtocol` 或协议化传输及伪 `Process`。
+- 使用共享 `LauncherMotion`，尊重 `accessibilityReduceMotion`，保留原生 macOS 控件行为。
 
-## Motion and Transition Standards
-
-- Use the shared `LauncherMotion` roles and motion view modifiers for SwiftUI
-  animation. Do not introduce one-off durations, springs, or easing curves.
-- Prefer short, state-driven spring or snappy animations that explain hierarchy,
-  selection, insertion, removal, or progress. Scope every implicit animation to
-  an explicit value; never attach broad animation modifiers to unrelated trees.
-- Every custom animation must honor `accessibilityReduceMotion`. Reduced motion
-  removes displacement, scaling, blur, parallax, matched-geometry travel, and
-  repeating effects while retaining a brief opacity, color, or numeric update.
-- Preserve native macOS behavior for buttons, toggles, pickers, tables, sheets,
-  alerts, focus rings, keyboard access, disabled states, and Liquid Glass.
-
-## Commands
-
-Per-component (run from each dir; scripts assume the fetched Node toolchain is on PATH — the `scripts/*.sh` wrappers handle that for you):
+## 命令
 
 ```bash
-# backend (Node/TS)
-npm run dev          # backend: tsx server.ts (socket)
-npm run build
-npm run typecheck    # next typegen && tsc --noEmit
-npm run lint         # backend: eslint + knip
-npm test             # vitest run
-npx vitest run tests/api.test.ts          # single backend test file
-npx vitest run -t "name of test"          # single test by name
-
-# frontend (Swift)
-cd frontend && swift build -c release --arch arm64
+cd frontend
+swift build -c release --arch arm64
 swift test
-swift test --filter APIClientTests          # single test class
+
+scripts/test-frontend.sh
+scripts/test-features.sh
+scripts/test-all.sh
+scripts/test-ai.sh
+scripts/build-app.sh
+scripts/smoke-app.sh
 ```
 
-Repo-level orchestration scripts (`scripts/`, each self-contained, fetch their own toolchain):
+`scripts/test-all.sh` 是合并前权威门禁。修改后、提交前必须运行 `scripts/test-ai.sh`，且其唯一 JSON 输出的 `status` 必须是 `passed`。Swift 与 C 源文件仍受 `scripts/check-source-lines.sh` 的 1000 行限制。
 
-```bash
-scripts/test-all.sh          # launcher quality gate: build, tests, app assembly, and smoke tests
-scripts/test-ai.sh           # silent diff-aware AI gate; emits one structured JSON result
-scripts/test-backend.sh      # npm ci + typecheck + lint + test + source-line check
-scripts/test-frontend.sh     # swift test + source-line check
-scripts/test-features.sh     # backend feature matrix over a real Unix socket (fixture mode)
-scripts/build-app.sh          # builds release backend + frontend, assembles dist/MHGLauncher.app
-scripts/smoke-app.sh         # launches the built .app in fixture/smoke mode, verifies parent/child process teardown
-scripts/check-source-lines.sh   # enforce 1000-line limit
-scripts/check-api-boundary.sh  # validates Swift/TypeScript API contract consistency
-```
+## Git
 
-Local release from a terminal:
-
-```bash
-./release-app.command   # selectively test, build changed launcher components, and run the app
-
-# Cloud project (run from ../MHGLauncher-Cloud)
-scripts/test-services.sh    # cloud + admin tests with PostgreSQL
-docker compose up           # cloud + admin + PostgreSQL local environment
-
-# Docs project (run from ../MHGLauncher-Docs)
-npm run dev                 # VitePress development server
-```
-
-## Testing Expectations
-
-- Backend uses **Vitest**; frontend uses **XCTest** (`swift test`). The cloud project uses Vitest for both services and Playwright for admin e2e.
-- AI/LLM agents must run `scripts/test-ai.sh` after making changes and immediately
-  before committing. Do not commit unless its JSON `status` is `passed`.
-- `scripts/test-ai.sh` must remain silent while tests run and emit exactly one
-  structured JSON document when complete. Detailed suite output belongs only in
-  the reported `build/ai-tests/...` log files.
-- New backend behavior should be exercisable in `fixture` mode so `test-features.sh` / `smoke-*.sh` can hit it without network. Fixtures live in `backend/fixtures/`.
-- `scripts/test-all.sh` is the launcher repository's authoritative pre-merge gate. `../MHGLauncher-Cloud/scripts/test-services.sh` is the cloud project's service gate.
-- Every network provider needs deterministic fixture-backed tests.
-- Any change that crosses the Swift frontend and TypeScript backend boundary
-  must run the relevant type checks on both sides, or clearly document why one
-  side is unaffected.
-- Run `scripts/check-api-boundary.sh` after changing API contracts, shared
-  models, job payloads, persisted data shapes, or cross-process serialization.
-
-## Git Workflow
-
-- After completing a coherent change that modifies files other than
-  `.gitignore`, create a commit before handing off the work.
-- Follow Conventional Commits. Commit subjects must be written in Simplified
-  Chinese, for example: `feat(backend): 实现游戏资源下载服务`.
-- Do not rewrite or discard unrelated user changes.
-
-## Packaging
-
-- `scripts/build-app.sh` builds the arm64 Swift executable, bundles the pinned
-- Node.js runtime and compiled Next.js backend, and assembles an unsigned
-`dist/MHGLauncher.app`.
-
-- End users must not need a separately installed Node.js or npm environment.
-
-- Wine, DXMT, `hpatchz`, and other game-runtime components are not embedded in the application bundle. The launcher downloads and installs them at runtime into its managed Application Support directory. Every downloaded third-party binary must have a pinned source, version, license, and expected SHA-256 checksum.
-
-- Do not silently replace pinned compatibility components during ordinary game update, repair, verification, or cleanup flows.
-
-- Signing, notarization, and DMG creation are out of scope.
+完成会修改文件的连贯工作后创建提交。使用 Conventional Commits，主题为简体中文。不得覆盖或丢弃无关用户变更。

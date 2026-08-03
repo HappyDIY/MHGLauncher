@@ -150,7 +150,6 @@ struct StartGameLaunchRequest: Codable, Sendable {
     let wineLog: Bool
     let framePacing: Int
     let launchArguments: String
-    let credential: String?
 }
 
 enum WineToolAction: String, Codable, Sendable {

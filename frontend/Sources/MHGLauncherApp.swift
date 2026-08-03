@@ -159,7 +159,7 @@ struct MHGLauncherApp: App {
                             guard !showsFinalDisclaimer else { return }
                             await startLauncherIfNeeded()
                         }
-                        .onDisappear { Task { await store.backend.stop() } }
+                        .onDisappear { Task { await store.coreHost.stop() } }
                         .focusedSceneValue(\.launcherStore, store)
                 }
             }
@@ -190,7 +190,7 @@ struct MHGLauncherApp: App {
     }
     @MainActor private func emitSmokeBootstrapEvent() {
         guard ProcessInfo.processInfo.environment["MHG_SMOKE_MODE"] == "1" else { return }
-        let ready = store.backend.client != nil && store.runtimeErrorMessage == nil && store.message == nil
+        let ready = store.coreHost.client != nil && store.runtimeErrorMessage == nil && store.message == nil
         let payload: [String: String] = ["event": ready ? "bootstrap_ready" : "bootstrap_failed",
             "message": store.message ?? store.runtimeErrorMessage ?? "",
         ]

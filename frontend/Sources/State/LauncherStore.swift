@@ -3,9 +3,8 @@ import Observation
 @MainActor
 @Observable
 final class LauncherStore {
-    let backend: BackendProcess
+    let coreHost: LauncherCoreHost
     let runtimeInstaller: RuntimeInstaller
-    let keychain: any KeychainStoring
     let userSettings: UserDefaults
     let notifications: any UserNotificationDelivering
     let clock: any LauncherClock
@@ -16,10 +15,10 @@ final class LauncherStore {
         dependencies: LauncherDependencies = LauncherDependencies(),
         deviceOwnerAuthenticator: any DeviceOwnerAuthenticating = DeviceOwnerAuthenticator()
     ) {
-        backend = dependencies.backend; runtimeInstaller = dependencies.runtimeInstaller
-        keychain = dependencies.keychain; userSettings = dependencies.userSettings
+        coreHost = dependencies.coreHost; runtimeInstaller = dependencies.runtimeInstaller
+        userSettings = dependencies.userSettings
         notifications = dependencies.notifications; clock = dependencies.clock
-        isInstallingCoreRuntime = dependencies.runtimeInstaller.installedCoreRuntime() == nil
+        isInstallingCoreRuntime = false
         self.deviceOwnerAuthenticator = deviceOwnerAuthenticator
         gamePerformanceProfile = GamePerformanceProfile(
             rawValue: dependencies.userSettings.string(forKey: "gamePerformanceProfile") ?? ""
@@ -95,36 +94,16 @@ final class LauncherStore {
     var selectedRole: GameRole? {
         roles.first(where: \.selected) ?? roles.first
     }
-    var credential: String? {
-        guard let account else { return nil }
-        return try? keychain.read(account: keychainAccount(for: account.aid))
-    }
 
     func bootstrap() async {
         guard !isBootstrapping else { return }
         isBootstrapping = true
         defer { isBootstrapping = false }
-        do {
-            let hasInstalledCore = runtimeInstaller.installedCoreRuntime() != nil
-            if !hasInstalledCore {
-                isInstallingCoreRuntime = true
-            }
-            let runtime = try await runtimeInstaller.ensureCore { progress in
-                self.runtimeProgress = progress
-            }
-            installedRuntime = runtime
-            gameRuntimeReady = runtimeInstaller.isGameInstalled()
-            runtimeErrorMessage = nil
-            isInstallingCoreRuntime = false
-            await backend.start(runtime: runtime)
-        } catch {
-            isInstallingCoreRuntime = false
-            runtimeErrorMessage = Self.presentableMessage(error)
-            message = runtimeErrorMessage
-            return
-        }
-        guard backend.client != nil else {
-            message = backend.errorMessage
+        gameRuntimeReady = runtimeInstaller.isGameInstalled()
+        runtimeErrorMessage = nil
+        await coreHost.start()
+        guard coreHost.client != nil else {
+            if case .failed(_, let coreMessage) = coreHost.state { message = coreMessage }
             return
         }
         await prepareInitialResources(); if needsMetadataSetup { return }
@@ -138,7 +117,7 @@ final class LauncherStore {
         Task { await checkForAppUpdate(silent: true) }
     }
     func retryBootstrap() async {
-        await backend.stop()
+        await coreHost.stop()
         runtimeProgress = nil
         await bootstrap()
     }
@@ -167,34 +146,18 @@ final class LauncherStore {
             return
         } catch let urlError as URLError where urlError.code == .cancelled {
             return
-        } catch let error as APIErrorPayload {
+        } catch let error as LauncherCoreError {
             message = Self.presentableMessage(error)
         } catch {
             message = Self.presentableMessage(error)
         }
     }
 
-    func requireClient() throws -> APIClient {
-        guard let client = backend.client else {
-            throw LauncherError.backendUnavailable
+    func requireClient() throws -> LauncherClient {
+        guard let client = coreHost.client else {
+            throw LauncherError.coreUnavailable
         }
         return client
     }
 
-    func requireCredential() throws -> String {
-        guard let credential else { throw LauncherError.credentialMissing }
-        return credential
-    }
-
-    func requireLaunchCredential() throws -> String? {
-        guard let account else { return nil }
-        guard let credential = try keychain.read(account: keychainAccount(for: account.aid)) else {
-            throw LauncherError.credentialMissing
-        }
-        return credential
-    }
-
-    func keychainAccount(for aid: String) -> String {
-        "account:\(aid)"
-    }
 }

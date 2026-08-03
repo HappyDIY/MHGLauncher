@@ -15,13 +15,13 @@ extension LauncherStore {
         }
         await runWishOperation(.clearAll) {
             updateWishOperation(nil, "本机身份认证已通过", true)
-            updateWishOperation(nil, "正在请求后端删除全部祈愿记录")
+            updateWishOperation(nil, "正在删除全部祈愿记录")
             let client = try requireClient()
-            let result: CountResponse = try await client.deleteResponse("/v1/wishes")
+            let deleted = try await client.companion.clearWishes()
             clearWishPresentation()
             wishStatistics = []
             bannerDetails = []
-            finishWishOperation("已永久删除 \(result.deleted ?? 0) 条记录")
+            finishWishOperation("已永久删除 \(deleted) 条记录")
         }
     }
 
@@ -41,7 +41,7 @@ extension LauncherStore {
             if wishOperation?.id == operationID, wishOperation?.status == .succeeded {
                 wishOperation = nil
             }
-        } catch let error as APIErrorPayload {
+        } catch let error as LauncherCoreError {
             if wishOperation?.id == operationID {
                 failWishOperation(Self.presentableMessage(error))
             }
@@ -66,7 +66,7 @@ extension LauncherStore {
 
     func waitForWishTask(
         _ initial: WishTaskSnapshot,
-        client: APIClient
+        client: LauncherClient
     ) async throws -> WishTaskSnapshot {
         var snapshot = initial
         while true {
@@ -77,10 +77,14 @@ extension LauncherStore {
             case .failed:
                 throw WishTaskFailure(message: snapshot.failureMessage)
             case .queued, .running:
-                snapshot = try await client.get(
-                    "/v1/wishes/tasks/\(snapshot.id)",
-                    query: LongPollQuery.items(after: snapshot.revision)
-                )
+                let events = client.companion.wishTaskEvents(snapshot.id, snapshot.revision)
+                var received = false
+                for try await next in events {
+                    snapshot = next
+                    received = true
+                    break
+                }
+                if !received { throw CancellationError() }
             }
         }
     }
@@ -93,13 +97,10 @@ extension LauncherStore {
         wishOperation?.fail(message)
     }
 
-    func reloadWishes(client: APIClient) async throws {
+    func reloadWishes(client: LauncherClient) async throws {
         guard let uid = activeWishUID else { throw LauncherError.roleMissing }
         let generation = companionDataGeneration
-        let snapshot: CompanionSnapshot = try await client.get(
-            "/v1/companion/snapshot",
-            query: [URLQueryItem(name: "uid", value: uid)]
-        )
+        let snapshot = try await client.companion.snapshot(uid)
         await applyCompanionSnapshot(snapshot, uid: uid, generation: generation)
     }
 }

@@ -3,7 +3,7 @@ import Foundation
 extension LauncherStore {
     func runNoteRefreshLoop() async {
         while !Task.isCancelled {
-            if credential != nil, selectedRole != nil {
+            if account != nil, selectedRole != nil {
                 await refreshNote(silent: true)
             }
             await evaluateNotifications(silent: true)
@@ -26,15 +26,11 @@ extension LauncherStore {
     func syncWishes() async {
         await runWishOperation(.sync) {
             let client = try requireClient()
-            let body = CredentialRequest(credential: try requireCredential())
-            let task: WishTaskSnapshot = try await client.post(
-                "/v1/wishes/tasks/sync",
-                body: body
-            )
+            let task = try await client.companion.startWishSync()
             _ = try await waitForWishTask(task, client: client)
-            updateWishOperation(nil, "后端同步已完成，正在载入最新祈愿数据")
+            updateWishOperation(nil, "同步已完成，正在载入最新祈愿数据")
             try await reloadWishes(client: client)
-            finishWishOperation("已从后端载入 \(wishes.count) 条祈愿记录")
+            finishWishOperation("已载入 \(wishes.count) 条祈愿记录")
         }
     }
 
@@ -44,12 +40,11 @@ extension LauncherStore {
         do {
             let client = try requireClient()
             let body = NoteRefreshRequest(
-                credential: try requireCredential(),
                 xrpcChallenge: "",
                 xrpcChallengePath: ""
             )
-            dailyNote = try await client.post("/v1/notes/refresh", body: body)
-        } catch let error as APIErrorPayload {
+            dailyNote = try await client.companion.refreshNote(body)
+        } catch let error as LauncherCoreError {
             if error.code == "verification_required",
                let gt = error.details?["gt"]?.stringValue,
                let challenge = error.details?["challenge"]?.stringValue {
@@ -77,25 +72,20 @@ extension LauncherStore {
         defer { isBusy = false }
         do {
             let client = try requireClient()
-            let credential = try requireCredential()
-            let verification: NoteVerificationResponse = try await client.post(
-                "/v1/notes/verification",
-                body: NoteVerificationRequest(
-                    credential: credential,
+            let verification = try await client.companion.verifyNote(
+                NoteVerificationRequest(
                     challenge: challenge,
                     validate: validate,
                     xrpcChallengePath: verificationContext?.xrpcChallengePath ?? ""
                 )
             )
-            dailyNote = try await client.post(
-                "/v1/notes/refresh",
-                body: NoteRefreshRequest(
-                    credential: credential,
+            dailyNote = try await client.companion.refreshNote(
+                NoteRefreshRequest(
                     xrpcChallenge: verification.xrpcChallenge,
                     xrpcChallengePath: verificationContext?.xrpcChallengePath ?? ""
                 )
             )
-        } catch let error as APIErrorPayload {
+        } catch let error as LauncherCoreError {
             if error.code == "verification_required",
                let gt = error.details?["gt"]?.stringValue,
                let challenge = error.details?["challenge"]?.stringValue {
@@ -124,30 +114,26 @@ extension LauncherStore {
             let data = try UIGFFileIO.read(from: url)
             updateWishOperation(nil, "文件读取完成，共 \(data.count) 字节")
             let client = try requireClient()
-            let task: WishTaskSnapshot = try await client.upload(
-                "/v1/wishes/tasks/import",
-                json: data
-            )
+            let task = try await client.companion.importUIGF(data)
             _ = try await waitForWishTask(task, client: client)
-            updateWishOperation(nil, "后端导入已完成，正在载入最新祈愿数据")
+            updateWishOperation(nil, "导入已完成，正在载入最新祈愿数据")
             try await reloadWishes(client: client)
-            finishWishOperation("已从后端载入 \(wishes.count) 条祈愿记录")
+            finishWishOperation("已载入 \(wishes.count) 条祈愿记录")
         }
     }
 
     func importWishes(fromGachaURL value: String) async {
         await runWishOperation(.importGachaURL) {
             let client = try requireClient()
-            let task: WishTaskSnapshot = try await client.post(
-                "/v1/wishes/tasks/import-url",
-                body: GachaURLRequest(gachaUrl: value.trimmingCharacters(in: .whitespacesAndNewlines))
+            let task = try await client.companion.importGachaURL(
+                value.trimmingCharacters(in: .whitespacesAndNewlines)
             )
             let snapshot = try await waitForWishTask(task, client: client)
             guard let uid = snapshot.targetUids?.first else { throw LauncherError.roleMissing }
             manualWishUID = uid
             updateWishOperation(nil, "URL 导入已完成，正在载入 UID \(uid) 的祈愿数据")
             try await reloadWishes(client: client)
-            finishWishOperation("已从后端载入 \(wishes.count) 条祈愿记录")
+            finishWishOperation("已载入 \(wishes.count) 条祈愿记录")
         }
     }
 
@@ -157,13 +143,10 @@ extension LauncherStore {
             return
         }
         await runWishOperation(.exportUIGF) {
-            updateWishOperation(nil, "正在请求后端导出 UID \(uid) 的祈愿记录")
+            updateWishOperation(nil, "正在导出 UID \(uid) 的祈愿记录")
             let client = try requireClient()
-            let data = try await client.download(
-                "/v1/wishes/export",
-                query: [URLQueryItem(name: "uid", value: uid)]
-            )
-            updateWishOperation(nil, "后端已生成 \(data.count) 字节 UIGF 数据")
+            let data = try await client.companion.exportUIGF(uid)
+            updateWishOperation(nil, "已生成 \(data.count) 字节 UIGF 数据")
             try UIGFFileIO.write(data, to: url)
             finishWishOperation("已保存到 \(url.lastPathComponent)")
         }
@@ -171,10 +154,7 @@ extension LauncherStore {
 
     private func fetchCompanionData(uid: String, generation: Int) async throws {
         let client = try requireClient()
-        let snapshot: CompanionSnapshot = try await client.get(
-            "/v1/companion/snapshot",
-            query: [URLQueryItem(name: "uid", value: uid)]
-        )
+        let snapshot = try await client.companion.snapshot(uid)
         await applyCompanionSnapshot(snapshot, uid: uid, generation: generation)
     }
 }

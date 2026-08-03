@@ -10,7 +10,7 @@ extension LauncherStore {
         do {
             let client = try requireClient()
             while !Task.isCancelled {
-                let status: ResourceSyncStatus = try await client.get("/v1/resources/status")
+                let status = try await client.resources.status()
                 value.resourceSyncStatus = status
                 if !status.initialInstallRequired { return }
                 if let error = status.error, !status.isSyncing {
@@ -30,11 +30,7 @@ extension LauncherStore {
         resourceSetupError = nil
         do {
             let client = try requireClient()
-            value.resourceSyncStatus = try await client.post(
-                "/v1/resources/sync",
-                body: ResourceSyncRequest(force: true),
-                timeout: 3_600
-            )
+            value.resourceSyncStatus = try await client.resources.sync(true)
             await prepareInitialResources()
             guard !needsMetadataSetup else { return }
             await refreshAccount()

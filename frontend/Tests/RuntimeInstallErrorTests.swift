@@ -7,9 +7,9 @@ struct RuntimeInstallErrorTests {
     func descriptions() {
         let errors: [RuntimeInstallError] = [
             .invalidManifest,
-            .missingBundledBackend,
-            .downloadFailed("node.tar.gz"),
-            .checksumMismatch("node.tar.gz"),
+            .missingRuntimeTool,
+            .downloadFailed("hpatchz.tar.gz"),
+            .checksumMismatch("hpatchz.tar.gz"),
             .archiveTraversal("../escape"),
             .processFailed("tar"),
             .unsafePromotion,

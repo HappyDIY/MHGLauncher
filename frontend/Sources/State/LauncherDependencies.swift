@@ -12,7 +12,7 @@ struct SystemLauncherClock: LauncherClock {
 
 @MainActor
 struct LauncherDependencies {
-    let backend: BackendProcess
+    let coreHost: LauncherCoreHost
     let runtimeInstaller: RuntimeInstaller
     let keychain: any KeychainStoring
     let userSettings: UserDefaults
@@ -20,14 +20,14 @@ struct LauncherDependencies {
     let clock: any LauncherClock
 
     init(
-        backend: BackendProcess = BackendProcess(),
+        coreHost: LauncherCoreHost? = nil,
         runtimeInstaller: RuntimeInstaller = RuntimeInstaller(),
         keychain: any KeychainStoring = KeychainStore(),
         userSettings: UserDefaults = .standard,
         notifications: any UserNotificationDelivering = UserNotificationService(),
         clock: any LauncherClock = SystemLauncherClock()
     ) {
-        self.backend = backend
+        self.coreHost = coreHost ?? LauncherCoreHost(keychain: keychain)
         self.runtimeInstaller = runtimeInstaller
         self.keychain = keychain
         self.userSettings = userSettings

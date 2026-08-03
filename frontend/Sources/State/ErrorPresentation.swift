@@ -1,9 +1,9 @@
 import Foundation
 
 extension LauncherStore {
-    nonisolated static func presentableMessage(_ error: APIErrorPayload) -> String {
+    nonisolated static func presentableMessage(_ error: LauncherCoreError) -> String {
         switch error.code {
-        case "internal_error": "本地服务发生异常，请稍后重试"
+        case "internal_error": "Launcher Core 发生异常，请稍后重试"
         case "mihoyo_error", "mihoyo_response_invalid": "米游社请求失败，请稍后重试"
         case "cloud_error": "云同步服务暂不可用，请稍后重试"
         default: presentableMessage(error.message)

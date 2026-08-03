@@ -38,7 +38,7 @@ struct RuntimeInstallLedgerSymlinkTests {
 
     private func writeMarker(root: URL, path: String) throws {
         let record = RuntimeInstallRecord(
-            schemaVersion: 2, tag: "v0.1.1", appVersion: "0.1.1",
+            schemaVersion: 3, tag: "v0.1.1", appVersion: "0.1.1",
             manifestDigest: String(repeating: "0", count: 64),
             scope: .game, requiredPaths: [path]
         )

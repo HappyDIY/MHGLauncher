@@ -101,9 +101,9 @@ struct WishPresentationTests {
         #expect(fiveStar.pity == 3)
     }
 
-    @Test("卡池统计兼容缺失限定指标的旧版后端")
+    @Test("卡池统计兼容缺失限定指标的旧版数据")
     func decodeBannerDetailWithoutLimitedMetrics() throws {
-        // 旧版后端未返回 average_up_pity / small_guarantee_win_rate 字段。
+        // 旧版数据未包含 average_up_pity / small_guarantee_win_rate 字段。
         // 前端须向后兼容，解码成功且限定指标为 nil，避免页面卡在「正在载入」。
         let data = Data(
             """

@@ -12,7 +12,7 @@ extension LauncherStore {
         appUpdate.errorMessage = nil
         defer { appUpdate.isChecking = false }
         do {
-            let manifest: AppUpdateManifest = try await requireClient().get("/v1/app-update")
+            let manifest = try await requireClient().updates.manifest()
             guard manifest.isNewer(than: currentAppVersion) else {
                 appUpdate.manifest = nil
                 if !silent { showStatus("MHGLauncher 已是最新版本") }

@@ -52,9 +52,7 @@ final class RuntimeInstaller: @unchecked Sendable {
         return InstalledRuntime(
             tag: tag,
             rootURL: root,
-            backendAppURL: root.appending(path: "backend/app"),
-            nodeURL: root.appending(path: "node/bin/node"),
-            hpatchzURL: root.appending(path: "backend/hpatchz"),
+            hpatchzURL: root.appending(path: "tools/hpatchz"),
             gameRuntimeURL: root.appending(path: "game-runtime")
         )
     }
@@ -62,7 +60,6 @@ final class RuntimeInstaller: @unchecked Sendable {
     private func performEnsureCore(progress: RuntimeProgressHandler?) async throws -> InstalledRuntime {
         try Task.checkCancellation()
         if let installed = installedCoreRuntime() {
-            try copyBackendApp(to: installed.backendAppURL)
             if corePayloadReady(at: installed.rootURL) {
                 return installed
             }
@@ -73,7 +70,6 @@ final class RuntimeInstaller: @unchecked Sendable {
         let stage = stageURL(tag: manifest.tag, suffix: "core")
         try prepare(stage: stage)
         do {
-            try copyBackendApp(to: stage.appending(path: "backend/app"))
             try await install(
                 manifest: manifest,
                 components: manifest.components(kind: .core),
@@ -178,7 +174,11 @@ final class RuntimeInstaller: @unchecked Sendable {
             tag: runtime.tag,
             appVersion: RuntimeManifest.appVersion(bundle: bundle),
             scope: .core
-        ) && fileManager.fileExists(atPath: runtime.backendAppURL.appending(path: "build/server.js").path)
+        ) && fileManager.isExecutableFile(atPath: runtime.hpatchzURL.path)
+    }
+
+    private func corePayloadReady(at root: URL) -> Bool {
+        fileManager.isExecutableFile(atPath: root.appending(path: "tools/hpatchz").path)
     }
 
     private func gameReady(_ runtime: InstalledRuntime) -> Bool {

@@ -9,9 +9,7 @@ struct RuntimeGameCompatibilityTests {
         let root = try tempDir()
         let runtime = InstalledRuntime(
             tag: "vtest", rootURL: root,
-            backendAppURL: root.appending(path: "backend/app"),
-            nodeURL: root.appending(path: "node/bin/node"),
-            hpatchzURL: root.appending(path: "backend/hpatchz"),
+            hpatchzURL: root.appending(path: "tools/hpatchz"),
             gameRuntimeURL: root.appending(path: "game-runtime")
         )
         let installer = RuntimeInstaller()

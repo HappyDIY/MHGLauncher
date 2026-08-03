@@ -41,7 +41,7 @@ extension LauncherStore {
         _ = startLoginGeneration(); qrLoginAttempt += 1; qrSession = nil; clearLoginSecrets()
     }
 
-    func mobileVerification(from error: APIErrorPayload) -> MobileCaptchaVerificationContext? {
+    func mobileVerification(from error: LauncherCoreError) -> MobileCaptchaVerificationContext? {
         guard let details = error.details,
               let gt = details["gt"]?.stringValue,
               let challenge = details["challenge"]?.stringValue,

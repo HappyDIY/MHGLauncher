@@ -54,7 +54,7 @@ struct RootView: View {
         } message: {
             Text(store.message ?? "")
         }
-        .environment(\.apiClient, store.backend.client)
+        .environment(\.launcherClient, store.coreHost.client)
         .sheet(isPresented: appUpdateSheet) {
             if store.appUpdate.manifest != nil { AppUpdateSheet(store: store) }
         }
@@ -115,7 +115,12 @@ struct RootView: View {
     }
 
     private var showsRuntimeSetup: Bool {
-        store.isInstallingCoreRuntime || store.runtimeErrorMessage != nil || store.backend.errorMessage != nil
+        store.isInstallingCoreRuntime || store.runtimeErrorMessage != nil || coreError != nil
+    }
+
+    private var coreError: String? {
+        if case .failed(_, let message) = store.coreHost.state { return message }
+        return nil
     }
 
     @ViewBuilder

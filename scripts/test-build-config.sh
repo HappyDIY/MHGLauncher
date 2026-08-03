@@ -5,22 +5,23 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-for script in build-app.sh build-backend.sh build-frontend.sh; do
+for script in build-app.sh build-frontend.sh; do
   if "$root/scripts/$script" debug >/dev/null 2>&1; then
     printf '%s 仍接受 debug 构建配置。\n' "$script" >&2
     exit 1
   fi
 done
 test ! -e "$root/debug-app.command"
-test ! -e "$root/scripts/build-backend-debug.sh"
-grep -q 'rm -rf .next' "$root/scripts/build-backend.sh"
-grep -q 'better-sqlite3-mhg-alias' "$root/scripts/build-backend.sh"
 grep -q -- '--strict --verbose=2' "$root/scripts/sign-app.sh"
 test ! -e "$root/scripts/build-debug-app.sh"
+(cd "$root/frontend/Vendor/SwiftLibgit2Base" && shasum -a 256 -c SHA256SUMS >/dev/null)
+grep -q 'exact: "7.10.0"' "$root/frontend/Package.swift"
+grep -q 'exact: "1.38.1"' "$root/frontend/Package.swift"
+test -f "$root/frontend/Vendor/SwiftLibgit2Base/LICENSE.txt"
+test -f "$root/frontend/Vendor/SwiftLibgit2Base/Licenses/libgit2-LICENSE.txt"
 bash -n "$root/scripts/sign-app.sh"
 plutil -lint "$root/packaging/CodeSigning.plist" >/dev/null
 grep -q 'scripts/sign-app.sh.*app' "$root/scripts/build-app.sh"
-grep -q 'scripts/sign-app.sh.*cached_app' "$root/release-app.command"
 grep -q -- '--timestamp=none' "$root/scripts/sign-app.sh"
 grep -q 'CertificateSHA256' "$root/scripts/sign-app.sh"
 grep -q 'MHG_ALLOW_AD_HOC_SIGNING' "$root/scripts/sign-app.sh"

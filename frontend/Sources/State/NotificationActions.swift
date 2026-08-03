@@ -3,9 +3,7 @@ import Foundation
 extension LauncherStore {
     func loadNotificationSettings() async {
         do {
-            let loaded: NotificationSettings = try await requireClient().get(
-                "/v1/notifications/settings"
-            )
+            let loaded = try await requireClient().notifications.settings()
             value.notificationSettings = loaded
             value.notificationConfirmedSettings = loaded
             value.notificationError = nil
@@ -16,9 +14,7 @@ extension LauncherStore {
 
     func updateNotificationSettings(_ settings: NotificationSettings) async {
         do {
-            let saved: NotificationSettings = try await requireClient().put(
-                "/v1/notifications/settings", body: settings
-            )
+            let saved = try await requireClient().notifications.updateSettings(settings)
             guard value.notificationSettings == settings else { return }
             value.notificationSettings = saved
             value.notificationConfirmedSettings = saved
@@ -32,17 +28,12 @@ extension LauncherStore {
 
     func evaluateNotifications(silent: Bool = false) async {
         do {
-            var path = "/v1/notifications/evaluate"
-            if let uid = selectedRole?.uid { path += "?uid=\(uid)" }
-            let events: [NotificationEvent] = try await requireClient().post(path)
+            let events = try await requireClient().notifications.evaluate(selectedRole?.uid)
             value.notificationEvents = events
             let delivered = try await notifications.deliver(events)
             value.notificationPermissionMessage = nil
             guard !delivered.isEmpty else { return }
-            let _: [String] = try await requireClient().post(
-                "/v1/notifications/acknowledge",
-                body: NotificationAcknowledgement(keys: delivered)
-            )
+            _ = try await requireClient().notifications.acknowledge(delivered)
         } catch let error as UserNotificationDeliveryError {
             value.notificationPermissionMessage = error.localizedDescription
         } catch {

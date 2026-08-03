@@ -2,7 +2,7 @@ import Foundation
 
 extension LauncherStore {
     func loadAchievementData(
-        client: APIClient? = nil,
+        client: LauncherClient? = nil,
         uid: String? = nil,
         generation: Int? = nil
     ) async throws {
@@ -10,15 +10,9 @@ extension LauncherStore {
         value.achievementIntent += 1
         let intent = value.achievementIntent
         guard let archiveUid = uid ?? selectedRole?.uid else { return }
-        let archive: AchievementArchive = try await api.get(
-            "/v1/achievements/archive",
-            query: [URLQueryItem(name: "uid", value: archiveUid)]
-        )
+        let archive = try await api.achievements.archive(archiveUid)
         guard isCurrentAchievementLoad(intent, uid: uid, generation: generation) else { return }
-        let snapshot: AchievementSnapshot = try await api.get(
-            "/v1/achievements/snapshot",
-            query: [URLQueryItem(name: "archive_id", value: archive.id)]
-        )
+        let snapshot = try await api.achievements.snapshot(archive.id)
         guard isCurrentAchievementLoad(intent, uid: uid, generation: generation), snapshot.archive.id == archive.id else { return }
         applyAchievementSnapshot(snapshot, archives: [archive])
     }
@@ -39,9 +33,8 @@ extension LauncherStore {
         guard let archiveId = selectedAchievementArchive?.id else { return }
         let revision = value.achievementRevision
         await perform {
-            let snapshot: AchievementSnapshot = try await requireClient().upload(
-                "/v1/achievements/import?archive_id=\(archiveId)&expected_revision=\(revision)",
-                json: try UIGFFileIO.read(from: url)
+            let snapshot = try await requireClient().achievements.importUIAF(
+                try UIGFFileIO.read(from: url), archiveId, revision
             )
             guard selectedAchievementArchive?.id == archiveId,
                   value.achievementRevision == revision else { return }
@@ -52,10 +45,7 @@ extension LauncherStore {
     func exportAchievementUIAF(to url: URL) async {
         guard let archiveId = selectedAchievementArchive?.id else { return }
         await perform {
-            let data = try await requireClient().download(
-                "/v1/achievements/export",
-                query: [URLQueryItem(name: "archive_id", value: archiveId)]
-            )
+            let data = try await requireClient().achievements.exportUIAF(archiveId)
             try UIGFFileIO.write(data, to: url)
         }
     }
@@ -63,23 +53,17 @@ extension LauncherStore {
     func uploadCloudAchievements() async {
         guard let uid = selectedRole?.uid else { return }
         await perform {
-            let response: CountResponse = try await requireClient().post(
-                "/v1/cloud/achievements/upload",
-                body: CloudUIDRequest(uid: uid, token: try cloudToken(uid: uid))
-            )
-            value.cloudMessage = "已上传 \(response.uploaded ?? 0) 条成就"
+            let count = try await requireClient().cloud.uploadAchievements(uid)
+            value.cloudMessage = "已上传 \(count) 条成就"
         }
     }
 
     func retrieveCloudAchievements() async {
         guard let uid = selectedRole?.uid else { return }
         await perform {
-            let response: CountResponse = try await requireClient().post(
-                "/v1/cloud/achievements/retrieve",
-                body: CloudUIDRequest(uid: uid, token: try cloudToken(uid: uid))
-            )
+            let count = try await requireClient().cloud.retrieveAchievements(uid)
             try await loadAchievementData(uid: uid)
-            value.cloudMessage = "已取回 \(response.imported ?? 0) 条成就"
+            value.cloudMessage = "已取回 \(count) 条成就"
         }
     }
 
@@ -120,16 +104,15 @@ extension LauncherStore {
             timestamp: checked ? Int(Date().timeIntervalSince1970) : 0
         )
         do {
-            let snapshot: AchievementSnapshot = try await requireClient().post(
-                "/v1/achievements",
-                body: AchievementSaveRequest(
+            let snapshot = try await requireClient().achievements.save(
+                AchievementSaveRequest(
                     archiveId: archiveId, expectedRevision: revision, items: [item]
                 )
             )
             guard selectedAchievementArchive?.id == archiveId,
                   value.achievementRevision == revision else { return }
             applyAchievementSnapshot(snapshot, archives: value.achievementArchives)
-        } catch let error as APIErrorPayload where error.code == "archive_revision_conflict" {
+        } catch let error as LauncherCoreError where error.code == "archive_revision_conflict" {
             guard retryingConflict else { throw error }
             try await loadAchievementData()
             try await saveAchievement(id: id, checked: checked, archiveId: archiveId, retryingConflict: false)

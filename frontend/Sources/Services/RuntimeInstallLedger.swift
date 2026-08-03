@@ -25,7 +25,7 @@ enum RuntimeInstallLedger {
             throw RuntimeInstallError.invalidManifest
         }
         let record = RuntimeInstallRecord(
-            schemaVersion: 2,
+            schemaVersion: 3,
             tag: manifest.tag,
             appVersion: manifest.appVersion,
             manifestDigest: digest(manifestData),
@@ -45,7 +45,7 @@ enum RuntimeInstallLedger {
         let marker = root.appending(path: markerName)
         if let data = try? Data(contentsOf: marker, options: .mappedIfSafe),
            let record = try? JSONDecoder().decode(RuntimeInstallRecord.self, from: data),
-           record.schemaVersion == 2,
+           record.schemaVersion == 3,
            record.tag == tag,
            record.appVersion == appVersion,
            record.manifestDigest.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil,
@@ -65,7 +65,7 @@ enum RuntimeInstallLedger {
         let marker = root.appending(path: scope == .core ? ".core-complete" : ".game-complete")
         guard FileManager.default.fileExists(atPath: marker.path) else { return false }
         let paths = scope == .core
-            ? ["node/bin/node", "backend/app/node_modules", "backend/hpatchz"]
+            ? ["tools/hpatchz"]
             : ["game-runtime/wine/bin/wine", "game-runtime/assets/mhypbase.dll"]
         return pathsAreSafe(paths, under: root)
     }

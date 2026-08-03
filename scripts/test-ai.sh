@@ -71,24 +71,11 @@ select_suite() {
 
 for path in "${changed_files[@]}"; do
   case "$path" in
-    backend/src/api/*|backend/src/core/models.ts)
-      select_suite backend scripts/test-backend.sh "$path"
-      select_suite api-boundary scripts/check-api-boundary.sh "$path"
-      ;;
-    frontend/Sources/Models/*|frontend/Sources/Services/APIClient.swift|frontend/Tests/API*)
-      select_suite frontend scripts/test-frontend.sh "$path"
-      select_suite api-boundary scripts/check-api-boundary.sh "$path"
-      ;;
-    backend/*) select_suite backend scripts/test-backend.sh "$path" ;;
     frontend/*) select_suite frontend scripts/test-frontend.sh "$path" ;;
-    contracts/local-api/*)
-      select_suite api-boundary scripts/check-api-boundary.sh "$path"
-      ;;
-    quality/*|scripts/check-coverage.mjs)
-      select_suite backend scripts/test-backend.sh "$path"
+    quality/*|scripts/check-coverage.swift)
       select_suite frontend scripts/test-frontend.sh "$path"
       ;;
-    release-app.command|packaging/Info.plist|packaging/CodeSigning.plist|scripts/build-app.sh|scripts/build-backend.sh|scripts/build-frontend.sh|scripts/configure-cloud-server.swift|scripts/sign-app.sh|scripts/test-build-config.sh)
+    release-app.command|packaging/Info.plist|packaging/CodeSigning.plist|scripts/build-app.sh|scripts/build-frontend.sh|scripts/configure-cloud-server.swift|scripts/sign-app.sh|scripts/test-build-config.sh)
       select_suite build-config scripts/test-build-config.sh "$path"
       ;;
     runtime/*|scripts/fetch-game-runtime.sh|scripts/build-wine-runtime.sh|scripts/test-game-runtime.sh)
@@ -97,12 +84,7 @@ for path in "${changed_files[@]}"; do
     packaging/GAME_RUNTIME_NOTICES.md|packaging/game-runtime-source-lock.json|packaging/patches/*|packaging/HDiffPatch-LICENSE.txt|scripts/build-runtime-assets.sh|scripts/create-smoke-runtime-assets.sh|scripts/verify-runtime-assets.sh|scripts/publish-runtime-assets.sh|scripts/test-runtime-assets.sh)
       select_suite runtime-assets scripts/test-runtime-assets.sh "$path"
       ;;
-    scripts/check-api-boundary.sh)
-      select_suite api-boundary scripts/check-api-boundary.sh "$path"
-      ;;
-    scripts/test-backend.sh|scripts/fetch-node.sh|scripts/fetch-hpatchz.sh)
-      select_suite backend scripts/test-backend.sh "$path"
-      ;;
+    scripts/fetch-hpatchz.sh) select_suite runtime-assets scripts/test-runtime-assets.sh "$path" ;;
     scripts/test-frontend.sh)
       select_suite frontend scripts/test-frontend.sh "$path"
       ;;

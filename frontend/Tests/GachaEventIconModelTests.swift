@@ -4,7 +4,7 @@ import Testing
 
 @Suite("历史卡池图标模型")
 struct GachaEventIconModelTests {
-    @Test("解码后端提供的UP图标映射")
+    @Test("解码 Core 提供的 UP 图标映射")
     func decodesUpIconURLs() throws {
         let data = Data(
             """

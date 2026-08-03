@@ -9,10 +9,7 @@ extension LauncherStore {
         guard let uid = selectedRole?.uid else { return }
         let generation = companionDataGeneration
         await perform {
-            let loaded: [GameCharacter] = try await requireClient().get(
-                "/v1/characters",
-                query: [URLQueryItem(name: "uid", value: uid)]
-            )
+            let loaded = try await requireClient().companion.characters(uid)
             guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
             characters = loaded
             if selectedCharacterId == nil || !loaded.contains(where: { $0.avatarId == selectedCharacterId }) {
@@ -25,10 +22,7 @@ extension LauncherStore {
         guard let uid = selectedRole?.uid else { return }
         let generation = companionDataGeneration
         await perform {
-            let loaded: [GameCharacter] = try await requireClient().post(
-                "/v1/characters/refresh",
-                body: CredentialRequest(credential: try requireCredential())
-            )
+            let loaded = try await requireClient().companion.refreshCharacters()
             guard isCurrentCompanionData(uid: uid, generation: generation) else { return }
             characters = loaded
             if selectedCharacterId == nil || !loaded.contains(where: { $0.avatarId == selectedCharacterId }) {
@@ -50,10 +44,7 @@ extension LauncherStore {
         let generation = companionDataGeneration
         let selectedID = selectedCharacterId
         await perform {
-            let loaded: GameCharacter = try await requireClient().post(
-                "/v1/characters/\(character.avatarId)/refresh",
-                body: CredentialRequest(credential: try requireCredential())
-            )
+            let loaded = try await requireClient().companion.refreshCharacter(character.avatarId)
             guard isCurrentCompanionData(uid: character.uid, generation: generation) else { return }
             if let index = characters.firstIndex(where: { $0.avatarId == loaded.avatarId }) {
                 characters[index] = loaded
