@@ -4,7 +4,7 @@
 
 MHGLauncher 是原神国服 macOS 启动器，使用 Swift 6.2、SwiftUI 与 SwiftPM，目标平台为 macOS 26 arm64。应用采用纯 Swift 单进程架构。可选云服务和文档位于 `../MHGLauncher-Cloud` 与 `../MHGLauncher-Docs`。
 
-Windows 参考实现是 `${HOME}/Documents/Snap.Hutao.Remastered`。业务行为不明确时先核对参考实现，除平台差异外保持兼容。所有用户可见文本和源码注释使用简体中文。
+Windows 参考实现是 `${HOME}/Documents/ReSearch/Snap.Hutao.Remastered`。业务行为不明确时先核对参考实现，除平台差异外保持兼容。所有用户可见文本和源码注释使用简体中文。
 
 ## 架构
 
