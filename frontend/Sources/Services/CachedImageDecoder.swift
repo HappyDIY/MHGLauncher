@@ -2,8 +2,19 @@ import AppKit
 import ImageIO
 
 enum CachedImageDecoder {
+    private static let maximumSourceDimension = 32_768
+    private static let maximumSourcePixels = 64 * 1024 * 1024
+
     static func decode(_ data: Data, maxPixelDimension: Int?) -> NSImage? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+            return nil
+        }
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as NSDictionary?,
+              let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
+              let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue,
+              width > 0, height > 0,
+              width <= maximumSourceDimension, height <= maximumSourceDimension,
+              width <= maximumSourcePixels / height else {
             return nil
         }
 

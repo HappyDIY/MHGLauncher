@@ -57,6 +57,9 @@ actor CoreWishService {
             guard processed <= 250_000 else {
                 throw LauncherCoreError(code: "wish_payload_too_large", message: "祈愿记录数量超出限制")
             }
+            guard records.allSatisfy({ $0.uid == role.uid }) else {
+                throw LauncherCoreError(code: "wish_uid_mismatch", message: "祈愿记录与当前 UID 不匹配")
+            }
             let values = records.map { StoredWish(record: $0, uigfType: Self.uigfType(for: $0.gachaType)) }
             let added = try await newRecordCount(values)
             try await save(values)

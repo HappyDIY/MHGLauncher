@@ -23,7 +23,14 @@ enum CoreProcessEnvironment {
     }
 
     static func sanitizedCurrentProcess() -> [String: String] {
-        withoutDynamicLoaderInjection(ProcessInfo.processInfo.environment)
+        let allowedKeys = [
+            "HOME", "USER", "LOGNAME", "PATH", "TMPDIR", "TMP", "TEMP",
+            "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME",
+            "__CF_USER_TEXT_ENCODING", "LANG", "LANGUAGE", "LC_ALL", "LC_MESSAGES"
+        ]
+        return withoutDynamicLoaderInjection(
+            ProcessInfo.processInfo.environment.filter { allowedKeys.contains($0.key) }
+        )
     }
 }
 

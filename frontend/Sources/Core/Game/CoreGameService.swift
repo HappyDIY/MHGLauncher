@@ -8,11 +8,13 @@ actor CoreGameService {
     let database: CoreDatabase
     private let provider: any GameProvider
     private let jobs: GameJobCoordinator
+    private let operationCoordinator: GameOperationCoordinator
     let dataDirectory: URL
     private let fixtureMode: Bool
     private let hpatchzURL: URL
     private let processRunner: any CoreProcessRunning
     private var speedLimitKB = 0
+    private var shuttingDown = false
 
     init(
         database: CoreDatabase,
@@ -21,7 +23,8 @@ actor CoreGameService {
         dataDirectory: URL,
         fixtureMode: Bool,
         hpatchzURL: URL,
-        processRunner: any CoreProcessRunning = FoundationProcessRunner()
+        processRunner: any CoreProcessRunning = FoundationProcessRunner(),
+        operationCoordinator: GameOperationCoordinator = GameOperationCoordinator()
     ) {
         self.database = database
         self.provider = provider
@@ -30,9 +33,11 @@ actor CoreGameService {
         self.fixtureMode = fixtureMode
         self.hpatchzURL = hpatchzURL
         self.processRunner = processRunner
+        self.operationCoordinator = operationCoordinator
     }
 
     func state(installPath: String?) async throws -> GameState {
+        try ensureAvailable()
         let configured: String?
         if let requested = installPath?.trimmingCharacters(in: .whitespacesAndNewlines).nonempty {
             configured = try GameFilesystem.validatedPath(requested)
@@ -44,7 +49,8 @@ actor CoreGameService {
                 configured = nil
             }
         }
-        try recoverActivation(path: configured)
+        try ensureAvailable()
+        try await recoverActivationWithLease(path: configured)
         let detected = configured.flatMap(GameFilesystem.detect)
         let path = detected?.path.path ?? configured ?? ""
         let version = detected?.version ?? ""
@@ -61,9 +67,11 @@ actor CoreGameService {
         } else {
             predownload = nil
         }
+        try ensureAvailable()
         let checkedPredownload = predownload.flatMap { try? SophonValidation.validate($0) }
         let status: GameStatus = detected == nil ? .notInstalled
             : SophonVersion.compare(version, build.version) >= 0 ? .ready : .updateAvailable
+        try ensureAvailable()
         if let detected { try await saveState(path: detected.path.path, version: version, status: status) }
         return GameState(
             installPath: path,
@@ -80,8 +88,9 @@ actor CoreGameService {
     }
 
     func spaceCheck(path: String, kind: JobKind) async throws -> SpaceCheckResult {
+        try ensureAvailable()
         let path = try GameFilesystem.validatedPath(path)
-        try recoverActivation(path: path)
+        try await recoverActivationWithLease(path: path)
         let detected = GameFilesystem.detect(at: path)
         guard detected != nil || kind == .install else {
             throw LauncherCoreError(code: "game_not_installed", message: "资源操作需要已安装的游戏客户端")
@@ -110,11 +119,28 @@ actor CoreGameService {
                 try await provider.build(installedVersion: version, audioLanguages: languages)
             )
         }
+        try ensureAvailable()
         return try spaceResult(build: build, kind: kind, root: root, detected: detected?.path)
     }
 
     func start(kind: JobKind, installPath: String) async throws -> GameJob {
+        try ensureAvailable()
         let installPath = try GameFilesystem.validatedPath(installPath)
+        let lease = try await operationCoordinator.acquire(.resources)
+        do {
+            let job = try await startResourceJob(kind: kind, installPath: installPath, lease: lease)
+            return job
+        } catch {
+            await operationCoordinator.release(lease)
+            throw error
+        }
+    }
+
+    private func startResourceJob(
+        kind: JobKind,
+        installPath: String,
+        lease: UUID
+    ) async throws -> GameJob {
         try recoverActivation(path: installPath)
         let detected = GameFilesystem.detect(at: installPath)
         guard detected != nil || kind == .install else {
@@ -143,6 +169,7 @@ actor CoreGameService {
         default:
             build = try await provider.build(installedVersion: version, audioLanguages: languages)
         }
+        try ensureAvailable()
         let checked = try SophonValidation.validate(build)
         let space = try spaceResult(build: checked, kind: kind, root: root, detected: detected?.path)
         guard space.sufficient else {
@@ -160,8 +187,18 @@ actor CoreGameService {
            checked.repairAssets.isEmpty {
             throw LauncherCoreError(code: "game_build_empty", message: "下载服务返回了不完整的空构建")
         }
-        return try await jobs.start(kind: kind, total: checked.downloadSize) { [self] id, control in
-            try await perform(id: id, kind: kind, root: root, detected: detected?.path, build: checked, control: control)
+        let coordinator = operationCoordinator
+        return try await jobs.start(kind: kind, total: checked.downloadSize) { [self, coordinator, lease] id, control in
+            do {
+                try await perform(
+                    id: id, kind: kind, root: root, detected: detected?.path,
+                    build: checked, control: control
+                )
+            } catch {
+                await coordinator.release(lease)
+                throw error
+            }
+            await coordinator.release(lease)
         }
     }
 
@@ -174,6 +211,7 @@ actor CoreGameService {
     }
 
     func shutdown() async {
+        shuttingDown = true
         await jobs.shutdown()
     }
 
@@ -184,6 +222,12 @@ actor CoreGameService {
         }
         speedLimitKB = value
         return value
+    }
+
+    private func ensureAvailable() throws {
+        guard !shuttingDown else {
+            throw LauncherCoreError(code: "game_resource_unavailable", message: "游戏资源服务正在退出")
+        }
     }
 
     private func perform(
@@ -563,9 +607,7 @@ actor CoreGameService {
                 executable: hpatchzURL,
                 arguments: [original.path, segment.path, output.path],
                 workingDirectory: root,
-                environment: CoreProcessEnvironment.withoutDynamicLoaderInjection(
-                    ProcessInfo.processInfo.environment
-                ),
+                environment: CoreProcessEnvironment.sanitizedCurrentProcess(),
                 logURL: nil
             ))
             guard status == 0, GameFilesystem.regularFile(output) else {
@@ -787,6 +829,17 @@ actor CoreGameService {
         let requested = URL(filePath: path).standardizedFileURL
         try GameActivation.recover(destination: requested)
         try GameActivation.recover(destination: requested.appending(path: "Genshin Impact Game"))
+    }
+
+    private func recoverActivationWithLease(path: String?) async throws {
+        let lease = try await operationCoordinator.acquire(.resources)
+        do {
+            try recoverActivation(path: path)
+            await operationCoordinator.release(lease)
+        } catch {
+            await operationCoordinator.release(lease)
+            throw error
+        }
     }
 
     private func writeOwnership(

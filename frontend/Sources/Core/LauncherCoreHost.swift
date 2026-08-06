@@ -104,13 +104,15 @@ final class LauncherCoreHost {
             let hpatchzURL = environment["MHG_HPATCHZ"]?.nonempty
                 .flatMap(Self.absolutePath)
                 ?? dataDirectory.appending(path: "Runtimes/\(runtimeTag)/tools/hpatchz")
+            let gameOperationCoordinator = GameOperationCoordinator()
             let game = CoreGameService(
                 database: database,
                 provider: provider,
                 jobs: GameJobCoordinator(),
                 dataDirectory: dataDirectory,
                 fixtureMode: fixtureMode,
-                hpatchzURL: hpatchzURL
+                hpatchzURL: hpatchzURL,
+                operationCoordinator: gameOperationCoordinator
             )
             self.game = game
             let runtimeRoot = environment["MHG_GAME_RUNTIME_ROOT"]?.nonempty
@@ -120,7 +122,8 @@ final class LauncherCoreHost {
                 dataDirectory: dataDirectory,
                 runtimeRoot: runtimeRoot,
                 accounts: accounts,
-                provider: provider
+                provider: provider,
+                operationCoordinator: gameOperationCoordinator
             )
             self.launches = launches
             client = CoreLauncherClient.make(
@@ -213,7 +216,6 @@ final class LauncherCoreHost {
 
     private static func cleanLegacyCoreAssets(dataDirectory: URL) throws {
         let ledger = dataDirectory.appending(path: "swift-core-takeover.json")
-        guard !FileManager.default.fileExists(atPath: ledger.path) else { return }
         let runtimes = dataDirectory.appending(path: "Runtimes")
         guard (try? PrivateFilesystem.rejectSymbolicLinks(in: runtimes)) != nil else { return }
         guard let entries = try? FileManager.default.contentsOfDirectory(
@@ -223,26 +225,56 @@ final class LauncherCoreHost {
         for root in entries {
             let values = try root.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
             guard values.isDirectory == true, values.isSymbolicLink != true else { continue }
-            let ledgerURL = root.appending(path: ".mhg-runtime-ledger.json")
-            guard GameFilesystem.regularFile(ledgerURL),
-                  let ledgerValues = try? ledgerURL.resourceValues(forKeys: [.fileSizeKey]),
-                  (ledgerValues.fileSize ?? 0) <= 1024 * 1024,
-                  let data = try? Data(contentsOf: ledgerURL),
-                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  object["schema_version"] != nil || object["schemaVersion"] != nil else { continue }
-            for relative in ["node", "backend/app"] {
+            guard hasLegacyRuntimeMarker(at: root) else { continue }
+            var cleanupFailed = false
+            for relative in ["node", "backend"] {
                 let target = root.appending(path: relative)
                 guard target.standardizedFileURL.path.hasPrefix(root.standardizedFileURL.path + "/") else { continue }
-                if (try? target.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey]))?.isDirectory == true {
-                    try? PrivateFilesystem.removeDirectoryIfPresent(target)
-                } else {
-                    try? PrivateFilesystem.removeRegularFileIfPresent(target)
+                do {
+                    if (try? target.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey]))?.isDirectory == true {
+                        try PrivateFilesystem.removeDirectoryIfPresent(target)
+                    } else {
+                        try PrivateFilesystem.removeRegularFileIfPresent(target)
+                    }
+                } catch {
+                    cleanupFailed = true
                 }
             }
+            if cleanupFailed { return }
         }
         let payload = try JSONSerialization.data(withJSONObject: [
             "schema": 1, "completed_at": CoreDate.string(Date())
         ], options: [.sortedKeys])
         try GameFilesystem.writePrivate(payload, to: ledger)
+    }
+
+    private static func hasLegacyRuntimeMarker(at root: URL) -> Bool {
+        let marker = root.appending(path: RuntimeInstallLedger.markerName)
+        if GameFilesystem.regularFile(marker),
+           let values = try? marker.resourceValues(forKeys: [.fileSizeKey]),
+           (values.fileSize ?? 0) <= 1024 * 1024,
+           let data = try? Data(contentsOf: marker, options: .mappedIfSafe),
+           let record = try? JSONDecoder().decode(RuntimeInstallRecord.self, from: data),
+           (record.schemaVersion == 2 || record.schemaVersion == 3),
+           record.tag == root.lastPathComponent,
+           record.appVersion.utf8.count <= 128,
+           record.manifestDigest.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil,
+           !record.requiredPaths.isEmpty,
+           record.requiredPaths.count <= 4_096,
+           record.requiredPaths.allSatisfy(RuntimeManifest.isSafeRelativePath) {
+            return true
+        }
+        for name in [".mhg-runtime-ledger.json", ".core-complete", ".game-complete"] {
+            let candidate = root.appending(path: name)
+            guard GameFilesystem.regularFile(candidate),
+                  let values = try? candidate.resourceValues(forKeys: [.fileSizeKey]),
+                  (values.fileSize ?? 0) <= 1024 * 1024 else { continue }
+            if name != ".mhg-runtime-ledger.json" { return true }
+            guard let data = try? Data(contentsOf: candidate, options: .mappedIfSafe),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  object["schema_version"] != nil || object["schemaVersion"] != nil else { continue }
+            return true
+        }
+        return false
     }
 }

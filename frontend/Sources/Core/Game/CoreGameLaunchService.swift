@@ -14,8 +14,10 @@ actor CoreGameLaunchService {
     private let prefixManager: WinePrefixManager
     private let windowProbe: any WindowProbing
     private let mhypbaseIntegrity: MhypbaseIntegrity
+    private let operationCoordinator: GameOperationCoordinator
     private var states: [String: State] = [:]
     private var tasks: [String: Task<Void, Never>] = [:]
+    private var shuttingDown = false
 
     init(
         dataDirectory: URL,
@@ -25,7 +27,8 @@ actor CoreGameLaunchService {
         runner: any CoreProcessRunning = FoundationProcessRunner(),
         prefixManager: WinePrefixManager = WinePrefixManager(),
         windowProbe: any WindowProbing = FoundationWindowProbe(),
-        mhypbaseIntegrity: MhypbaseIntegrity = .pinned
+        mhypbaseIntegrity: MhypbaseIntegrity = .pinned,
+        operationCoordinator: GameOperationCoordinator = GameOperationCoordinator()
     ) {
         self.dataDirectory = dataDirectory
         self.runtimeRoot = runtimeRoot
@@ -35,6 +38,7 @@ actor CoreGameLaunchService {
         self.prefixManager = prefixManager
         self.windowProbe = windowProbe
         self.mhypbaseIntegrity = mhypbaseIntegrity
+        self.operationCoordinator = operationCoordinator
         for launch in Self.loadPersisted(dataDirectory: dataDirectory) {
             let terminal = Self.terminal(launch.status)
             let normalized = terminal ? launch : Self.copy(
@@ -50,6 +54,9 @@ actor CoreGameLaunchService {
     }
 
     func start(_ request: StartGameLaunchRequest) async throws -> GameLaunch {
+        guard !shuttingDown else {
+            throw LauncherCoreError(code: "game_launch_unavailable", message: "游戏启动服务正在退出")
+        }
         guard (0...1_000).contains(request.framePacing) else {
             throw LauncherCoreError(code: "game_launch_request_invalid", message: "游戏启动参数无效")
         }
@@ -57,24 +64,36 @@ actor CoreGameLaunchService {
         guard !states.values.contains(where: { !Self.terminal($0.launch.status) }) else {
             throw LauncherCoreError(code: "game_launch_busy", message: "游戏正在启动或运行")
         }
-        guard let detected = GameFilesystem.detect(at: installPath) else {
-            throw LauncherCoreError(code: "game_not_installed", message: "所选目录中未检测到可启动的原神客户端")
+        let lease = try await operationCoordinator.acquire(.launch)
+        do {
+            guard !shuttingDown else {
+                throw LauncherCoreError(code: "game_launch_unavailable", message: "游戏启动服务正在退出")
+            }
+            guard !states.values.contains(where: { !Self.terminal($0.launch.status) }) else {
+                throw LauncherCoreError(code: "game_launch_busy", message: "游戏正在启动或运行")
+            }
+            guard let detected = GameFilesystem.detect(at: installPath) else {
+                throw LauncherCoreError(code: "game_not_installed", message: "所选目录中未检测到可启动的原神客户端")
+            }
+            try PrivateFilesystem.rejectSymbolicLinksRecursively(in: detected.path)
+            let id = UUID().uuidString
+            let now = CoreDate.string(Date())
+            let launch = GameLaunch(
+                id: id, status: .preparing, message: "", performanceProfile: request.performanceProfile,
+                metalHud: request.metalHud, networkDebug: request.networkDebug, wineLog: request.wineLog,
+                progress: 0.05, logs: [GameLaunchLog(sequence: 1, timestamp: now, kind: "launch", message: "启动任务已创建")],
+                startedAt: now, updatedAt: now, revision: 0
+            )
+            try Self.persist(launch, dataDirectory: dataDirectory)
+            states[id] = State(launch: launch)
+            tasks[id] = Task { [weak self] in
+                await self?.execute(id: id, gameRoot: detected.path, request: request, lease: lease)
+            }
+            return launch
+        } catch {
+            await operationCoordinator.release(lease)
+            throw error
         }
-        try PrivateFilesystem.rejectSymbolicLinksRecursively(in: detected.path)
-        let id = UUID().uuidString
-        let now = CoreDate.string(Date())
-        let launch = GameLaunch(
-            id: id, status: .preparing, message: "", performanceProfile: request.performanceProfile,
-            metalHud: request.metalHud, networkDebug: request.networkDebug, wineLog: request.wineLog,
-            progress: 0.05, logs: [GameLaunchLog(sequence: 1, timestamp: now, kind: "launch", message: "启动任务已创建")],
-            startedAt: now, updatedAt: now, revision: 0
-        )
-        try Self.persist(launch, dataDirectory: dataDirectory)
-        states[id] = State(launch: launch)
-        tasks[id] = Task { [weak self] in
-            await self?.execute(id: id, gameRoot: detected.path, request: request)
-        }
-        return launch
     }
 
     nonisolated func events(_ id: String, after revision: Int?) -> AsyncThrowingStream<GameLaunch, Error> {
@@ -97,9 +116,23 @@ actor CoreGameLaunchService {
     }
 
     func runWineTool(_ request: WineToolRequest) async throws {
+        guard !shuttingDown else {
+            throw LauncherCoreError(code: "wine_tool_unavailable", message: "Wine 工具服务正在退出")
+        }
         guard !states.values.contains(where: { !Self.terminal($0.launch.status) }) else {
             throw LauncherCoreError(code: "wine_tool_busy", message: "游戏或其他 Wine 工具正在启动")
         }
+        let lease = try await operationCoordinator.acquire(.launch)
+        do {
+            try await performWineTool(request)
+            await operationCoordinator.release(lease)
+        } catch {
+            await operationCoordinator.release(lease)
+            throw error
+        }
+    }
+
+    private func performWineTool(_ request: WineToolRequest) async throws {
         let paths = try WineRuntimePaths(root: runtimeRoot)
         let prefix = try await prefixManager.prepare(paths: paths, dataDirectory: dataDirectory, profile: request.performanceProfile)
         if request.action == .explorer {
@@ -132,6 +165,7 @@ actor CoreGameLaunchService {
     }
 
     func shutdown() async {
+        shuttingDown = true
         let active = tasks
         for task in active.values { task.cancel() }
         await runner.terminate()
@@ -142,7 +176,12 @@ actor CoreGameLaunchService {
         }
     }
 
-    private func execute(id: String, gameRoot: URL, request: StartGameLaunchRequest) async {
+    private func execute(
+        id: String,
+        gameRoot: URL,
+        request: StartGameLaunchRequest,
+        lease: UUID
+    ) async {
         let session = dataDirectory.appending(path: "launches/\(id)")
         var journal: MhypbaseJournal?
         var preparedPaths: WineRuntimePaths?
@@ -199,6 +238,7 @@ actor CoreGameLaunchService {
             let warning = (try? MhypbaseManager.restore(journal)) ?? ""
             update(id, status: .failed, message: warning.nonempty ?? "游戏启动失败，请稍后重试")
         }
+        await operationCoordinator.release(lease)
         tasks[id] = nil
     }
 

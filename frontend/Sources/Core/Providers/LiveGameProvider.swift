@@ -14,6 +14,7 @@ actor LiveGameProvider: GameProvider {
     private let sophon: SophonProvider
     private let noteClient: LiveNoteClient
     private var qrSessions: [String: QRSession] = [:]
+    private var qrIdentityIssued: Set<String> = []
     private var aigisSessions: [String: AigisSession] = [:]
     private static let agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) miHoYoBBS/2.95.1"
     private static let maximumSessionCount = 64
@@ -48,6 +49,7 @@ actor LiveGameProvider: GameProvider {
             id: id, url: url, status: "created", expiresAt: Date().addingTimeInterval(300)
         )
         qrSessions[id] = session
+        qrIdentityIssued.remove(id)
         return session
     }
 
@@ -61,6 +63,7 @@ actor LiveGameProvider: GameProvider {
         guard prior.expiresAt > Date() else {
             let expired = session(prior, status: "expired")
             qrSessions[id] = expired
+            qrIdentityIssued.remove(id)
             return (expired, nil)
         }
         let body = try JSONEncoder.api.encode(["ticket": id])
@@ -76,6 +79,7 @@ actor LiveGameProvider: GameProvider {
         if envelope.retcode == -3501 {
             let expired = session(prior, status: "expired")
             qrSessions[id] = expired
+            qrIdentityIssued.remove(id)
             return (expired, nil)
         }
         let data = envelope.data.objectValue ?? [:]
@@ -86,7 +90,9 @@ actor LiveGameProvider: GameProvider {
         let updated = prior.status == "confirmed" ? prior : session(prior, status: status)
         qrSessions[id] = updated
         guard status == "confirmed" else { return (updated, nil) }
-        qrSessions.removeValue(forKey: id)
+        if qrIdentityIssued.contains(id) {
+            return (updated, nil)
+        }
         let confirmed = data["payload"]?.objectValue ?? data
         let tokens = confirmed["tokens"]?.arrayValue.compactMap(\.objectValue) ?? []
         guard tokens.count <= 64 else {
@@ -96,7 +102,9 @@ actor LiveGameProvider: GameProvider {
               let user = (confirmed["user_info"] ?? confirmed["user"])?.objectValue else {
             throw LauncherCoreError(code: "qr_payload_invalid", message: "二维码登录结果缺少凭据")
         }
-        return (updated, try await identity(user: user, token: token))
+        let result = try await identity(user: user, token: token)
+        qrIdentityIssued.insert(id)
+        return (updated, result)
     }
 
     func identifyCredential(_ credential: String) async throws -> ProviderIdentity {
@@ -244,6 +252,11 @@ actor LiveGameProvider: GameProvider {
                             let values = data["list"]?.arrayValue.compactMap(\.objectValue) ?? []
                             guard values.count <= 100 else {
                                 throw LauncherCoreError(code: "wish_payload_invalid", message: "祈愿分页数据无效")
+                            }
+                            guard values.allSatisfy({ value in
+                                value["uid"]?.text.nonempty.map { $0 == role.uid } ?? true
+                            }) else {
+                                throw LauncherCoreError(code: "wish_uid_mismatch", message: "祈愿记录与当前 UID 不匹配")
                             }
                             let records = values.compactMap { Self.wish(uid: role.uid, value: $0) }
                             let index = newest[type].flatMap { id in records.firstIndex { $0.id == id } }
@@ -564,6 +577,7 @@ actor LiveGameProvider: GameProvider {
     private func pruneSessions() {
         let now = Date()
         qrSessions = qrSessions.filter { $0.value.expiresAt > now }
+        qrIdentityIssued = qrIdentityIssued.filter { qrSessions[$0] != nil }
         aigisSessions = aigisSessions.filter { $0.value.expiresAt > now }
         while qrSessions.count >= Self.maximumSessionCount {
             guard let oldest = qrSessions.min(by: { $0.value.expiresAt < $1.value.expiresAt })?.key else { break }

@@ -102,9 +102,7 @@ enum RuntimeInstallLedger {
             }
             let mode = info.st_mode & S_IFMT
             if mode == S_IFLNK {
-                guard relativePath(entry, under: root) == "game-runtime/wine/bin/wineboot",
-                      (try? FileManager.default.destinationOfSymbolicLink(atPath: entry.path)) == "wine",
-                      GameFilesystem.regularFile(entry.deletingLastPathComponent().appending(path: "wine")) else {
+                guard validateContainedSymlink(at: entry, under: root) else {
                     throw RuntimeInstallError.archiveTraversal("运行时目录包含不安全链接")
                 }
             } else if mode != S_IFDIR && mode != S_IFREG {
@@ -122,31 +120,47 @@ enum RuntimeInstallLedger {
             let normalized = RuntimeManifest.normalizedPath(relative)
             guard RuntimeManifest.isSafeRelativePath(normalized) else { return false }
             var current = root
-            var traversed: [Substring] = []
             let components = normalized.split(separator: "/")
             for (index, component) in components.enumerated() {
-                traversed.append(component)
                 current.append(path: String(component))
                 var info = stat()
                 guard lstat(current.path, &info) == 0 else { return false }
                 let mode = info.st_mode & S_IFMT
                 if mode == S_IFLNK {
-                    // Wine 将 wineboot 链接到同目录的 wine；仅放行这一项固定关系。
-                    let path = traversed.joined(separator: "/")
-                    let target = current.deletingLastPathComponent().appending(path: "wine")
-                    var targetInfo = stat()
                     guard index == components.count - 1,
-                          path == "game-runtime/wine/bin/wineboot",
-                          (try? FileManager.default.destinationOfSymbolicLink(atPath: current.path)) == "wine",
-                          lstat(target.path, &targetInfo) == 0,
-                          targetInfo.st_mode & S_IFMT == S_IFREG
-                    else { return false }
+                          validateContainedSymlink(at: current, under: root) else { return false }
                 } else if mode != S_IFDIR && mode != S_IFREG {
                     return false
                 }
             }
             return true
         }
+    }
+
+    static func isContainedSymlinkTarget(_ target: String, entry: String) -> Bool {
+        let normalizedTarget = RuntimeManifest.normalizedPath(target)
+        let normalizedEntry = RuntimeManifest.normalizedPath(entry)
+        guard !normalizedTarget.isEmpty,
+              normalizedTarget.utf8.count <= 1024,
+              !normalizedTarget.hasPrefix("/"),
+              !normalizedTarget.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
+              RuntimeManifest.isSafeRelativePath(normalizedEntry) else { return false }
+        if RuntimeManifest.canonicalPath(normalizedEntry) == "game-runtime/wine/bin/wineboot",
+           normalizedTarget != "wine" {
+            return false
+        }
+        var components = normalizedEntry.split(separator: "/").dropLast().map(String.init)
+        for component in normalizedTarget.split(separator: "/", omittingEmptySubsequences: false) {
+            if component.isEmpty || component == "." { continue }
+            if component == ".." {
+                guard !components.isEmpty else { return false }
+                components.removeLast()
+            } else {
+                components.append(String(component))
+            }
+        }
+        let resolved = components.joined(separator: "/")
+        return RuntimeManifest.isSafeRelativePath(resolved)
     }
 
     static func digest(_ data: Data) -> String {
@@ -159,5 +173,22 @@ enum RuntimeInstallLedger {
         let prefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
         guard entryPath.hasPrefix(prefix) else { return nil }
         return String(entryPath.dropFirst(prefix.count))
+    }
+
+    private static func validateContainedSymlink(at entry: URL, under root: URL) -> Bool {
+        guard let relative = relativePath(entry, under: root),
+              let target = try? FileManager.default.destinationOfSymbolicLink(atPath: entry.path),
+              isContainedSymlinkTarget(target, entry: relative) else { return false }
+        let normalizedTarget = RuntimeManifest.normalizedPath(target)
+        let resolved = entry.deletingLastPathComponent()
+            .appending(path: normalizedTarget)
+            .standardizedFileURL
+        let rootPath = root.standardizedFileURL.path
+        let prefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+        guard resolved.path.hasPrefix(prefix) else { return false }
+        var info = stat()
+        guard lstat(resolved.path, &info) == 0 else { return false }
+        let mode = info.st_mode & S_IFMT
+        return mode == S_IFREG || mode == S_IFDIR
     }
 }

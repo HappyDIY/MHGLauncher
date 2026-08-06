@@ -1,4 +1,3 @@
-import Darwin
 import Foundation
 
 typealias RuntimeProgressHandler = @MainActor (RuntimeProgress) -> Void
@@ -205,36 +204,8 @@ final class RuntimeInstaller: @unchecked Sendable {
     }
 
     private func removeRuntimeTree(_ url: URL) throws {
-        try PrivateFilesystem.rejectSymbolicLinks(in: url)
         guard fileManager.fileExists(atPath: url.path) else { return }
-        let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
-        guard values.isDirectory == true, values.isSymbolicLink != true else {
-            throw RuntimeInstallError.unsafePromotion
-        }
-        guard let enumerator = fileManager.enumerator(
-            at: url,
-            includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey],
-            options: []
-        ) else { throw RuntimeInstallError.unsafePromotion }
-        while let entry = enumerator.nextObject() as? URL {
-            var info = stat()
-            guard lstat(entry.path, &info) == 0 else { throw RuntimeInstallError.unsafePromotion }
-            let mode = info.st_mode & S_IFMT
-            if mode == S_IFLNK {
-                let rootPath = url.standardizedFileURL.path + "/"
-                let relative = String(entry.standardizedFileURL.path.dropFirst(rootPath.count))
-                let target = entry.deletingLastPathComponent().appending(path: "wine")
-                var targetInfo = stat()
-                guard ["wine/bin/wineboot", "game-runtime/wine/bin/wineboot"].contains(relative),
-                      (try? fileManager.destinationOfSymbolicLink(atPath: entry.path)) == "wine",
-                      lstat(target.path, &targetInfo) == 0,
-                      targetInfo.st_mode & S_IFMT == S_IFREG else {
-                    throw RuntimeInstallError.unsafePromotion
-                }
-            } else if mode != S_IFDIR && mode != S_IFREG {
-                throw RuntimeInstallError.unsafePromotion
-            }
-        }
+        try RuntimeInstallLedger.validateTree(at: url)
         try fileManager.removeItem(at: url)
     }
 }

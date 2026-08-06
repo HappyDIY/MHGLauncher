@@ -63,6 +63,9 @@ actor CoreCharacterService {
         guard value.uid == role.uid else {
             throw LauncherCoreError(code: "character_uid_mismatch", message: "角色数据与当前 UID 不匹配")
         }
+        guard value.avatarId == avatarID else {
+            throw LauncherCoreError(code: "character_id_mismatch", message: "角色详情与请求的角色不匹配")
+        }
         try await save([value])
         return value
     }

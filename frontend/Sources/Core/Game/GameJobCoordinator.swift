@@ -35,8 +35,12 @@ actor GameJobCoordinator {
 
     private var states: [String: State] = [:]
     private var tasks: [String: Task<Void, Never>] = [:]
+    private var shuttingDown = false
 
     func start(kind: JobKind, total: Int64, operation: @escaping Operation) throws -> GameJob {
+        guard !shuttingDown else {
+            throw LauncherCoreError(code: "game_resource_unavailable", message: "游戏资源服务正在退出")
+        }
         guard !states.values.contains(where: { [.queued, .running, .pausing, .paused, .cancelling].contains($0.job.status) }) else {
             throw LauncherCoreError(code: "game_resource_busy", message: "已有游戏资源任务正在运行")
         }
@@ -123,6 +127,7 @@ actor GameJobCoordinator {
     }
 
     func shutdown() async {
+        shuttingDown = true
         let active = tasks
         for (id, task) in active {
             await states[id]?.control.cancel()

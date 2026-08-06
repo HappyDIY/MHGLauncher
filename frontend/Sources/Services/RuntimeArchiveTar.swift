@@ -84,7 +84,7 @@ extension RuntimeArchive {
             throw RuntimeInstallError.archiveTraversal("无效符号链接")
         }
         let target = String(listing[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard path == "game-runtime/wine/bin/wineboot", target == "wine" else {
+        guard RuntimeInstallLedger.isContainedSymlinkTarget(target, entry: path) else {
             throw RuntimeInstallError.archiveTraversal(path)
         }
     }
