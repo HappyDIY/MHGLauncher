@@ -809,7 +809,7 @@ actor CoreGameService {
               let enumerator = FileManager.default.enumerator(
                   at: parent,
                   includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
-                  options: [.skipsSubdirectoryEnumeration]
+                  options: [.skipsSubdirectoryDescendants]
               ) else { return }
         let prefix = ".\(destination.lastPathComponent).mhg-staging-"
         var scanned = 0

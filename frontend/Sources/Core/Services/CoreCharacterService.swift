@@ -20,7 +20,7 @@ actor CoreCharacterService {
         guard Self.validUID(uid) else {
             throw LauncherCoreError(code: "uid_invalid", message: "角色 UID 无效")
         }
-        try await database.read { db in
+        return try await database.read { db in
             let rows = try Row.fetchAll(
                 db,
                 sql: "SELECT * FROM characters WHERE uid=? ORDER BY rarity DESC,level DESC,name",
@@ -79,10 +79,10 @@ actor CoreCharacterService {
                   !value.name.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
                   !value.element.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
                   !value.weaponName.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
-                  value.iconUrl.map {
+                  (value.iconUrl.map {
                       $0.absoluteString.utf8.count <= 16 * 1024
                           && !$0.absoluteString.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
-                  } ?? true,
+                  } ?? true),
                   (0...100).contains(value.level), (0...5).contains(value.rarity),
                   (0...6).contains(value.constellation), (0...10).contains(value.fetter),
                   (0...100).contains(value.weaponLevel),

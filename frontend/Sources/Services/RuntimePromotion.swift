@@ -75,7 +75,7 @@ enum RuntimePromotion {
             }
             try removeDirectory(backup, fileManager: fileManager)
         }
-        try secureRemove(journal, fileManager: fileManager)
+        secureRemove(journal, fileManager: fileManager)
     }
 
     static func recover(journal: URL, fileManager: FileManager = .default) throws {

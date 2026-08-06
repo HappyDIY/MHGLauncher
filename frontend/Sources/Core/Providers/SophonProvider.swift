@@ -144,12 +144,12 @@ actor SophonProvider {
             }
             chunkCount += asset.assetChunks.count
         }
-        return value.assets.map { asset in
+        return try value.assets.map { asset in
             GameAsset(
                 name: asset.assetName,
                 size: asset.assetSize,
                 md5: asset.assetHashMd5,
-                chunks: asset.assetChunks.map { chunk in
+                chunks: try asset.assetChunks.map { chunk in
                     SophonChunk(
                         name: chunk.chunkName,
                         decompressedMD5: chunk.chunkDecompressedHashMd5,

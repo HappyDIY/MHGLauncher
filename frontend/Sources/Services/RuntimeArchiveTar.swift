@@ -93,7 +93,7 @@ extension RuntimeArchive {
         var total: Int64 = 0
         for raw in Array(data).split(separator: 0x0A) {
             let line = String(decoding: raw, as: UTF8.self)
-            let fields = line.split(maxSplits: 5, omittingEmptySubsequences: true)
+            let fields = line.split(separator: " ", maxSplits: 5, omittingEmptySubsequences: true)
             guard fields.count >= 5, let size = Int64(fields[4]), size >= 0,
                   size <= maximumExtractedBytes,
                   total <= maximumExtractedBytes - size else {

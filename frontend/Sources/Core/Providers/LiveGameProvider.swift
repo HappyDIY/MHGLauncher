@@ -189,7 +189,7 @@ actor LiveGameProvider: GameProvider {
                 level: value["level"]?.int ?? 0,
                 selected: value["is_chosen"]?.boolValue ?? false
             )
-        } ?? []
+        }
     }
 
     func build(installedVersion: String, audioLanguages: [String]) async throws -> GameBuild {
@@ -335,7 +335,7 @@ actor LiveGameProvider: GameProvider {
                             try await Task.sleep(for: .milliseconds(Int.random(in: 1_000...1_999)))
                         }
                     }
-                    guard let provenUID, total > 0 else {
+                    guard provenUID != nil, total > 0 else {
                         throw LauncherCoreError(code: "gacha_url_unverified", message: "抽卡 URL 可用，但无法确认 UID")
                     }
                     continuation.finish()

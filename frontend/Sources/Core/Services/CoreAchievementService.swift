@@ -142,7 +142,7 @@ actor CoreAchievementService {
         guard Self.validArchiveID(archiveID) else {
             throw LauncherCoreError(code: "uid_invalid", message: "角色 UID 无效")
         }
-        try await items(archiveID: archiveID).map {
+        return try await items(archiveID: archiveID).map {
             AchievementItemInput(
                 achievementId: $0.achievementId,
                 current: $0.current,

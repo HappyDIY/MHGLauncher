@@ -26,7 +26,7 @@ extension CoreGameService {
             let url = try GameFilesystem.safeTarget(root: root, relativePath: asset.name)
             guard GameFilesystem.regularFile(url),
                   let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey]),
-                  values.fileSize == asset.size else { continue }
+                  Int64(values.fileSize ?? -1) == asset.size else { continue }
             assets[asset.name.replacingOccurrences(of: "\\", with: "/")] = [
                 "md5": asset.md5.lowercased(), "size": values.fileSize ?? 0,
                 "mtime": values.contentModificationDate?.timeIntervalSince1970 ?? 0
@@ -123,7 +123,7 @@ extension CoreGameService {
             guard let enumerator = FileManager.default.enumerator(
                 at: directory,
                 includingPropertiesForKeys: nil,
-                options: [.skipsSubdirectoryEnumeration]
+                options: [.skipsSubdirectoryDescendants]
             ) else {
                 throw LauncherCoreError(code: "install_destination_invalid", message: "无法读取安装位置")
             }

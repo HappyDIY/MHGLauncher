@@ -141,7 +141,7 @@ enum MhypbaseManager {
               let enumerator = FileManager.default.enumerator(
                 at: root,
                 includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
-                options: [.skipsSubdirectoryEnumeration]
+                options: [.skipsSubdirectoryDescendants]
               ) else { return [] }
         var sessions: [URL] = []
         while let session = enumerator.nextObject() as? URL {

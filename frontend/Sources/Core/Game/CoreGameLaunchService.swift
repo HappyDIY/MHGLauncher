@@ -343,7 +343,7 @@ actor CoreGameLaunchService {
               let enumerator = FileManager.default.enumerator(
                   at: root,
                   includingPropertiesForKeys: nil,
-                  options: [.skipsSubdirectoryEnumeration]
+                  options: [.skipsSubdirectoryDescendants]
               ) else { return [] }
         var entries: [URL] = []
         while let entry = enumerator.nextObject() as? URL {

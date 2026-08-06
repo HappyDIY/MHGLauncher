@@ -118,7 +118,7 @@ enum RuntimeInstallLedger {
               let rootValues = try? root.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
               rootValues.isDirectory == true,
               rootValues.isSymbolicLink != true else { return false }
-        paths.allSatisfy { relative in
+        return paths.allSatisfy { relative in
             let normalized = RuntimeManifest.normalizedPath(relative)
             guard RuntimeManifest.isSafeRelativePath(normalized) else { return false }
             var current = root

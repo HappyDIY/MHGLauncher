@@ -71,7 +71,7 @@ actor CoreNoteService {
         guard uid.range(of: #"^\d{9,10}$"#, options: .regularExpression) != nil else {
             throw LauncherCoreError(code: "uid_invalid", message: "角色 UID 无效")
         }
-        try await database.read { db in
+        return try await database.read { db -> DailyNote? in
             guard let payload = try String.fetchOne(
                 db, sql: "SELECT payload FROM notes WHERE uid=?", arguments: [uid]
             ) else { return nil }

@@ -84,7 +84,7 @@ enum RuntimeManifestDownload {
     }
 
     private static func localData(from url: URL, limit: Int) throws -> Data {
-        guard GameFilesystem.regularFile(url) else { throw URLError(.fileNotFound) }
+        guard GameFilesystem.regularFile(url) else { throw CocoaError(.fileReadNoSuchFile) }
         let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? limit + 1
         guard size <= limit else { throw URLError(.dataLengthExceedsMaximum) }
         return try Data(contentsOf: url, options: .mappedIfSafe)

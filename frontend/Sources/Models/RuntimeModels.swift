@@ -81,7 +81,7 @@ struct RuntimeManifest: Codable, Equatable, Sendable {
 
     static func isSafeRelativePath(_ path: String) -> Bool {
         let normalized = normalizedPath(path)
-        !normalized.isEmpty && normalized.utf8.count <= 1024
+        return !normalized.isEmpty && normalized.utf8.count <= 1024
             && !normalized.hasPrefix("/")
             && !normalized.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
             && normalized.split(separator: "/", omittingEmptySubsequences: false).allSatisfy {

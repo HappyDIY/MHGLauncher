@@ -102,7 +102,7 @@ actor CoreCloudService {
         guard Self.validUID(uid) else {
             throw LauncherCoreError(code: "uid_invalid", message: "角色 UID 无效")
         }
-        try await database.read { db in
+        return try await database.read { db -> CloudSession? in
             try Row.fetchOne(
                 db,
                 sql: "SELECT * FROM cloud_sessions WHERE uid=?",

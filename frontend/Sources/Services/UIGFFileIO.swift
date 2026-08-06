@@ -8,7 +8,7 @@ enum UIGFFileIO {
             try PrivateFilesystem.rejectSymbolicLinks(in: url)
             let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
             guard values.isRegularFile == true, values.isSymbolicLink != true else {
-                throw CocoaError(.fileReadTypeMismatch)
+                throw CocoaError(.fileReadCorruptFile)
             }
             let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? maximumImportBytes + 1
             guard size <= maximumImportBytes else { throw URLError(.dataLengthExceedsMaximum) }

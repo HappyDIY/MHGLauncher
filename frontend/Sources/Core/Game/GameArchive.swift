@@ -210,7 +210,7 @@ enum GameArchive {
                     throw LauncherCoreError(code: "archive_too_large", message: "安装包文件数量超过限制")
                 }
             }
-            let fields = line.split(maxSplits: 5, omittingEmptySubsequences: true)
+            let fields = line.split(separator: " ", maxSplits: 5, omittingEmptySubsequences: true)
             guard fields.count >= 5, let size = Int64(fields[4]), size >= 0,
                   size <= maximumExtractedBytes,
                   listedSize <= maximumExtractedBytes - size else {

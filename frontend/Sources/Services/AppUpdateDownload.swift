@@ -123,7 +123,8 @@ private final class UpdateRedirectDelegate: NSObject, URLSessionTaskDelegate, @u
 
     static func valid(_ url: URL?) -> Bool {
         guard let url else { return false }
-        return url.scheme?.lowercased() == "https", url.user == nil, url.password == nil,
-               url.port == nil || url.port == 443, url.fragment == nil, url.host?.isEmpty == false
+        return url.scheme?.lowercased() == "https" && url.user == nil && url.password == nil
+            && (url.port == nil || url.port == 443) && url.fragment == nil
+            && url.host?.isEmpty == false
     }
 }

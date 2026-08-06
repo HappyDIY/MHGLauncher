@@ -136,7 +136,7 @@ actor CoreMetadataRepository {
             guard values.isRegularFile == true else {
                 throw invalid("资料仓库包含不安全的文件")
             }
-            let size = values.fileSize ?? -1
+            let size = Int64(values.fileSize ?? -1)
             let relative = String(path.dropFirst(rootPrefix.count))
             if relative == ".git" || relative.hasPrefix(".git/") {
                 guard size >= 0, size <= 256 * 1024 * 1024,
@@ -205,7 +205,7 @@ actor CoreMetadataRepository {
         guard let enumerator = fileManager.enumerator(
             at: avatarRoot,
             includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
-            options: [.skipsSubdirectoryEnumeration]
+            options: [.skipsSubdirectoryDescendants]
         ) else { throw invalid("角色资料无效") }
         var avatars: [URL] = []
         while let url = enumerator.nextObject() as? URL {

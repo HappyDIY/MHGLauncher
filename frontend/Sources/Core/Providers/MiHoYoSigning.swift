@@ -62,13 +62,13 @@ enum MiHoYoSigning {
         let authKeys = queryItems.filter { $0.name == "authkey" }
         let appIDs = queryItems.filter { $0.name == "auth_appid" }
         guard queryItems.count <= 128,
-              queryItems.allSatisfy { item in
+              queryItems.allSatisfy({ item in
                   let value = item.value ?? ""
                   return item.name.utf8.count <= 128
                       && value.utf8.count <= 16 * 1024
                       && !item.name.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
                       && !value.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
-              },
+              }),
               authKeys.count == 1,
               let authkey = authKeys.first?.value?.nonempty,
               authkey.utf8.count <= 8 * 1024,
@@ -286,14 +286,14 @@ struct MiHoYoEnvelope: Sendable {
 extension JSONValue {
     var text: String {
         switch self {
-        case .string(let value): value
+        case .string(let value): return value
         case .number(let value):
             if value.rounded() == value, let integer = Int(exactly: value) {
                 return String(integer)
             }
             return String(value)
-        case .bool(let value): value ? "true" : "false"
-        default: ""
+        case .bool(let value): return value ? "true" : "false"
+        default: return ""
         }
     }
     var int: Int { integerValue ?? Int(text) ?? 0 }

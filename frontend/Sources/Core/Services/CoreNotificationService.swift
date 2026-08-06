@@ -17,7 +17,7 @@ actor CoreNotificationService {
     }
 
     func settings() async throws -> NotificationSettings {
-        try await database.read { db in
+        return try await database.read { db in
             let row = try Row.fetchOne(
                 db,
                 sql: "SELECT * FROM notification_settings WHERE id=1"
@@ -205,7 +205,7 @@ actor CoreNotificationService {
         guard uid.range(of: #"^\d{9,10}$"#, options: .regularExpression) != nil else {
             throw LauncherCoreError(code: "uid_invalid", message: "角色 UID 无效")
         }
-        try await database.read { db in
+        return try await database.read { db -> DailyNote? in
             guard let payload = try String.fetchOne(
                 db, sql: "SELECT payload FROM notes WHERE uid=?", arguments: [uid]
             ) else { return nil }
