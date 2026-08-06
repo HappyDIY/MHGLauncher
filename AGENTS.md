@@ -41,6 +41,8 @@ Windows 参考实现是 `${HOME}/Documents/Snap.Hutao.Remastered`。业务行为
 
 ## 命令
 
+除非用户主动明确要求，否则一律不得运行任何测试或构建命令。不得因为修改完成、提交前检查或常规验证而自行运行测试、构建、打包或冒烟检查。
+
 ```bash
 cd frontend
 swift build -c release --arch arm64
@@ -54,7 +56,7 @@ scripts/build-app.sh
 scripts/smoke-app.sh
 ```
 
-`scripts/test-all.sh` 是合并前权威门禁。修改后、提交前必须运行 `scripts/test-ai.sh`，且其唯一 JSON 输出的 `status` 必须是 `passed`。Swift 与 C 源文件仍受 `scripts/check-source-lines.sh` 的 1000 行限制。
+`scripts/test-all.sh` 是合并前权威门禁；仅在用户主动要求运行测试时使用。用户主动要求运行 `scripts/test-ai.sh` 时，其唯一 JSON 输出的 `status` 必须是 `passed`。Swift 与 C 源文件仍受 `scripts/check-source-lines.sh` 的 1000 行限制。
 
 ## Git
 
