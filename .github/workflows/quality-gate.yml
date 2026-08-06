@@ -19,6 +19,9 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
       - name: Run launcher quality gate
         env:
           DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer

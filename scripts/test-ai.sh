@@ -42,7 +42,7 @@ git -C "$root" ls-files --others --exclude-standard -z \
 changed_files=()
 add_changed_file() {
   local path="$1" existing
-  for existing in "${changed_files[@]}"; do
+  for existing in ${changed_files[@]+"${changed_files[@]}"}; do
     [[ "$existing" == "$path" ]] && return
   done
   changed_files[${#changed_files[@]}]="$path"
@@ -61,7 +61,7 @@ suite_commands=()
 suite_reasons=()
 select_suite() {
   local id="$1" command="$2" reason="$3" existing
-  for existing in "${suite_ids[@]}"; do
+  for existing in ${suite_ids[@]+"${suite_ids[@]}"}; do
     [[ "$existing" == "$id" ]] && return
   done
   suite_ids[${#suite_ids[@]}]="$id"

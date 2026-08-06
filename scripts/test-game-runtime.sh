@@ -5,12 +5,13 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 
-xcrun clang -dynamiclib -arch x86_64 -O2 "$root/runtime/dns-gate.c" -lresolv -o "$stage/gate.dylib"
+"$root/scripts/build-dns-gate.sh" "$stage/gate.dylib"
 xcrun swiftc -O "$root/runtime/window-probe.swift" -o "$stage/window-probe"
 printf '%s\n' \
   '#include <netdb.h>' \
   '#include <resolv.h>' \
-  'int main(int count,char **values){unsigned char answer[512];if(count>2)return res_query(values[1],1,1,answer,512)<0?1:0;struct addrinfo *result=0;int code=getaddrinfo(values[1],0,0,&result);if(result)freeaddrinfo(result);return code==0?0:1;}' \
+  '#include <string.h>' \
+  'int main(int count,char **values){unsigned char answer[512];if(count>2&&strcmp(values[2],"dns")==0)return res_query(values[1],1,1,answer,512)<0?1:0;if(count>2&&strcmp(values[2],"host")==0)return gethostbyname(values[1])?0:1;if(count>2&&strcmp(values[2],"host2")==0)return gethostbyname2(values[1],AF_INET6)?0:1;struct addrinfo *result=0;int code=getaddrinfo(values[1],0,0,&result);if(result)freeaddrinfo(result);return code==0?0:1;}' \
   | xcrun clang -arch x86_64 -x c - -lresolv -o "$stage/resolver"
 
 gate="$stage/enabled"
@@ -34,12 +35,24 @@ if run_resolver dispatchosglobal.yuanshen.com dns; then
   printf '域名门控未屏蔽 Wine DNS 查询路径。\n' >&2
   exit 1
 fi
+touch "$gate"
+if run_resolver dispatchcnglobal.yuanshen.com host; then
+  printf '域名门控未屏蔽旧版 IPv4 查询路径。\n' >&2
+  exit 1
+fi
+touch "$gate"
+if run_resolver dispatchosglobal.yuanshen.com host2; then
+  printf '域名门控未屏蔽旧版 IPv6 查询路径。\n' >&2
+  exit 1
+fi
 run_resolver localhost
 rm -f "$gate"
 run_resolver dispatchcnglobal.yuanshen.com
 grep -q $'getaddrinfo/ANY\tdispatchcnglobal.yuanshen.com\tblocked' "$dns_log"
 grep -q $'getaddrinfo/ANY\tdispatchcnglobal.yuanshen.com\tallowed\t0\t' "$dns_log"
 grep -q $'res_query\tdispatchosglobal.yuanshen.com\tblocked' "$dns_log"
+grep -q $'gethostbyname\tdispatchcnglobal.yuanshen.com\tblocked' "$dns_log"
+grep -q $'gethostbyname2\tdispatchosglobal.yuanshen.com\tblocked' "$dns_log"
 test ! -e "$gate"
 if "$stage/window-probe" invalid; then
   printf '窗口探针未拒绝无效进程组。\n' >&2

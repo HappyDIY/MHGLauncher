@@ -11,7 +11,7 @@ while IFS= read -r file; do
     status=1
   fi
 done < <(find "$root" \
-  -type f \( -name '*.swift' -o -name '*.ts' \) \
+  -type f \( -name '*.swift' -o -name '*.rs' -o -name '*.ts' \) \
   -not -path '*/.build/*' \
   -not -path '*/.venv/*' \
   -not -path '*/node_modules/*' \

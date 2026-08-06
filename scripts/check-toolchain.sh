@@ -20,6 +20,18 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
     printf 'Swift 版本过低：%s\n' "$swift_version" >&2
     exit 1
   fi
+  rustc="${RUSTC:-$(command -v rustc || true)}"
+  if [[ -z "$rustc" && -x "$HOME/.cargo/bin/rustc" ]]; then
+    rustc="$HOME/.cargo/bin/rustc"
+  fi
+  [[ -x "$rustc" ]] || {
+    printf '缺少 Rust 编译器。\n' >&2
+    exit 1
+  }
+  "$rustc" --print target-libdir --target x86_64-apple-darwin >/dev/null 2>&1 || {
+    printf '缺少 Rust x86_64-apple-darwin 目标。\n' >&2
+    exit 1
+  }
 fi
 
-printf 'Swift 工具链检查通过。\n'
+printf 'Swift 与 Rust 工具链检查通过。\n'
