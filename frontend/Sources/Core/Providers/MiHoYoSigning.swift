@@ -39,17 +39,63 @@ enum MiHoYoSigning {
     }
 
     static func cookies(_ raw: String) -> [String: String] {
-        raw.replacingOccurrences(of: " ", with: "").split(separator: ";").reduce(into: [:]) { result, item in
+        raw.split(separator: ";").reduce(into: [:]) { result, item in
             let pair = item.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
-            guard pair.count == 2, !pair[0].isEmpty, result[String(pair[0])] == nil else { return }
-            result[String(pair[0])] = String(pair[1])
+            guard pair.count == 2 else { return }
+            let key = String(pair[0]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let value = String(pair[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard validCookieKey(key), validCookieValue(value), result[key] == nil else { return }
+            result[key] = value
         }
+    }
+
+    static func normalizedGachaURL(_ value: URL) -> URL? {
+        guard value.scheme?.lowercased() == "https",
+              value.user == nil, value.password == nil, value.port == nil,
+              value.fragment == nil, value.absoluteString.utf8.count <= 16 * 1024,
+              let host = value.host?.lowercased(),
+              ["public-operation-hk4e.mihoyo.com", "webstatic.mihoyo.com"].contains(host),
+              let components = URLComponents(url: value, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        let queryItems = components.queryItems ?? []
+        let authKeys = queryItems.filter { $0.name == "authkey" }
+        let appIDs = queryItems.filter { $0.name == "auth_appid" }
+        guard queryItems.count <= 128,
+              queryItems.allSatisfy { item in
+                  let value = item.value ?? ""
+                  return item.name.utf8.count <= 128
+                      && value.utf8.count <= 16 * 1024
+                      && !item.name.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
+                      && !value.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
+              },
+              authKeys.count == 1,
+              let authkey = authKeys.first?.value?.nonempty,
+              authkey.utf8.count <= 8 * 1024,
+              !authkey.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
+              appIDs.count == 1, appIDs.first?.value == "webview_gacha" else {
+            return nil
+        }
+        var endpoint = URLComponents(string: "https://public-operation-hk4e.mihoyo.com/gacha_info/api/getGachaLog")
+        endpoint?.queryItems = queryItems
+        return endpoint?.url
     }
 
     static func serialize(_ values: [String: String]) -> String {
         values.keys.sorted().compactMap { key in
-            values[key]?.nonempty.map { "\(key)=\($0)" }
+            guard validCookieKey(key), let value = values[key], validCookieValue(value) else { return nil }
+            return value.nonempty.map { "\(key)=\($0)" }
         }.joined(separator: ";")
+    }
+
+    private static func validCookieKey(_ value: String) -> Bool {
+        value.range(of: #"^[A-Za-z0-9_-]{1,64}$"#, options: .regularExpression) != nil
+    }
+
+    private static func validCookieValue(_ value: String) -> Bool {
+        value.utf8.count <= 8 * 1024 && value.unicodeScalars.allSatisfy {
+            (0x21...0x7E).contains($0.value) && $0.value != 0x3B && $0.value != 0x2C
+        }
     }
 
     static func encryptPassport(_ value: String) throws -> String {
@@ -112,9 +158,17 @@ actor MiHoYoDevice {
         url = dataDirectory.appending(path: "device.json")
         self.transport = transport
         if GameFilesystem.regularFile(url),
+           let values = try? url.resourceValues(forKeys: [.fileSizeKey]),
+           (values.fileSize ?? 0) <= 1024 * 1024,
            let data = try? Data(contentsOf: url),
            let saved = try? JSONDecoder.api.decode(Snapshot.self, from: data),
-           saved.profile == "snap-hutao-android-v2" {
+           saved.profile == "snap-hutao-android-v2",
+           Self.validText(saved.deviceID, maximum: 256),
+           saved.fpDeviceID.range(of: "^[a-f0-9]{1,128}$", options: .regularExpression) != nil,
+           saved.hoyoplayDeviceID.range(of: "^[a-z0-9]{1,128}$", options: .regularExpression) != nil,
+           Self.validText(saved.deviceName, maximum: 128),
+           Self.validText(saved.productName, maximum: 128),
+           saved.deviceFP.isEmpty || Self.validText(saved.deviceFP, maximum: 512) {
             value = saved
         } else {
             value = Snapshot(
@@ -157,6 +211,9 @@ actor MiHoYoDevice {
         guard let fp = envelope.data.objectValue?["device_fp"]?.text.nonempty else {
             throw LauncherCoreError(code: "device_fp_failed", message: "米游社设备注册失败，请稍后重试")
         }
+        guard Self.validText(fp, maximum: 512) else {
+            throw LauncherCoreError(code: "device_fp_invalid", message: "米游社设备指纹无效")
+        }
         value.deviceFP = fp
         try Self.save(value, to: url)
         return value
@@ -176,6 +233,11 @@ actor MiHoYoDevice {
         return String(MiHoYoSigning.secureRandom(count: count).map { alphabet[Int($0) % alphabet.count] })
     }
 
+    private static func validText(_ value: String, maximum: Int) -> Bool {
+        value.utf8.count <= maximum
+            && !value.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
+    }
+
     private static func extFields(_ value: Snapshot) throws -> String {
         let fields: [String: JSONValue] = [
             "proxyStatus": .number(0), "isRoot": .number(0), "romCapacity": .string("512"),
@@ -192,7 +254,7 @@ actor MiHoYoDevice {
 extension HTTPSHostPolicy {
     static let mihoyo = HTTPSHostPolicy(
         exactHosts: ["passport-api.mihoyo.com", "api-takumi.mihoyo.com", "api-takumi-record.mihoyo.com", "public-data-api.mihoyo.com", "public-operation-hk4e.mihoyo.com"],
-        suffixes: ["mihoyo.com"]
+        suffixes: []
     )
 }
 
@@ -206,8 +268,10 @@ struct MiHoYoEnvelope: Sendable {
               let root = try? JSONDecoder.api.decode([String: JSONValue].self, from: payload.data) else {
             throw LauncherCoreError(code: "mihoyo_payload_invalid", message: "米游社响应格式无效")
         }
-        let code = root["retcode"]?.int ?? 0
-        let message = root["message"]?.text ?? ""
+        guard let code = root["retcode"]?.integerValue else {
+            throw LauncherCoreError(code: "mihoyo_payload_invalid", message: "米游社响应缺少错误码")
+        }
+        let message = String((root["message"]?.text ?? "").prefix(512))
         guard (200..<300).contains(payload.statusCode), code == 0 || allowRetcode.contains(code) else {
             throw LauncherCoreError(
                 code: "mihoyo_error",
@@ -223,7 +287,11 @@ extension JSONValue {
     var text: String {
         switch self {
         case .string(let value): value
-        case .number(let value): value.rounded() == value ? String(Int(value)) : String(value)
+        case .number(let value):
+            if value.rounded() == value, let integer = Int(exactly: value) {
+                return String(integer)
+            }
+            return String(value)
         case .bool(let value): value ? "true" : "false"
         default: ""
         }

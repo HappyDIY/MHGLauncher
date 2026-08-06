@@ -16,7 +16,8 @@ struct HTTPSHostPolicy: Sendable {
               url.user == nil,
               url.password == nil,
               url.port == nil || url.port == 443,
-              let host = url.host?.lowercased() else { return false }
+              url.fragment == nil,
+              let host = url.host?.lowercased(), !host.isEmpty else { return false }
         return exactHosts.contains(host) || suffixes.contains { host.hasSuffix("." + $0) }
     }
 }
@@ -41,9 +42,32 @@ final class DenyRedirectDelegate: NSObject, URLSessionTaskDelegate, @unchecked S
     }
 }
 
+final class ValidatingRedirectDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let policy: HTTPSHostPolicy
+    private var redirects = 0
+
+    init(policy: HTTPSHostPolicy) {
+        self.policy = policy
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        guard redirects < 3, let url = request.url, policy.allows(url) else {
+            completionHandler(nil)
+            return
+        }
+        redirects += 1
+        completionHandler(request)
+    }
+}
+
 actor URLSessionHTTPTransport: HTTPTransport {
     private let session: URLSession
-    private let redirectDelegate = DenyRedirectDelegate()
 
     init(configuration: URLSessionConfiguration = .ephemeral) {
         configuration.urlCache = nil
@@ -64,6 +88,7 @@ actor URLSessionHTTPTransport: HTTPTransport {
             throw LauncherCoreError(code: "response_limit_invalid", message: "网络响应限制无效")
         }
         var current = request
+        let redirectDelegate = ValidatingRedirectDelegate(policy: policy)
         for redirectCount in 0...3 {
             guard let url = current.url, policy.allows(url) else {
                 throw LauncherCoreError(code: "network_host_denied", message: "网络请求地址不受信任")
@@ -74,6 +99,9 @@ actor URLSessionHTTPTransport: HTTPTransport {
             )
             guard let http = response as? HTTPURLResponse else {
                 throw LauncherCoreError(code: "network_response_invalid", message: "网络响应无效")
+            }
+            guard policy.allows(http.url ?? url) else {
+                throw LauncherCoreError(code: "network_host_denied", message: "网络响应地址不受信任")
             }
             if (300..<400).contains(http.statusCode),
                let location = http.value(forHTTPHeaderField: "Location") {
@@ -96,15 +124,36 @@ actor URLSessionHTTPTransport: HTTPTransport {
                 }
                 data.append(byte)
             }
+            let headers = try Self.normalizedHeaders(http.allHeaderFields)
             return HTTPPayload(
                 statusCode: http.statusCode,
-                headers: Dictionary(uniqueKeysWithValues: http.allHeaderFields.map {
-                    (String(describing: $0.key).lowercased(), String(describing: $0.value))
-                }),
+                headers: headers,
                 data: data,
                 url: http.url ?? url
             )
         }
         throw LauncherCoreError(code: "network_redirect_denied", message: "网络重定向次数过多")
+    }
+
+    private static func normalizedHeaders(_ values: [AnyHashable: Any]) throws -> [String: String] {
+        guard values.count <= 256 else {
+            throw LauncherCoreError(code: "network_headers_invalid", message: "网络响应头超过限制")
+        }
+        var headers: [String: String] = [:]
+        headers.reserveCapacity(values.count)
+        for (rawKey, rawValue) in values {
+            let key = String(describing: rawKey).lowercased()
+            let value = String(describing: rawValue)
+            guard !key.isEmpty,
+                  key.utf8.count <= 256,
+                  value.utf8.count <= 16 * 1024,
+                  !key.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
+                  !value.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
+                  headers[key] == nil else {
+                throw LauncherCoreError(code: "network_headers_invalid", message: "网络响应头无效")
+            }
+            headers[key] = value
+        }
+        return headers
     }
 }

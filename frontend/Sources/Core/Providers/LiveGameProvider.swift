@@ -16,6 +16,9 @@ actor LiveGameProvider: GameProvider {
     private var qrSessions: [String: QRSession] = [:]
     private var aigisSessions: [String: AigisSession] = [:]
     private static let agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) miHoYoBBS/2.95.1"
+    private static let maximumSessionCount = 64
+    private static let maximumWishPages = 2_500
+    private static let maximumImportedGachaRecords = 50_000
 
     init(dataDirectory: URL, transport: any HTTPTransport) throws {
         self.transport = transport
@@ -25,6 +28,7 @@ actor LiveGameProvider: GameProvider {
     }
 
     func createQRSession() async throws -> QRSession {
+        pruneSessions()
         var request = request(
             "https://passport-api.mihoyo.com/account/ma-cn-passport/app/createQRLogin",
             method: "POST", headers: try await qrHeaders(), body: Data("{}".utf8)
@@ -32,7 +36,12 @@ actor LiveGameProvider: GameProvider {
         request.timeoutInterval = 30
         let data = try await api(request)
         guard let id = data["ticket"]?.text.nonempty,
-              let url = data["url"]?.text.nonempty else {
+              Self.validText(id, maximum: 512),
+              let url = data["url"]?.text.nonempty,
+              Self.validText(url, maximum: 4_096),
+              let qrURL = URL(string: url), qrURL.scheme?.lowercased() == "https",
+              qrURL.user == nil, qrURL.password == nil,
+              qrURL.port == nil, qrURL.fragment == nil, qrURL.host?.isEmpty == false else {
             throw LauncherCoreError(code: "qr_payload_invalid", message: "二维码登录结果无效")
         }
         let session = QRSession(
@@ -43,8 +52,16 @@ actor LiveGameProvider: GameProvider {
     }
 
     func queryQRSession(_ id: String) async throws -> (QRSession, ProviderIdentity?) {
+        guard Self.validText(id, maximum: 512, allowEmpty: false) else {
+            throw LauncherCoreError(code: "qr_session_invalid", message: "二维码会话标识无效")
+        }
         guard let prior = qrSessions[id] else {
             throw LauncherCoreError(code: "qr_session_missing", message: "二维码会话不存在")
+        }
+        guard prior.expiresAt > Date() else {
+            let expired = session(prior, status: "expired")
+            qrSessions[id] = expired
+            return (expired, nil)
         }
         let body = try JSONEncoder.api.encode(["ticket": id])
         let payload = try await transport.send(
@@ -69,8 +86,12 @@ actor LiveGameProvider: GameProvider {
         let updated = prior.status == "confirmed" ? prior : session(prior, status: status)
         qrSessions[id] = updated
         guard status == "confirmed" else { return (updated, nil) }
+        qrSessions.removeValue(forKey: id)
         let confirmed = data["payload"]?.objectValue ?? data
         let tokens = confirmed["tokens"]?.arrayValue.compactMap(\.objectValue) ?? []
+        guard tokens.count <= 64 else {
+            throw LauncherCoreError(code: "qr_payload_invalid", message: "二维码登录结果无效")
+        }
         guard let token = tokens.first(where: { $0["token_type"]?.int == 1 })?["token"]?.text.nonempty,
               let user = (confirmed["user_info"] ?? confirmed["user"])?.objectValue else {
             throw LauncherCoreError(code: "qr_payload_invalid", message: "二维码登录结果缺少凭据")
@@ -101,6 +122,14 @@ actor LiveGameProvider: GameProvider {
     }
 
     func verifyMobileCaptcha(_ value: MobileCaptchaVerificationRequest) async throws -> MobileCaptchaSession {
+        guard value.sessionId.utf8.count <= 512,
+              value.challenge.utf8.count <= 4_096,
+              value.validate.utf8.count <= 4_096,
+              Self.validText(value.sessionId),
+              Self.validText(value.challenge),
+              Self.validText(value.validate) else {
+            throw LauncherCoreError(code: "aigis_payload_invalid", message: "验证码验证信息无效")
+        }
         guard let pending = aigisSessions.removeValue(forKey: value.sessionId),
               pending.mobile == value.mobile,
               pending.challenge == value.challenge,
@@ -117,6 +146,9 @@ actor LiveGameProvider: GameProvider {
     }
 
     func loginByMobileCaptcha(_ value: MobileLoginRequest) async throws -> ProviderIdentity {
+        guard value.aigis.map({ Self.validText($0) }) ?? true else {
+            throw LauncherCoreError(code: "aigis_payload_invalid", message: "验证码验证信息无效")
+        }
         let object: [String: String] = [
             "area_code": try MiHoYoSigning.encryptPassport("+86"),
             "action_type": value.actionType,
@@ -145,7 +177,10 @@ actor LiveGameProvider: GameProvider {
             ds: MiHoYoSigning.sign(.lk2, generation: 1)
         ).merging(["Referer": "https://app.mihoyo.com"]) { _, new in new }
         let data = try await api(request)
-        return data["list"]?.arrayValue.compactMap { item in
+        guard let list = data["list"]?.arrayValue, list.count <= 256 else {
+            throw LauncherCoreError(code: "role_payload_too_large", message: "游戏角色数量超出限制")
+        }
+        return list.compactMap { item in
             guard let value = item.objectValue, value["game_biz"]?.text == "hk4e_cn" else { return nil }
             return GameRole(
                 uid: value["game_uid"]?.text ?? "",
@@ -192,7 +227,12 @@ actor LiveGameProvider: GameProvider {
                     for type in ["100", "200", "301", "302", "500"] {
                         var collected: [WishRecord] = []
                         var end = "0"
+                        var page = 0
                         while true {
+                            page += 1
+                            guard page <= Self.maximumWishPages else {
+                                throw LauncherCoreError(code: "wish_sync_limit", message: "祈愿记录分页过多，已停止读取")
+                            }
                             var components = URLComponents(string: "https://public-operation-hk4e.mihoyo.com/gacha_info/api/getGachaLog")!
                             components.queryItems = [
                                 .init(name: "auth_appid", value: "webview_gacha"), .init(name: "authkey_ver", value: "1"),
@@ -202,13 +242,22 @@ actor LiveGameProvider: GameProvider {
                             ]
                             let data = try await self.api(URLRequest(url: components.url!))
                             let values = data["list"]?.arrayValue.compactMap(\.objectValue) ?? []
+                            guard values.count <= 100 else {
+                                throw LauncherCoreError(code: "wish_payload_invalid", message: "祈愿分页数据无效")
+                            }
                             let records = values.compactMap { Self.wish(uid: role.uid, value: $0) }
                             let index = newest[type].flatMap { id in records.firstIndex { $0.id == id } }
                             let fresh = index.map { Array(records[..<$0]) } ?? records
                             collected += fresh
+                            guard collected.count <= Self.maximumImportedGachaRecords else {
+                                throw LauncherCoreError(code: "gacha_record_limit", message: "祈愿记录过多，已停止读取")
+                            }
                             try await Task.sleep(for: .milliseconds(Int.random(in: 1_000...1_999)))
                             if fresh.count < records.count || records.count < 20 { break }
-                            end = records.last?.id ?? "0"
+                            guard let next = records.last?.id, next != end else {
+                                throw LauncherCoreError(code: "wish_pagination_invalid", message: "祈愿记录分页游标未推进")
+                            }
+                            end = next
                         }
                         if !collected.isEmpty { continuation.yield(collected) }
                         try await Task.sleep(for: .milliseconds(Int.random(in: 1_000...1_999)))
@@ -226,13 +275,21 @@ actor LiveGameProvider: GameProvider {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    guard Self.validGachaURL(gachaURL) else {
+                    guard let base = MiHoYoSigning.normalizedGachaURL(gachaURL) else {
                         throw LauncherCoreError(code: "gacha_url_invalid", message: "抽卡 URL 无效")
                     }
+                    let hintedUID = Self.queryUID(base)
+                    var provenUID: String?
+                    var total = 0
                     for type in ["100", "200", "301", "302", "500"] {
                         var end = "0"
+                        var page = 0
                         while true {
-                            var components = URLComponents(url: gachaURL, resolvingAgainstBaseURL: false)!
+                            page += 1
+                            guard page <= Self.maximumWishPages else {
+                                throw LauncherCoreError(code: "wish_sync_limit", message: "祈愿记录分页过多，已停止读取")
+                            }
+                            var components = URLComponents(url: base, resolvingAgainstBaseURL: false)!
                             var query = (components.queryItems ?? []).reduce(into: [String: String]()) {
                                 $0[$1.name] = $1.value ?? ""
                             }
@@ -246,12 +303,40 @@ actor LiveGameProvider: GameProvider {
                             }
                             let data = try await self.api(URLRequest(url: url, timeoutInterval: 30))
                             let values = data["list"]?.arrayValue.compactMap(\.objectValue) ?? []
-                            let records = values.compactMap { Self.wish(uid: $0["uid"]?.text ?? "", value: $0) }
+                            guard values.count <= 100 else {
+                                throw LauncherCoreError(code: "wish_payload_invalid", message: "祈愿分页数据无效")
+                            }
+                            if let hintedUID {
+                                guard values.allSatisfy({
+                                    $0["uid"]?.text.nonempty.map { $0 == hintedUID } ?? true
+                                }) else {
+                                    throw LauncherCoreError(code: "gacha_uid_mismatch", message: "抽卡 URL 返回了不一致的 UID")
+                                }
+                            }
+                            let records = values.compactMap {
+                                Self.wish(uid: hintedUID ?? $0["uid"]?.text ?? "", value: $0)
+                            }
+                            for record in records {
+                                if let provenUID, provenUID != record.uid {
+                                    throw LauncherCoreError(code: "gacha_uid_mismatch", message: "抽卡 URL 返回了不一致的 UID")
+                                }
+                                provenUID = provenUID ?? record.uid
+                            }
+                            total += records.count
+                            guard total <= Self.maximumImportedGachaRecords else {
+                                throw LauncherCoreError(code: "gacha_record_limit", message: "抽卡 URL 返回的记录过多")
+                            }
                             if !records.isEmpty { continuation.yield(records) }
                             if records.count < 20 { break }
-                            end = records.last?.id ?? "0"
+                            guard let next = records.last?.id, next != end else {
+                                throw LauncherCoreError(code: "wish_pagination_invalid", message: "祈愿记录分页游标未推进")
+                            }
+                            end = next
                             try await Task.sleep(for: .milliseconds(Int.random(in: 1_000...1_999)))
                         }
+                    }
+                    guard let provenUID, total > 0 else {
+                        throw LauncherCoreError(code: "gacha_url_unverified", message: "抽卡 URL 可用，但无法确认 UID")
                     }
                     continuation.finish()
                 } catch { continuation.finish(throwing: error) }
@@ -304,13 +389,18 @@ actor LiveGameProvider: GameProvider {
                 "x-rpc-device_id": snapshot.hoyoplayDeviceID, "Content-Type": "application/json"
             ], body: body
         ))
-        guard let ticket = data["ticket"]?.text.nonempty else {
+        guard let ticket = data["ticket"]?.text.nonempty,
+              ticket.utf8.count <= 4_096,
+              !ticket.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
             throw LauncherCoreError(code: "auth_ticket_invalid", message: "游戏登录票据无效")
         }
         return ticket
     }
 
     private func createMobileCaptcha(_ mobile: String, aigis: String) async throws -> MobileCaptchaSession {
+        guard Self.validText(aigis, maximum: 16 * 1024) else {
+            throw LauncherCoreError(code: "aigis_payload_invalid", message: "验证码验证信息无效")
+        }
         let object = [
             "area_code": try MiHoYoSigning.encryptPassport("+86"),
             "mobile": try MiHoYoSigning.encryptPassport(mobile)
@@ -326,13 +416,17 @@ actor LiveGameProvider: GameProvider {
             ), policy: .mihoyo, maximumBytes: 1024 * 1024
         )
         if let raw = payload.headers["x-rpc-aigis"]?.nonempty,
+           raw.utf8.count <= 16 * 1024,
            let data = raw.data(using: .utf8),
            let value = try? JSONDecoder.api.decode([String: JSONValue].self, from: data),
            let id = value["session_id"]?.text.nonempty,
            let encoded = value["data"]?.text.data(using: .utf8),
            let verification = try? JSONDecoder.api.decode([String: JSONValue].self, from: encoded),
            let gt = verification["gt"]?.text.nonempty,
-           let challenge = verification["challenge"]?.text.nonempty {
+           let challenge = verification["challenge"]?.text.nonempty,
+           id.utf8.count <= 512, gt.utf8.count <= 512, challenge.utf8.count <= 4_096,
+           Self.validText(id), Self.validText(gt), Self.validText(challenge) {
+            pruneSessions()
             aigisSessions[id] = AigisSession(
                 id: id, mobile: mobile, gt: gt, challenge: challenge,
                 expiresAt: Date().addingTimeInterval(300)
@@ -344,11 +438,19 @@ actor LiveGameProvider: GameProvider {
         }
         let envelope = try MiHoYoEnvelope.decode(payload)
         let data = envelope.data.objectValue ?? [:]
+        let actionType = data["action_type"]?.text ?? ""
+        let countdown = data["countdown"]?.int ?? 60
+        let aigis = payload.headers["x-rpc-aigis"]?.nonempty
+        guard Self.validText(actionType, maximum: 128, allowEmpty: false),
+              (0...3_600).contains(countdown),
+              aigis.map({ Self.validText($0, maximum: 16 * 1024, allowEmpty: false) }) ?? true else {
+            throw LauncherCoreError(code: "captcha_payload_invalid", message: "短信验证码响应无效")
+        }
         return MobileCaptchaSession(
             mobile: mobile,
-            actionType: data["action_type"]?.text ?? "",
-            countdown: data["countdown"]?.int ?? 60,
-            aigis: payload.headers["x-rpc-aigis"],
+            actionType: actionType,
+            countdown: countdown,
+            aigis: aigis,
             verification: nil
         )
     }
@@ -432,7 +534,9 @@ actor LiveGameProvider: GameProvider {
             headers: try await headers(cookie: credential, ds: MiHoYoSigning.sign(.lk2, generation: 1)),
             body: body
         ))
-        guard let key = data["authkey"]?.text.nonempty else {
+        guard let key = data["authkey"]?.text.nonempty,
+              key.utf8.count <= 8 * 1024,
+              !key.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
             throw LauncherCoreError(code: "gacha_authkey_invalid", message: "祈愿鉴权信息无效")
         }
         return key
@@ -452,16 +556,27 @@ actor LiveGameProvider: GameProvider {
         )
     }
 
-    private nonisolated static func validGachaURL(_ url: URL) -> Bool {
-        guard url.scheme?.lowercased() == "https", url.user == nil, url.password == nil,
-              url.port == nil, let host = url.host?.lowercased(),
-              host == "mihoyo.com" || host.hasSuffix(".mihoyo.com") else { return false }
-        let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
-        return query.contains { $0.name == "authkey" && $0.value?.nonempty != nil }
+    private nonisolated static func queryUID(_ url: URL) -> String? {
+        URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
+            .first { ["uid", "game_uid", "role_id"].contains($0.name) }?.value?.nonempty
+    }
+
+    private func pruneSessions() {
+        let now = Date()
+        qrSessions = qrSessions.filter { $0.value.expiresAt > now }
+        aigisSessions = aigisSessions.filter { $0.value.expiresAt > now }
+        while qrSessions.count >= Self.maximumSessionCount {
+            guard let oldest = qrSessions.min(by: { $0.value.expiresAt < $1.value.expiresAt })?.key else { break }
+            qrSessions.removeValue(forKey: oldest)
+        }
+        while aigisSessions.count >= Self.maximumSessionCount {
+            guard let oldest = aigisSessions.min(by: { $0.value.expiresAt < $1.value.expiresAt })?.key else { break }
+            aigisSessions.removeValue(forKey: oldest)
+        }
     }
 
     private func api(_ request: URLRequest) async throws -> [String: JSONValue] {
-        let payload = try await transport.send(request, policy: .mihoyo, maximumBytes: 64 * 1024 * 1024)
+        let payload = try await transport.send(request, policy: .mihoyo, maximumBytes: 8 * 1024 * 1024)
         return try MiHoYoEnvelope.decode(payload).data.objectValue ?? [:]
     }
 
@@ -510,5 +625,14 @@ actor LiveGameProvider: GameProvider {
 
     private func session(_ value: QRSession, status: String) -> QRSession {
         QRSession(id: value.id, url: value.url, status: status, expiresAt: value.expiresAt)
+    }
+
+    private nonisolated static func validText(
+        _ value: String,
+        maximum: Int = 4_096,
+        allowEmpty: Bool = true
+    ) -> Bool {
+        (allowEmpty || !value.isEmpty) && value.utf8.count <= maximum
+            && !value.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
     }
 }

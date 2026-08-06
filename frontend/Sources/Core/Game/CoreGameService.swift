@@ -1,11 +1,14 @@
+import Darwin
 import Foundation
 import GRDB
 
 actor CoreGameService {
-    private let database: CoreDatabase
+    static let spaceBufferBytes: Int64 = 1024 * 1024 * 1024
+
+    let database: CoreDatabase
     private let provider: any GameProvider
     private let jobs: GameJobCoordinator
-    private let dataDirectory: URL
+    let dataDirectory: URL
     private let fixtureMode: Bool
     private let hpatchzURL: URL
     private let processRunner: any CoreProcessRunning
@@ -31,19 +34,36 @@ actor CoreGameService {
 
     func state(installPath: String?) async throws -> GameState {
         let configured: String?
-        if let requested = installPath?.nonempty { configured = requested }
-        else { configured = try await savedPath() }
+        if let requested = installPath?.trimmingCharacters(in: .whitespacesAndNewlines).nonempty {
+            configured = try GameFilesystem.validatedPath(requested)
+        } else {
+            let saved = try await savedPath()
+            if let saved = saved?.trimmingCharacters(in: .whitespacesAndNewlines).nonempty {
+                configured = try GameFilesystem.validatedPath(saved)
+            } else {
+                configured = nil
+            }
+        }
+        try recoverActivation(path: configured)
         let detected = configured.flatMap(GameFilesystem.detect)
         let path = detected?.path.path ?? configured ?? ""
         let version = detected?.version ?? ""
         let languages = detected.map { GameFilesystem.audioLanguages(at: $0.path) } ?? ["zh-cn"]
-        let build = try await provider.build(installedVersion: version, audioLanguages: languages)
-        let predownload = try await provider.predownloadBuild(
-            installedVersion: version,
-            audioLanguages: languages
+        let build = try SophonValidation.validate(
+            try await provider.build(installedVersion: version, audioLanguages: languages)
         )
+        let predownload: GameBuild?
+        if detected != nil, !version.isEmpty {
+            predownload = try? await provider.predownloadBuild(
+                installedVersion: version,
+                audioLanguages: languages
+            )
+        } else {
+            predownload = nil
+        }
+        let checkedPredownload = predownload.flatMap { try? SophonValidation.validate($0) }
         let status: GameStatus = detected == nil ? .notInstalled
-            : version == build.version ? .ready : .updateAvailable
+            : SophonVersion.compare(version, build.version) >= 0 ? .ready : .updateAvailable
         if let detected { try await saveState(path: detected.path.path, version: version, status: status) }
         return GameState(
             installPath: path,
@@ -52,44 +72,64 @@ actor CoreGameService {
             status: status,
             updateKind: build.kind,
             downloadBytes: build.downloadSize,
-            predownloadVersion: predownload?.version,
-            predownloadFinished: predownload == nil ? false : try predownloadReady(predownload!)
+            predownloadVersion: checkedPredownload?.version,
+            predownloadFinished: checkedPredownload == nil ? false : try predownloadReady(
+                checkedPredownload!, root: detected?.path
+            )
         )
     }
 
     func spaceCheck(path: String, kind: JobKind) async throws -> SpaceCheckResult {
-        let root = URL(filePath: path).standardizedFileURL
+        let path = try GameFilesystem.validatedPath(path)
+        try recoverActivation(path: path)
         let detected = GameFilesystem.detect(at: path)
+        guard detected != nil || kind == .install else {
+            throw LauncherCoreError(code: "game_not_installed", message: "资源操作需要已安装的游戏客户端")
+        }
+        let root = try operationRoot(path: path, kind: kind, detected: detected?.path)
+        cleanupStaleStaging(destination: root)
         let version = detected?.version ?? ""
         let languages = detected.map { GameFilesystem.audioLanguages(at: $0.path) } ?? ["zh-cn"]
         let build: GameBuild
         switch kind {
         case .predownload:
+            guard detected != nil else {
+                throw LauncherCoreError(code: "game_not_installed", message: "预下载需要已安装的游戏客户端")
+            }
             guard let value = try await provider.predownloadBuild(
                 installedVersion: version,
                 audioLanguages: languages
             ) else { throw LauncherCoreError(code: "predownload_missing", message: "当前没有可用的预下载资源") }
-            build = value
+            build = try SophonValidation.validate(value)
         case .verify:
-            build = try await provider.installedBuild(version: version, audioLanguages: languages)
+            build = try SophonValidation.validate(
+                try await provider.installedBuild(version: version, audioLanguages: languages)
+            )
         default:
-            build = try await provider.build(installedVersion: version, audioLanguages: languages)
+            build = try SophonValidation.validate(
+                try await provider.build(installedVersion: version, audioLanguages: languages)
+            )
         }
-        let required = kind == .predownload ? build.downloadSize : max(build.downloadSize, outputSize(build))
-        let probe = existingAncestor(root)
-        let values = try probe.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
-        let available = values.volumeAvailableCapacityForImportantUsage ?? 0
-        return SpaceCheckResult(available: available, required: required, sufficient: available >= required)
+        return try spaceResult(build: build, kind: kind, root: root, detected: detected?.path)
     }
 
     func start(kind: JobKind, installPath: String) async throws -> GameJob {
-        let root = URL(filePath: installPath).standardizedFileURL
+        let installPath = try GameFilesystem.validatedPath(installPath)
+        try recoverActivation(path: installPath)
         let detected = GameFilesystem.detect(at: installPath)
+        guard detected != nil || kind == .install else {
+            throw LauncherCoreError(code: "game_not_installed", message: "资源操作需要已安装的游戏客户端")
+        }
+        let root = try operationRoot(path: installPath, kind: kind, detected: detected?.path)
+        cleanupStaleStaging(destination: root)
         let version = detected?.version ?? ""
         let languages = detected.map { GameFilesystem.audioLanguages(at: $0.path) } ?? ["zh-cn"]
         let build: GameBuild
         switch kind {
         case .predownload:
+            guard detected != nil else {
+                throw LauncherCoreError(code: "game_not_installed", message: "预下载需要已安装的游戏客户端")
+            }
             guard let value = try await provider.predownloadBuild(
                 installedVersion: version,
                 audioLanguages: languages
@@ -104,6 +144,22 @@ actor CoreGameService {
             build = try await provider.build(installedVersion: version, audioLanguages: languages)
         }
         let checked = try SophonValidation.validate(build)
+        let space = try spaceResult(build: checked, kind: kind, root: root, detected: detected?.path)
+        guard space.sufficient else {
+            throw LauncherCoreError(code: "disk_space_insufficient", message: "磁盘空间不足，请释放空间后重试")
+        }
+        if kind == .update, SophonVersion.compare(version, checked.version) >= 0 {
+            throw LauncherCoreError(code: "game_already_current", message: "当前游戏版本已是最新")
+        }
+        let hasWork = !checked.assets.isEmpty || !checked.patchAssets.isEmpty
+            || !checked.segments.isEmpty || !checked.deprecatedFiles.isEmpty
+        if kind == .install, !hasWork, checked.repairAssets.isEmpty {
+            throw LauncherCoreError(code: "game_build_empty", message: "下载服务返回了不完整的空构建")
+        }
+        if kind == .update, !version.isEmpty, version != checked.version, !hasWork,
+           checked.repairAssets.isEmpty {
+            throw LauncherCoreError(code: "game_build_empty", message: "下载服务返回了不完整的空构建")
+        }
         return try await jobs.start(kind: kind, total: checked.downloadSize) { [self] id, control in
             try await perform(id: id, kind: kind, root: root, detected: detected?.path, build: checked, control: control)
         }
@@ -144,9 +200,18 @@ actor CoreGameService {
         }
         switch kind {
         case .predownload:
-            try await cacheChunks(id: id, build: build, control: control)
-            try predownloadMarker(build).write(to: predownloadMarkerURL, atomically: true, encoding: .utf8)
-            try PrivateFilesystem.setPrivateFilePermissions(predownloadMarkerURL)
+            guard !build.assets.isEmpty || !build.patchAssets.isEmpty else {
+                throw LauncherCoreError(code: "predownload_build_empty", message: "预下载构建不包含可缓存资源")
+            }
+            guard let detected else {
+                throw LauncherCoreError(code: "game_not_installed", message: "预下载需要已安装的游戏客户端")
+            }
+            let cache = predownloadCacheURL(root: detected, version: build.version)
+            try await cacheChunks(id: id, root: detected, build: build, control: control)
+            try GameFilesystem.writePrivate(
+                predownloadMarker(build),
+                to: cache.appending(path: ".status.json")
+            )
         case .verify:
             guard let detected else { throw LauncherCoreError(code: "game_not_installed", message: "未检测到游戏安装") }
             let invalid = try await invalidAssets(build.assets, root: detected, id: id, control: control)
@@ -185,30 +250,73 @@ actor CoreGameService {
         try PrivateFilesystem.ensureDirectory(parent)
         let stage = parent.appending(path: ".\(destination.lastPathComponent).mhg-staging-\(id)")
         let backup = parent.appending(path: ".\(destination.lastPathComponent).mhg-backup-\(id)")
-        try? FileManager.default.removeItem(at: stage)
-        try? FileManager.default.removeItem(at: backup)
+        try PrivateFilesystem.rejectSymbolicLinks(in: stage)
+        try PrivateFilesystem.rejectSymbolicLinks(in: backup)
+        try PrivateFilesystem.rejectSymbolicLinks(in: destination)
+        try PrivateFilesystem.removeDirectoryIfPresent(stage)
+        try PrivateFilesystem.removeDirectoryIfPresent(backup)
         do {
-            if kind == .update, let detected {
+            if let detected {
+                try PrivateFilesystem.rejectSymbolicLinksRecursively(in: detected)
                 try FileManager.default.copyItem(at: detected, to: stage)
             } else {
                 try PrivateFilesystem.ensureDirectory(stage)
             }
             try writeOwnership(id: id, kind: kind, destination: destination, version: build.version, stage: stage)
-            guard build.segments.isEmpty else {
-                throw LauncherCoreError(code: "package_build_unsupported", message: "当前构建缺少 Sophon 资源清单")
+            let cache = existingPredownloadCache(root: destination, version: build.version)
+            let assets = build.assets.isEmpty && build.patchAssets.isEmpty
+                ? build.repairAssets : build.assets
+            if !build.segments.isEmpty {
+                try await GameArchive.install(
+                    segments: build.segments,
+                    cache: dataDirectory.appending(path: "GameDownloads/segments"),
+                    destination: stage,
+                    checkpoint: { try await control.checkpoint() }
+                )
             }
-            try await installAssets(build.assets, root: stage, id: id, control: control)
-            try await applyPatches(build.patchAssets, root: stage, id: id, control: control)
+            if !assets.isEmpty {
+                try await installAssets(
+                    assets,
+                    root: stage,
+                    id: id,
+                    baseAssets: build.baseAssets,
+                    cache: cache,
+                    control: control
+                )
+            }
+            do {
+                try await applyPatches(build.patchAssets, root: stage, cache: cache, id: id, control: control)
+            } catch {
+                guard !build.repairAssets.isEmpty else { throw error }
+                try await installAssets(
+                    build.repairAssets,
+                    root: stage,
+                    id: id,
+                    cache: cache,
+                    control: control
+                )
+            }
+            if !build.segments.isEmpty {
+                try GameArchive.verifyManifest(in: stage)
+            }
             for name in build.deprecatedFiles {
-                guard URL(filePath: name).lastPathComponent.lowercased() != "mhypbase.dll" else { continue }
-                try? FileManager.default.removeItem(at: GameFilesystem.safeTarget(root: stage, relativePath: name))
+                guard !SophonValidation.isLauncherManagedPath(name) else { continue }
+                let target = try GameFilesystem.safeTarget(root: stage, relativePath: name)
+                guard GameFilesystem.regularFile(target) else { continue }
+                try PrivateFilesystem.removeRegularFileIfPresent(target)
             }
             try GameFilesystem.writePrivate(Data("game_version=\(build.version)\n".utf8), to: stage.appending(path: "config.ini"))
             try writeIntegrity(build, root: stage)
+            guard GameFilesystem.regularFile(stage.appending(path: "YuanShen.exe")) else {
+                throw LauncherCoreError(code: "game_install_incomplete", message: "资源安装完成后仍缺少 YuanShen.exe，未激活不完整目录")
+            }
             try activate(stage: stage, destination: destination, backup: backup)
             try await saveState(path: destination.path, version: build.version, status: .ready)
+            if let cache {
+                try? PrivateFilesystem.removeDirectoryIfPresent(cache)
+            }
         } catch {
-            try? FileManager.default.removeItem(at: stage)
+            try? PrivateFilesystem.removeDirectoryIfPresent(stage)
             throw error
         }
     }
@@ -217,47 +325,115 @@ actor CoreGameService {
         _ assets: [GameAsset],
         root: URL,
         id: String,
+        baseAssets: [GameAsset] = [],
+        cache: URL? = nil,
         control: GameJobControl
     ) async throws {
+        let baseByName = Dictionary(
+            baseAssets.map { (SophonValidation.canonicalPath($0.name), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
         var completed: Int64 = 0
         for asset in assets {
             try await control.checkpoint()
             let target = try GameFilesystem.safeTarget(root: root, relativePath: asset.name)
             if GameFilesystem.regularFile(target),
                (try await FileDigest.md5(target)) == asset.md5.lowercased() {
-                completed += (asset.requiredChunks ?? asset.chunks).reduce(0) { $0 + $1.size }
+                let bytes = (asset.requiredChunks ?? asset.chunks).reduce(into: Int64(0)) {
+                    $0 = $0 > Int64.max - $1.size ? Int64.max : $0 + $1.size
+                }
+                completed = completed > Int64.max - bytes ? Int64.max : completed + bytes
                 await jobs.progress(id, completed: completed, message: "已校验 \(asset.name)")
                 continue
             }
-            try await assemble(asset: asset, target: target, id: id, completed: &completed, control: control)
+            let base = baseByName[SophonValidation.canonicalPath(asset.name)]
+            let before = completed
+            do {
+                try await assemble(
+                    asset: asset,
+                    base: base,
+                    target: target,
+                    cache: cache,
+                    id: id,
+                    completed: &completed,
+                    control: control
+                )
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                guard base != nil, asset.requiredChunks != nil else { throw error }
+                completed = before
+                await jobs.progress(id, completed: completed, message: "正在完整下载 \(asset.name)")
+                try await assemble(
+                    asset: asset,
+                    base: nil,
+                    target: target,
+                    cache: cache,
+                    id: id,
+                    completed: &completed,
+                    control: control
+                )
+            }
         }
     }
 
     private func assemble(
         asset: GameAsset,
+        base: GameAsset?,
         target: URL,
+        cache: URL?,
         id: String,
         completed: inout Int64,
         control: GameJobControl
     ) async throws {
         let temporary = URL(filePath: target.path + ".\(id).mhg-installing")
         try GameFilesystem.ensureParent(of: target)
-        FileManager.default.createFile(atPath: temporary.path, contents: nil, attributes: [.posixPermissions: 0o600])
+        try PrivateFilesystem.rejectSymbolicLinks(in: temporary)
+        guard FileManager.default.createFile(
+            atPath: temporary.path, contents: nil, attributes: [.posixPermissions: 0o600]
+        ) else {
+            throw LauncherCoreError(code: "sophon_storage_failed", message: "无法创建游戏资源临时文件")
+        }
         let output = try FileHandle(forWritingTo: temporary)
         defer { try? output.close() }
         do {
             try output.truncate(atOffset: UInt64(asset.size))
+            let oldChunks = Dictionary(
+                base?.chunks.map { ($0.decompressedMD5.lowercased(), $0) } ?? [],
+                uniquingKeysWith: { first, _ in first }
+            )
+            let required = asset.requiredChunks ?? asset.chunks
+            let requiredNames = Set(required.map { $0.decompressedMD5.lowercased() })
+            let canReuse = asset.requiredChunks != nil && base != nil && GameFilesystem.regularFile(target)
+                && asset.chunks.allSatisfy { chunk in
+                    requiredNames.contains(chunk.decompressedMD5.lowercased())
+                        || oldChunks[chunk.decompressedMD5.lowercased()]?.decompressedSize == chunk.decompressedSize
+                }
             for chunk in asset.chunks {
                 try await control.checkpoint()
-                let compressed = try await download(chunk, id: id, control: control)
-                let decoded = try Zstandard.decompress(compressed, maximumBytes: Int(chunk.decompressedSize))
-                guard decoded.count == chunk.decompressedSize,
-                      CoreHash.md5(decoded) == chunk.decompressedMD5.lowercased() else {
-                    throw LauncherCoreError(code: "sophon_chunk_content_invalid", message: "\(chunk.name) 内容校验失败")
+                if !canReuse || requiredNames.contains(chunk.decompressedMD5.lowercased()) {
+                    let compressed = try await download(chunk, cache: cache, id: id, control: control)
+                    let decoded = try Zstandard.decompress(compressed, maximumBytes: Int(chunk.decompressedSize))
+                    guard decoded.count == chunk.decompressedSize,
+                          CoreHash.md5(decoded) == chunk.decompressedMD5.lowercased() else {
+                        throw LauncherCoreError(code: "sophon_chunk_content_invalid", message: "\(chunk.name) 内容校验失败")
+                    }
+                    try output.seek(toOffset: UInt64(chunk.offset))
+                    try output.write(contentsOf: decoded)
+                    completed = completed > Int64.max - chunk.size ? Int64.max : completed + chunk.size
+                } else {
+                    guard let source = oldChunks[chunk.decompressedMD5.lowercased()],
+                          source.decompressedSize == chunk.decompressedSize else {
+                        throw LauncherCoreError(code: "sophon_diff_source_missing", message: "\(asset.name) 缺少可复用分块")
+                    }
+                    try copyRange(
+                        source: target,
+                        inputOffset: source.offset,
+                        destination: output,
+                        outputOffset: chunk.offset,
+                        count: chunk.decompressedSize
+                    )
                 }
-                try output.seek(toOffset: UInt64(chunk.offset))
-                try output.write(contentsOf: decoded)
-                completed += chunk.size
                 await jobs.progress(id, completed: completed, message: "正在安装 \(asset.name)")
             }
             try output.synchronize()
@@ -265,32 +441,53 @@ actor CoreGameService {
                 throw LauncherCoreError(code: "sophon_asset_invalid", message: "\(asset.name) 文件校验失败")
             }
             if FileManager.default.fileExists(atPath: target.path) {
+                guard GameFilesystem.regularFile(target) else {
+                    throw LauncherCoreError(code: "sophon_target_invalid", message: "\(asset.name) 目标路径不是普通文件")
+                }
                 _ = try FileManager.default.replaceItemAt(target, withItemAt: temporary)
             } else {
                 try FileManager.default.moveItem(at: temporary, to: target)
             }
             try PrivateFilesystem.setPrivateFilePermissions(target)
         } catch {
-            try? FileManager.default.removeItem(at: temporary)
+            try? PrivateFilesystem.removeRegularFileIfPresent(temporary)
             throw error
         }
     }
 
-    private func download(_ chunk: SophonChunk, id: String, control: GameJobControl) async throws -> Data {
+    private func download(
+        _ chunk: SophonChunk,
+        cache: URL? = nil,
+        id: String,
+        control: GameJobControl
+    ) async throws -> Data {
         guard chunk.size > 0, chunk.size <= 256 * 1024 * 1024 else {
             throw LauncherCoreError(code: "sophon_chunk_invalid", message: "Sophon 分块大小无效")
         }
-        let policy = HTTPSHostPolicy(exactHosts: [chunk.url.host?.lowercased() ?? ""], suffixes: ["mihoyo.com"])
+        if let cache {
+            let cached = try GameFilesystem.safeTarget(root: cache, relativePath: chunk.name)
+            if GameFilesystem.regularFile(cached),
+               (try? cached.resourceValues(forKeys: [.fileSizeKey]).fileSize) == Int(chunk.size),
+               (try? CoreHash.xxHash64(file: cached)) == chunk.name.split(separator: "_", maxSplits: 1).first.map(String.init)?.lowercased() {
+                return try Data(contentsOf: cached, options: [.mappedIfSafe])
+            }
+        }
         let transport = URLSessionHTTPTransport()
         let payload = try await transport.send(
             URLRequest(url: chunk.url, timeoutInterval: 60),
-            policy: policy,
+            policy: .sophon,
             maximumBytes: Int(chunk.size)
         )
         try await control.checkpoint()
-        guard (200..<300).contains(payload.statusCode), payload.data.count == chunk.size,
+        guard (200..<300).contains(payload.statusCode), Int64(payload.data.count) == chunk.size,
               CoreHash.xxHash64(payload.data) == chunk.name.split(separator: "_", maxSplits: 1).first.map(String.init)?.lowercased() else {
             throw LauncherCoreError(code: "sophon_chunk_invalid", message: "\(chunk.name) 分块校验失败")
+        }
+        if let cache {
+            try GameFilesystem.writePrivate(
+                payload.data,
+                to: try GameFilesystem.safeTarget(root: cache, relativePath: chunk.name)
+            )
         }
         return payload.data
     }
@@ -298,6 +495,7 @@ actor CoreGameService {
     private func applyPatches(
         _ assets: [GamePatchAsset],
         root: URL,
+        cache: URL?,
         id: String,
         control: GameJobControl
     ) async throws {
@@ -305,33 +503,20 @@ actor CoreGameService {
         guard GameFilesystem.regularFile(hpatchzURL) else {
             throw LauncherCoreError(code: "hpatchz_unavailable", message: "差分补丁工具尚未安装")
         }
-        let cache = dataDirectory.appending(path: "GameDownloads/patches")
+        let cache = cache ?? dataDirectory.appending(path: "GameDownloads/patches")
         try PrivateFilesystem.ensureDirectory(cache)
         var sources: [String: URL] = [:]
         let patches = assets.reduce(into: [String: SophonPatch]()) { $0[$1.patch.id] = $1.patch }
         for patch in patches.values {
             try await control.checkpoint()
-            let source = cache.appending(path: patch.id)
+            let source = try GameFilesystem.safeTarget(root: cache, relativePath: patch.id)
             if !GameFilesystem.regularFile(source)
                 || (try? source.resourceValues(forKeys: [.fileSizeKey]).fileSize) != Int(patch.fileSize)
                 || (try? CoreHash.xxHash64(file: source)) != patch.id.split(separator: "_").first.map(String.init)?.lowercased() {
                 guard patch.fileSize <= 2 * 1024 * 1024 * 1024 else {
                     throw LauncherCoreError(code: "sophon_patch_too_large", message: "增量补丁大小超过限制")
                 }
-                let transport = URLSessionHTTPTransport()
-                let payload = try await transport.send(
-                    URLRequest(url: patch.url, timeoutInterval: 120),
-                    policy: HTTPSHostPolicy(
-                        exactHosts: [patch.url.host?.lowercased() ?? ""],
-                        suffixes: ["mihoyo.com"]
-                    ),
-                    maximumBytes: Int(patch.fileSize)
-                )
-                guard (200..<300).contains(payload.statusCode), Int64(payload.data.count) == patch.fileSize,
-                      CoreHash.xxHash64(payload.data) == patch.id.split(separator: "_").first.map(String.init)?.lowercased() else {
-                    throw LauncherCoreError(code: "sophon_patch_invalid", message: "增量补丁校验失败")
-                }
-                try GameFilesystem.writePrivate(payload.data, to: source)
+                try await downloadPatch(patch, to: source, control: control)
             }
             sources[patch.id] = source
             await jobs.progress(id, completed: patch.fileSize, message: "已下载增量补丁")
@@ -352,9 +537,11 @@ actor CoreGameService {
         let token = UUID().uuidString
         let segment = root.appending(path: ".mhg-patch-segment-\(token)")
         let output = root.appending(path: ".mhg-patch-output-\(token)")
+        try PrivateFilesystem.rejectSymbolicLinks(in: segment)
+        try PrivateFilesystem.rejectSymbolicLinks(in: output)
         defer {
-            try? FileManager.default.removeItem(at: segment)
-            try? FileManager.default.removeItem(at: output)
+            try? PrivateFilesystem.removeRegularFileIfPresent(segment)
+            try? PrivateFilesystem.removeRegularFileIfPresent(output)
         }
         do {
             try copyRange(
@@ -376,7 +563,9 @@ actor CoreGameService {
                 executable: hpatchzURL,
                 arguments: [original.path, segment.path, output.path],
                 workingDirectory: root,
-                environment: ProcessInfo.processInfo.environment,
+                environment: CoreProcessEnvironment.withoutDynamicLoaderInjection(
+                    ProcessInfo.processInfo.environment
+                ),
                 logURL: nil
             ))
             guard status == 0, GameFilesystem.regularFile(output) else {
@@ -389,6 +578,9 @@ actor CoreGameService {
             throw LauncherCoreError(code: "sophon_patch_result_invalid", message: "\(asset.name) 增量更新校验失败")
         }
         if FileManager.default.fileExists(atPath: target.path) {
+            guard GameFilesystem.regularFile(target) else {
+                throw LauncherCoreError(code: "sophon_target_invalid", message: "\(asset.name) 目标路径不是普通文件")
+            }
             _ = try FileManager.default.replaceItemAt(target, withItemAt: prepared)
         } else {
             try FileManager.default.moveItem(at: prepared, to: target)
@@ -399,7 +591,12 @@ actor CoreGameService {
     private func copyRange(source: URL, destination: URL, offset: Int64, count: Int64) throws {
         let input = try FileHandle(forReadingFrom: source)
         defer { try? input.close() }
-        FileManager.default.createFile(atPath: destination.path, contents: nil, attributes: [.posixPermissions: 0o600])
+        try PrivateFilesystem.rejectSymbolicLinks(in: destination)
+        guard FileManager.default.createFile(
+            atPath: destination.path, contents: nil, attributes: [.posixPermissions: 0o600]
+        ) else {
+            throw LauncherCoreError(code: "sophon_storage_failed", message: "无法创建补丁临时文件")
+        }
         let output = try FileHandle(forWritingTo: destination)
         defer { try? output.close() }
         try input.seek(toOffset: UInt64(offset))
@@ -415,18 +612,145 @@ actor CoreGameService {
         try output.synchronize()
     }
 
-    private func cacheChunks(id: String, build: GameBuild, control: GameJobControl) async throws {
-        let root = dataDirectory.appending(path: "GameDownloads/predownload/\(build.version)")
+    private func downloadPatch(
+        _ patch: SophonPatch,
+        to destination: URL,
+        control: GameJobControl
+    ) async throws {
+        guard HTTPSHostPolicy.sophon.allows(patch.url) else {
+            throw LauncherCoreError(code: "sophon_patch_invalid", message: "增量补丁下载地址不受信任")
+        }
+        guard patch.fileSize > 0, patch.fileSize <= 2 * 1024 * 1024 * 1024 else {
+            throw LauncherCoreError(code: "sophon_patch_too_large", message: "增量补丁大小超过限制")
+        }
+        let temporary = URL(filePath: destination.path + ".\(UUID().uuidString).part")
+        try PrivateFilesystem.rejectSymbolicLinks(in: temporary)
+        guard FileManager.default.createFile(
+            atPath: temporary.path, contents: nil, attributes: [.posixPermissions: 0o600]
+        ) else {
+            throw LauncherCoreError(code: "sophon_storage_failed", message: "无法创建增量补丁临时文件")
+        }
+        defer { try? PrivateFilesystem.removeRegularFileIfPresent(temporary) }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        configuration.timeoutIntervalForRequest = 120
+        configuration.timeoutIntervalForResource = 3_600
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+        let (bytes, response) = try await session.bytes(
+            for: URLRequest(url: patch.url, timeoutInterval: 120),
+            delegate: ValidatingRedirectDelegate(policy: .sophon)
+        )
+        guard let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode),
+              (http.url.map { HTTPSHostPolicy.sophon.allows($0) } ?? false),
+              http.expectedContentLength <= patch.fileSize else {
+            throw LauncherCoreError(code: "sophon_patch_invalid", message: "增量补丁下载失败")
+        }
+        let output = try FileHandle(forWritingTo: temporary)
+        defer { try? output.close() }
+        var received: Int64 = 0
+        var buffer = Data()
+        for try await byte in bytes {
+            try Task.checkCancellation()
+            guard received < patch.fileSize else {
+                throw LauncherCoreError(code: "sophon_patch_too_large", message: "增量补丁超过大小限制")
+            }
+            received += 1
+            buffer.append(byte)
+            if buffer.count >= 1024 * 1024 {
+                try output.write(contentsOf: buffer)
+                buffer.removeAll(keepingCapacity: true)
+            }
+        }
+        if !buffer.isEmpty { try output.write(contentsOf: buffer) }
+        try output.synchronize()
+        try output.close()
+        try await control.checkpoint()
+        guard received == patch.fileSize,
+              try CoreHash.xxHash64(file: temporary)
+                  == patch.id.split(separator: "_", maxSplits: 1).first.map(String.init)?.lowercased() else {
+            throw LauncherCoreError(code: "sophon_patch_invalid", message: "增量补丁校验失败")
+        }
+        try PrivateFilesystem.rejectSymbolicLinks(in: destination)
+        if FileManager.default.fileExists(atPath: destination.path) {
+            guard GameFilesystem.regularFile(destination) else {
+                throw LauncherCoreError(code: "sophon_target_invalid", message: "增量补丁缓存路径无效")
+            }
+            try PrivateFilesystem.removeRegularFileIfPresent(destination)
+        }
+        try GameFilesystem.ensureParent(of: destination)
+        try FileManager.default.moveItem(at: temporary, to: destination)
+        try PrivateFilesystem.setPrivateFilePermissions(destination)
+    }
+
+    private func copyRange(
+        source: URL,
+        inputOffset: Int64,
+        destination: FileHandle,
+        outputOffset: Int64,
+        count: Int64
+    ) throws {
+        guard inputOffset >= 0, outputOffset >= 0, count >= 0 else {
+            throw LauncherCoreError(code: "sophon_diff_source_missing", message: "可复用分块范围无效")
+        }
+        let input = try FileHandle(forReadingFrom: source)
+        defer { try? input.close() }
+        try input.seek(toOffset: UInt64(inputOffset))
+        try destination.seek(toOffset: UInt64(outputOffset))
+        var remaining = count
+        while remaining > 0 {
+            let amount = Int(min(remaining, 1024 * 1024))
+            guard let data = try input.read(upToCount: amount), data.count == amount else {
+                throw LauncherCoreError(code: "sophon_diff_source_missing", message: "可复用分块内容不完整")
+            }
+            try destination.write(contentsOf: data)
+            remaining -= Int64(amount)
+        }
+    }
+
+    private func cacheChunks(
+        id: String,
+        root: URL,
+        build: GameBuild,
+        control: GameJobControl
+    ) async throws {
+        let root = predownloadCacheURL(root: root, version: build.version)
         try PrivateFilesystem.ensureDirectory(root)
         var completed: Int64 = 0
-        for chunk in build.assets.flatMap({ $0.requiredChunks ?? $0.chunks }) {
-            let target = root.appending(path: chunk.name)
+        if !build.patchAssets.isEmpty {
+            let patches = Dictionary(
+                build.patchAssets.map { ($0.patch.id.lowercased(), $0.patch) },
+                uniquingKeysWith: { first, _ in first }
+            )
+            for patch in patches.values {
+                try await control.checkpoint()
+                let target = try GameFilesystem.safeTarget(root: root, relativePath: patch.id)
+                if !GameFilesystem.regularFile(target)
+                    || (try? target.resourceValues(forKeys: [.fileSizeKey]).fileSize) != Int(patch.fileSize)
+                    || (try? CoreHash.xxHash64(file: target)) != patch.id.split(separator: "_", maxSplits: 1).first.map(String.init)?.lowercased() {
+                    try await downloadPatch(patch, to: target, control: control)
+                }
+                completed = min(Int64.max, completed + patch.fileSize)
+                await jobs.progress(id, completed: completed, message: "正在预下载增量补丁")
+            }
+            return
+        }
+        let chunks = Dictionary(
+            build.assets.flatMap { $0.requiredChunks ?? $0.chunks }
+                .map { ($0.name.lowercased(), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        for chunk in chunks.values {
+            let target = try GameFilesystem.safeTarget(root: root, relativePath: chunk.name)
             if GameFilesystem.regularFile(target), (try? CoreHash.xxHash64(file: target)) == chunk.name.split(separator: "_").first.map(String.init)?.lowercased() {
-                completed += chunk.size
+                completed = completed > Int64.max - chunk.size ? Int64.max : completed + chunk.size
             } else {
-                let data = try await download(chunk, id: id, control: control)
+                let data = try await download(chunk, cache: root, id: id, control: control)
                 try GameFilesystem.writePrivate(data, to: target)
-                completed += chunk.size
+                completed = completed > Int64.max - chunk.size ? Int64.max : completed + chunk.size
             }
             await jobs.progress(id, completed: completed, message: "正在预下载游戏资源")
         }
@@ -440,29 +764,29 @@ actor CoreGameService {
     ) async throws -> [GameAsset] {
         var invalid: [GameAsset] = []
         var completed: Int64 = 0
+        let total = assets.reduce(into: Int64(0)) { result, asset in
+            result = result > Int64.max - asset.size ? Int64.max : result + asset.size
+        }
         for asset in assets {
             try await control.checkpoint()
             let target = try GameFilesystem.safeTarget(root: root, relativePath: asset.name)
             let digest = GameFilesystem.regularFile(target) ? try await FileDigest.md5(target) : ""
             if digest != asset.md5.lowercased() { invalid.append(asset) }
-            completed += asset.size
-            await jobs.progress(id, completed: completed, total: assets.reduce(0) { $0 + $1.size }, message: "正在校验 \(asset.name)")
+            completed = min(Int64.max, completed + min(Int64.max - completed, asset.size))
+            await jobs.progress(id, completed: completed, total: total, message: "正在校验 \(asset.name)")
         }
         return invalid
     }
 
     private func activate(stage: URL, destination: URL, backup: URL) throws {
-        let manager = FileManager.default
-        let hadDestination = manager.fileExists(atPath: destination.path)
-        if hadDestination { try manager.moveItem(at: destination, to: backup) }
-        do {
-            try manager.moveItem(at: stage, to: destination)
-            if hadDestination { try? manager.removeItem(at: backup) }
-        } catch {
-            try? manager.removeItem(at: destination)
-            if hadDestination { try? manager.moveItem(at: backup, to: destination) }
-            throw error
-        }
+        try GameActivation.activate(stage: stage, destination: destination, backup: backup)
+    }
+
+    private func recoverActivation(path: String?) throws {
+        guard let path = path?.nonempty else { return }
+        let requested = URL(filePath: path).standardizedFileURL
+        try GameActivation.recover(destination: requested)
+        try GameActivation.recover(destination: requested.appending(path: "Genshin Impact Game"))
     }
 
     private func writeOwnership(
@@ -479,62 +803,49 @@ actor CoreGameService {
         try GameFilesystem.writePrivate(data, to: stage.appending(path: ".mhg-staging.json"))
     }
 
-    private func writeIntegrity(_ build: GameBuild, root: URL) throws {
-        var assets: [String: [String: Any]] = [:]
-        for asset in build.assets + build.patchAssets.map({ GameAsset(name: $0.name, size: $0.size, md5: $0.md5, chunks: [], requiredChunks: nil) }) {
-            guard URL(filePath: asset.name).lastPathComponent.lowercased() != "mhypbase.dll" else { continue }
-            let url = try GameFilesystem.safeTarget(root: root, relativePath: asset.name)
-            guard let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey]) else { continue }
-            assets[asset.name.replacingOccurrences(of: "\\", with: "/")] = [
-                "md5": asset.md5.lowercased(), "size": values.fileSize ?? 0,
-                "mtime": values.contentModificationDate?.timeIntervalSince1970 ?? 0
-            ]
-        }
-        let data = try JSONSerialization.data(withJSONObject: ["version": 1, "assets": assets], options: [.sortedKeys])
-        try GameFilesystem.writePrivate(data, to: root.appending(path: ".mhg-integrity.json"))
-    }
-
-    private func outputSize(_ build: GameBuild) -> Int64 {
-        let outputs = build.assets.reduce(into: [String: Int64]()) { $0[$1.name.lowercased()] = $1.size }
-            .merging(build.patchAssets.reduce(into: [String: Int64]()) { $0[$1.name.lowercased()] = $1.size }) { _, new in new }
-        return outputs.isEmpty ? build.downloadSize : outputs.values.reduce(0, +)
-    }
-
-    private func existingAncestor(_ value: URL) -> URL {
-        var current = value
-        while !FileManager.default.fileExists(atPath: current.path), current.path != "/" {
-            current.deleteLastPathComponent()
-        }
-        return current
-    }
-
-    private var predownloadMarkerURL: URL {
-        dataDirectory.appending(path: "GameDownloads/predownload.json")
-    }
-
-    private func predownloadMarker(_ build: GameBuild) -> String {
-        "{\"schema\":1,\"version\":\"\(build.version)\"}"
-    }
-
-    private func predownloadReady(_ build: GameBuild) throws -> Bool {
-        guard let data = try? Data(contentsOf: predownloadMarkerURL),
-              let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
-        return value["version"] as? String == build.version
-    }
-
-    private func savedPath() async throws -> String? {
-        try await database.read { db in
-            try String.fetchOne(db, sql: "SELECT install_path FROM game_state WHERE id=1")
+    private func cleanupStaleStaging(destination: URL) {
+        let parent = destination.deletingLastPathComponent()
+        guard (try? PrivateFilesystem.rejectSymbolicLinks(in: parent)) != nil,
+              let enumerator = FileManager.default.enumerator(
+                  at: parent,
+                  includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+                  options: [.skipsSubdirectoryEnumeration]
+              ) else { return }
+        let prefix = ".\(destination.lastPathComponent).mhg-staging-"
+        var scanned = 0
+        while let entry = enumerator.nextObject() as? URL {
+            scanned += 1
+            guard scanned <= 1_024 else { return }
+            guard entry.lastPathComponent.hasPrefix(prefix) else { continue }
+            let suffixOwner = String(entry.lastPathComponent.dropFirst(prefix.count))
+            guard let values = try? entry.resourceValues(
+                forKeys: [.isDirectoryKey, .isSymbolicLinkKey]
+            ), values.isDirectory == true, values.isSymbolicLink != true,
+            (try? PrivateFilesystem.rejectSymbolicLinksRecursively(in: entry)) != nil else {
+                continue
+            }
+            let marker = entry.appending(path: ".mhg-staging.json")
+            guard GameFilesystem.regularFile(marker),
+                  let markerValues = try? marker.resourceValues(forKeys: [.fileSizeKey]),
+                  (markerValues.fileSize ?? 0) <= 16 * 1024,
+                  let data = try? Data(contentsOf: marker),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let schema = object["schema"] as? NSNumber, schema.intValue == 1,
+                  let owner = object["owner"] as? String, UUID(uuidString: owner) != nil,
+                  owner == suffixOwner,
+                  let pidValue = object["pid"] as? NSNumber,
+                  pidValue.int64Value > 0, pidValue.int64Value <= Int64(Int32.max),
+                  let kind = object["kind"] as? String, kind == JobKind.install.rawValue || kind == JobKind.update.rawValue,
+                  let recordedDestination = object["destination"] as? String,
+                  URL(filePath: recordedDestination).standardizedFileURL
+                      == destination.standardizedFileURL,
+                  let version = object["version"] as? String,
+                  SophonValidation.isIdentifier(version),
+                  !processAlive(Int32(pidValue.int32Value)) else {
+                continue
+            }
+            try? PrivateFilesystem.removeDirectoryIfPresent(entry)
         }
     }
 
-    private func saveState(path: String, version: String, status: GameStatus) async throws {
-        try await database.write { db in
-            try db.execute(sql: """
-                INSERT INTO game_state(id,install_path,version,status,updated_at) VALUES(1,?,?,?,?)
-                ON CONFLICT(id) DO UPDATE SET install_path=excluded.install_path,version=excluded.version,
-                status=excluded.status,updated_at=excluded.updated_at
-                """, arguments: [path, version, status.rawValue, CoreDate.string(Date())])
-        }
-    }
 }

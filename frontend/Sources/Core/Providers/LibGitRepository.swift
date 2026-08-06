@@ -31,11 +31,13 @@ actor LibGitRepository {
               remoteURL.host?.nonempty != nil,
               remoteURL.user == nil,
               remoteURL.password == nil,
-              remoteURL.port == nil,
+              remoteURL.port == nil || remoteURL.port == 443,
+              remoteURL.fragment == nil,
               maximumBytes > 0,
               maximumBytes <= 384 * 1024 * 1024 else {
             throw LauncherCoreError(code: "metadata_mirror_insecure", message: "资料镜像必须使用无凭据的 HTTPS 地址")
         }
+        try PrivateFilesystem.rejectSymbolicLinks(in: destination)
         guard !fileManager.fileExists(atPath: destination.path) else {
             throw LauncherCoreError(code: "metadata_destination_exists", message: "资料暂存目录已存在")
         }
@@ -61,7 +63,7 @@ actor LibGitRepository {
             }
         }
         guard result == 0, let repository else {
-            try? fileManager.removeItem(at: destination)
+            try? PrivateFilesystem.removeDirectoryIfPresent(destination)
             if result == -7 {
                 throw LauncherCoreError(code: "metadata_download_too_large", message: "资料下载量超过限制")
             }

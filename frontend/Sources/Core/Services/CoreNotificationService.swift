@@ -76,7 +76,14 @@ actor CoreNotificationService {
     }
 
     func acknowledge(_ keys: [String]) async throws -> [String] {
-        let unique = Array(Set(keys)).filter { $0.utf8.count <= 512 }
+        guard keys.count <= 256,
+              keys.allSatisfy({
+                  !$0.isEmpty && $0.utf8.count <= 512
+                      && !$0.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
+              }) else {
+            throw LauncherCoreError(code: "notification_key_invalid", message: "提醒标识无效")
+        }
+        let unique = Array(Set(keys))
         let createdAt = CoreDate.string(now())
         try await database.write { db in
             for key in unique {
@@ -195,11 +202,21 @@ actor CoreNotificationService {
     }
 
     private func note(uid: String) async throws -> DailyNote? {
+        guard uid.range(of: #"^\d{9,10}$"#, options: .regularExpression) != nil else {
+            throw LauncherCoreError(code: "uid_invalid", message: "角色 UID 无效")
+        }
         try await database.read { db in
             guard let payload = try String.fetchOne(
                 db, sql: "SELECT payload FROM notes WHERE uid=?", arguments: [uid]
             ) else { return nil }
-            return try JSONDecoder.api.decode(DailyNote.self, from: Data(payload.utf8))
+            guard payload.utf8.count <= 1024 * 1024 else {
+                throw LauncherCoreError(code: "note_payload_too_large", message: "实时便笺数据超出限制")
+            }
+            let value = try JSONDecoder.api.decode(DailyNote.self, from: Data(payload.utf8))
+            guard value.uid == uid else {
+                throw LauncherCoreError(code: "note_uid_mismatch", message: "实时便笺与当前 UID 不匹配")
+            }
+            return value
         }
     }
 

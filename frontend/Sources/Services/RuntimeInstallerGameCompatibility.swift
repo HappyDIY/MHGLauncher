@@ -6,8 +6,8 @@ extension RuntimeInstaller {
         let fontEngine = wine.appending(path: "lib/libfreetype.6.dylib")
         let console = wine.appending(path: "lib/wine/x86_64-windows/wineconsole.exe")
         let preferences = wine.appending(path: "lib/wine/x86_64-windows/winecfg.exe")
-        return fileManager.fileExists(atPath: fontEngine.path)
-            && fileManager.fileExists(atPath: console.path)
-            && fileManager.fileExists(atPath: preferences.path)
+        return GameFilesystem.regularFile(fontEngine)
+            && GameFilesystem.regularFile(console)
+            && GameFilesystem.regularFile(preferences)
     }
 }

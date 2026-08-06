@@ -9,6 +9,71 @@ struct RuntimeDownloadSource: Equatable, Sendable, Identifiable {
     }
 }
 
+enum RuntimeURLPolicy {
+    static let releaseHosts: Set<String> = [
+        "github.com",
+        "objects.githubusercontent.com",
+        "release-assets.githubusercontent.com",
+        "github.boki.moe",
+        "gh-proxy.com",
+        "ghproxy.imciel.com",
+        "ghproxy.net",
+        "ghfast.top"
+    ]
+
+    static func allowsRemote(_ url: URL, additionalHosts: Set<String> = []) -> Bool {
+        guard url.scheme?.lowercased() == "https",
+              url.user == nil,
+              url.password == nil,
+              url.port == nil || url.port == 443,
+              url.fragment == nil,
+              let host = url.host?.lowercased(),
+              !host.isEmpty else {
+            return false
+        }
+        return releaseHosts.contains(host) || additionalHosts.contains(host)
+    }
+
+    static func allowsAssetBase(_ url: URL) -> Bool {
+        if url.isFileURL {
+            return url.host == nil && url.user == nil && url.password == nil
+                && url.port == nil && url.query == nil && url.fragment == nil
+        }
+        guard allowsRemote(url), url.host?.lowercased() == "github.com",
+              url.query == nil,
+              url.path.hasPrefix("/HappyDIY/MHGLauncher/releases/download/") else {
+            return false
+        }
+        return true
+    }
+}
+
+final class RuntimeHTTPRedirectDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let additionalHosts: Set<String>
+    private var redirects = 0
+
+    init(additionalHosts: Set<String> = []) {
+        self.additionalHosts = additionalHosts
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        guard redirects < 3,
+              let url = request.url,
+              RuntimeURLPolicy.allowsRemote(url, additionalHosts: additionalHosts) else {
+            completionHandler(nil)
+            return
+        }
+        redirects += 1
+        completionHandler(request)
+    }
+}
+
 enum RuntimeMirrorCatalog {
     static func sources(for assetBaseURL: URL, environment: [String: String]) -> [RuntimeDownloadSource] {
         guard isOfficialRelease(assetBaseURL) else {
@@ -29,6 +94,7 @@ enum RuntimeMirrorCatalog {
         let sources = prefixes.enumerated().compactMap { item -> RuntimeDownloadSource? in
             let (index, prefix) = item
             guard let url = URL(string: prefix + assetBaseURL.absoluteString) else { return nil }
+            guard RuntimeURLPolicy.allowsRemote(url) else { return nil }
             return RuntimeDownloadSource(id: "mirror-\(index)", baseURL: url)
         }
         return unique(sources + [official])
@@ -71,9 +137,22 @@ enum RuntimeMirrorBenchmarker {
         request.setValue("bytes=0-\(sampleBytes - 1)", forHTTPHeaderField: "Range")
         request.timeoutInterval = 5
         let started = Date()
+        guard let host = source.baseURL.host?.lowercased(),
+              RuntimeURLPolicy.allowsRemote(source.assetURL(named: file)) else { return nil }
+        let delegate = RuntimeHTTPRedirectDelegate(additionalHosts: [host])
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 5
+        configuration.timeoutIntervalForResource = 8
+        configuration.urlCache = nil
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
         do {
-            let (stream, response) = try await URLSession.mirrorBenchmark.bytes(for: request)
+            let (stream, response) = try await session.bytes(for: request, delegate: delegate)
             guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode,
+                  let responseURL = http.url ?? request.url,
+                  RuntimeURLPolicy.allowsRemote(responseURL, additionalHosts: [host]),
                   response.mimeType != "text/html" else { return nil }
             var received = 0
             for try await _ in stream {
@@ -92,13 +171,4 @@ enum RuntimeMirrorBenchmarker {
 private struct RuntimeMirrorSample: Sendable {
     let source: RuntimeDownloadSource
     let bytesPerSecond: Double
-}
-
-private extension URLSession {
-    static let mirrorBenchmark: URLSession = {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 5
-        configuration.timeoutIntervalForResource = 8
-        return URLSession(configuration: configuration)
-    }()
 }

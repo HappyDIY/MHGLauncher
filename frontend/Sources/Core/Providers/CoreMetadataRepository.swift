@@ -27,11 +27,20 @@ actor CoreMetadataRepository {
     }
 
     func activeSnapshot() -> CoreMetadataSnapshot? {
+        do {
+            try RuntimePromotion.recover(journal: promotionJournal, fileManager: fileManager)
+        } catch {
+            return nil
+        }
         let root = destination
-        guard GameFilesystem.regularFile(root.appending(path: ".mhg-resource.json")),
-              let data = try? Data(contentsOf: root.appending(path: ".mhg-resource.json")),
+        let descriptorURL = root.appending(path: ".mhg-resource.json")
+        guard GameFilesystem.regularFile(descriptorURL),
+              let values = try? descriptorURL.resourceValues(forKeys: [.fileSizeKey]),
+              (values.fileSize ?? 0) <= 1024 * 1024,
+              let data = try? Data(contentsOf: descriptorURL),
               let value = try? JSONDecoder.api.decode(Descriptor.self, from: data),
               value.oid.range(of: "^[a-f0-9]{40,64}$", options: .regularExpression) != nil,
+              value.activatedAt.timeIntervalSince1970.isFinite,
               (try? validateNormalized(root)) != nil else { return nil }
         return CoreMetadataSnapshot(root: root, oid: value.oid, activatedAt: value.activatedAt)
     }
@@ -44,10 +53,12 @@ actor CoreMetadataRepository {
         var lastError: Error?
         for mirror in mirrors {
             let clone = resourcesRoot.appending(path: "Snap.Metadata.mhg-clone-\(UUID().uuidString)")
-            let normalized = resourcesRoot.appending(path: "Snap.Metadata.mhg-staging-\(UUID().uuidString)")
+            let normalized = resourcesRoot.appending(path: ".Snap.Metadata-\(UUID().uuidString)")
             defer {
-                try? fileManager.removeItem(at: clone)
-                try? fileManager.removeItem(at: normalized)
+                try? PrivateFilesystem.removeDirectoryIfPresent(clone)
+                if !GameFilesystem.regularFile(promotionJournal) {
+                    try? PrivateFilesystem.removeDirectoryIfPresent(normalized)
+                }
             }
             do {
                 let oid = try await git.shallowClone(from: mirror, to: clone, maximumBytes: 128 * 1024 * 1024)
@@ -66,14 +77,18 @@ actor CoreMetadataRepository {
 
     private var resourcesRoot: URL { dataDirectory.appending(path: "resources") }
     private var destination: URL { resourcesRoot.appending(path: "Snap.Metadata") }
+    private var promotionJournal: URL { resourcesRoot.appending(path: ".Snap.Metadata.promotion.json") }
 
     private func mirrors() async throws -> [URL] {
         var output = configuredMirrors.filter(Self.secureMirror)
         if let discoveryBaseURL,
-           discoveryBaseURL.scheme == "https",
+           discoveryBaseURL.scheme?.lowercased() == "https",
            discoveryBaseURL.user == nil,
            discoveryBaseURL.password == nil,
-           let host = discoveryBaseURL.host?.lowercased() {
+           discoveryBaseURL.port == nil || discoveryBaseURL.port == 443,
+           discoveryBaseURL.query == nil,
+           discoveryBaseURL.fragment == nil,
+           let host = discoveryBaseURL.host?.nonempty?.lowercased() {
             var components = URLComponents(url: discoveryBaseURL, resolvingAgainstBaseURL: false)
             components?.path = "/git-repository/all"
             components?.queryItems = [.init(name: "name", value: "Snap.Metadata")]
@@ -99,23 +114,47 @@ actor CoreMetadataRepository {
     }
 
     private func validateRepository(_ root: URL) throws {
+        try PrivateFilesystem.rejectSymbolicLinks(in: root)
         let keys: [URLResourceKey] = [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]
         guard let enumerator = fileManager.enumerator(at: root, includingPropertiesForKeys: keys) else {
             throw invalid("资料仓库无法读取")
         }
+        let rootPath = root.standardizedFileURL.path
+        let rootPrefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
         var count = 0
-        var total = 0
+        var total: Int64 = 0
+        var gitCount = 0
+        var gitTotal: Int64 = 0
         while let url = enumerator.nextObject() as? URL {
-            if url.pathComponents.contains(".git") { continue }
+            let path = url.standardizedFileURL.path
+            guard path.hasPrefix(rootPrefix) else { throw invalid("资料仓库路径无效") }
             let values = try url.resourceValues(forKeys: Set(keys))
+            guard values.isSymbolicLink != true else {
+                throw invalid("资料仓库包含不安全的符号链接")
+            }
             if values.isDirectory == true { continue }
-            guard values.isRegularFile == true, values.isSymbolicLink != true else {
+            guard values.isRegularFile == true else {
                 throw invalid("资料仓库包含不安全的文件")
             }
+            let size = values.fileSize ?? -1
+            let relative = String(path.dropFirst(rootPrefix.count))
+            if relative == ".git" || relative.hasPrefix(".git/") {
+                guard size >= 0, size <= 256 * 1024 * 1024,
+                      gitCount < 100_000,
+                      gitTotal <= 256 * 1024 * 1024 - size else {
+                    throw invalid("资料仓库 Git 数据超过限制")
+                }
+                gitCount += 1
+                gitTotal += size
+                continue
+            }
+            guard size >= 0, size <= 8 * 1024 * 1024,
+                  count < 10_000,
+                  total <= 384 * 1024 * 1024 - size else {
+                throw invalid("资料仓库大小超过限制")
+            }
             count += 1
-            total += values.fileSize ?? 0
-            guard count <= 10_000, (values.fileSize ?? 0) <= 8 * 1024 * 1024,
-                  total <= 384 * 1024 * 1024 else { throw invalid("资料仓库大小超过限制") }
+            total += size
         }
         let chs = root.appending(path: "Genshin/CHS")
         let metaURL = chs.appending(path: "Meta.json")
@@ -124,7 +163,7 @@ actor CoreMetadataRepository {
         }
         let required = ["GachaEvent", "Weapon", "Reliquary", "Achievement", "AchievementGoal"]
         let avatars = meta.keys.filter { $0.hasPrefix("Avatar/") }
-        guard !avatars.isEmpty else { throw invalid("资料摘要缺少角色数据") }
+        guard !avatars.isEmpty, avatars.count <= 20_000 else { throw invalid("资料摘要角色数据过多") }
         for key in required + avatars {
             guard key.range(of: #"^(?:GachaEvent|Weapon|Reliquary|Achievement|AchievementGoal|Avatar/[1-9][0-9]{0,15})$"#, options: .regularExpression) != nil,
                   let expected = meta[key], expected.range(of: "^[A-F0-9]{16}$", options: .regularExpression) != nil else {
@@ -163,9 +202,20 @@ actor CoreMetadataRepository {
             items[id.stringValue] = [name, "武器", rank.intValue, icon]
         }
         let avatarRoot = chs.appending(path: "Avatar")
-        let avatars = try fileManager.contentsOfDirectory(at: avatarRoot, includingPropertiesForKeys: [.isRegularFileKey])
-            .filter { $0.pathExtension == "json" }
-        guard avatars.count <= 20_000 else { throw invalid("角色资料无效") }
+        guard let enumerator = fileManager.enumerator(
+            at: avatarRoot,
+            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
+            options: [.skipsSubdirectoryEnumeration]
+        ) else { throw invalid("角色资料无效") }
+        var avatars: [URL] = []
+        while let url = enumerator.nextObject() as? URL {
+            guard avatars.count < 20_000 else { throw invalid("角色资料过多") }
+            let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+            guard values.isRegularFile == true, values.isSymbolicLink != true else {
+                throw invalid("角色资料无效")
+            }
+            if url.pathExtension == "json" { avatars.append(url) }
+        }
         for url in avatars {
             guard let avatar = try JSONSerialization.jsonObject(with: boundedData(url)) as? [String: Any],
                   let id = avatar["Id"] as? NSNumber, let name = avatar["Name"] as? String,
@@ -193,21 +243,12 @@ actor CoreMetadataRepository {
 
     private func activate(_ staging: URL) throws {
         try PrivateFilesystem.ensureDirectory(resourcesRoot)
-        let backup = resourcesRoot.appending(path: "Snap.Metadata.mhg-backup")
-        try? fileManager.removeItem(at: backup)
-        let hadCurrent = fileManager.fileExists(atPath: destination.path)
-        if hadCurrent { try fileManager.moveItem(at: destination, to: backup) }
-        do {
-            try fileManager.moveItem(at: staging, to: destination)
-            try? fileManager.removeItem(at: backup)
-        } catch {
-            try? fileManager.removeItem(at: destination)
-            if hadCurrent { try? fileManager.moveItem(at: backup, to: destination) }
-            throw error
-        }
+        try PrivateFilesystem.rejectSymbolicLinksRecursively(in: staging)
+        try RuntimePromotion.promote(stage: staging, destination: destination, fileManager: fileManager)
     }
 
     private func boundedData(_ url: URL) throws -> Data {
+        guard GameFilesystem.regularFile(url) else { throw invalid("资料文件大小无效") }
         let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
         guard values.isRegularFile == true, values.isSymbolicLink != true,
               let size = values.fileSize, size <= 8 * 1024 * 1024 else { throw invalid("资料文件大小无效") }
@@ -216,7 +257,8 @@ actor CoreMetadataRepository {
 
     private static func secureMirror(_ url: URL) -> Bool {
         url.scheme?.lowercased() == "https" && url.host?.nonempty != nil
-            && url.user == nil && url.password == nil && url.port == nil
+            && url.user == nil && url.password == nil && (url.port == nil || url.port == 443)
+            && url.query == nil && url.fragment == nil
     }
 
     private func invalid(_ message: String) -> LauncherCoreError {

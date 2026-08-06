@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 struct WineRuntimePaths: Sendable {
@@ -19,11 +20,29 @@ struct WineRuntimePaths: Sendable {
         winemetal = root.appending(path: "wine/lib/wine/x86_64-windows/winemetal.dll")
         dnsGate = root.appending(path: "lib/libmhg_dns_gate.dylib")
         mhypbase = root.appending(path: "assets/mhypbase.dll")
-        for file in [wine, wineboot, wineserver, windowProbe, winemetal, dnsGate, mhypbase] {
+        for file in [wine, wineserver, windowProbe, winemetal, dnsGate, mhypbase] {
             guard GameFilesystem.regularFile(file) else {
                 throw LauncherCoreError(code: "game_runtime_missing", message: "游戏运行时不完整：\(file.lastPathComponent)")
             }
         }
+        guard GameFilesystem.regularFile(wineboot) || Self.isWinebootLink(wineboot, under: root) else {
+            throw LauncherCoreError(code: "game_runtime_missing", message: "游戏运行时不完整：\(wineboot.lastPathComponent)")
+        }
+    }
+
+    private static func isWinebootLink(_ url: URL, under root: URL) -> Bool {
+        guard url.standardizedFileURL.path.hasPrefix(root.standardizedFileURL.path + "/"),
+              (try? PrivateFilesystem.rejectSymbolicLinks(in: url.deletingLastPathComponent())) != nil,
+              (try? FileManager.default.destinationOfSymbolicLink(atPath: url.path)) == "wine" else {
+            return false
+        }
+        var linkInfo = stat()
+        var targetInfo = stat()
+        let target = url.deletingLastPathComponent().appending(path: "wine")
+        return lstat(url.path, &linkInfo) == 0
+            && linkInfo.st_mode & S_IFMT == S_IFLNK
+            && lstat(target.path, &targetInfo) == 0
+            && targetInfo.st_mode & S_IFMT == S_IFREG
     }
 
     func environment(
@@ -76,7 +95,9 @@ actor WinePrefixManager {
         let environment = prefixEnvironment(prefix: prefix, profile: profile)
         let marker = prefix.appending(path: ".mhglauncher-wine-runtime")
         let identity = paths.wine.path + "\n"
-        let ready = (try? String(contentsOf: marker, encoding: .utf8)) == identity
+        let ready = GameFilesystem.regularFile(marker)
+            && ((try? marker.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0) <= 1024
+            && (try? String(contentsOf: marker, encoding: .utf8)) == identity
         try await stopServer(paths: paths, prefix: prefix)
         if !ready {
             let rosetta = try await runner.run(CoreProcessRequest(
@@ -103,8 +124,10 @@ actor WinePrefixManager {
         let system32 = prefix.appending(path: "drive_c/windows/system32")
         try PrivateFilesystem.ensureDirectory(system32)
         let destination = system32.appending(path: "winemetal.dll")
-        if FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.removeItem(at: destination) }
+        try PrivateFilesystem.rejectSymbolicLinks(in: destination)
+        try PrivateFilesystem.removeRegularFileIfPresent(destination)
         try FileManager.default.copyItem(at: paths.winemetal, to: destination)
+        try PrivateFilesystem.setPrivateFilePermissions(destination)
         return prefix
     }
 

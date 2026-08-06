@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 typealias RuntimeProgressHandler = @MainActor (RuntimeProgress) -> Void
@@ -80,6 +81,7 @@ final class RuntimeInstaller: @unchecked Sendable {
             guard corePayloadReady(at: stage) else {
                 throw RuntimeInstallError.incompatibleCoreRuntime
             }
+            try RuntimeInstallLedger.validateTree(at: stage)
             try RuntimeInstallLedger.write(
                 manifest: manifest, manifestData: loaded.data, scope: .core, root: stage
             )
@@ -87,7 +89,7 @@ final class RuntimeInstaller: @unchecked Sendable {
             try RuntimePromotion.promote(stage: stage, destination: runtime.rootURL, fileManager: fileManager)
             return runtime
         } catch {
-            try? fileManager.removeItem(at: stage)
+            try? removeRuntimeTree(stage)
             throw error
         }
     }
@@ -103,8 +105,9 @@ final class RuntimeInstaller: @unchecked Sendable {
         let stage = stageURL(tag: manifest.tag, suffix: "game")
         try prepare(stage: stage)
         do {
+            try RuntimeInstallLedger.validateTree(at: runtime.rootURL)
             try fileManager.copyItem(at: runtime.rootURL, to: stage)
-            try? fileManager.removeItem(at: stage.appending(path: "game-runtime"))
+            try removeRuntimeTree(stage.appending(path: "game-runtime"))
             try await install(
                 manifest: manifest,
                 components: manifest.components(kind: .game),
@@ -112,6 +115,7 @@ final class RuntimeInstaller: @unchecked Sendable {
                 destination: stage,
                 progress: progress
             )
+            try RuntimeInstallLedger.validateTree(at: stage)
             try RuntimeInstallLedger.write(
                 manifest: manifest, manifestData: loaded.data, scope: .game, root: stage
             )
@@ -119,7 +123,7 @@ final class RuntimeInstaller: @unchecked Sendable {
             try RuntimePromotion.promote(stage: stage, destination: runtime.rootURL, fileManager: fileManager)
             return runtime
         } catch {
-            try? fileManager.removeItem(at: stage)
+            try? removeRuntimeTree(stage)
             throw error
         }
     }
@@ -131,7 +135,9 @@ final class RuntimeInstaller: @unchecked Sendable {
         destination: URL,
         progress: RuntimeProgressHandler?
     ) async throws {
-        let total = components.map(\.size).reduce(0, +)
+        let total = components.reduce(into: Int64(0)) { value, component in
+            value = min(Int64.max, value + component.size)
+        }
         var completed: Int64 = 0
         if let first = components.first {
             await report(progress, scope, first.id, "正在测速下载源", completed, total)
@@ -174,11 +180,13 @@ final class RuntimeInstaller: @unchecked Sendable {
             tag: runtime.tag,
             appVersion: RuntimeManifest.appVersion(bundle: bundle),
             scope: .core
-        ) && fileManager.isExecutableFile(atPath: runtime.hpatchzURL.path)
+        ) && GameFilesystem.regularFile(runtime.hpatchzURL)
+            && fileManager.isExecutableFile(atPath: runtime.hpatchzURL.path)
     }
 
     private func corePayloadReady(at root: URL) -> Bool {
-        fileManager.isExecutableFile(atPath: root.appending(path: "tools/hpatchz").path)
+        let tool = root.appending(path: "tools/hpatchz")
+        return GameFilesystem.regularFile(tool) && fileManager.isExecutableFile(atPath: tool.path)
     }
 
     private func gameReady(_ runtime: InstalledRuntime) -> Bool {
@@ -191,7 +199,42 @@ final class RuntimeInstaller: @unchecked Sendable {
     }
 
     private func prepare(stage: URL) throws {
-        try? fileManager.removeItem(at: stage)
-        try fileManager.createDirectory(at: stage.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try PrivateFilesystem.rejectSymbolicLinks(in: stage)
+        try removeRuntimeTree(stage)
+        try PrivateFilesystem.ensureDirectory(stage.deletingLastPathComponent())
+    }
+
+    private func removeRuntimeTree(_ url: URL) throws {
+        try PrivateFilesystem.rejectSymbolicLinks(in: url)
+        guard fileManager.fileExists(atPath: url.path) else { return }
+        let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        guard values.isDirectory == true, values.isSymbolicLink != true else {
+            throw RuntimeInstallError.unsafePromotion
+        }
+        guard let enumerator = fileManager.enumerator(
+            at: url,
+            includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey],
+            options: []
+        ) else { throw RuntimeInstallError.unsafePromotion }
+        while let entry = enumerator.nextObject() as? URL {
+            var info = stat()
+            guard lstat(entry.path, &info) == 0 else { throw RuntimeInstallError.unsafePromotion }
+            let mode = info.st_mode & S_IFMT
+            if mode == S_IFLNK {
+                let rootPath = url.standardizedFileURL.path + "/"
+                let relative = String(entry.standardizedFileURL.path.dropFirst(rootPath.count))
+                let target = entry.deletingLastPathComponent().appending(path: "wine")
+                var targetInfo = stat()
+                guard ["wine/bin/wineboot", "game-runtime/wine/bin/wineboot"].contains(relative),
+                      (try? fileManager.destinationOfSymbolicLink(atPath: entry.path)) == "wine",
+                      lstat(target.path, &targetInfo) == 0,
+                      targetInfo.st_mode & S_IFMT == S_IFREG else {
+                    throw RuntimeInstallError.unsafePromotion
+                }
+            } else if mode != S_IFDIR && mode != S_IFREG {
+                throw RuntimeInstallError.unsafePromotion
+            }
+        }
+        try fileManager.removeItem(at: url)
     }
 }

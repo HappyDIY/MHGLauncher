@@ -160,7 +160,7 @@ actor CoreResourceService {
     }
 
     func achievementProgress() throws -> [Int: Int] {
-        Dictionary(uniqueKeysWithValues: try achievements().map { ($0.Id, $0.Progress) })
+        Dictionary(try achievements().map { ($0.Id, $0.Progress) }, uniquingKeysWith: { _, latest in latest })
     }
 
     func enrich(_ record: WishRecord) throws -> WishRecord {
@@ -197,6 +197,10 @@ actor CoreResourceService {
     private func events() throws -> [GachaEvent] {
         if let eventsCache { return eventsCache }
         let source: [EventMeta] = try decode("gacha_events", extension: "json")
+        guard source.count <= 20_000,
+              source.allSatisfy({ $0.UpOrangeList.count <= 256 && $0.UpPurpleList.count <= 256 }) else {
+            throw metadataError()
+        }
         let itemValues = try items()
         let result = source.map { event in
             let orange = event.UpOrangeList.compactMap { itemValues[String($0)]?.name }
@@ -210,18 +214,18 @@ actor CoreResourceService {
                 endedAt: event.To,
                 orangeUp: orange,
                 purpleUp: purple,
-                orangeUpIcons: Dictionary(uniqueKeysWithValues: event.UpOrangeList.compactMap { id in
+                orangeUpIcons: Dictionary(event.UpOrangeList.compactMap { id in
                     guard let item = itemValues[String(id)], let url = resourceURL(
                         category: item.kind == "角色" ? "avatar" : "weapon", name: item.icon ?? ""
                     ) else { return nil }
                     return (item.name, url)
-                }),
-                purpleUpIcons: Dictionary(uniqueKeysWithValues: event.UpPurpleList.compactMap { id in
+                }, uniquingKeysWith: { first, _ in first }),
+                purpleUpIcons: Dictionary(event.UpPurpleList.compactMap { id in
                     guard let item = itemValues[String(id)], let url = resourceURL(
                         category: item.kind == "角色" ? "avatar" : "weapon", name: item.icon ?? ""
                     ) else { return nil }
                     return (item.name, url)
-                }),
+                }, uniquingKeysWith: { first, _ in first }),
                 bannerUrl: event.Banner,
                 updatedAt: event.To ?? event.From ?? .distantPast
             )
@@ -239,7 +243,9 @@ actor CoreResourceService {
             guard pair.value.count >= 3,
                   let name = pair.value[0] as? String,
                   let kind = pair.value[1] as? String,
-                  let rank = pair.value[2] as? Int else { return }
+                  let rank = pair.value[2] as? Int,
+                  name.utf8.count <= 256, kind.utf8.count <= 64,
+                  (0...5).contains(rank) else { return }
             output[pair.key] = ItemMeta(
                 name: name,
                 kind: kind,
@@ -260,6 +266,7 @@ actor CoreResourceService {
     private func resourceData(_ name: String, extension fileExtension: String) throws -> Data {
         if let resourceRoot {
             let url = resourceRoot.appending(path: "\(name).\(fileExtension)")
+            guard GameFilesystem.regularFile(url) else { throw metadataError() }
             let values = try url.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey])
             guard values.isRegularFile == true, values.isSymbolicLink != true,
                   (values.fileSize ?? 0) <= 8 * 1024 * 1024 else { throw metadataError() }

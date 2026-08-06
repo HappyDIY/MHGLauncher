@@ -43,16 +43,24 @@ actor CoreGameLaunchService {
             states[normalized.id] = State(launch: normalized)
             if !terminal { try? Self.persist(normalized, dataDirectory: dataDirectory) }
         }
-        _ = MhypbaseManager.recover(dataDirectory: dataDirectory, gameRunning: false)
+        _ = MhypbaseManager.recover(
+            dataDirectory: dataDirectory,
+            gameRunning: MhypbaseManager.isGameRunning()
+        )
     }
 
     func start(_ request: StartGameLaunchRequest) async throws -> GameLaunch {
+        guard (0...1_000).contains(request.framePacing) else {
+            throw LauncherCoreError(code: "game_launch_request_invalid", message: "游戏启动参数无效")
+        }
+        let installPath = try GameFilesystem.validatedPath(request.installPath)
         guard !states.values.contains(where: { !Self.terminal($0.launch.status) }) else {
             throw LauncherCoreError(code: "game_launch_busy", message: "游戏正在启动或运行")
         }
-        guard let detected = GameFilesystem.detect(at: request.installPath) else {
+        guard let detected = GameFilesystem.detect(at: installPath) else {
             throw LauncherCoreError(code: "game_not_installed", message: "所选目录中未检测到可启动的原神客户端")
         }
+        try PrivateFilesystem.rejectSymbolicLinksRecursively(in: detected.path)
         let id = UUID().uuidString
         let now = CoreDate.string(Date())
         let launch = GameLaunch(
@@ -61,8 +69,8 @@ actor CoreGameLaunchService {
             progress: 0.05, logs: [GameLaunchLog(sequence: 1, timestamp: now, kind: "launch", message: "启动任务已创建")],
             startedAt: now, updatedAt: now, revision: 0
         )
-        states[id] = State(launch: launch)
         try Self.persist(launch, dataDirectory: dataDirectory)
+        states[id] = State(launch: launch)
         tasks[id] = Task { [weak self] in
             await self?.execute(id: id, gameRoot: detected.path, request: request)
         }
@@ -97,7 +105,7 @@ actor CoreGameLaunchService {
         if request.action == .explorer {
             let status = try await runner.run(CoreProcessRequest(
                 executable: URL(filePath: "/usr/bin/open"), arguments: [prefix.appending(path: "drive_c").path],
-                workingDirectory: nil, environment: ProcessInfo.processInfo.environment, logURL: nil
+                workingDirectory: nil, environment: CoreProcessEnvironment.sanitizedCurrentProcess(), logURL: nil
             ))
             guard status == 0 else { throw LauncherCoreError(code: "wine_tool_failed", message: "无法打开 Wine 文件目录") }
             return
@@ -128,7 +136,8 @@ actor CoreGameLaunchService {
         for task in active.values { task.cancel() }
         await runner.terminate()
         for task in active.values { await task.value }
-        for (id, _) in states where !Self.terminal(states[id]!.launch.status) {
+        let activeIDs = states.compactMap { id, state in Self.terminal(state.launch.status) ? nil : id }
+        for id in activeIDs {
             update(id, status: .stopped, message: "应用退出，游戏启动会话已停止", progress: 1)
         }
     }
@@ -171,7 +180,7 @@ actor CoreGameLaunchService {
             ))
             try await cleanupRuntime(paths: paths, prefix: prefix, session: session)
             let stopping = states[id]?.launch.status == .stopping
-            let warning = try MhypbaseManager.commit(journal)
+            let warning = try MhypbaseManager.restore(journal)
             update(
                 id, status: stopping ? .stopped : (code == 0 ? .exited : .failed),
                 message: warning.nonempty ?? (stopping ? "游戏已停止" : code == 0 ? "游戏已正常退出" : "游戏进程退出码：\(code)"),
@@ -179,7 +188,7 @@ actor CoreGameLaunchService {
             )
         } catch is CancellationError {
             await cleanupRuntimeIgnoringFailure(paths: preparedPaths, prefix: preparedPrefix, session: session)
-            let warning = (try? MhypbaseManager.commit(journal)) ?? ""
+            let warning = (try? MhypbaseManager.restore(journal)) ?? ""
             update(id, status: .stopped, message: warning.nonempty ?? "游戏已停止", progress: 1)
         } catch let error as LauncherCoreError {
             await cleanupRuntimeIgnoringFailure(paths: preparedPaths, prefix: preparedPrefix, session: session)
@@ -196,45 +205,54 @@ actor CoreGameLaunchService {
     private func runGame(id: String, paths: WineRuntimePaths, request: CoreProcessRequest) async throws -> Int32 {
         let snapshot = try await windowProbe.snapshot(executable: paths.windowProbe)
         let gameTask = Task { try await runner.run(request) }
-        defer { gameTask.cancel() }
-        var processID: Int32?
-        for _ in 0..<40 {
-            if let value = await runner.processIdentifier() { processID = value; break }
-            try await Task.sleep(for: .milliseconds(50))
-        }
-        guard let processID else { return try await gameTask.value }
-        update(id, status: .waitingWindow, message: "游戏进程已创建，正在等待窗口", progress: 0.82)
-        var processReported = false
-        for _ in 0..<120 {
-            try Task.checkCancellation()
-            guard await runner.processIdentifier() != nil else { break }
-            let status = try await windowProbe.status(
-                executable: paths.windowProbe, processID: processID, snapshot: snapshot
-            )
-            if status == 0 {
-                if let gate = request.environment["MHG_DNS_GATE_FILE"] {
-                    try? FileManager.default.removeItem(atPath: gate)
+        do {
+            var processID: Int32?
+            for _ in 0..<40 {
+                if let value = await runner.processIdentifier() { processID = value; break }
+                try await Task.sleep(for: .milliseconds(50))
+            }
+            guard let processID else { return try await gameTask.value }
+            update(id, status: .waitingWindow, message: "游戏进程已创建，正在等待窗口", progress: 0.82)
+            var processReported = false
+            for _ in 0..<120 {
+                try Task.checkCancellation()
+                guard await runner.processIdentifier() != nil else { break }
+                let status = try await windowProbe.status(
+                    executable: paths.windowProbe, processID: processID, snapshot: snapshot
+                )
+                if status == 0 {
+                    if let gate = request.environment["MHG_DNS_GATE_FILE"] {
+                        try? PrivateFilesystem.rejectSymbolicLinks(in: URL(filePath: gate))
+                        try? PrivateFilesystem.removeRegularFileIfPresent(URL(filePath: gate))
+                    }
+                    update(id, status: .running, message: "游戏窗口已显示，域名屏蔽已解除", progress: 1)
+                    break
                 }
-                update(id, status: .running, message: "游戏窗口已显示，域名屏蔽已解除", progress: 1)
-                break
+                if status == 3, !processReported {
+                    processReported = true
+                    update(id, status: .waitingWindow, message: "游戏进程已创建，正在等待窗口", progress: 0.9)
+                }
+                try await Task.sleep(for: .milliseconds(250))
             }
-            if status == 3, !processReported {
-                processReported = true
-                update(id, status: .waitingWindow, message: "游戏进程已创建，正在等待窗口", progress: 0.9)
+            if let gate = request.environment["MHG_DNS_GATE_FILE"] {
+                try? PrivateFilesystem.rejectSymbolicLinks(in: URL(filePath: gate))
+                try? PrivateFilesystem.removeRegularFileIfPresent(URL(filePath: gate))
             }
-            try await Task.sleep(for: .milliseconds(250))
+            if states[id]?.launch.status == .waitingWindow {
+                update(id, status: .running, message: "窗口探针超时，已自动解除域名屏蔽", progress: 1)
+            }
+            return try await gameTask.value
+        } catch {
+            gameTask.cancel()
+            await runner.terminate()
+            _ = try? await gameTask.value
+            throw error
         }
-        if let gate = request.environment["MHG_DNS_GATE_FILE"] {
-            try? FileManager.default.removeItem(atPath: gate)
-        }
-        if states[id]?.launch.status == .waitingWindow {
-            update(id, status: .running, message: "窗口探针超时，已自动解除域名屏蔽", progress: 1)
-        }
-        return try await gameTask.value
     }
 
     private func cleanupRuntime(paths: WineRuntimePaths, prefix: URL, session: URL) async throws {
-        try? FileManager.default.removeItem(at: session.appending(path: "dns-gate"))
+        try PrivateFilesystem.rejectSymbolicLinks(in: session.appending(path: "dns-gate"))
+        try? PrivateFilesystem.removeRegularFileIfPresent(session.appending(path: "dns-gate"))
         try await Task.detached { [prefixManager] in
             try await prefixManager.stopServer(paths: paths, prefix: prefix)
         }.value
@@ -245,7 +263,8 @@ actor CoreGameLaunchService {
         prefix: URL?,
         session: URL
     ) async {
-        try? FileManager.default.removeItem(at: session.appending(path: "dns-gate"))
+        try? PrivateFilesystem.rejectSymbolicLinks(in: session.appending(path: "dns-gate"))
+        try? PrivateFilesystem.removeRegularFileIfPresent(session.appending(path: "dns-gate"))
         guard let paths, let prefix else { return }
         try? await Task.detached { [prefixManager] in
             try await prefixManager.stopServer(paths: paths, prefix: prefix)
@@ -309,6 +328,9 @@ actor CoreGameLaunchService {
     }
 
     private static func persist(_ launch: GameLaunch, dataDirectory: URL) throws {
+        guard validSessionID(launch.id) else {
+            throw LauncherCoreError(code: "game_launch_invalid", message: "游戏启动会话标识无效")
+        }
         try GameFilesystem.writePrivate(
             JSONEncoder.api.encode(launch),
             to: dataDirectory.appending(path: "launches/\(launch.id)/status.json")
@@ -317,7 +339,44 @@ actor CoreGameLaunchService {
 
     private static func loadPersisted(dataDirectory: URL) -> [GameLaunch] {
         let root = dataDirectory.appending(path: "launches")
-        guard let entries = try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) else { return [] }
-        return entries.compactMap { try? JSONDecoder.api.decode(GameLaunch.self, from: Data(contentsOf: $0.appending(path: "status.json"))) }
+        guard (try? PrivateFilesystem.rejectSymbolicLinks(in: root)) != nil,
+              let enumerator = FileManager.default.enumerator(
+                  at: root,
+                  includingPropertiesForKeys: nil,
+                  options: [.skipsSubdirectoryEnumeration]
+              ) else { return [] }
+        var entries: [URL] = []
+        while let entry = enumerator.nextObject() as? URL {
+            entries.append(entry)
+            guard entries.count <= 256 else { return [] }
+        }
+        return entries.compactMap { entry in
+            guard let values = try? entry.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
+                  values.isDirectory == true, values.isSymbolicLink != true,
+                  validSessionID(entry.lastPathComponent) else { return nil }
+            let status = entry.appending(path: "status.json")
+            guard GameFilesystem.regularFile(status),
+                  let values = try? status.resourceValues(forKeys: [.fileSizeKey]),
+                  (values.fileSize ?? 0) <= 1024 * 1024,
+                  let data = try? Data(contentsOf: status) else { return nil }
+            guard let launch = try? JSONDecoder.api.decode(GameLaunch.self, from: data),
+                  launch.id == entry.lastPathComponent,
+                  launch.logs.count <= 200,
+                  launch.message.utf8.count <= 4_096,
+                  launch.progress.isFinite, (0...1).contains(launch.progress),
+                  (launch.revision ?? 0) >= 0,
+                  launch.startedAt.utf8.count <= 128,
+                  launch.updatedAt.utf8.count <= 128,
+                  launch.logs.allSatisfy({
+                      $0.sequence >= 0 && $0.kind.utf8.count <= 64
+                          && $0.message.utf8.count <= 4_096
+                          && $0.timestamp.utf8.count <= 128
+                  }) else { return nil }
+            return launch
+        }
+    }
+
+    private static func validSessionID(_ value: String) -> Bool {
+        UUID(uuidString: value) != nil
     }
 }

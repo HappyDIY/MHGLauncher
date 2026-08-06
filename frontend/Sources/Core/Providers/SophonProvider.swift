@@ -3,10 +3,7 @@ import SwiftProtobuf
 
 actor SophonProvider {
     private let transport: any HTTPTransport
-    private let policy = HTTPSHostPolicy(
-        exactHosts: ["hyp-api.mihoyo.com", "downloader-api.mihoyo.com"],
-        suffixes: ["mihoyo.com", "hoyoverse.com"]
-    )
+    private let policy = HTTPSHostPolicy.sophon
     private var branchesCache: (Date, Branches)?
     private var buildCache: [String: (Date, GameBuild)] = [:]
 
@@ -18,18 +15,19 @@ actor SophonProvider {
         let languages = normalizedLanguages(audioLanguages)
         let key = "main:\(installedVersion):\(languages.joined(separator: ","))"
         if let cached = cached(key) { return cached }
-        let branch = try await branches().main
-        let remote = try await fullBuild(branch: branch, languages: languages, tag: nil)
+        let branches = try await branches()
+        let remote = try await fullBuild(branch: branches.main, languages: languages, tag: nil)
         guard !installedVersion.isEmpty, installedVersion != remote.version else {
             cache(remote, key: key)
             return remote
         }
         let selected: GameBuild
-        if branch.diffTags.contains(installedVersion),
-           let patch = try? await patchBuild(branch: branch, version: installedVersion, languages: languages),
+        if branches.main.diffTags.contains(installedVersion),
+           let patch = try? await patchBuild(branch: branches.main, version: installedVersion, languages: languages),
            patch.version == remote.version {
             selected = replacingRepairAssets(patch, with: remote.assets)
-        } else if let local = try? await fullBuild(branch: branch, languages: languages, tag: installedVersion) {
+        } else if let local = try? await fullBuild(branch: branches.main, languages: languages, tag: installedVersion),
+                  local.version == installedVersion {
             selected = diff(local: local, remote: remote)
         } else {
             selected = remote
@@ -42,7 +40,8 @@ actor SophonProvider {
         let languages = normalizedLanguages(audioLanguages)
         let key = "installed:\(version):\(languages.joined(separator: ","))"
         if let cached = cached(key) { return cached }
-        let value = try await fullBuild(branch: branches().main, languages: languages, tag: version)
+        let branch = try await branches()
+        let value = try await fullBuild(branch: branch.main, languages: languages, tag: version)
         guard value.version == version else {
             throw LauncherCoreError(code: "sophon_installed_build_missing", message: "未找到当前版本的完整资源清单")
         }
@@ -52,15 +51,41 @@ actor SophonProvider {
 
     func predownloadBuild(installedVersion: String, audioLanguages: [String]) async throws -> GameBuild? {
         let languages = normalizedLanguages(audioLanguages)
-        guard let branch = try await branches().pre else { return nil }
+        let availableBranches = try await branches()
+        guard let branch = availableBranches.pre else { return nil }
         let key = "pre:\(installedVersion):\(languages.joined(separator: ","))"
-        if let cached = cached(key) { return cached }
+        if let cached = cached(key) {
+            guard installedVersion.isEmpty || SophonVersion.compare(cached.version, installedVersion) > 0 else {
+                throw LauncherCoreError(code: "predownload_unavailable", message: "预下载版本不高于当前游戏版本")
+            }
+            return cached
+        }
         let remote = try await fullBuild(branch: branch, languages: languages, tag: nil)
+        guard installedVersion.isEmpty || SophonVersion.compare(remote.version, installedVersion) > 0 else {
+            throw LauncherCoreError(code: "predownload_unavailable", message: "预下载版本不高于当前游戏版本")
+        }
         let selected: GameBuild
         if branch.diffTags.contains(installedVersion),
            let patch = try? await patchBuild(branch: branch, version: installedVersion, languages: languages),
            patch.version == remote.version {
             selected = replacingRepairAssets(patch, with: remote.assets, predownload: true)
+        } else if !installedVersion.isEmpty {
+            let local = try await fullBuild(
+                branch: availableBranches.main,
+                languages: languages,
+                tag: installedVersion
+            )
+            guard local.version == installedVersion else {
+                throw LauncherCoreError(
+                    code: "predownload_base_mismatch",
+                    message: "当前游戏版本与本地资源清单不一致，无法计算预下载差分"
+                )
+            }
+            selected = replacingRepairAssets(
+                diff(local: local, remote: remote),
+                with: remote.assets,
+                predownload: true
+            )
         } else {
             selected = replacingRepairAssets(remote, with: remote.repairAssets, predownload: true)
         }
@@ -109,9 +134,15 @@ actor SophonProvider {
     private func parseAssets(_ item: ManifestEntry) async throws -> [GameAsset] {
         let data = try await manifest(item, patch: false)
         let value = try SophonManifest(serializedBytes: data)
-        guard value.assets.count <= 200_000,
-              value.assets.reduce(0, { $0 + $1.assetChunks.count }) <= 200_000 else {
+        guard value.assets.count <= 200_000 else {
             throw LauncherCoreError(code: "sophon_manifest_too_large", message: "Sophon 清单条目过多")
+        }
+        var chunkCount = 0
+        for asset in value.assets {
+            guard asset.assetChunks.count <= 200_000 - chunkCount else {
+                throw LauncherCoreError(code: "sophon_manifest_too_large", message: "Sophon 清单条目过多")
+            }
+            chunkCount += asset.assetChunks.count
         }
         return value.assets.map { asset in
             GameAsset(
@@ -125,7 +156,7 @@ actor SophonProvider {
                         offset: chunk.chunkOnFileOffset,
                         size: chunk.chunkSize,
                         decompressedSize: chunk.chunkSizeDecompressed,
-                        url: downloadURL(item.chunkDownload, name: chunk.chunkName)
+                        url: try downloadURL(item.chunkDownload, name: chunk.chunkName)
                     )
                 },
                 requiredChunks: nil
@@ -159,7 +190,7 @@ actor SophonProvider {
                         start: info.patchStartOffset,
                         length: info.patchLength,
                         originalName: info.originalFileName,
-                        url: downloadURL(item.diffDownload, name: info.id)
+                        url: try downloadURL(item.diffDownload, name: info.id)
                     )
                 ))
             }
@@ -176,7 +207,7 @@ actor SophonProvider {
     }
 
     private func manifest(_ item: ManifestEntry, patch: Bool) async throws -> Data {
-        let request = URLRequest(url: downloadURL(item.manifestDownload, name: item.manifest.id))
+        let request = URLRequest(url: try downloadURL(item.manifestDownload, name: item.manifest.id))
         let response = try await transport.send(request, policy: policy, maximumBytes: 64 * 1024 * 1024)
         guard (200..<300).contains(response.statusCode) else {
             throw LauncherCoreError(code: "sophon_manifest_invalid", message: "Sophon 清单下载失败")
@@ -213,17 +244,27 @@ actor SophonProvider {
         }
     }
 
-    private func downloadURL(_ value: Download, name: String) -> URL {
+    private func downloadURL(_ value: Download, name: String) throws -> URL {
         let prefix = value.urlPrefix.hasSuffix("/") ? String(value.urlPrefix.dropLast()) : value.urlPrefix
         let separator = value.urlSuffix.isEmpty || value.urlSuffix.hasPrefix("?") ? "" : "?"
-        return URL(string: "\(prefix)/\(name)\(separator)\(value.urlSuffix)")!
+        guard let url = URL(string: "\(prefix)/\(name)\(separator)\(value.urlSuffix)"),
+              url.absoluteString.utf8.count <= 16 * 1024,
+              HTTPSHostPolicy.sophon.allows(url) else {
+            throw LauncherCoreError(code: "sophon_manifest_invalid", message: "下载服务返回了无效资源地址")
+        }
+        return url
     }
 
     private func diff(local: GameBuild, remote: GameBuild) -> GameBuild {
-        let localAssets = Dictionary(uniqueKeysWithValues: local.assets.map { ($0.name.lowercased(), $0) })
-        let remoteNames = Set(remote.assets.map { $0.name.lowercased() })
+        let localAssets = Dictionary(
+            local.assets.map { (SophonValidation.canonicalPath($0.name), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let remoteNames = Set(remote.assets.map { SophonValidation.canonicalPath($0.name) })
         let assets = remote.assets.compactMap { remoteAsset -> GameAsset? in
-            guard let localAsset = localAssets[remoteAsset.name.lowercased()] else { return remoteAsset }
+            guard let localAsset = localAssets[SophonValidation.canonicalPath(remoteAsset.name)] else {
+                return remoteAsset
+            }
             guard localAsset.md5.lowercased() != remoteAsset.md5.lowercased() else { return nil }
             let known = Set(localAsset.chunks.map { $0.decompressedMD5.lowercased() })
             return GameAsset(
@@ -238,7 +279,9 @@ actor SophonProvider {
             version: remote.version,
             kind: "version_diff_chunks",
             assets: assets,
-            deprecatedFiles: local.assets.filter { !remoteNames.contains($0.name.lowercased()) }.map(\.name),
+            deprecatedFiles: local.assets.filter {
+                !remoteNames.contains(SophonValidation.canonicalPath($0.name))
+            }.map(\.name),
             baseAssets: local.assets,
             repairAssets: remote.assets
         )
@@ -341,4 +384,11 @@ private extension JSONDecoder {
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return decoder
     }
+}
+
+extension HTTPSHostPolicy {
+    static let sophon = HTTPSHostPolicy(
+        exactHosts: ["hyp-api.mihoyo.com", "downloader-api.mihoyo.com"],
+        suffixes: ["mihoyo.com", "hoyoverse.com"]
+    )
 }

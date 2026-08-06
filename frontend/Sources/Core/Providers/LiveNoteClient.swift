@@ -34,6 +34,9 @@ actor LiveNoteClient {
         try await checkNote(payload, credential: credential, challenge: challenge, path: challengePath)
         let data = payload.data.objectValue ?? [:]
         let expeditions = data["expeditions"]?.arrayValue.compactMap(\.objectValue) ?? []
+        guard expeditions.count <= 64 else {
+            throw LauncherCoreError(code: "note_payload_invalid", message: "实时便笺数据无效")
+        }
         let recovery = data["transformer"]?.objectValue?["recovery_time"]?.objectValue
         return DailyNote(
             uid: role.uid, currentResin: data["current_resin"]?.int ?? 0,
@@ -73,7 +76,12 @@ actor LiveNoteClient {
             throw try await verificationError(credential: credential, path: path)
         }
         guard payload.retcode == 0 else { throw mihoyo(payload) }
-        return payload.data.objectValue?["challenge"]?.text ?? ""
+        let challenge = payload.data.objectValue?["challenge"]?.text ?? ""
+        guard challenge.utf8.count <= 4_096,
+              !challenge.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
+            throw LauncherCoreError(code: "note_challenge_invalid", message: "实时便笺验证结果无效")
+        }
+        return challenge
     }
 
     private func requestIndex(
@@ -131,7 +139,13 @@ actor LiveNoteClient {
         guard payload.retcode == 0,
               let data = payload.data.objectValue,
               let gt = data["gt"]?.text.nonempty,
-              let challenge = data["challenge"]?.text.nonempty else { return mihoyo(payload) }
+              let challenge = data["challenge"]?.text.nonempty,
+              gt.utf8.count <= 512,
+              challenge.utf8.count <= 4_096,
+              !gt.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
+              !challenge.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
+            return mihoyo(payload)
+        }
         return LauncherCoreError(
             code: "verification_required", message: "请完成人机验证后重试",
             details: [
@@ -189,12 +203,13 @@ actor LiveNoteClient {
         request.httpBody = body
         let payload = try await transport.send(request, policy: .mihoyo, maximumBytes: 8 * 1024 * 1024)
         guard (200..<300).contains(payload.statusCode),
-              let root = try? JSONDecoder.api.decode([String: JSONValue].self, from: payload.data) else {
+              let root = try? JSONDecoder.api.decode([String: JSONValue].self, from: payload.data),
+              root["retcode"]?.integerValue != nil else {
             throw LauncherCoreError(code: "mihoyo_error", message: "米游社请求失败")
         }
         return MiHoYoEnvelope(
-            retcode: root["retcode"]?.int ?? 0,
-            message: root["message"]?.text ?? "",
+            retcode: root["retcode"]?.integerValue ?? 0,
+            message: String((root["message"]?.text ?? "").prefix(512)),
             data: root["data"] ?? .object([:])
         )
     }

@@ -2,74 +2,93 @@ import Foundation
 
 final class ProcessPipeDrain: @unchecked Sendable {
     private let handle: FileHandle
-    private let capturesReady: Bool
-    private let lock = NSLock()
-    private var buffer = Data()
-    private var continuation: CheckedContinuation<String, Error>?
-    private var timeoutTask: Task<Void, Never>?
-    private var finished = false
-    private var readyResult: Result<String, Error>?
 
-    init(handle: FileHandle, capturesReady: Bool) {
+    init(handle: FileHandle) {
         self.handle = handle
-        self.capturesReady = capturesReady
-        handle.readabilityHandler = { [weak self] source in self?.consume(source.availableData) }
-    }
-
-    func readyPath(timeout: Duration = .seconds(15)) async throws -> String {
-        try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
-                lock.lock()
-                if let result = readyResult { lock.unlock(); continuation.resume(with: result); return }
-                self.continuation = continuation
-                lock.unlock()
-                timeoutTask = Task { [weak self] in
-                    try? await Task.sleep(for: timeout)
-                    guard !Task.isCancelled else { return }
-                    self?.fail(URLError(.timedOut))
-                }
-            }
-        } onCancel: { self.fail(CancellationError()) }
+        handle.readabilityHandler = { source in _ = source.availableData }
     }
 
     func close() {
         handle.readabilityHandler = nil
         try? handle.close()
-        fail(CancellationError())
     }
+}
 
-    private func consume(_ data: Data) {
-        guard !data.isEmpty else { fail(CocoaError(.fileReadCorruptFile)); return }
-        guard capturesReady else { return }
-        lock.lock()
-        guard !finished else { lock.unlock(); return }
-        buffer.append(data)
-        guard buffer.count <= 16_384, let newline = buffer.firstIndex(of: 0x0A) else {
-            let oversized = buffer.count > 16_384
-            lock.unlock()
-            if oversized { fail(CocoaError(.fileReadTooLarge)) }
-            return
-        }
-        let line = Data(buffer[..<newline])
-        do {
-            let object = try JSONSerialization.jsonObject(with: line)
-            guard let payload = object as? [String: Any], payload["event"] as? String == "ready",
-                  let path = payload["socket_path"] as? String else { throw CocoaError(.fileReadCorruptFile) }
-            let continuation = finishLocked(.success(path)); lock.unlock(); continuation?.resume(returning: path)
-        } catch {
-            lock.unlock(); fail(error)
+final class BoundedProcessCapture: @unchecked Sendable {
+    let pipe = Pipe()
+
+    private let limit: Int
+    private let readHandle: FileHandle
+    private let readLock = NSLock()
+    private let stateLock = NSLock()
+    private let finishLock = NSLock()
+    private var data = Data()
+    private var exceeded = false
+    private var finished = false
+
+    init(limit: Int) {
+        self.limit = max(1, limit)
+        readHandle = pipe.fileHandleForReading
+        readHandle.readabilityHandler = { [weak self] handle in
+            self?.consumeAvailable(from: handle)
         }
     }
 
-    private func fail(_ error: Error) {
-        lock.lock()
-        guard !finished else { lock.unlock(); return }
-        let continuation = finishLocked(.failure(error)); lock.unlock(); continuation?.resume(throwing: error)
+    func closeWriter() {
+        try? pipe.fileHandleForWriting.close()
     }
 
-    private func finishLocked(_ result: Result<String, Error>) -> CheckedContinuation<String, Error>? {
-        timeoutTask?.cancel(); timeoutTask = nil
-        finished = true; readyResult = result; buffer.removeAll(keepingCapacity: false)
-        let value = continuation; continuation = nil; return value
+    func finish() throws -> Data {
+        finishLock.lock()
+        defer { finishLock.unlock() }
+        stateLock.lock()
+        if finished {
+            let value = data
+            let didExceed = exceeded
+            stateLock.unlock()
+            guard !didExceed else { throw CocoaError(.fileReadTooLarge) }
+            return value
+        }
+        stateLock.unlock()
+        readHandle.readabilityHandler = nil
+        while true {
+            let chunk = readAvailable(from: readHandle)
+            if chunk.isEmpty { break }
+            consume(chunk)
+        }
+        try? readHandle.close()
+
+        stateLock.lock()
+        finished = true
+        let value = data
+        let didExceed = exceeded
+        stateLock.unlock()
+        guard !didExceed else { throw CocoaError(.fileReadTooLarge) }
+        return value
+    }
+
+    private func consumeAvailable(from handle: FileHandle) {
+        let chunk = readAvailable(from: handle)
+        if !chunk.isEmpty { consume(chunk) }
+    }
+
+    private func readAvailable(from handle: FileHandle) -> Data {
+        readLock.lock()
+        defer { readLock.unlock() }
+        return handle.availableData
+    }
+
+    private func consume(_ chunk: Data) {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        guard !finished else { return }
+        let remaining = limit - data.count
+        if remaining > 0 {
+            let amount = min(remaining, chunk.count)
+            data.append(contentsOf: chunk.prefix(amount))
+            exceeded = exceeded || amount < chunk.count
+        } else {
+            exceeded = true
+        }
     }
 }

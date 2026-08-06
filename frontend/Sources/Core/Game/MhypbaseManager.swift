@@ -30,6 +30,22 @@ struct MhypbaseJournal: Codable, Sendable {
 }
 
 enum MhypbaseManager {
+    static func isGameRunning() -> Bool {
+        let process = Process()
+        process.executableURL = URL(filePath: "/usr/bin/pgrep")
+        process.arguments = ["-if", "YuanShen[.]exe"]
+        process.environment = CoreProcessEnvironment.sanitizedCurrentProcess()
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return true
+        }
+    }
+
     static func prepare(
         gameRoot: URL,
         source: URL,
@@ -112,7 +128,7 @@ enum MhypbaseManager {
             }
             try atomicCopy(source: backup, destination: target, mode: journal.originalMode)
         } else {
-            try FileManager.default.removeItem(at: target)
+            try PrivateFilesystem.removeRegularFileIfPresent(target)
         }
         try finish(journal)
         return ""
@@ -121,16 +137,27 @@ enum MhypbaseManager {
     static func recover(dataDirectory: URL, gameRunning: Bool) -> [String] {
         let root = dataDirectory.appending(path: "launches")
         guard !gameRunning,
-              let sessions = try? FileManager.default.contentsOfDirectory(
-                at: root, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey]
+              (try? PrivateFilesystem.rejectSymbolicLinks(in: root)) != nil,
+              let enumerator = FileManager.default.enumerator(
+                at: root,
+                includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+                options: [.skipsSubdirectoryEnumeration]
               ) else { return [] }
+        var sessions: [URL] = []
+        while let session = enumerator.nextObject() as? URL {
+            guard sessions.count < 256 else {
+                return ["启动恢复记录过多，已拒绝恢复"]
+            }
+            sessions.append(session)
+        }
         var journals: [MhypbaseJournal] = []
         var warnings: [String] = []
         for session in sessions {
             let journalURL = session.appending(path: "dll-journal.json")
-            guard FileManager.default.fileExists(atPath: journalURL.path) else { continue }
             guard GameFilesystem.regularFile(journalURL),
-                  let data = try? Data(contentsOf: journalURL),
+                  let values = try? journalURL.resourceValues(forKeys: [.fileSizeKey]),
+                  (values.fileSize ?? 0) <= 1024 * 1024 else { continue }
+            guard let data = try? Data(contentsOf: journalURL),
                   let journal = try? JSONDecoder.api.decode(MhypbaseJournal.self, from: data),
                   safeJournal(journal, under: session) else {
                 warnings.append("启动 DLL 恢复记录无效，已拒绝执行文件操作")
@@ -140,7 +167,7 @@ enum MhypbaseManager {
         }
         for journal in journals.sorted(by: { $0.generation > $1.generation }) {
             do {
-                let warning = try journal.phase == "installed" ? commit(journal) : restore(journal)
+                let warning = try restore(journal)
                 if !warning.isEmpty { warnings.append(warning) }
             } catch {
                 warnings.append("启动 DLL 恢复失败")
@@ -159,7 +186,11 @@ enum MhypbaseManager {
               (0...0o777).contains(journal.originalMode) else { return false }
         let gameRoot = URL(filePath: journal.gameRoot).standardizedFileURL
         let target = URL(filePath: journal.target).standardizedFileURL
+        let backup = URL(filePath: journal.backup).standardizedFileURL
         guard target == gameRoot.appending(path: "mhypbase.dll").standardizedFileURL,
+              (try? PrivateFilesystem.rejectSymbolicLinks(in: gameRoot)) != nil,
+              (try? PrivateFilesystem.rejectSymbolicLinks(in: target)) != nil,
+              (try? PrivateFilesystem.rejectSymbolicLinks(in: backup)) != nil,
               let detected = GameFilesystem.detect(at: gameRoot.path),
               detected.path == (try? GameFilesystem.canonicalDirectory(gameRoot)) else { return false }
         return !target.path.hasPrefix(session.path + "/")
@@ -172,12 +203,20 @@ enum MhypbaseManager {
     }
 
     private static func atomicCopy(source: URL, destination: URL, mode: Int) throws {
+        guard GameFilesystem.regularFile(source) else {
+            throw LauncherCoreError(code: "mhypbase_file_invalid", message: "mhypbase.dll 文件无效")
+        }
         try GameFilesystem.ensureParent(of: destination)
         let temporary = URL(filePath: destination.path + ".\(UUID().uuidString).tmp")
-        defer { try? FileManager.default.removeItem(at: temporary) }
+        try PrivateFilesystem.rejectSymbolicLinks(in: destination)
+        try PrivateFilesystem.rejectSymbolicLinks(in: temporary)
+        defer { try? PrivateFilesystem.removeRegularFileIfPresent(temporary) }
         try FileManager.default.copyItem(at: source, to: temporary)
         try FileManager.default.setAttributes([.posixPermissions: mode], ofItemAtPath: temporary.path)
         if FileManager.default.fileExists(atPath: destination.path) {
+            guard GameFilesystem.regularFile(destination) else {
+                throw LauncherCoreError(code: "mhypbase_target_invalid", message: "mhypbase.dll 目标不是普通文件")
+            }
             _ = try FileManager.default.replaceItemAt(destination, withItemAt: temporary)
         } else {
             try FileManager.default.moveItem(at: temporary, to: destination)
@@ -185,8 +224,12 @@ enum MhypbaseManager {
     }
 
     private static func finish(_ journal: MhypbaseJournal) throws {
-        try? FileManager.default.removeItem(at: URL(filePath: journal.backup))
-        try? FileManager.default.removeItem(at: URL(filePath: journal.journalPath))
+        let backup = URL(filePath: journal.backup)
+        let journalURL = URL(filePath: journal.journalPath)
+        guard (try? PrivateFilesystem.rejectSymbolicLinks(in: backup)) != nil,
+              (try? PrivateFilesystem.rejectSymbolicLinks(in: journalURL)) != nil else { return }
+        try PrivateFilesystem.removeRegularFileIfPresent(backup)
+        try PrivateFilesystem.removeRegularFileIfPresent(journalURL)
     }
 
 }

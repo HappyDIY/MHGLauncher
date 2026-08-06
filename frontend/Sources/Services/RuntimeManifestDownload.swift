@@ -17,6 +17,9 @@ enum RuntimeManifestDownload {
 
     static func load(from url: URL, environment: [String: String]) async throws -> Data {
         if url.isFileURL { return try localData(from: url, limit: manifestLimit) }
+        guard RuntimeURLPolicy.allowsRemote(url) else {
+            throw RuntimeInstallError.invalidManifest
+        }
         let mirrors = RuntimeMirrorCatalog.sources(
             for: url.deletingLastPathComponent(), environment: environment
         )
@@ -46,13 +49,26 @@ enum RuntimeManifestDownload {
     }
 
     private static func data(from url: URL, limit: Int) async throws -> Data {
+        guard let host = url.host?.lowercased(),
+              RuntimeURLPolicy.allowsRemote(url, additionalHosts: [host]) else {
+            throw URLError(.unsupportedURL)
+        }
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 10
         configuration.timeoutIntervalForResource = 20
+        configuration.urlCache = nil
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
         let session = URLSession(configuration: configuration)
         defer { session.invalidateAndCancel() }
-        let (bytes, response) = try await session.bytes(from: url)
+        let delegate = RuntimeHTTPRedirectDelegate(additionalHosts: [host])
+        let (bytes, response) = try await session.bytes(
+            for: URLRequest(url: url, timeoutInterval: 10), delegate: delegate
+        )
         guard let response = response as? HTTPURLResponse, 200..<300 ~= response.statusCode else {
+            throw URLError(.badServerResponse)
+        }
+        guard RuntimeURLPolicy.allowsRemote(response.url ?? url, additionalHosts: [host]) else {
             throw URLError(.badServerResponse)
         }
         if response.expectedContentLength > Int64(limit) {
@@ -68,6 +84,7 @@ enum RuntimeManifestDownload {
     }
 
     private static func localData(from url: URL, limit: Int) throws -> Data {
+        guard GameFilesystem.regularFile(url) else { throw URLError(.fileNotFound) }
         let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? limit + 1
         guard size <= limit else { throw URLError(.dataLengthExceedsMaximum) }
         return try Data(contentsOf: url, options: .mappedIfSafe)

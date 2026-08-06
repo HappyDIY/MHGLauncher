@@ -44,14 +44,14 @@ func normalizedCloudURL(_ rawValue: String) throws -> String {
           !host.isEmpty,
           components.user == nil,
           components.password == nil,
+          components.port == nil || components.port == 443,
           components.query == nil,
           components.fragment == nil
     else {
         throw ConfigurationError.message("MHG_CLOUD_BASE_URL 必须是无凭据、查询参数和片段的有效 URL")
     }
-    let localHosts = ["localhost", "127.0.0.1", "::1"]
-    guard scheme == "https" || scheme == "http" && localHosts.contains(host) else {
-        throw ConfigurationError.message("MHG_CLOUD_BASE_URL 仅允许 HTTPS；本地开发可对 localhost 或回环地址使用 HTTP")
+    guard scheme == "https" else {
+        throw ConfigurationError.message("MHG_CLOUD_BASE_URL 仅允许 HTTPS")
     }
     components.scheme = scheme
     guard var normalized = components.url?.absoluteString else {
@@ -69,7 +69,7 @@ do {
     let plistURL = URL(fileURLWithPath: CommandLine.arguments[2])
     let environmentValue = ProcessInfo.processInfo.environment["MHG_CLOUD_BASE_URL"]
     let configuredValue = try environmentValue ?? dotenvValue(at: envURL, key: "MHG_CLOUD_BASE_URL")
-    let cloudURL = try normalizedCloudURL(configuredValue ?? "http://localhost:3333")
+    let cloudURL = try normalizedCloudURL(configuredValue ?? "https://cloud.example.com")
     let data = try Data(contentsOf: plistURL)
     guard var plist = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
         throw ConfigurationError.message("Info.plist 格式无效")

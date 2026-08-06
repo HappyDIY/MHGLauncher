@@ -39,13 +39,14 @@ enum CoreLauncherClient {
                 startJob: { try await game.start(kind: $0, installPath: $1) },
                 jobEvents: { id, revision in
                     AsyncThrowingStream { continuation in
-                        Task {
+                        let task = Task {
                             let stream = await game.events(id, after: revision)
                             do {
                                 for try await value in stream { continuation.yield(value) }
                                 continuation.finish()
                             } catch { continuation.finish(throwing: error) }
                         }
+                        continuation.onTermination = { _ in task.cancel() }
                     }
                 },
                 controlJob: { try await game.control($0, action: $1) },

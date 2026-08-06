@@ -99,6 +99,9 @@ actor CoreCloudService {
     }
 
     func session(uid: String) async throws -> CloudSession? {
+        guard Self.validUID(uid) else {
+            throw LauncherCoreError(code: "uid_invalid", message: "角色 UID 无效")
+        }
         try await database.read { db in
             try Row.fetchOne(
                 db,
@@ -111,6 +114,12 @@ actor CoreCloudService {
                     reverifiedAt: CoreDate.parse(row["reverified_at"]),
                     updatedAt: CoreDate.parse(row["updated_at"])
                 )
+            }.flatMap { value in
+                guard Self.validUID(value.uid), value.uid == uid,
+                      value.tokenRef == "keychain:cloud:\(value.uid)",
+                      value.reverifiedAt.timeIntervalSince1970.isFinite,
+                      value.updatedAt.timeIntervalSince1970.isFinite else { return nil }
+                return value
             }
         }
     }
@@ -129,7 +138,7 @@ actor CoreCloudService {
             )
         } else {
             let url = try await provider.gachaURL(
-                credential: accounts.credential(),
+                credential: try await accounts.credential(),
                 role: role
             )
             credential = try await remote(
@@ -165,7 +174,7 @@ actor CoreCloudService {
             body: WishUpload(items: try await wishes.list(uid: uid).map(CloudWish.init)),
             as: CountPayload.self
         )
-        return payload.uploaded ?? payload.inserted ?? 0
+        return try count(from: payload)
     }
 
     func retrieveWishes(uid: String) async throws -> Int {
@@ -179,6 +188,9 @@ actor CoreCloudService {
             body: EmptyRequest(),
             as: WishesPayload.self
         )
+        guard payload.items.allSatisfy({ $0.uid == uid }) else {
+            throw LauncherCoreError(code: "cloud_identity_mismatch", message: "云端祈愿数据与角色 UID 不匹配")
+        }
         return try await wishes.importCloud(payload.items.map(\.record))
     }
 
@@ -194,7 +206,7 @@ actor CoreCloudService {
             body: AchievementUpload(items: values.map(CloudAchievement.init)),
             as: CountPayload.self
         )
-        return payload.uploaded ?? payload.inserted ?? 0
+        return try count(from: payload)
     }
 
     func retrieveAchievements(uid: String) async throws -> Int {
@@ -215,6 +227,11 @@ actor CoreCloudService {
     }
 
     private func save(_ result: CloudCredentialResponse) async throws {
+        guard Self.validUID(result.uid), Self.validToken(result.token),
+              result.tokenRef == "keychain:cloud:\(result.uid)",
+              result.reverifiedAt.timeIntervalSince1970.isFinite else {
+            throw LauncherCoreError(code: "cloud_credential_invalid", message: "云端鉴权凭据无效")
+        }
         let key = Self.keychainAccount(uid: result.uid)
         let previous = try keychain.read(account: key)
         do {
@@ -253,10 +270,24 @@ actor CoreCloudService {
     }
 
     private func cloudToken(uid: String) throws -> String {
+        guard Self.validUID(uid) else {
+            throw LauncherCoreError(code: "uid_invalid", message: "角色 UID 无效")
+        }
         guard let token = try keychain.read(account: Self.keychainAccount(uid: uid)) else {
             throw LauncherCoreError(code: "credential_missing", message: "云同步凭据不可用，请重新登录")
         }
+        guard Self.validToken(token) else {
+            throw LauncherCoreError(code: "cloud_credential_invalid", message: "云端同步凭据无效")
+        }
         return token
+    }
+
+    private func count(from payload: CountPayload) throws -> Int {
+        let value = payload.uploaded ?? payload.inserted ?? 0
+        guard (0...250_000).contains(value) else {
+            throw LauncherCoreError(code: "cloud_payload_invalid", message: "云同步服务返回了无效数量")
+        }
+        return value
     }
 
     private func remote<Response: Decodable, Body: Encodable>(
@@ -267,9 +298,12 @@ actor CoreCloudService {
         as type: Response.Type
     ) async throws -> Response {
         guard let baseURL,
-              baseURL.scheme == "https",
+              baseURL.scheme?.lowercased() == "https",
               baseURL.user == nil,
               baseURL.password == nil,
+              baseURL.port == nil || baseURL.port == 443,
+              baseURL.query == nil,
+              baseURL.fragment == nil,
               let host = baseURL.host?.lowercased() else {
             throw LauncherCoreError(code: "cloud_not_configured", message: "云同步服务尚未配置")
         }
@@ -280,7 +314,11 @@ actor CoreCloudService {
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONEncoder.api.encode(body)
+            let encoded = try JSONEncoder.api.encode(body)
+            guard encoded.count <= 64 * 1024 * 1024 else {
+                throw LauncherCoreError(code: "cloud_payload_too_large", message: "云同步数据超过大小限制")
+            }
+            request.httpBody = encoded
         }
         do {
             let payload = try await transport.send(
@@ -290,10 +328,14 @@ actor CoreCloudService {
             )
             guard (200..<300).contains(payload.statusCode) else {
                 let error = try? JSONDecoder.api.decode(LauncherCoreError.self, from: payload.data)
+                let forwardedCode = error.map { Self.forwardedErrors.contains($0.code) ? $0.code : "cloud_error" }
+                    ?? "cloud_error"
+                let forwardedMessage = error.map { value in
+                    value.message.isEmpty || value.message.count > 1_024 ? "云端服务请求失败" : value.message
+                } ?? "云端服务请求失败"
                 throw LauncherCoreError(
-                    code: Self.forwardedErrors.contains(error?.code ?? "") ? error!.code : "cloud_error",
-                    message: (error?.message.isEmpty == false && error!.message.count <= 1024)
-                        ? error!.message : "云端服务请求失败"
+                    code: forwardedCode,
+                    message: forwardedMessage
                 )
             }
             return try JSONDecoder.api.decode(type, from: payload.data)
@@ -313,14 +355,22 @@ actor CoreCloudService {
             "path": path,
             "code": code
         ], options: [.sortedKeys])
-        try data.write(to: url, options: [.atomic])
-        try PrivateFilesystem.setPrivateFilePermissions(url)
+        try GameFilesystem.writePrivate(data, to: url)
     }
 
     private nonisolated static func keychainAccount(uid: String) -> String { "cloud:\(uid)" }
     private nonisolated static let forwardedErrors: Set<String> = [
         "cloud_identity_mismatch", "cloud_session_expired", "cloud_reverification_required"
     ]
+
+    private nonisolated static func validUID(_ value: String) -> Bool {
+        value.range(of: #"^\d{9,10}$"#, options: .regularExpression) != nil
+    }
+
+    private nonisolated static func validToken(_ value: String) -> Bool {
+        !value.isEmpty && value.utf8.count <= 16 * 1024
+            && !value.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
+    }
 }
 
 private struct CloudCredentialResponse: Codable, Sendable {
@@ -352,8 +402,11 @@ actor CoreUpdateService {
             )
         }
         guard let base = cloudBaseURL,
-              base.scheme == "https",
-              let host = base.host?.lowercased() else {
+              base.scheme?.lowercased() == "https",
+              base.user == nil, base.password == nil,
+              base.port == nil || base.port == 443,
+              base.query == nil, base.fragment == nil,
+              let host = base.host?.lowercased(), !host.isEmpty else {
             throw LauncherCoreError(code: "cloud_not_configured", message: "云端服务尚未配置")
         }
         let payload = try await transport.send(
@@ -363,6 +416,7 @@ actor CoreUpdateService {
         )
         guard (200..<300).contains(payload.statusCode),
               let manifest = try? JSONDecoder.api.decode(AppUpdateManifest.self, from: payload.data),
+              manifest.version.utf8.count <= 128,
               manifest.version.range(
                 of: #"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$"#,
                 options: .regularExpression
@@ -370,9 +424,12 @@ actor CoreUpdateService {
               manifest.sha256.range(of: #"^[a-f0-9]{64}$"#, options: .regularExpression) != nil,
               manifest.size > 0,
               manifest.size <= 4 * 1024 * 1024 * 1024,
-              manifest.downloadUrl.scheme == "https",
+              manifest.downloadUrl.scheme?.lowercased() == "https",
               manifest.downloadUrl.user == nil,
               manifest.downloadUrl.password == nil,
+              manifest.downloadUrl.port == nil || manifest.downloadUrl.port == 443,
+              manifest.downloadUrl.fragment == nil,
+              manifest.downloadUrl.host?.isEmpty == false,
               !manifest.changelog.isEmpty,
               manifest.changelog.count <= 20_000 else {
             throw LauncherCoreError(code: "update_payload_invalid", message: "云端更新信息无效")

@@ -17,39 +17,57 @@ final class SingleInstanceGuard {
     }
 
     static func acquire(lockURL: URL = defaultLockURL()) -> SingleInstanceGuard? {
-        try? FileManager.default.createDirectory(
-            at: lockURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
+        let normalizedLockURL = lockURL.standardizedFileURL
+        guard normalizedLockURL.path.hasPrefix("/"),
+              !normalizedLockURL.path.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
+              (try? PrivateFilesystem.ensureDirectory(normalizedLockURL.deletingLastPathComponent())) != nil,
+              (try? PrivateFilesystem.rejectSymbolicLinks(in: normalizedLockURL)) != nil else { return nil }
         let descriptor = open(
-            lockURL.path,
+            normalizedLockURL.path,
             O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC,
             S_IRUSR | S_IWUSR
         )
         guard descriptor >= 0 else { return nil }
         var info = stat()
-        guard fstat(descriptor, &info) == 0, info.st_mode & S_IFMT == S_IFREG else {
+        guard fstat(descriptor, &info) == 0,
+              info.st_mode & S_IFMT == S_IFREG,
+              info.st_nlink == 1 else {
             close(descriptor)
             return nil
         }
-        _ = fchmod(descriptor, S_IRUSR | S_IWUSR)
+        guard fchmod(descriptor, S_IRUSR | S_IWUSR) == 0 else {
+            close(descriptor)
+            return nil
+        }
 
         guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
             close(descriptor)
             return nil
         }
 
-        ftruncate(descriptor, 0)
+        guard ftruncate(descriptor, 0) == 0 else {
+            flock(descriptor, LOCK_UN)
+            close(descriptor)
+            return nil
+        }
         let pid = "\(ProcessInfo.processInfo.processIdentifier)\n"
-        _ = pid.withCString { write(descriptor, $0, strlen($0)) }
-        return SingleInstanceGuard(descriptor: descriptor, lockURL: lockURL)
+        let written = pid.withCString { write(descriptor, $0, strlen($0)) }
+        guard written == pid.utf8.count else {
+            flock(descriptor, LOCK_UN)
+            close(descriptor)
+            return nil
+        }
+        return SingleInstanceGuard(descriptor: descriptor, lockURL: normalizedLockURL)
     }
 
     static func defaultLockURL(
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> URL {
-        if let path = environment["MHG_INSTANCE_LOCK_PATH"], !path.isEmpty {
-            return URL(fileURLWithPath: path)
+        if let path = environment["MHG_INSTANCE_LOCK_PATH"],
+           !path.isEmpty,
+           !path.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) {
+            let value = URL(filePath: path).standardizedFileURL
+            if value.path.hasPrefix("/") { return value }
         }
         return FileManager.default
             .homeDirectoryForCurrentUser

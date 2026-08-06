@@ -20,11 +20,28 @@ actor CoreDatabase {
         try PrivateFilesystem.requireRegularFileIfPresent(url)
         let backupURL = URL(filePath: url.path + ".pre-swift.bak")
         try PrivateFilesystem.requireRegularFileIfPresent(backupURL)
+        for suffix in ["-wal", "-shm"] {
+            try PrivateFilesystem.requireRegularFileIfPresent(URL(filePath: url.path + suffix))
+        }
 
-        let existed = FileManager.default.fileExists(atPath: url.path)
+        // 先收紧旧数据库与 WAL 文件权限，再让 GRDB 打开它们，避免在迁移窗口暴露敏感数据。
+        if GameFilesystem.regularFile(url) {
+            try PrivateFilesystem.setPrivateFilePermissions(url)
+        }
+        if GameFilesystem.regularFile(backupURL) {
+            try PrivateFilesystem.setPrivateFilePermissions(backupURL)
+        }
+        for suffix in ["-wal", "-shm"] {
+            let sidecar = URL(filePath: url.path + suffix)
+            if GameFilesystem.regularFile(sidecar) {
+                try PrivateFilesystem.setPrivateFilePermissions(sidecar)
+            }
+        }
+
+        let existed = GameFilesystem.regularFile(url)
         let pool = try Self.openPool(databaseURL: url, backupURL: backupURL)
         do {
-            if existed && !FileManager.default.fileExists(atPath: backupURL.path) {
+            if existed && !GameFilesystem.regularFile(backupURL) {
                 try Self.createTakeoverBackup(pool: pool, at: backupURL)
             }
             try Self.migrate(pool)
@@ -33,7 +50,7 @@ actor CoreDatabase {
             throw error
         }
         try PrivateFilesystem.setPrivateFilePermissions(url)
-        if FileManager.default.fileExists(atPath: backupURL.path) {
+        if GameFilesystem.regularFile(backupURL) {
             try PrivateFilesystem.setPrivateFilePermissions(backupURL)
         }
         self.pool = pool
@@ -55,17 +72,38 @@ actor CoreDatabase {
         do {
             return try makePool(databaseURL)
         } catch {
-            guard FileManager.default.fileExists(atPath: backupURL.path) else { throw error }
+            guard GameFilesystem.regularFile(backupURL) else { throw error }
             try PrivateFilesystem.requireRegularFileIfPresent(backupURL)
             let corruptURL = URL(filePath: databaseURL.path + ".corrupt-" + UUID().uuidString)
-            try FileManager.default.moveItem(at: databaseURL, to: corruptURL)
+            try PrivateFilesystem.rejectSymbolicLinks(in: corruptURL)
+            let sidecars = [
+                (original: URL(filePath: databaseURL.path + "-wal"), suffix: ".wal"),
+                (original: URL(filePath: databaseURL.path + "-shm"), suffix: ".shm")
+            ]
+            var movedDatabase = false
+            var movedSidecars: [(original: URL, corrupt: URL)] = []
             do {
+                try FileManager.default.moveItem(at: databaseURL, to: corruptURL)
+                movedDatabase = true
+                for sidecar in sidecars where FileManager.default.fileExists(atPath: sidecar.original.path) {
+                    try PrivateFilesystem.requireRegularFileIfPresent(sidecar.original)
+                    let corruptSidecar = URL(filePath: corruptURL.path + sidecar.suffix)
+                    try PrivateFilesystem.rejectSymbolicLinks(in: corruptSidecar)
+                    try FileManager.default.moveItem(at: sidecar.original, to: corruptSidecar)
+                    movedSidecars.append((sidecar.original, corruptSidecar))
+                }
                 try FileManager.default.copyItem(at: backupURL, to: databaseURL)
                 try PrivateFilesystem.setPrivateFilePermissions(databaseURL)
                 return try makePool(databaseURL)
             } catch {
-                try? FileManager.default.removeItem(at: databaseURL)
-                try? FileManager.default.moveItem(at: corruptURL, to: databaseURL)
+                if movedDatabase {
+                    try? PrivateFilesystem.removeRegularFileIfPresent(databaseURL)
+                    try? FileManager.default.moveItem(at: corruptURL, to: databaseURL)
+                }
+                for moved in movedSidecars.reversed() {
+                    try? PrivateFilesystem.removeRegularFileIfPresent(moved.original)
+                    try? FileManager.default.moveItem(at: moved.corrupt, to: moved.original)
+                }
                 throw error
             }
         }
@@ -82,6 +120,7 @@ actor CoreDatabase {
     }
 
     private static func createTakeoverBackup(pool: DatabasePool, at backupURL: URL) throws {
+        try PrivateFilesystem.rejectSymbolicLinks(in: backupURL)
         try pool.writeWithoutTransaction { db in
             _ = try Row.fetchAll(db, sql: "PRAGMA wal_checkpoint(FULL)")
             try db.execute(sql: "VACUUM INTO ?", arguments: [backupURL.path])
@@ -190,7 +229,10 @@ actor CoreDatabase {
             try db.execute(sql: "ALTER TABLE wishes RENAME TO wishes_legacy")
         }
         try createWishes(db)
-        let rows = try Row.fetchAll(db, sql: "SELECT * FROM wishes_legacy")
+        let rows = try Row.fetchAll(db, sql: "SELECT * FROM wishes_legacy LIMIT 250001")
+        guard rows.count <= 250_000 else {
+            throw LauncherCoreError(code: "database_payload_too_large", message: "历史祈愿数据超过迁移限制")
+        }
         for row in rows {
             let value: String = row["time"] ?? ""
             let uid: String = row["uid"] ?? ""

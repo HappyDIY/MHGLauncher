@@ -60,7 +60,7 @@ actor LiveGameRecordProvider: GameRecordProvider {
             "x-rpc-device_id": snapshot.deviceID, "x-rpc-device_fp": snapshot.deviceFP,
             "Content-Type": "application/json", "Referer": "https://app.mihoyo.com"
         ]
-        let payload = try await transport.send(request, policy: .mihoyo, maximumBytes: 32 * 1024 * 1024)
+        let payload = try await transport.send(request, policy: .mihoyo, maximumBytes: 8 * 1024 * 1024)
         return try MiHoYoEnvelope.decode(payload).data.objectValue ?? [:]
     }
 

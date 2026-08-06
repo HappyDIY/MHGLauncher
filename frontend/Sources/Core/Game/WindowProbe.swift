@@ -11,7 +11,12 @@ struct FoundationWindowProbe: WindowProbing {
         guard result.status == 0 else {
             throw LauncherCoreError(code: "window_probe_failed", message: "游戏窗口探针初始化失败")
         }
-        return result.output.split(separator: "\n").prefix(4_096).joined(separator: ",")
+        let value = result.output.split(whereSeparator: \.isNewline).prefix(4_096).joined(separator: ",")
+        guard value.utf8.count <= 128 * 1024,
+              !value.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
+            throw LauncherCoreError(code: "window_probe_output_invalid", message: "游戏窗口探针输出无效")
+        }
+        return value
     }
 
     func status(executable: URL, processID: Int32, snapshot: String) async throws -> Int32 {
@@ -27,17 +32,32 @@ struct FoundationWindowProbe: WindowProbing {
             let process = Process()
             process.executableURL = executable
             process.arguments = arguments
+            process.environment = CoreProcessEnvironment.sanitizedCurrentProcess()
             process.standardInput = FileHandle.nullDevice
-            let pipe = Pipe()
-            process.standardOutput = capturesOutput ? pipe : FileHandle.nullDevice
+            let capture = capturesOutput ? BoundedProcessCapture(limit: 1024 * 1024) : nil
+            process.standardOutput = capture?.pipe.fileHandleForWriting ?? FileHandle.nullDevice
             process.standardError = FileHandle.nullDevice
-            try process.run()
-            process.waitUntilExit()
-            let data = capturesOutput ? pipe.fileHandleForReading.readDataToEndOfFile() : Data()
-            guard data.count <= 1024 * 1024 else {
-                throw LauncherCoreError(code: "window_probe_failed", message: "游戏窗口探针输出异常")
+            do {
+                try await withTaskCancellationHandler {
+                    try Task.checkCancellation()
+                    try process.run()
+                    process.waitUntilExit()
+                    try Task.checkCancellation()
+                } onCancel: {
+                    if process.isRunning { process.terminate() }
+                }
+                capture?.closeWriter()
+                let data = try capture?.finish() ?? Data()
+                return (process.terminationStatus, String(decoding: data, as: UTF8.self))
+            } catch {
+                if process.isRunning {
+                    process.terminate()
+                    process.waitUntilExit()
+                }
+                capture?.closeWriter()
+                _ = try? capture?.finish()
+                throw error
             }
-            return (process.terminationStatus, String(decoding: data, as: UTF8.self))
         }.value
     }
 }

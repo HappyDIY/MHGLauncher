@@ -5,6 +5,11 @@ enum UIGFFileIO {
 
     static func read(from url: URL) throws -> Data {
         try withSecurityScope(url) {
+            try PrivateFilesystem.rejectSymbolicLinks(in: url)
+            let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+            guard values.isRegularFile == true, values.isSymbolicLink != true else {
+                throw CocoaError(.fileReadTypeMismatch)
+            }
             let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? maximumImportBytes + 1
             guard size <= maximumImportBytes else { throw URLError(.dataLengthExceedsMaximum) }
             let handle = try FileHandle(forReadingFrom: url)
@@ -24,7 +29,9 @@ enum UIGFFileIO {
     static func write(_ data: Data, to url: URL) throws {
         let formatted = try formattedJSON(data)
         try withSecurityScope(url) {
+            try PrivateFilesystem.rejectSymbolicLinks(in: url)
             try formatted.write(to: url, options: .atomic)
+            try PrivateFilesystem.setPrivateFilePermissions(url)
         }
     }
 

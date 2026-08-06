@@ -47,37 +47,75 @@ struct RuntimeManifest: Codable, Equatable, Sendable {
     }
 
     func isValid(expectedTag: String, appVersion: String) -> Bool {
+        let maximumComponentSize: Int64 = 64 * 1024 * 1024 * 1024
+        let maximumTotalSize: Int64 = 256 * 1024 * 1024 * 1024
+        let allFiles = components.flatMap { [$0.file] + ($0.parts ?? []).map(\.file) }
         let ids = components.map(\.id), files = components.map(\.file)
         let core = Set(components(kind: .core).map(\.id))
         let game = Set(components(kind: .game).map(\.id))
-        let pathsValid = !requiredPaths.isEmpty && requiredPaths.allSatisfy(Self.isSafeRelativePath)
+        let pathsValid = !requiredPaths.isEmpty && requiredPaths.count <= 4096
+            && Set(requiredPaths.map(Self.canonicalPath)).count == requiredPaths.count
+            && requiredPaths.allSatisfy(Self.isSafeRelativePath)
         let componentsValid = components.allSatisfy {
-            $0.size > 0 && $0.sha256.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil
+            $0.size > 0 && $0.size <= maximumComponentSize
+                && $0.sha256.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil
                 && Self.isSafeFileName($0.file) && Self.isSafeRelativePath($0.installRoot)
+                && ($0.parts ?? []).count <= 128
                 && ($0.parts ?? []).allSatisfy(Self.isValidPart)
+                && Self.partsMatchComponent($0)
         }
-        return schemaVersion == 3 && tag == expectedTag && tag == "v\(appVersion)"
+        let totalSize = components.reduce(into: Int64(0)) { value, component in
+            value = value > Int64.max - component.size ? Int64.max : value + component.size
+        }
+        return RuntimeURLPolicy.allowsAssetBase(assetBaseURL)
+            && schemaVersion == 3 && tag == expectedTag && tag == "v\(appVersion)"
             && self.appVersion == appVersion && platform == "darwin" && hostArchitecture == "arm64"
-            && guestArchitecture == "x86_64" && Set(ids).count == ids.count && Set(files).count == files.count
+            && guestArchitecture == "x86_64" && components.count <= 16
+            && Set(ids).count == ids.count
+            && Set(files.map(Self.canonicalPath)).count == files.count
+            && Set(allFiles.map(Self.canonicalPath)).count == allFiles.count
             && core == ["hpatchz"]
             && (game.isEmpty || game == ["host", "wine", "msync", "dxmt", "mhypbase"])
-            && pathsValid && componentsValid
+            && pathsValid && componentsValid && totalSize <= maximumTotalSize
     }
 
     static func isSafeRelativePath(_ path: String) -> Bool {
-        !path.isEmpty && !path.hasPrefix("/")
-            && path.split(separator: "/", omittingEmptySubsequences: false).allSatisfy {
+        let normalized = normalizedPath(path)
+        !normalized.isEmpty && normalized.utf8.count <= 1024
+            && !normalized.hasPrefix("/")
+            && !normalized.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
+            && normalized.split(separator: "/", omittingEmptySubsequences: false).allSatisfy {
                 !$0.isEmpty && $0 != "." && $0 != ".."
             }
     }
 
     private static func isSafeFileName(_ name: String) -> Bool {
-        !name.isEmpty && name != "." && name != ".." && !name.contains("/")
+        !name.isEmpty && name.utf8.count <= 512 && name != "." && name != ".."
+            && !name.contains("/") && !name.contains("\\")
+            && !name.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
     }
 
     private static func isValidPart(_ part: RuntimeAssetPart) -> Bool {
-        part.size > 0 && isSafeFileName(part.file)
+        part.size > 0 && part.size <= 64 * 1024 * 1024 * 1024 && isSafeFileName(part.file)
             && part.sha256.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil
+    }
+
+    private static func partsMatchComponent(_ component: RuntimeComponent) -> Bool {
+        guard let parts = component.parts, !parts.isEmpty else { return true }
+        var total: Int64 = 0
+        for part in parts {
+            guard total <= Int64.max - part.size else { return false }
+            total += part.size
+        }
+        return total == component.size
+    }
+
+    static func canonicalPath(_ path: String) -> String {
+        normalizedPath(path).lowercased()
+    }
+
+    static func normalizedPath(_ path: String) -> String {
+        path.replacingOccurrences(of: "\\", with: "/")
     }
 
     static func releaseManifestURL(tag: String) -> URL {

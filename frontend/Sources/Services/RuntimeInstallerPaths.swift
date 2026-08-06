@@ -11,15 +11,18 @@ extension RuntimeInstaller {
     }
 
     func dataDirectory() -> URL {
-        if let override = environment["MHG_DATA_DIR"], !override.isEmpty {
-            return URL(fileURLWithPath: override)
+        if let override = environment["MHG_DATA_DIR"],
+           !override.isEmpty,
+           !override.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) {
+            let value = URL(filePath: override).standardizedFileURL
+            if value.path.hasPrefix("/") { return value }
         }
         return fileManager.homeDirectoryForCurrentUser
             .appending(path: "Library/Application Support/MHGLauncher")
     }
 
     func manifestURL() -> URL {
-        if let override = environment["MHG_RUNTIME_MANIFEST_URL"], !override.isEmpty {
+        if let override = environment["MHG_RUNTIME_MANIFEST_URL"], !override.isEmpty, !override.contains("\0") {
             if let url = URL(string: override), url.scheme != nil { return url }
             return URL(fileURLWithPath: override)
         }

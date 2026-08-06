@@ -49,5 +49,7 @@ if configure >/dev/null 2>&1; then
 fi
 
 printf 'MHG_CLOUD_BASE_URL=http://localhost:3333\n' > "$work/.env"
-configure
-test "$(plutil -extract MHGCloudBaseURL raw "$work/Info.plist")" = "http://localhost:3333"
+if configure >/dev/null 2>&1; then
+  printf '本地 HTTP 云端地址未被拒绝\n' >&2
+  exit 1
+fi

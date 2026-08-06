@@ -40,18 +40,23 @@ actor CoreWishService {
                     ORDER BY LENGTH(id) DESC,id DESC) row_number FROM wishes WHERE uid=?
                 ) WHERE row_number=1
                 """, arguments: [role.uid])
-            return Dictionary(uniqueKeysWithValues: rows.map { row in
+            return Dictionary(rows.map { row in
                 (row["gacha_type"] as String, row["id"] as String)
-            })
+            }, uniquingKeysWith: { first, _ in first })
         }
         await log?("已读取 \(newest.count) 个卡池的本地增量检查点")
         var inserted = 0
         var pages = 0
+        var processed = 0
         for try await records in provider.wishes(
             credential: credential,
             role: role,
             newest: newest
         ) {
+            processed += records.count
+            guard processed <= 250_000 else {
+                throw LauncherCoreError(code: "wish_payload_too_large", message: "祈愿记录数量超出限制")
+            }
             let values = records.map { StoredWish(record: $0, uigfType: Self.uigfType(for: $0.gachaType)) }
             let added = try await newRecordCount(values)
             try await save(values)
@@ -74,19 +79,25 @@ actor CoreWishService {
     }
 
     func importGachaURL(_ value: String) async throws -> (inserted: Int, uids: [String]) {
-        guard let url = URL(string: value),
-              url.scheme == "https",
-              url.user == nil, url.password == nil, url.port == nil,
-              let host = url.host?.lowercased(),
-              host == "mihoyo.com" || host.hasSuffix(".mihoyo.com") else {
+        guard let input = URL(string: value),
+              let url = MiHoYoSigning.normalizedGachaURL(input) else {
             throw LauncherCoreError(code: "gacha_url_invalid", message: "抽卡 URL 无效")
         }
         var values: [StoredWish] = []
         for try await page in provider.wishes(gachaURL: url) {
-            values += page.map { StoredWish(record: $0, uigfType: Self.uigfType(for: $0.gachaType)) }
+            let pageValues = page.map {
+                StoredWish(record: $0, uigfType: Self.uigfType(for: $0.gachaType))
+            }
+            values += pageValues
+            guard Set(values.map(\.record.uid)).count <= 1 else {
+                throw LauncherCoreError(code: "gacha_uid_mismatch", message: "抽卡 URL 返回了不一致的 UID")
+            }
             guard values.count <= 200_000 else {
                 throw LauncherCoreError(code: "uigf_too_large", message: "祈愿记录不能超过 200000 条")
             }
+        }
+        guard !values.isEmpty else {
+            throw LauncherCoreError(code: "gacha_url_unverified", message: "抽卡 URL 可用，但无法确认 UID")
         }
         let inserted = try await newRecordCount(values)
         try await save(values)
@@ -101,12 +112,19 @@ actor CoreWishService {
     }
 
     func list(uid: String) async throws -> [WishRecord] {
+        guard Self.validUID(uid) else {
+            throw LauncherCoreError(code: "uid_invalid", message: "角色 UID 无效")
+        }
         let records: [WishRecord] = try await database.read { db in
-            try Row.fetchAll(
+            let rows = try Row.fetchAll(
                 db,
                 sql: "SELECT * FROM wishes WHERE uid=? ORDER BY time_epoch DESC,LENGTH(id) DESC,id DESC",
                 arguments: [uid]
-            ).map(Self.wish)
+            )
+            guard rows.count <= 250_000 else {
+                throw LauncherCoreError(code: "wish_payload_too_large", message: "祈愿记录数量超出限制")
+            }
+            return rows.map(Self.wish)
         }
         var enriched: [WishRecord] = []
         enriched.reserveCapacity(records.count)
@@ -142,6 +160,9 @@ actor CoreWishService {
     }
 
     func exportUIGF(uid: String) async throws -> Data {
+        guard Self.validUID(uid) else {
+            throw LauncherCoreError(code: "uid_invalid", message: "角色 UID 无效")
+        }
         let wishes = try await list(uid: uid)
         let timezone = uid.hasPrefix("6") ? -5 : uid.hasPrefix("7") ? 1 : 8
         let list: [[String: String]] = wishes.reversed().map { value in
@@ -172,6 +193,7 @@ actor CoreWishService {
 
     private func save(_ values: [StoredWish]) async throws {
         guard !values.isEmpty else { return }
+        try Self.validate(values)
         try await database.write { db in
             for value in values {
                 let record = value.record
@@ -192,21 +214,56 @@ actor CoreWishService {
     }
 
     private func newRecordCount(_ values: [StoredWish]) async throws -> Int {
+        try Self.validate(values)
         let grouped = Dictionary(grouping: values, by: { $0.record.uid })
         var existing = 0
         for (uid, records) in grouped {
             let ids = Array(Set(records.map(\.record.id)))
             if ids.isEmpty { continue }
-            let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ",")
-            existing += try await database.read { db in
-                try Int.fetchOne(
-                    db,
-                    sql: "SELECT COUNT(*) FROM wishes WHERE uid=? AND id IN (\(placeholders))",
-                    arguments: StatementArguments([uid] + ids)
-                ) ?? 0
+            for start in stride(from: 0, to: ids.count, by: 500) {
+                let batch = Array(ids[start..<min(start + 500, ids.count)])
+                let placeholders = Array(repeating: "?", count: batch.count).joined(separator: ",")
+                existing += try await database.read { db in
+                    try Int.fetchOne(
+                        db,
+                        sql: "SELECT COUNT(*) FROM wishes WHERE uid=? AND id IN (\(placeholders))",
+                        arguments: StatementArguments([uid] + batch)
+                    ) ?? 0
+                }
             }
         }
         return Set(values.map { "\($0.record.uid):\($0.record.id)" }).count - existing
+    }
+
+    private nonisolated static func validate(_ values: [StoredWish]) throws {
+        guard values.count <= 200_000 else {
+            throw LauncherCoreError(code: "wish_payload_too_large", message: "祈愿记录数量超出限制")
+        }
+        let gachaTypes: Set<String> = ["100", "200", "301", "302", "400", "500"]
+        let uigfTypes: Set<String> = ["100", "200", "301", "302", "500"]
+        let latest = Date().addingTimeInterval(86_400).timeIntervalSince1970
+        for value in values {
+            let record = value.record
+            guard validUID(record.uid),
+                  record.id.range(of: #"^\d{1,19}$"#, options: .regularExpression) != nil,
+                  gachaTypes.contains(record.gachaType),
+                  uigfTypes.contains(value.uigfType),
+                  value.uigfType == record.gachaType
+                    || record.gachaType == "400" && value.uigfType == "301",
+                  !record.itemId.isEmpty, record.itemId.utf8.count <= 128,
+                  !record.itemId.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
+                  record.name.utf8.count <= 512,
+                  !record.name.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
+                  record.itemType.utf8.count <= 128,
+                  !record.itemType.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
+                  (0...5).contains(record.rank),
+                  record.time != .distantPast,
+                  record.time.timeIntervalSince1970.isFinite,
+                  record.time.timeIntervalSince1970 >= 946_684_800,
+                  record.time.timeIntervalSince1970 <= latest else {
+                throw LauncherCoreError(code: "wish_item_invalid", message: "祈愿记录字段无效")
+            }
+        }
     }
 
     private nonisolated static func statistics(_ records: [WishRecord]) -> [WishStatistics] {

@@ -11,7 +11,7 @@ actor CoreAchievementService {
     }
 
     func archive(uid: String) async throws -> AchievementArchive {
-        guard uid.range(of: #"^\d{9,10}$"#, options: .regularExpression) != nil else {
+        guard Self.validArchiveID(uid) else {
             throw LauncherCoreError(code: "uid_invalid", message: "角色 UID 无效")
         }
         let now = Date()
@@ -28,11 +28,14 @@ actor CoreAchievementService {
     func goals() async throws -> [AchievementGoal] { try await resources.achievementGoals() }
 
     func snapshot(archiveID: String) async throws -> AchievementSnapshot {
+        guard Self.validArchiveID(archiveID) else {
+            throw LauncherCoreError(code: "uid_invalid", message: "角色 UID 无效")
+        }
         let archive = try await requireArchive(archiveID)
         let saved = try await items(archiveID: archiveID)
         let entries = try await resources.achievementEntries(
             archiveID: archiveID,
-            saved: Dictionary(uniqueKeysWithValues: saved.map { ($0.achievementId, $0) })
+            saved: Dictionary(saved.map { ($0.achievementId, $0) }, uniquingKeysWith: { _, latest in latest })
         )
         return AchievementSnapshot(
             archive: archive,
@@ -42,6 +45,11 @@ actor CoreAchievementService {
     }
 
     func save(_ request: AchievementSaveRequest) async throws -> AchievementSnapshot {
+        guard Self.validArchiveID(request.archiveId), request.expectedRevision >= 0,
+              request.items.count <= 200_000 else {
+            throw LauncherCoreError(code: "achievement_payload_invalid", message: "成就数据格式无效")
+        }
+        try Self.validate(request.items)
         let progress = try await resources.achievementProgress()
         let now = Date()
         try await database.write { db in
@@ -80,6 +88,9 @@ actor CoreAchievementService {
     }
 
     func importUIAF(data: Data, archiveID: String, expectedRevision: Int) async throws -> AchievementSnapshot {
+        guard Self.validArchiveID(archiveID) else {
+            throw LauncherCoreError(code: "uid_invalid", message: "角色 UID 无效")
+        }
         guard data.count <= 64 * 1024 * 1024,
               let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let list = root["list"] as? [[String: Any]], list.count <= 200_000 else {
@@ -94,6 +105,9 @@ actor CoreAchievementService {
                 timestamp: Self.int(value["timestamp"]) ?? 0
             )
         }
+        guard items.count == list.count else {
+            throw LauncherCoreError(code: "uiaf_invalid", message: "UIAF 文件包含无效成就条目")
+        }
         return try await save(AchievementSaveRequest(
             archiveId: archiveID,
             expectedRevision: expectedRevision,
@@ -102,6 +116,9 @@ actor CoreAchievementService {
     }
 
     func exportUIAF(archiveID: String) async throws -> Data {
+        guard Self.validArchiveID(archiveID) else {
+            throw LauncherCoreError(code: "uid_invalid", message: "角色 UID 无效")
+        }
         let list = try await items(archiveID: archiveID).map { value in
             [
                 "id": value.achievementId,
@@ -122,6 +139,9 @@ actor CoreAchievementService {
     }
 
     func cloudItems(archiveID: String) async throws -> [AchievementItemInput] {
+        guard Self.validArchiveID(archiveID) else {
+            throw LauncherCoreError(code: "uid_invalid", message: "角色 UID 无效")
+        }
         try await items(archiveID: archiveID).map {
             AchievementItemInput(
                 achievementId: $0.achievementId,
@@ -136,9 +156,10 @@ actor CoreAchievementService {
         archiveID: String,
         values: [AchievementItemInput]
     ) async throws -> Int {
-        guard values.count <= 200_000 else {
+        guard Self.validArchiveID(archiveID), values.count <= 200_000 else {
             throw LauncherCoreError(code: "cloud_payload_invalid", message: "云端成就格式无效")
         }
+        try Self.validate(values)
         let selected = try await archive(uid: archiveID)
         _ = try await save(AchievementSaveRequest(
             archiveId: selected.id,
@@ -163,11 +184,15 @@ actor CoreAchievementService {
 
     private func items(archiveID: String) async throws -> [AchievementItem] {
         try await database.read { db in
-            try Row.fetchAll(
+            let rows = try Row.fetchAll(
                 db,
                 sql: "SELECT * FROM achievements WHERE archive_id=? ORDER BY achievement_id",
                 arguments: [archiveID]
-            ).map(Self.item)
+            )
+            guard rows.count <= 200_000 else {
+                throw LauncherCoreError(code: "achievement_payload_too_large", message: "成就数据数量超出限制")
+            }
+            return rows.map(Self.item)
         }
     }
 
@@ -197,5 +222,21 @@ actor CoreAchievementService {
         if let value = value as? NSNumber { return value.intValue }
         if let value = value as? String { return Int(value) }
         return nil
+    }
+
+    private nonisolated static func validArchiveID(_ value: String) -> Bool {
+        value.range(of: #"^\d{9,10}$"#, options: .regularExpression) != nil
+    }
+
+    private nonisolated static func validate(_ values: [AchievementItemInput]) throws {
+        var identifiers = Set<Int>()
+        for value in values {
+            guard (1...2_000_000_000).contains(value.achievementId),
+                  (0...2_000_000_000).contains(value.current), (0...2).contains(value.status),
+                  (0...Int(Date().timeIntervalSince1970 + 86_400)).contains(value.timestamp),
+                  identifiers.insert(value.achievementId).inserted else {
+                throw LauncherCoreError(code: "achievement_item_invalid", message: "成就条目字段无效")
+            }
+        }
     }
 }

@@ -32,7 +32,7 @@ enum RuntimeArchive {
         sources: [RuntimeDownloadSource] = []
     ) async throws -> URL {
         try Task.checkCancellation()
-        try FileManager.default.createDirectory(at: cacheURL, withIntermediateDirectories: true)
+        try PrivateFilesystem.ensureDirectory(cacheURL)
         let archiveURL = cacheURL.appending(path: component.file)
         if isValid(archiveURL, size: component.size, sha256: component.sha256) {
             return archiveURL
@@ -49,6 +49,9 @@ enum RuntimeArchive {
     }
 
     static func sha256(_ url: URL) throws -> String {
+        guard GameFilesystem.regularFile(url) else {
+            throw RuntimeInstallError.downloadFailed(url.lastPathComponent)
+        }
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
         var hasher = SHA256()
@@ -68,22 +71,36 @@ enum RuntimeArchive {
         sources: [RuntimeDownloadSource]
     ) async throws {
         let partial = output.appendingPathExtension("part")
-        try? FileManager.default.removeItem(at: partial)
-        FileManager.default.createFile(atPath: partial.path, contents: nil)
+        try PrivateFilesystem.rejectSymbolicLinks(in: partial)
+        try removeFileIfPresent(partial)
+        guard FileManager.default.createFile(
+            atPath: partial.path, contents: nil, attributes: [.posixPermissions: 0o600]
+        ) else { throw CocoaError(.fileWriteUnknown) }
         let writer = try FileHandle(forWritingTo: partial)
-        defer { try? writer.close() }
+        defer {
+            try? writer.close()
+            try? removeFileIfPresent(partial)
+        }
         for part in parts {
             try Task.checkCancellation()
             let partURL = try await download(named: part.file, manifest: manifest, cacheURL: cacheURL, size: part.size, sha256: part.sha256, sources: sources)
             let reader = try FileHandle(forReadingFrom: partURL)
-            defer { try? reader.close() }
-            while true {
-                let data = reader.readData(ofLength: 1024 * 1024)
-                if data.isEmpty { break }
-                writer.write(data)
+            do {
+                while true {
+                    let data = reader.readData(ofLength: 1024 * 1024)
+                    if data.isEmpty { break }
+                    try writer.write(contentsOf: data)
+                }
+                try reader.close()
+            } catch {
+                try? reader.close()
+                throw error
             }
         }
-        try? FileManager.default.removeItem(at: output)
+        try writer.synchronize()
+        try writer.close()
+        try PrivateFilesystem.rejectSymbolicLinks(in: output)
+        try removeFileIfPresent(output)
         try FileManager.default.moveItem(at: partial, to: output)
     }
 
@@ -97,6 +114,7 @@ enum RuntimeArchive {
         sources: [RuntimeDownloadSource]
     ) async throws -> URL {
         let destination = cacheURL.appending(path: file)
+        try PrivateFilesystem.rejectSymbolicLinks(in: destination)
         if isValid(destination, size: size, sha256: expected) { return destination }
         let official = RuntimeDownloadSource(id: "manifest", baseURL: manifest.assetBaseURL)
         let candidates = sources.isEmpty ? [official] : sources + [official]
@@ -104,16 +122,21 @@ enum RuntimeArchive {
         for candidate in candidates {
             try Task.checkCancellation()
             let partial = destination.appendingPathExtension("part")
-            try? FileManager.default.removeItem(at: partial)
+            try PrivateFilesystem.rejectSymbolicLinks(in: partial)
+            try removeFileIfPresent(partial)
             let source = candidate.assetURL(named: file)
             do {
                 if source.isFileURL {
+                    guard GameFilesystem.regularFile(source) else {
+                        throw RuntimeInstallError.downloadFailed(file)
+                    }
                     let localSize = try source.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? -1
                     guard Int64(localSize) == size else {
                         checksumFailed = true
                         continue
                     }
                     try FileManager.default.copyItem(at: source, to: partial)
+                    try PrivateFilesystem.setPrivateFilePermissions(partial)
                 } else {
                     try await RuntimeArchiveRemote.download(from: source, to: partial, limit: size)
                 }
@@ -121,27 +144,41 @@ enum RuntimeArchive {
                     checksumFailed = true
                     continue
                 }
-                try? FileManager.default.removeItem(at: destination)
+                try removeFileIfPresent(destination)
                 try FileManager.default.moveItem(at: partial, to: destination)
                 return destination
             } catch is CancellationError {
-                try? FileManager.default.removeItem(at: partial)
+                bestEffortRemoveFile(partial)
                 throw CancellationError()
             } catch let error as URLError where error.code == .cancelled {
-                try? FileManager.default.removeItem(at: partial)
+                bestEffortRemoveFile(partial)
                 throw error
             } catch {
-                try? FileManager.default.removeItem(at: partial)
+                bestEffortRemoveFile(partial)
             }
         }
-        try? FileManager.default.removeItem(at: destination.appendingPathExtension("part"))
+        bestEffortRemoveFile(destination.appendingPathExtension("part"))
         throw checksumFailed ? RuntimeInstallError.checksumMismatch(file) : RuntimeInstallError.downloadFailed(file)
     }
 
     private static func isValid(_ url: URL, size: Int64, sha256 expected: String) -> Bool {
-        guard let values = try? url.resourceValues(forKeys: [.fileSizeKey]),
+        guard GameFilesystem.regularFile(url),
+              let values = try? url.resourceValues(forKeys: [.fileSizeKey]),
               Int64(values.fileSize ?? -1) == size else { return false }
         return (try? sha256(url)) == expected.lowercased()
+    }
+
+    private static func removeFileIfPresent(_ url: URL) throws {
+        try PrivateFilesystem.rejectSymbolicLinks(in: url)
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        guard GameFilesystem.regularFile(url) else {
+            throw RuntimeInstallError.unsafePromotion
+        }
+        try PrivateFilesystem.removeRegularFileIfPresent(url)
+    }
+
+    private static func bestEffortRemoveFile(_ url: URL) {
+        try? removeFileIfPresent(url)
     }
 
 }
