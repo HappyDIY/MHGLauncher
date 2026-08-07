@@ -185,7 +185,8 @@ actor LiveGameProvider: GameProvider {
             ds: MiHoYoSigning.sign(.lk2, generation: 1)
         ).merging(["Referer": "https://app.mihoyo.com"]) { _, new in new }
         let data = try await api(request)
-        guard let list = data["list"]?.arrayValue, list.count <= 256 else {
+        let list = data["list"]?.arrayValue ?? []
+        guard list.count <= 256 else {
             throw LauncherCoreError(code: "role_payload_too_large", message: "游戏角色数量超出限制")
         }
         return list.compactMap { item in

@@ -17,6 +17,7 @@ struct AccountClient: @unchecked Sendable {
     var list: () async throws -> [Account]
     var selected: () async throws -> Account?
     var roles: () async throws -> [GameRole]
+    var syncRoles: (String, String) async throws -> [GameRole]
     var createQRSession: () async throws -> QRSession
     var queryQRSession: (String) async throws -> QRResult
     var sendMobileCaptcha: (String) async throws -> MobileCaptchaSession
@@ -41,6 +42,7 @@ struct GameClient: @unchecked Sendable {
     var launch: (StartGameLaunchRequest) async throws -> GameLaunch
     var launchEvents: (String, Int?) -> AsyncThrowingStream<GameLaunch, Error>
     var stopLaunch: (String) async throws -> GameLaunch
+    var launchRecovery: () async throws -> GameLaunchRecovery
     var runWineTool: (WineToolRequest) async throws -> Void
 }
 
@@ -79,10 +81,14 @@ struct AchievementClient: @unchecked Sendable {
 struct CloudClient: @unchecked Sendable {
     var session: (String) async throws -> CloudSession?
     var login: () async throws -> CloudLoginResult
+    var loginWithGachaURL: (URL, String?) async throws -> CloudLoginResult
+    var reverify: (URL, String) async throws -> CloudLoginResult
     var uploadWishes: (String) async throws -> Int
     var retrieveWishes: (String) async throws -> Int
     var uploadAchievements: (String) async throws -> Int
     var retrieveAchievements: (String) async throws -> Int
+    var deleteWishes: (String) async throws -> Int
+    var revokeSession: (String) async throws -> Void
 }
 
 struct NotificationClient: @unchecked Sendable {

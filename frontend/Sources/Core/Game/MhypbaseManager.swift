@@ -29,6 +29,11 @@ struct MhypbaseJournal: Codable, Sendable {
     var replacementMD5: String
 }
 
+struct MhypbaseRecoveryResult: Sendable {
+    let pending: Bool
+    let warnings: [String]
+}
+
 enum MhypbaseManager {
     static func isGameRunning() -> Bool {
         let process = Process()
@@ -134,21 +139,28 @@ enum MhypbaseManager {
         return ""
     }
 
-    static func recover(dataDirectory: URL, gameRunning: Bool) -> [String] {
+    static func recover(dataDirectory: URL, gameRunning: Bool) -> MhypbaseRecoveryResult {
         let root = dataDirectory.appending(path: "launches")
-        guard !gameRunning,
-              (try? PrivateFilesystem.rejectSymbolicLinks(in: root)) != nil,
+        guard (try? PrivateFilesystem.rejectSymbolicLinks(in: root)) != nil,
               let enumerator = FileManager.default.enumerator(
-                at: root,
-                includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
-                options: [.skipsSubdirectoryDescendants]
-              ) else { return [] }
+                  at: root,
+                  includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+                  options: [.skipsSubdirectoryDescendants]
+              ) else { return MhypbaseRecoveryResult(pending: false, warnings: []) }
         var sessions: [URL] = []
         while let session = enumerator.nextObject() as? URL {
             guard sessions.count < 256 else {
-                return ["启动恢复记录过多，已拒绝恢复"]
+                return MhypbaseRecoveryResult(
+                    pending: true,
+                    warnings: ["启动恢复记录过多，已拒绝恢复"]
+                )
             }
             sessions.append(session)
+        }
+        let journalURLs = sessions.map { $0.appending(path: "dll-journal.json") }
+            .filter(Self.exists)
+        if gameRunning {
+            return MhypbaseRecoveryResult(pending: !journalURLs.isEmpty, warnings: [])
         }
         var journals: [MhypbaseJournal] = []
         var warnings: [String] = []
@@ -165,15 +177,26 @@ enum MhypbaseManager {
             }
             journals.append(journal)
         }
+        var pending = false
         for journal in journals.sorted(by: { $0.generation > $1.generation }) {
             do {
                 let warning = try restore(journal)
-                if !warning.isEmpty { warnings.append(warning) }
+                if !warning.isEmpty {
+                    pending = true
+                    warnings.append(warning)
+                }
             } catch {
+                pending = true
                 warnings.append("启动 DLL 恢复失败")
             }
         }
-        return warnings
+        let remaining = journalURLs.contains(Self.exists)
+        return MhypbaseRecoveryResult(pending: pending || remaining, warnings: warnings)
+    }
+
+    private static func exists(_ url: URL) -> Bool {
+        var info = stat()
+        return lstat(url.path, &info) == 0
     }
 
     private static func safeJournal(_ journal: MhypbaseJournal, under session: URL) -> Bool {

@@ -20,8 +20,8 @@ actor WishTaskCoordinator {
             id: id,
             kind: kind,
             status: .queued,
-            progress: nil,
-            logs: [],
+            progress: 0,
+            logs: [WishTaskLogPayload(sequence: 1, message: "后端已创建任务", emphasized: false)],
             result: nil,
             error: "",
             errorCode: nil,
@@ -102,7 +102,7 @@ actor WishTaskCoordinator {
             message: message,
             emphasized: emphasized
         ))
-        if logs.count > 100 { logs.removeFirst(logs.count - 100) }
+        if logs.count > 200 { logs.removeFirst(logs.count - 200) }
         state.snapshot = copy(state.snapshot, logs: logs, revision: (state.snapshot.revision ?? 0) + 1)
         states[id] = state
         publish(id)

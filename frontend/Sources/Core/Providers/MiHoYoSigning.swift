@@ -73,7 +73,8 @@ enum MiHoYoSigning {
               let authkey = authKeys.first?.value?.nonempty,
               authkey.utf8.count <= 8 * 1024,
               !authkey.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
-              appIDs.count == 1, appIDs.first?.value == "webview_gacha" else {
+              appIDs.count <= 1,
+              appIDs.allSatisfy({ $0.value == "webview_gacha" }) else {
             return nil
         }
         var endpoint = URLComponents(string: "https://public-operation-hk4e.mihoyo.com/gacha_info/api/getGachaLog")

@@ -4,15 +4,18 @@ import GRDB
 actor CoreNotificationService {
     private let database: CoreDatabase
     private let resources: CoreResourceService
+    private let game: CoreGameService?
     private let now: @Sendable () -> Date
 
     init(
         database: CoreDatabase,
         resources: CoreResourceService,
+        game: CoreGameService? = nil,
         now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.database = database
         self.resources = resources
+        self.game = game
         self.now = now
     }
 
@@ -54,7 +57,7 @@ actor CoreNotificationService {
     func evaluate(uid: String?) async throws -> [NotificationEvent] {
         let config = try await settings()
         let currentNote: DailyNote?
-        if let uid { currentNote = try await note(uid: uid) }
+        if let uid, !uid.isEmpty { currentNote = try await note(uid: uid) }
         else { currentNote = nil }
         let game = try await gameState()
         let current = now()
@@ -76,23 +79,21 @@ actor CoreNotificationService {
     }
 
     func acknowledge(_ keys: [String]) async throws -> [String] {
-        guard keys.count <= 256,
+        guard keys.count <= 20,
               keys.allSatisfy({
-                  !$0.isEmpty && $0.utf8.count <= 512
-                      && !$0.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
+                  $0.range(of: #"^[A-Za-z0-9:._-]{1,160}$"#, options: .regularExpression) != nil
               }) else {
             throw LauncherCoreError(code: "notification_key_invalid", message: "提醒标识无效")
         }
-        let unique = Array(Set(keys))
         let createdAt = CoreDate.string(now())
         try await database.write { db in
-            for key in unique {
+            for key in keys {
                 try db.execute(sql: """
                     INSERT OR IGNORE INTO notification_state(key,last_triggered_at,state) VALUES(?,?,?)
                     """, arguments: [key, createdAt, "{}"])
             }
         }
-        return unique
+        return keys
     }
 
     private func evaluateDaily(
@@ -147,7 +148,8 @@ actor CoreNotificationService {
         current: Date
     ) async throws {
         guard config.gachaRefreshEnabled else { return }
-        let start = try await resources.gachaEvents()
+        guard let events = try? await resources.gachaEvents() else { return }
+        let start = events
             .filter { event in
                 guard let started = event.startedAt, started <= current else { return false }
                 return event.endedAt == nil || event.endedAt! >= current
@@ -221,6 +223,7 @@ actor CoreNotificationService {
     }
 
     private func gameState() async throws -> GameState? {
+        if let game { return try await game.state(installPath: nil) }
         try await database.read { db in
             guard let row = try Row.fetchOne(db, sql: "SELECT * FROM game_state WHERE id=1") else {
                 return nil

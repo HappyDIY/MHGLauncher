@@ -48,7 +48,12 @@ enum JSONValue: Codable, Sendable, Equatable {
     }
 
     var boolValue: Bool? {
-        guard case .bool(let value) = self else { return nil }
-        return value
+        switch self {
+        case .bool(let value): return value
+        case .number(let value): return value != 0
+        case .string(let value): return !value.isEmpty
+        case .null: return false
+        default: return nil
+        }
     }
 }

@@ -15,8 +15,8 @@ actor CoreNoteService {
     func refresh(challenge: String = "", challengePath: String = "") async throws -> DailyNote {
         guard challenge.utf8.count <= 4_096,
               !challenge.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
-              challengePath.utf8.count <= 128,
-              ["", "/game_record/app/genshin/api/index", "/game_record/app/genshin/api/dailyNote"].contains(challengePath) else {
+              challengePath.utf8.count <= 2_048,
+              !challengePath.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
             throw LauncherCoreError(code: "note_challenge_invalid", message: "实时便笺验证信息无效")
         }
         guard let role = try await accounts.selectedRole() else {
@@ -50,8 +50,8 @@ actor CoreNoteService {
               validate.utf8.count <= 4_096,
               !challenge.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
               !validate.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
-              challengePath.utf8.count <= 128,
-              ["", "/game_record/app/genshin/api/index", "/game_record/app/genshin/api/dailyNote"].contains(challengePath) else {
+              challengePath.utf8.count <= 2_048,
+              !challengePath.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
             throw LauncherCoreError(code: "note_challenge_invalid", message: "实时便笺验证信息无效")
         }
         let result = try await provider.verifyNoteChallenge(

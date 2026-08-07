@@ -45,7 +45,9 @@ enum GameArchive {
         segments: [PackageSegment],
         cache: URL,
         destination: URL,
-        checkpoint: @escaping @Sendable () async throws -> Void
+        checkpoint: @escaping @Sendable () async throws -> Void,
+        throttle: @escaping @Sendable (Int64) async throws -> Void = { _ in },
+        progress: @escaping @Sendable (Int64) async -> Void = { _ in }
     ) async throws {
         try PrivateFilesystem.ensureDirectory(cache)
         try PrivateFilesystem.ensureDirectory(destination)
@@ -53,7 +55,9 @@ enum GameArchive {
         let archives = try await downloadAll(
             segments: segments,
             cache: cache,
-            checkpoint: checkpoint
+            checkpoint: checkpoint,
+            throttle: throttle,
+            progress: progress
         )
         let extractionRoot = cache.appending(path: ".extract-\(UUID().uuidString)")
         try PrivateFilesystem.ensureDirectory(extractionRoot)
@@ -74,94 +78,179 @@ enum GameArchive {
     private static func downloadAll(
         segments: [PackageSegment],
         cache: URL,
-        checkpoint: @escaping @Sendable () async throws -> Void
+        checkpoint: @escaping @Sendable () async throws -> Void,
+        throttle: @escaping @Sendable (Int64) async throws -> Void,
+        progress: @escaping @Sendable (Int64) async -> Void
     ) async throws -> [URL] {
         var archives: [URL] = []
         archives.reserveCapacity(segments.count)
         for segment in segments {
             try await checkpoint()
-            archives.append(try await download(segment, cache: cache))
+            archives.append(try await download(
+                segment,
+                cache: cache,
+                checkpoint: checkpoint,
+                throttle: throttle,
+                progress: progress
+            ))
         }
         return archives
     }
 
-    private static func download(_ segment: PackageSegment, cache: URL) async throws -> URL {
+    private static func download(
+        _ segment: PackageSegment,
+        cache: URL,
+        checkpoint: @escaping @Sendable () async throws -> Void,
+        throttle: @escaping @Sendable (Int64) async throws -> Void,
+        progress: @escaping @Sendable (Int64) async -> Void
+    ) async throws -> URL {
         guard HTTPSHostPolicy.sophon.allows(segment.url) else {
             throw LauncherCoreError(code: "sophon_segment_download_failed", message: "游戏安装包下载地址不受信任")
         }
         let destination = try GameFilesystem.safeTarget(root: cache, relativePath: segment.filename)
-        if valid(destination, size: segment.size, md5: segment.md5) { return destination }
+        if valid(destination, size: segment.size, md5: segment.md5) {
+            await progress(segment.size)
+            return destination
+        }
         try PrivateFilesystem.rejectSymbolicLinks(in: destination)
         try removeFileIfPresent(destination)
         let partial = URL(filePath: destination.path + ".part")
         try PrivateFilesystem.rejectSymbolicLinks(in: partial)
-        try removeFileIfPresent(partial)
         try GameFilesystem.ensureParent(of: partial)
-
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.urlCache = nil
-        configuration.httpCookieStorage = nil
-        configuration.httpShouldSetCookies = false
-        configuration.timeoutIntervalForRequest = 60
-        configuration.timeoutIntervalForResource = 3_600
-        let session = URLSession(configuration: configuration)
-        defer { session.invalidateAndCancel() }
-        let delegate = GameArchiveRedirectDelegate(policy: .sophon)
-        let (bytes, response) = try await session.bytes(
-            for: URLRequest(url: segment.url, timeoutInterval: 60),
-            delegate: delegate
-        )
-        guard let http = response as? HTTPURLResponse,
-              200..<300 ~= http.statusCode,
-              (http.url.map { HTTPSHostPolicy.sophon.allows($0) } ?? false),
-              http.expectedContentLength <= segment.size else {
-            throw LauncherCoreError(code: "sophon_segment_download_failed", message: "游戏安装包下载失败")
+        var offset = Int64((try? partial.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+        if !GameFilesystem.regularFile(partial) || offset > segment.size {
+            try removeFileIfPresent(partial)
+            offset = 0
         }
-        guard FileManager.default.createFile(
-            atPath: partial.path,
-            contents: nil,
-            attributes: [.posixPermissions: 0o600]
-        ) else {
-            throw LauncherCoreError(code: "sophon_storage_failed", message: "无法创建游戏安装包临时文件")
+        if offset > 0 { await progress(offset) }
+        if offset == segment.size {
+            if (try? FileDigest.md5Sync(partial)) == segment.md5.lowercased() {
+                try PrivateFilesystem.rejectSymbolicLinks(in: destination)
+                try removeFileIfPresent(destination)
+                try FileManager.default.moveItem(at: partial, to: destination)
+                try PrivateFilesystem.setPrivateFilePermissions(destination)
+                return destination
+            }
+            await progress(-offset)
+            try removeFileIfPresent(partial)
+            offset = 0
         }
-        let handle = try FileHandle(forWritingTo: partial)
-        var hasher = Insecure.MD5()
-        var buffer = Data()
-        var received: Int64 = 0
-        do {
-            for try await byte in bytes {
-                try Task.checkCancellation()
-                received += 1
-                guard received <= segment.size else {
+        var failures = 0
+        while offset < segment.size {
+            try await checkpoint()
+            do {
+                var request = URLRequest(url: segment.url, timeoutInterval: 120)
+                if offset > 0 { request.setValue("bytes=\(offset)-", forHTTPHeaderField: "Range") }
+                let configuration = URLSessionConfiguration.ephemeral
+                configuration.urlCache = nil
+                configuration.httpCookieStorage = nil
+                configuration.httpShouldSetCookies = false
+                configuration.timeoutIntervalForRequest = 120
+                configuration.timeoutIntervalForResource = 3_600
+                let session = URLSession(configuration: configuration)
+                defer { session.invalidateAndCancel() }
+                let (bytes, response) = try await session.bytes(
+                    for: request,
+                    delegate: GameArchiveRedirectDelegate(policy: .sophon)
+                )
+                guard let http = response as? HTTPURLResponse,
+                      (http.url.map { HTTPSHostPolicy.sophon.allows($0) } ?? false) else {
+                    throw LauncherCoreError(code: "sophon_segment_download_failed", message: "游戏安装包响应地址无效")
+                }
+                if offset > 0 {
+                    guard http.statusCode == 206,
+                          validByteRange(
+                              http.value(forHTTPHeaderField: "Content-Range"),
+                              offset: offset,
+                              expectedSize: segment.size
+                          ) else {
+                        await progress(-offset)
+                        try removeFileIfPresent(partial)
+                        offset = 0
+                        continue
+                    }
+                } else {
+                    guard (200..<300).contains(http.statusCode) else {
+                        throw LauncherCoreError(code: "sophon_segment_download_failed", message: "游戏安装包下载失败")
+                    }
+                }
+                let remaining = segment.size - offset
+                guard http.expectedContentLength <= 0 || http.expectedContentLength <= remaining else {
                     throw LauncherCoreError(code: "sophon_segment_too_large", message: "游戏安装包超过大小限制")
                 }
-                buffer.append(byte)
-                if buffer.count >= 1024 * 1024 {
-                    hasher.update(data: buffer)
-                    try handle.write(contentsOf: buffer)
-                    buffer.removeAll(keepingCapacity: true)
+                guard FileManager.default.fileExists(atPath: partial.path) || FileManager.default.createFile(
+                    atPath: partial.path, contents: nil, attributes: [.posixPermissions: 0o600]
+                ) else {
+                    throw LauncherCoreError(code: "sophon_storage_failed", message: "无法创建游戏安装包临时文件")
                 }
+                let handle = try FileHandle(forWritingTo: partial)
+                defer { try? handle.close() }
+                try handle.seekToEnd()
+                var received = offset
+                var buffer = Data()
+                for try await byte in bytes {
+                    try await checkpoint()
+                    buffer.append(byte)
+                    guard received <= segment.size - Int64(buffer.count) else {
+                        throw LauncherCoreError(code: "sophon_segment_too_large", message: "游戏安装包超过大小限制")
+                    }
+                    if buffer.count >= 1024 * 1024 {
+                        try await throttle(Int64(buffer.count))
+                        try handle.write(contentsOf: buffer)
+                        await progress(Int64(buffer.count))
+                        received += Int64(buffer.count)
+                        buffer.removeAll(keepingCapacity: true)
+                    }
+                }
+                if !buffer.isEmpty {
+                    try await throttle(Int64(buffer.count))
+                    try handle.write(contentsOf: buffer)
+                    await progress(Int64(buffer.count))
+                    received += Int64(buffer.count)
+                }
+                try handle.synchronize()
+                try handle.close()
+                guard received == segment.size else {
+                    throw LauncherCoreError(code: "sophon_segment_incomplete", message: "游戏安装包下载未完成")
+                }
+                guard try FileDigest.md5Sync(partial) == segment.md5.lowercased() else {
+                    await progress(-received)
+                    try removeFileIfPresent(partial)
+                    offset = 0
+                    throw LauncherCoreError(code: "sophon_segment_invalid", message: "游戏安装包校验失败")
+                }
+                try PrivateFilesystem.rejectSymbolicLinks(in: destination)
+                try removeFileIfPresent(destination)
+                try FileManager.default.moveItem(at: partial, to: destination)
+                try PrivateFilesystem.setPrivateFilePermissions(destination)
+                return destination
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                failures += 1
+                guard failures <= 5 else { throw error }
+                offset = Int64((try? partial.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+                if offset >= segment.size {
+                    await progress(-offset)
+                    try removeFileIfPresent(partial)
+                    offset = 0
+                }
+                try await checkpoint()
+                try await Task.sleep(for: .milliseconds(min(8_000, 500 * (1 << min(failures - 1, 4)))))
             }
-            if !buffer.isEmpty {
-                hasher.update(data: buffer)
-                try handle.write(contentsOf: buffer)
-            }
-            try handle.synchronize()
-            try handle.close()
-            let digest = hasher.finalize().map { String(format: "%02x", $0) }.joined()
-            guard received == segment.size, digest == segment.md5.lowercased() else {
-                throw LauncherCoreError(code: "sophon_segment_invalid", message: "游戏安装包校验失败")
-            }
-            try PrivateFilesystem.rejectSymbolicLinks(in: destination)
-            try removeFileIfPresent(destination)
-            try FileManager.default.moveItem(at: partial, to: destination)
-            try PrivateFilesystem.setPrivateFilePermissions(destination)
-            return destination
-        } catch {
-            try? handle.close()
-            try? removeFileIfPresent(partial)
-            throw error
         }
+        throw LauncherCoreError(code: "sophon_segment_invalid", message: "游戏安装包下载失败")
+    }
+
+    private static func validByteRange(_ value: String?, offset: Int64, expectedSize: Int64) -> Bool {
+        let parts = value?.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true) ?? []
+        guard parts.count == 2, parts[0].lowercased() == "bytes" else { return false }
+        let rangeAndTotal = parts[1].split(separator: "/", maxSplits: 1, omittingEmptySubsequences: true)
+        let range = rangeAndTotal.first?.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: true) ?? []
+        guard rangeAndTotal.count == 2, range.count == 2,
+              let first = Int64(String(range[0])), let last = Int64(String(range[1])),
+              let total = Int64(String(rangeAndTotal[1])) else { return false }
+        return first == offset && last >= first && last < expectedSize && total == expectedSize
     }
 
     private static func valid(_ url: URL, size: Int64, md5 expected: String) -> Bool {
@@ -211,7 +300,7 @@ enum GameArchive {
                 }
             }
             let fields = line.split(separator: " ", maxSplits: 5, omittingEmptySubsequences: true)
-            guard fields.count >= 5, let size = Int64(fields[4]), size >= 0,
+            guard fields.count >= 4, let size = Int64(fields[3]), size >= 0,
                   size <= maximumExtractedBytes,
                   listedSize <= maximumExtractedBytes - size else {
                 throw LauncherCoreError(code: "archive_too_large", message: "安装包解压后超过大小限制")

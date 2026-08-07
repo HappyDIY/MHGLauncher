@@ -79,9 +79,7 @@ struct GameBuild: Codable, Sendable, Equatable {
     var downloadSize: Int64 {
         var total = max(0, pendingBytes)
         var chunks: [String: Int64] = [:]
-        let operationAssets = assets.isEmpty && patchAssets.isEmpty
-            ? repairAssets : assets
-        for chunk in operationAssets.flatMap({ $0.requiredChunks ?? $0.chunks }) {
+        for chunk in assets.flatMap({ $0.requiredChunks ?? $0.chunks }) {
             chunks[chunk.name.lowercased()] = chunk.size
         }
         var patches: [String: Int64] = [:]
@@ -285,7 +283,7 @@ enum SophonValidation {
             && url.user == nil && url.password == nil && url.fragment == nil
     }
 
-    private static func isMD5(_ value: String) -> Bool {
+    static func isMD5(_ value: String) -> Bool {
         value.range(of: "^[a-fA-F0-9]{32}$", options: .regularExpression) != nil
     }
 

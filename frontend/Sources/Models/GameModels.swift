@@ -134,6 +134,11 @@ struct GameLaunch: Codable, Sendable, Identifiable {
     let revision: Int?
 }
 
+struct GameLaunchRecovery: Codable, Sendable {
+    let pending: Bool
+    let warnings: [String]
+}
+
 struct GameLaunchLog: Codable, Sendable, Identifiable {
     var id: Int { sequence }
     let sequence: Int

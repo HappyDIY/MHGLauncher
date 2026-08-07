@@ -73,7 +73,7 @@ actor FixtureProvider: GameProvider {
             nickname: "旅行者",
             region: "cn_gf01",
             level: 60,
-            selected: true
+            selected: false
         )]
     }
 

@@ -5,32 +5,26 @@ actor CoreCharacterService {
     private let database: CoreDatabase
     private let records: any GameRecordProvider
     private let accounts: CoreAccountService
+    private let resources: CoreResourceService?
+    private let images: CoreImageService?
 
     init(
         database: CoreDatabase,
         records: any GameRecordProvider,
-        accounts: CoreAccountService
+        accounts: CoreAccountService,
+        resources: CoreResourceService? = nil,
+        images: CoreImageService? = nil
     ) {
         self.database = database
         self.records = records
         self.accounts = accounts
+        self.resources = resources
+        self.images = images
     }
 
     func list(uid: String) async throws -> [GameCharacter] {
-        guard Self.validUID(uid) else {
-            throw LauncherCoreError(code: "uid_invalid", message: "角色 UID 无效")
-        }
-        return try await database.read { db in
-            let rows = try Row.fetchAll(
-                db,
-                sql: "SELECT * FROM characters WHERE uid=? ORDER BY rarity DESC,level DESC,name",
-                arguments: [uid]
-            )
-            guard rows.count <= 256 else {
-                throw LauncherCoreError(code: "character_payload_too_large", message: "角色数据数量超出限制")
-            }
-            return try rows.map(Self.character)
-        }
+        let values = try await listFromDatabase(uid: uid)
+        return try await present(values)
     }
 
     func refresh() async throws -> [GameCharacter] {
@@ -45,11 +39,13 @@ actor CoreCharacterService {
             throw LauncherCoreError(code: "character_uid_mismatch", message: "角色数据与当前 UID 不匹配")
         }
         try await save(values)
-        return values
+        try await images?.cacheCharacters(values)
+        return try await present(values)
     }
 
     func refreshDetail(avatarID: String) async throws -> GameCharacter {
-        guard avatarID.range(of: #"^\d{1,16}$"#, options: .regularExpression) != nil else {
+        guard avatarID.range(of: #"^(?:0|[1-9]\d{0,15})$"#, options: .regularExpression) != nil,
+              let numericID = Int64(avatarID), numericID <= 9_007_199_254_740_991 else {
             throw LauncherCoreError(code: "character_id_invalid", message: "角色标识无效")
         }
         guard let role = try await accounts.selectedRole() else {
@@ -67,7 +63,41 @@ actor CoreCharacterService {
             throw LauncherCoreError(code: "character_id_mismatch", message: "角色详情与请求的角色不匹配")
         }
         try await save([value])
-        return value
+        try await images?.cacheCharacters([value])
+        return try await present([value]).first ?? value
+    }
+
+    func cache(uid: String) async throws -> [GameCharacter] {
+        let values = try await listFromDatabase(uid: uid)
+        try await images?.cacheCharacters(values)
+        return try await present(values)
+    }
+
+    private func present(_ values: [GameCharacter]) async throws -> [GameCharacter] {
+        guard let resources else { return values }
+        var output: [GameCharacter] = []
+        output.reserveCapacity(values.count)
+        for value in values {
+            output.append(try await resources.enrich(value))
+        }
+        return output
+    }
+
+    private func listFromDatabase(uid: String) async throws -> [GameCharacter] {
+        guard Self.validUID(uid) else {
+            throw LauncherCoreError(code: "uid_invalid", message: "角色 UID 无效")
+        }
+        return try await database.read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: "SELECT * FROM characters WHERE uid=? ORDER BY rarity DESC,level DESC,name",
+                arguments: [uid]
+            )
+            guard rows.count <= 256 else {
+                throw LauncherCoreError(code: "character_payload_too_large", message: "角色数据数量超出限制")
+            }
+            return try rows.map(Self.character)
+        }
     }
 
     private func save(_ values: [GameCharacter]) async throws {

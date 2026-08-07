@@ -4,6 +4,7 @@ struct WishRecord: Codable, Sendable, Identifiable {
     let id: String
     let uid: String
     let gachaType: String
+    let uigfGachaType: String? = nil
     let itemId: String
     let name: String
     let itemType: String

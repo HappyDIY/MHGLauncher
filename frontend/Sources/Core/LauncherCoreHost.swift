@@ -65,9 +65,13 @@ final class LauncherCoreHost {
                 configuredMirrors: mirrorURLs,
                 transport: transport
             )
+            let images = try CoreImageService(dataDirectory: dataDirectory, transport: transport)
             let resources = CoreResourceService(
                 repository: metadataRepository,
-                activeSnapshot: await metadataRepository?.activeSnapshot()
+                activeSnapshot: await metadataRepository?.activeSnapshot(),
+                fixtureMode: fixtureMode,
+                dataDirectory: dataDirectory,
+                images: images
             )
             let accounts = CoreAccountService(database: database, provider: provider, keychain: keychain)
             let notes = CoreNoteService(database: database, provider: provider, accounts: accounts)
@@ -80,9 +84,14 @@ final class LauncherCoreHost {
             )
             let wishTasks = WishTaskCoordinator()
             self.wishTasks = wishTasks
-            let characters = CoreCharacterService(database: database, records: records, accounts: accounts)
+            let characters = CoreCharacterService(
+                database: database,
+                records: records,
+                accounts: accounts,
+                resources: resources,
+                images: images
+            )
             let achievements = CoreAchievementService(database: database, resources: resources)
-            let notifications = CoreNotificationService(database: database, resources: resources)
             let cloud = CoreCloudService(
                 database: database,
                 accounts: accounts,
@@ -96,7 +105,6 @@ final class LauncherCoreHost {
                 fixtureMode: fixtureMode
             )
             let updates = CoreUpdateService(cloudBaseURL: cloudURL, transport: transport, fixtureMode: fixtureMode)
-            let images = try CoreImageService(dataDirectory: dataDirectory, transport: transport)
             let runtimeTag = environment["MHG_RUNTIME_TAG"].flatMap { value in
                 value.range(of: #"^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$"#, options: .regularExpression) != nil
                     ? value : nil
@@ -112,9 +120,11 @@ final class LauncherCoreHost {
                 dataDirectory: dataDirectory,
                 fixtureMode: fixtureMode,
                 hpatchzURL: hpatchzURL,
-                operationCoordinator: gameOperationCoordinator
+                operationCoordinator: gameOperationCoordinator,
+                onInstalled: { _ in _ = try? await resources.sync(force: false) }
             )
             self.game = game
+            let notifications = CoreNotificationService(database: database, resources: resources, game: game)
             let runtimeRoot = environment["MHG_GAME_RUNTIME_ROOT"]?.nonempty
                 .flatMap(Self.absolutePath)
                 ?? dataDirectory.appending(path: "Runtimes/\(runtimeTag)/game-runtime")

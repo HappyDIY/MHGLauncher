@@ -92,8 +92,11 @@ actor CoreAchievementService {
             throw LauncherCoreError(code: "uid_invalid", message: "角色 UID 无效")
         }
         guard data.count <= 64 * 1024 * 1024,
-              let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let list = root["list"] as? [[String: Any]], list.count <= 200_000 else {
+              let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw LauncherCoreError(code: "uiaf_invalid", message: "UIAF 文件格式无效")
+        }
+        let list = root["list"] as? [[String: Any]] ?? []
+        guard list.count <= 200_000 else {
             throw LauncherCoreError(code: "uiaf_invalid", message: "UIAF 文件格式无效")
         }
         let items = list.compactMap { value -> AchievementItemInput? in
@@ -104,9 +107,6 @@ actor CoreAchievementService {
                 status: Self.int(value["status"]) ?? 0,
                 timestamp: Self.int(value["timestamp"]) ?? 0
             )
-        }
-        guard items.count == list.count else {
-            throw LauncherCoreError(code: "uiaf_invalid", message: "UIAF 文件包含无效成就条目")
         }
         return try await save(AchievementSaveRequest(
             archiveId: archiveID,
@@ -159,7 +159,7 @@ actor CoreAchievementService {
         guard Self.validArchiveID(archiveID), values.count <= 200_000 else {
             throw LauncherCoreError(code: "cloud_payload_invalid", message: "云端成就格式无效")
         }
-        try Self.validate(values)
+        try Self.validateCloud(values)
         let selected = try await archive(uid: archiveID)
         _ = try await save(AchievementSaveRequest(
             archiveId: selected.id,
@@ -229,13 +229,16 @@ actor CoreAchievementService {
     }
 
     private nonisolated static func validate(_ values: [AchievementItemInput]) throws {
-        var identifiers = Set<Int>()
+        guard values.count <= 200_000 else {
+            throw LauncherCoreError(code: "achievement_payload_invalid", message: "成就数据格式无效")
+        }
+    }
+
+    private nonisolated static func validateCloud(_ values: [AchievementItemInput]) throws {
         for value in values {
-            guard (1...2_000_000_000).contains(value.achievementId),
-                  (0...2_000_000_000).contains(value.current), (0...2).contains(value.status),
-                  (0...Int(Date().timeIntervalSince1970 + 86_400)).contains(value.timestamp),
-                  identifiers.insert(value.achievementId).inserted else {
-                throw LauncherCoreError(code: "achievement_item_invalid", message: "成就条目字段无效")
+            guard value.achievementId > 0, value.current >= 0,
+                  (0...3).contains(value.status), value.timestamp >= 0 else {
+                throw LauncherCoreError(code: "cloud_payload_invalid", message: "云端成就格式无效")
             }
         }
     }

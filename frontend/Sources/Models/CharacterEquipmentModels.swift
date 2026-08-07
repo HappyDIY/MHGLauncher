@@ -49,7 +49,8 @@ private struct RawRecommendation: Decodable {
 }
 
 struct CharacterReliquary: Codable, Sendable, Equatable, Identifiable {
-    var id: String { "\(name ?? "")-\(pos ?? 0)" }
+    var id: String { "\(assetId ?? 0)-\(name ?? "")-\(pos ?? 0)" }
+    let assetId: Int?
     let name: String?
     let icon: URL?
     let setName: String?
@@ -60,13 +61,37 @@ struct CharacterReliquary: Codable, Sendable, Equatable, Identifiable {
     let subProperties: [CharacterProperty]?
 
     private enum CodingKeys: String, CodingKey {
+        case assetId = "id"
         case name, icon, setName, rarity, level, pos, mainProperty, subProperties
         case setInfo = "set"
         case subPropertyList
     }
 
+    init(
+        assetId: Int? = nil,
+        name: String?,
+        icon: URL?,
+        setName: String?,
+        rarity: Int?,
+        level: Int?,
+        pos: Int?,
+        mainProperty: CharacterProperty?,
+        subProperties: [CharacterProperty]?
+    ) {
+        self.assetId = assetId
+        self.name = name
+        self.icon = icon
+        self.setName = setName
+        self.rarity = rarity
+        self.level = level
+        self.pos = pos
+        self.mainProperty = mainProperty
+        self.subProperties = subProperties
+    }
+
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        assetId = try values.decodeIfPresent(Int.self, forKey: .assetId)
         name = try values.decodeIfPresent(String.self, forKey: .name)
         icon = try values.decodeIfPresent(URL.self, forKey: .icon)
         let set = try values.decodeIfPresent(RelicSet.self, forKey: .setInfo)
@@ -81,6 +106,7 @@ struct CharacterReliquary: Codable, Sendable, Equatable, Identifiable {
 
     func encode(to encoder: Encoder) throws {
         var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encodeIfPresent(assetId, forKey: .assetId)
         try values.encodeIfPresent(name, forKey: .name)
         try values.encodeIfPresent(icon, forKey: .icon)
         try values.encodeIfPresent(setName, forKey: .setName)

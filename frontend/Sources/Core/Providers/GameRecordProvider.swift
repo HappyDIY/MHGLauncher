@@ -55,6 +55,25 @@ struct FixtureGameRecordProvider: GameRecordProvider {
         constellation: Int,
         weapon: String
     ) -> GameCharacter {
+        let payload = CharacterPayload(
+            base: nil,
+            weapon: CharacterWeapon(
+                id: nil,
+                name: weapon,
+                icon: nil,
+                rarity: nil,
+                level: 90,
+                affixLevel: nil,
+                mainProperty: nil,
+                subProperty: nil
+            ),
+            relics: nil,
+            constellations: nil,
+            selectedProperties: nil,
+            skills: nil,
+            recommendRelicProperty: nil,
+            additionalFields: ["avatar_id": .string(avatarID)]
+        )
         GameCharacter(
             uid: uid,
             avatarId: avatarID,
@@ -67,7 +86,7 @@ struct FixtureGameRecordProvider: GameRecordProvider {
             weaponName: weapon,
             weaponLevel: 90,
             iconUrl: nil,
-            payload: nil,
+            payload: payload,
             updatedAt: Date()
         )
     }

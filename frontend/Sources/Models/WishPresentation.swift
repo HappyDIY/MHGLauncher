@@ -2,7 +2,7 @@ import SwiftUI
 
 extension WishRecord {
     var normalizedGachaType: String {
-        gachaType == "400" ? "301" : gachaType
+        uigfGachaType ?? (gachaType == "400" ? "301" : gachaType)
     }
 }
 

@@ -17,6 +17,13 @@ actor CoreGameLaunchService {
     private let operationCoordinator: GameOperationCoordinator
     private var states: [String: State] = [:]
     private var tasks: [String: Task<Void, Never>] = [:]
+    private var dnsLineOffsets: [String: Int] = [:]
+    private var wineLogOffsets: [String: Int64] = [:]
+    private var wineLogRemainders: [String: String] = [:]
+    private var logWatchers: [String: Task<Void, Never>] = [:]
+    private var recoveryPending = false
+    private var recoveryWarnings: [String] = []
+    private var recoveryWatcher: Task<Void, Never>?
     private var shuttingDown = false
 
     init(
@@ -39,27 +46,40 @@ actor CoreGameLaunchService {
         self.windowProbe = windowProbe
         self.mhypbaseIntegrity = mhypbaseIntegrity
         self.operationCoordinator = operationCoordinator
+        let recovery = MhypbaseManager.recover(
+            dataDirectory: dataDirectory,
+            gameRunning: MhypbaseManager.isGameRunning()
+        )
+        let persistedWarnings = Self.loadRecoveryWarnings(dataDirectory: dataDirectory)
+        self.recoveryPending = recovery.pending
+        self.recoveryWarnings = Self.unique(persistedWarnings + recovery.warnings)
+        Self.persistRecoveryWarnings(self.recoveryWarnings, dataDirectory: dataDirectory)
         for launch in Self.loadPersisted(dataDirectory: dataDirectory) {
             let terminal = Self.terminal(launch.status)
-            let normalized = terminal ? launch : Self.copy(
+            let normalized = terminal || recovery.pending ? launch : Self.copy(
                 launch, status: .exited, message: "上次启动会话已结束，临时文件将在启动时恢复", progress: 1
             )
             states[normalized.id] = State(launch: normalized)
             if !terminal { try? Self.persist(normalized, dataDirectory: dataDirectory) }
         }
-        _ = MhypbaseManager.recover(
-            dataDirectory: dataDirectory,
-            gameRunning: MhypbaseManager.isGameRunning()
-        )
+        recoveryWatcher = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }
+                await self?.refreshRecovery()
+            }
+        }
     }
 
     func start(_ request: StartGameLaunchRequest) async throws -> GameLaunch {
         guard !shuttingDown else {
             throw LauncherCoreError(code: "game_launch_unavailable", message: "游戏启动服务正在退出")
         }
-        guard (0...1_000).contains(request.framePacing) else {
+        guard (0...240).contains(request.framePacing) else {
             throw LauncherCoreError(code: "game_launch_request_invalid", message: "游戏启动参数无效")
         }
+        refreshRecovery()
+        pruneTerminal()
         let installPath = try GameFilesystem.validatedPath(request.installPath)
         guard !states.values.contains(where: { !Self.terminal($0.launch.status) }) else {
             throw LauncherCoreError(code: "game_launch_busy", message: "游戏正在启动或运行")
@@ -76,6 +96,7 @@ actor CoreGameLaunchService {
                 throw LauncherCoreError(code: "game_not_installed", message: "所选目录中未检测到可启动的原神客户端")
             }
             try PrivateFilesystem.rejectSymbolicLinksRecursively(in: detected.path)
+            try GameFilesystem.ensureConfiguration(root: detected.path, version: detected.version)
             let id = UUID().uuidString
             let now = CoreDate.string(Date())
             let launch = GameLaunch(
@@ -115,6 +136,11 @@ actor CoreGameLaunchService {
         return states[id]?.launch ?? state.launch
     }
 
+    func recovery() -> GameLaunchRecovery {
+        refreshRecovery()
+        return GameLaunchRecovery(pending: recoveryPending, warnings: recoveryWarnings)
+    }
+
     func runWineTool(_ request: WineToolRequest) async throws {
         guard !shuttingDown else {
             throw LauncherCoreError(code: "wine_tool_unavailable", message: "Wine 工具服务正在退出")
@@ -134,13 +160,17 @@ actor CoreGameLaunchService {
 
     private func performWineTool(_ request: WineToolRequest) async throws {
         let paths = try WineRuntimePaths(root: runtimeRoot)
-        let prefix = try await prefixManager.prepare(paths: paths, dataDirectory: dataDirectory, profile: request.performanceProfile)
+        let prefix = try await prefixManager.prepare(
+            paths: paths,
+            dataDirectory: dataDirectory,
+            profile: request.performanceProfile,
+            configure: false
+        )
         if request.action == .explorer {
-            let status = try await runner.run(CoreProcessRequest(
+            try await runner.startDetached(CoreProcessRequest(
                 executable: URL(filePath: "/usr/bin/open"), arguments: [prefix.appending(path: "drive_c").path],
                 workingDirectory: nil, environment: CoreProcessEnvironment.sanitizedCurrentProcess(), logURL: nil
             ))
-            guard status == 0 else { throw LauncherCoreError(code: "wine_tool_failed", message: "无法打开 Wine 文件目录") }
             return
         }
         let arguments: [String]
@@ -157,15 +187,18 @@ actor CoreGameLaunchService {
             }
             arguments = parsed
         }
-        let status = try await runner.run(CoreProcessRequest(
+        try await runner.startDetached(CoreProcessRequest(
             executable: paths.wine, arguments: arguments, workingDirectory: nil,
             environment: await prefixManager.environment(prefix: prefix, profile: request.performanceProfile), logURL: nil
         ))
-        guard status == 0 else { throw LauncherCoreError(code: "wine_tool_failed", message: "Wine 工具启动失败") }
     }
 
     func shutdown() async {
         shuttingDown = true
+        recoveryWatcher?.cancel()
+        recoveryWatcher = nil
+        for watcher in logWatchers.values { watcher.cancel() }
+        logWatchers.removeAll()
         let active = tasks
         for task in active.values { task.cancel() }
         await runner.terminate()
@@ -186,6 +219,7 @@ actor CoreGameLaunchService {
         var journal: MhypbaseJournal?
         var preparedPaths: WineRuntimePaths?
         var preparedPrefix: URL?
+        var runtimeStopPending = false
         do {
             update(id, status: .preparing, message: "正在校验并准备游戏文件", progress: 0.1)
             let paths = try WineRuntimePaths(root: runtimeRoot)
@@ -194,14 +228,20 @@ actor CoreGameLaunchService {
                 gameRoot: gameRoot, source: paths.mhypbase,
                 sessionDirectory: session, integrity: mhypbaseIntegrity
             )
+            update(id, status: .preparing, message: "游戏文件准备完成", progress: 0.22)
+            update(id, status: .preparing, message: "正在初始化 Wine 容器", progress: 0.3)
             let prefix = try await prefixManager.prepare(paths: paths, dataDirectory: dataDirectory, profile: request.performanceProfile)
             preparedPrefix = prefix
+            update(id, status: .starting, message: "Wine 容器已切换为简体中文", progress: 0.55)
             let credential = try? await accounts.credential()
             let ticket: String?
             if let credential {
                 ticket = try await provider.authTicket(credential: credential)
             } else {
                 ticket = nil
+            }
+            if ticket != nil {
+                update(id, status: .starting, message: "已准备米游社账号登录票据", progress: 0.62)
             }
             let environment = try paths.environment(
                 prefix: prefix, session: session, profile: request.performanceProfile,
@@ -217,7 +257,13 @@ actor CoreGameLaunchService {
                 environment: environment,
                 logURL: request.wineLog ? session.appending(path: "wine.log") : dataDirectory.appending(path: "logs/game-launch.log")
             ))
-            try await cleanupRuntime(paths: paths, prefix: prefix, session: session)
+            refreshLogs(id)
+            do {
+                try await cleanupRuntime(paths: paths, prefix: prefix, session: session)
+            } catch {
+                runtimeStopPending = true
+                throw error
+            }
             let stopping = states[id]?.launch.status == .stopping
             let warning = try MhypbaseManager.restore(journal)
             update(
@@ -226,16 +272,31 @@ actor CoreGameLaunchService {
                 progress: 1
             )
         } catch is CancellationError {
-            await cleanupRuntimeIgnoringFailure(paths: preparedPaths, prefix: preparedPrefix, session: session)
-            let warning = (try? MhypbaseManager.restore(journal)) ?? ""
+            let runtimeStopped = await cleanupRuntimeIgnoringFailure(
+                paths: preparedPaths, prefix: preparedPrefix, session: session
+            )
+            refreshLogs(id)
+            let warning = runtimeStopWarning(
+                pending: runtimeStopPending || !runtimeStopped, journal: journal
+            )
             update(id, status: .stopped, message: warning.nonempty ?? "游戏已停止", progress: 1)
         } catch let error as LauncherCoreError {
-            await cleanupRuntimeIgnoringFailure(paths: preparedPaths, prefix: preparedPrefix, session: session)
-            let warning = (try? MhypbaseManager.restore(journal)) ?? ""
+            let runtimeStopped = await cleanupRuntimeIgnoringFailure(
+                paths: preparedPaths, prefix: preparedPrefix, session: session
+            )
+            refreshLogs(id)
+            let warning = runtimeStopWarning(
+                pending: runtimeStopPending || !runtimeStopped, journal: journal
+            )
             update(id, status: .failed, message: warning.nonempty.map { "\(error.message)；\($0)" } ?? error.message)
         } catch {
-            await cleanupRuntimeIgnoringFailure(paths: preparedPaths, prefix: preparedPrefix, session: session)
-            let warning = (try? MhypbaseManager.restore(journal)) ?? ""
+            let runtimeStopped = await cleanupRuntimeIgnoringFailure(
+                paths: preparedPaths, prefix: preparedPrefix, session: session
+            )
+            refreshLogs(id)
+            let warning = runtimeStopWarning(
+                pending: runtimeStopPending || !runtimeStopped, journal: journal
+            )
             update(id, status: .failed, message: warning.nonempty ?? "游戏启动失败，请稍后重试")
         }
         await operationCoordinator.release(lease)
@@ -302,13 +363,23 @@ actor CoreGameLaunchService {
         paths: WineRuntimePaths?,
         prefix: URL?,
         session: URL
-    ) async {
+    ) async -> Bool {
         try? PrivateFilesystem.rejectSymbolicLinks(in: session.appending(path: "dns-gate"))
         try? PrivateFilesystem.removeRegularFileIfPresent(session.appending(path: "dns-gate"))
-        guard let paths, let prefix else { return }
-        try? await Task.detached { [prefixManager] in
-            try await prefixManager.stopServer(paths: paths, prefix: prefix)
-        }.value
+        guard let paths, let prefix else { return true }
+        do {
+            try await Task.detached { [prefixManager] in
+                try await prefixManager.stopServer(paths: paths, prefix: prefix)
+            }.value
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func runtimeStopWarning(pending: Bool, journal: MhypbaseJournal?) -> String {
+        guard pending else { return (try? MhypbaseManager.restore(journal)) ?? "" }
+        return "Wine 进程尚未确认退出，DLL 会话记录已交由恢复任务"
     }
 
     private func register(
@@ -317,6 +388,11 @@ actor CoreGameLaunchService {
         token: UUID,
         continuation: AsyncThrowingStream<GameLaunch, Error>.Continuation
     ) {
+        guard states[id] != nil else {
+            continuation.finish(throwing: LauncherCoreError(code: "game_launch_missing", message: "游戏启动会话不存在"))
+            return
+        }
+        refreshLogs(id)
         guard var state = states[id] else {
             continuation.finish(throwing: LauncherCoreError(code: "game_launch_missing", message: "游戏启动会话不存在"))
             return
@@ -325,10 +401,15 @@ actor CoreGameLaunchService {
         if Self.terminal(state.launch.status) { continuation.finish(); return }
         state.subscribers[token] = continuation
         states[id] = state
+        startLogWatcher(id)
     }
 
     private func unregister(_ id: String, token: UUID) {
         states[id]?.subscribers[token] = nil
+        if states[id]?.subscribers.isEmpty == true {
+            logWatchers[id]?.cancel()
+            logWatchers[id] = nil
+        }
     }
 
     private func update(_ id: String, status: GameLaunchStatus, message: String, progress: Double? = nil) {
@@ -341,6 +422,153 @@ actor CoreGameLaunchService {
             if Self.terminal(status) { subscriber.finish() }
         }
         if Self.terminal(status) { states[id]?.subscribers.removeAll() }
+        if Self.terminal(status) {
+            logWatchers[id]?.cancel()
+            logWatchers[id] = nil
+        }
+    }
+
+    private func startLogWatcher(_ id: String) {
+        guard logWatchers[id] == nil else { return }
+        logWatchers[id] = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }
+                guard let self else { return }
+                await self.refreshLogs(id)
+                if await self.isTerminal(id) { return }
+            }
+        }
+    }
+
+    private func isTerminal(_ id: String) -> Bool {
+        guard let state = states[id] else { return true }
+        return Self.terminal(state.launch.status)
+    }
+
+    private func refreshLogs(_ id: String) {
+        guard let state = states[id] else { return }
+        var additions: [GameLaunchLog] = []
+        if state.launch.networkDebug {
+            additions.append(contentsOf: readDNSLogs(id: id))
+        }
+        if state.launch.wineLog {
+            additions.append(contentsOf: readWineLogs(id: id))
+        }
+        guard !additions.isEmpty, var current = states[id] else { return }
+        var logs = current.launch.logs
+        for addition in additions {
+            logs.append(GameLaunchLog(
+                sequence: (logs.last?.sequence ?? 0) + 1,
+                timestamp: addition.timestamp,
+                kind: addition.kind,
+                message: addition.message
+            ))
+        }
+        if logs.count > 200 { logs.removeFirst(logs.count - 200) }
+        current.launch = Self.copy(current.launch, logs: logs)
+        states[id] = current
+        try? Self.persist(current.launch, dataDirectory: dataDirectory)
+        for subscriber in current.subscribers.values { subscriber.yield(current.launch) }
+    }
+
+    private func readDNSLogs(id: String) -> [GameLaunchLog] {
+        let url = dataDirectory.appending(path: "launches/\(id)/dns.log")
+        guard GameFilesystem.regularFile(url),
+              let values = try? url.resourceValues(forKeys: [.fileSizeKey]),
+              (values.fileSize ?? 0) <= 8 * 1024 * 1024,
+              let data = try? Data(contentsOf: url),
+              let text = String(data: data, encoding: .utf8) else { return [] }
+        let lines = text.split(whereSeparator: \.isNewline).map(String.init)
+        let previous = dnsLineOffsets[id] ?? 0
+        let offset = previous <= lines.count ? previous : 0
+        dnsLineOffsets[id] = lines.count
+        return lines.dropFirst(offset).compactMap(Self.parseDNSLog)
+    }
+
+    private func readWineLogs(id: String) -> [GameLaunchLog] {
+        let url = dataDirectory.appending(path: "launches/\(id)/wine.log")
+        guard GameFilesystem.regularFile(url),
+              let values = try? url.resourceValues(forKeys: [.fileSizeKey]),
+              let size = values.fileSize, size <= 64 * 1024 * 1024 else { return [] }
+        let previous = wineLogOffsets[id] ?? 0
+        let offset = previous <= Int64(size) ? previous : 0
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return [] }
+        defer { try? handle.close() }
+        do {
+            try handle.seek(toOffset: UInt64(offset))
+            let data = try handle.read(upToCount: min(Int64(256 * 1024), Int64(size) - offset)) ?? Data()
+            wineLogOffsets[id] = offset + Int64(data.count)
+            let text = wineLogRemainders[id].map { $0 + (String(data: data, encoding: .utf8) ?? "") }
+                ?? (String(data: data, encoding: .utf8) ?? "")
+            guard !text.isEmpty else { return [] }
+            let parts = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+            let complete = text.last == "\n" ? parts : Array(parts.dropLast())
+            wineLogRemainders[id] = text.last == "\n" ? "" : parts.last ?? ""
+            return complete.suffix(30).compactMap { line in
+                let value = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !value.isEmpty, value.utf8.count <= 4_096 else { return nil }
+                return GameLaunchLog(sequence: 0, timestamp: CoreDate.string(Date()), kind: "wine", message: String(value.prefix(500)))
+            }
+        } catch {
+            return []
+        }
+    }
+
+    private static func parseDNSLog(_ line: String) -> GameLaunchLog? {
+        guard line.utf8.count <= 4_096 else { return nil }
+        let fields = line.split(separator: "\t", omittingEmptySubsequences: false)
+        guard fields.count >= 6,
+              let milliseconds = Int64(fields[0]),
+              milliseconds >= 0,
+              fields[1].utf8.count <= 64,
+              fields[2].utf8.count <= 128,
+              fields[3].utf8.count <= 256,
+              fields[4].utf8.count <= 64,
+              fields[5].utf8.count <= 64 else { return nil }
+        let result = String(fields[5])
+        let state: String
+        if fields[4] == "blocked" {
+            state = "屏蔽"
+        } else if Int(result) == 0 {
+            let address = fields.count > 6 && fields[6].utf8.count <= 256 ? String(fields[6]) : ""
+            state = address.isEmpty ? "成功" : "成功 → \(address)"
+        } else {
+            state = "未找到 \(result)"
+        }
+        return GameLaunchLog(
+            sequence: 0,
+            timestamp: CoreDate.string(Date(timeIntervalSince1970: Double(milliseconds) / 1_000)),
+            kind: "dns",
+            message: "DNS · PID \(fields[1]) · \(fields[2]) · \(fields[3]) · \(state)"
+        )
+    }
+
+    private func refreshRecovery() {
+        let wasPending = recoveryPending
+        let result = MhypbaseManager.recover(
+            dataDirectory: dataDirectory,
+            gameRunning: MhypbaseManager.isGameRunning()
+        )
+        recoveryPending = result.pending
+        let merged = Self.unique(recoveryWarnings + result.warnings)
+        if merged != recoveryWarnings {
+            recoveryWarnings = merged
+            Self.persistRecoveryWarnings(merged, dataDirectory: dataDirectory)
+        }
+        if wasPending && !result.pending {
+            finishRecovered()
+        }
+    }
+
+    private func finishRecovered() {
+        let message = recoveryWarnings.last ?? "游戏已退出，DLL 会话已由恢复任务清理"
+        let activeIDs = states.compactMap { id, state in
+            Self.terminal(state.launch.status) ? nil : id
+        }
+        for id in activeIDs {
+            update(id, status: .exited, message: message, progress: 1)
+        }
     }
 
     private static func copy(
@@ -360,6 +588,16 @@ actor CoreGameLaunchService {
             metalHud: value.metalHud, networkDebug: value.networkDebug, wineLog: value.wineLog,
             progress: max(value.progress, min(progress ?? value.progress, 1)), logs: logs,
             startedAt: value.startedAt, updatedAt: now, revision: (value.revision ?? 0) + 1
+        )
+    }
+
+    private static func copy(_ value: GameLaunch, logs: [GameLaunchLog]) -> GameLaunch {
+        GameLaunch(
+            id: value.id, status: value.status, message: value.message,
+            performanceProfile: value.performanceProfile, metalHud: value.metalHud,
+            networkDebug: value.networkDebug, wineLog: value.wineLog, progress: value.progress,
+            logs: logs, startedAt: value.startedAt, updatedAt: CoreDate.string(Date()),
+            revision: (value.revision ?? 0) + 1
         )
     }
 
@@ -418,5 +656,52 @@ actor CoreGameLaunchService {
 
     private static func validSessionID(_ value: String) -> Bool {
         UUID(uuidString: value) != nil
+    }
+
+    private struct RecoveryWarnings: Codable {
+        let warnings: [String]
+    }
+
+    private static func loadRecoveryWarnings(dataDirectory: URL) -> [String] {
+        let url = dataDirectory.appending(path: "launches/recovery-warnings.json")
+        guard GameFilesystem.regularFile(url),
+              let values = try? url.resourceValues(forKeys: [.fileSizeKey]),
+              (values.fileSize ?? 0) <= 1024 * 1024,
+              let data = try? Data(contentsOf: url),
+              let value = try? JSONDecoder.api.decode(RecoveryWarnings.self, from: data) else {
+            return []
+        }
+        return Self.unique(value.warnings.filter { $0.utf8.count <= 4_096 })
+    }
+
+    private static func persistRecoveryWarnings(_ warnings: [String], dataDirectory: URL) {
+        guard !warnings.isEmpty else { return }
+        let value = RecoveryWarnings(warnings: Array(warnings.suffix(256)))
+        guard let data = try? JSONEncoder.api.encode(value) else { return }
+        try? GameFilesystem.writePrivate(
+            data,
+            to: dataDirectory.appending(path: "launches/recovery-warnings.json")
+        )
+    }
+
+    private static func unique(_ values: [String]) -> [String] {
+        var seen = Set<String>()
+        return values.filter { !$0.isEmpty && seen.insert($0).inserted }
+    }
+
+    private func pruneTerminal() {
+        let now = Date()
+        let candidates = states
+            .filter { Self.terminal($0.value.launch.status) }
+            .sorted { CoreDate.parse($0.value.launch.updatedAt) < CoreDate.parse($1.value.launch.updatedAt) }
+        for (id, state) in candidates {
+            let age = now.timeIntervalSince(CoreDate.parse(state.launch.updatedAt))
+            guard age >= 60 * 60 || states.count >= 100 else { continue }
+            let directory = dataDirectory.appending(path: "launches").appending(path: id)
+            guard validSessionID(id),
+                  !FileManager.default.fileExists(atPath: directory.appending(path: "dll-journal.json").path),
+                  (try? PrivateFilesystem.removeDirectoryIfPresent(directory)) != nil else { continue }
+            states[id] = nil
+        }
     }
 }

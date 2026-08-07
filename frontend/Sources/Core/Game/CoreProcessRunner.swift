@@ -11,8 +11,15 @@ struct CoreProcessRequest: Sendable {
 
 protocol CoreProcessRunning: Sendable {
     func run(_ request: CoreProcessRequest) async throws -> Int32
+    func startDetached(_ request: CoreProcessRequest) async throws
     func terminate() async
     func processIdentifier() async -> Int32?
+}
+
+extension CoreProcessRunning {
+    func startDetached(_ request: CoreProcessRequest) async throws {
+        _ = try await run(request)
+    }
 }
 
 enum CoreProcessEnvironment {
@@ -92,6 +99,24 @@ actor FoundationProcessRunner: CoreProcessRunning {
         }
     }
 
+    func startDetached(_ request: CoreProcessRequest) throws {
+        let child = Process()
+        child.executableURL = request.executable
+        child.arguments = request.arguments
+        child.currentDirectoryURL = request.workingDirectory
+        child.environment = request.environment
+        child.standardInput = FileHandle.nullDevice
+        child.standardOutput = FileHandle.nullDevice
+        child.standardError = FileHandle.nullDevice
+        try child.run()
+        let retained = DetachedProcess(child)
+        Task.detached {
+            while retained.process.isRunning {
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+        }
+    }
+
     func terminate() {
         process?.terminate()
     }
@@ -133,6 +158,14 @@ actor FoundationProcessRunner: CoreProcessRunning {
             FileHandle(fileDescriptor: descriptor, closeOnDealloc: true),
             size
         )
+    }
+}
+
+private final class DetachedProcess: @unchecked Sendable {
+    let process: Process
+
+    init(_ process: Process) {
+        self.process = process
     }
 }
 
@@ -202,7 +235,7 @@ private final class BoundedProcessLog: @unchecked Sendable {
 
 enum LaunchArgumentParser {
     static func parse(_ input: String) throws -> [String] {
-        guard input.utf8.count <= 512 * 1024,
+        guard input.utf8.count <= 4096,
               !input.unicodeScalars.contains(where: { $0.value == 0 }) else {
             throw LauncherCoreError(code: "launch_arguments_too_large", message: "游戏启动参数过长")
         }

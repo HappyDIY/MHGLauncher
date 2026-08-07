@@ -45,6 +45,11 @@ actor CoreMetadataRepository {
         return CoreMetadataSnapshot(root: root, oid: value.oid, activatedAt: value.activatedAt)
     }
 
+    func ensure() async -> CoreMetadataSnapshot? {
+        if let active = activeSnapshot() { return active }
+        return try? await sync(force: false)
+    }
+
     func sync(force: Bool) async throws -> CoreMetadataSnapshot {
         let mirrors = try await mirrors()
         guard !mirrors.isEmpty else {
@@ -85,7 +90,7 @@ actor CoreMetadataRepository {
            discoveryBaseURL.scheme?.lowercased() == "https",
            discoveryBaseURL.user == nil,
            discoveryBaseURL.password == nil,
-           discoveryBaseURL.port == nil || discoveryBaseURL.port == 443,
+           (discoveryBaseURL.port == nil || discoveryBaseURL.port == 443),
            discoveryBaseURL.query == nil,
            discoveryBaseURL.fragment == nil,
            let host = discoveryBaseURL.host?.nonempty?.lowercased() {
@@ -192,14 +197,36 @@ actor CoreMetadataRepository {
             try GameFilesystem.writePrivate(try boundedData(chs.appending(path: input)), to: output.appending(path: name))
         }
         var items: [String: [Any]] = [:]
+        var characterAssets: [String: [String: String]] = [
+            "avatars": [:], "weapons": [:], "reliquaries": [:], "skills": [:], "talents": [:]
+        ]
         guard let weapons = try JSONSerialization.jsonObject(with: boundedData(chs.appending(path: "Weapon.json"))) as? [[String: Any]],
               weapons.count <= 20_000 else { throw invalid("武器资料无效") }
         for weapon in weapons {
             guard let id = weapon["Id"] as? NSNumber, let name = weapon["Name"] as? String,
-                  let rank = weapon["RankLevel"] as? NSNumber, let icon = weapon["Icon"] as? String else {
+                  let rank = weapon["RankLevel"] as? NSNumber, let icon = weapon["Icon"] as? String,
+                  Self.validAssetName(icon) else {
                 throw invalid("武器资料无效")
             }
             items[id.stringValue] = [name, "武器", rank.intValue, icon]
+            characterAssets["weapons", default: [:]][id.stringValue] = icon
+        }
+        guard let reliquaries = try JSONSerialization.jsonObject(
+            with: boundedData(chs.appending(path: "Reliquary.json"))
+        ) as? [[String: Any]], reliquaries.count <= 20_000 else {
+            throw invalid("圣遗物资料无效")
+        }
+        for reliquary in reliquaries {
+            guard let ids = reliquary["Ids"] as? [Any], ids.count <= 16,
+                  let icon = reliquary["Icon"] as? String, Self.validAssetName(icon) else {
+                throw invalid("圣遗物资料无效")
+            }
+            for value in ids {
+                guard let id = value as? NSNumber, id.intValue >= 0 else {
+                    throw invalid("圣遗物资料无效")
+                }
+                characterAssets["reliquaries", default: [:]][id.stringValue] = icon
+            }
         }
         let avatarRoot = chs.appending(path: "Avatar")
         guard let enumerator = fileManager.enumerator(
@@ -219,14 +246,42 @@ actor CoreMetadataRepository {
         for url in avatars {
             guard let avatar = try JSONSerialization.jsonObject(with: boundedData(url)) as? [String: Any],
                   let id = avatar["Id"] as? NSNumber, let name = avatar["Name"] as? String,
-                  let quality = avatar["Quality"] as? NSNumber, let icon = avatar["Icon"] as? String else {
+                  let quality = avatar["Quality"] as? NSNumber, let icon = avatar["Icon"] as? String,
+                  Self.validAssetName(icon), let skillDepot = avatar["SkillDepot"] as? [String: Any] else {
                 throw invalid("角色资料无效")
             }
             items[id.stringValue] = [name, "角色", quality.intValue >= 5 ? 5 : quality.intValue, icon]
+            characterAssets["avatars", default: [:]][id.stringValue] = icon
+            for (sourceKey, targetKey) in [("Skills", "skills"), ("Talents", "talents")] {
+                let values: [[String: Any]]
+                if let raw = skillDepot[sourceKey] {
+                    guard let decoded = raw as? [[String: Any]], decoded.count <= 20_000 else {
+                        throw invalid("角色天赋资料无效")
+                    }
+                    values = decoded
+                } else {
+                    values = []
+                }
+                for value in values {
+                    guard let skillID = value["Id"] as? NSNumber,
+                          let skillIcon = value["Icon"] as? String,
+                          Self.validAssetName(skillIcon) else {
+                        throw invalid("角色天赋资料无效")
+                    }
+                    characterAssets[targetKey, default: [:]][skillID.stringValue] = skillIcon
+                }
+            }
+        }
+        guard characterAssets.values.allSatisfy({ $0.count <= 20_000 }) else {
+            throw invalid("角色插图资料过多")
         }
         try GameFilesystem.writePrivate(
             JSONSerialization.data(withJSONObject: items, options: [.sortedKeys]),
             to: output.appending(path: "gacha_items.json")
+        )
+        try GameFilesystem.writePrivate(
+            JSONSerialization.data(withJSONObject: characterAssets, options: [.sortedKeys]),
+            to: output.appending(path: "character_assets.json")
         )
         let descriptor = Descriptor(oid: oid, activatedAt: Date())
         try GameFilesystem.writePrivate(JSONEncoder.api.encode(descriptor), to: output.appending(path: ".mhg-resource.json"))
@@ -234,7 +289,10 @@ actor CoreMetadataRepository {
     }
 
     private func validateNormalized(_ root: URL) throws {
-        for name in ["achievement.json", "achievement_goals.json", "gacha_events.json", "gacha_items.json"] {
+        for name in [
+            "achievement.json", "achievement_goals.json", "gacha_events.json", "gacha_items.json",
+            "character_assets.json"
+        ] {
             let url = root.appending(path: name)
             guard GameFilesystem.regularFile(url) else { throw invalid("资料缓存不完整") }
             _ = try JSONSerialization.jsonObject(with: boundedData(url))
@@ -259,6 +317,10 @@ actor CoreMetadataRepository {
         url.scheme?.lowercased() == "https" && url.host?.nonempty != nil
             && url.user == nil && url.password == nil && (url.port == nil || url.port == 443)
             && url.query == nil && url.fragment == nil
+    }
+
+    private static func validAssetName(_ value: String) -> Bool {
+        value.range(of: #"^[A-Za-z0-9_]{1,128}$"#, options: .regularExpression) != nil
     }
 
     private func invalid(_ message: String) -> LauncherCoreError {

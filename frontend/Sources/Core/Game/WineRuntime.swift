@@ -89,24 +89,30 @@ actor WinePrefixManager {
         self.runner = runner
     }
 
-    func prepare(paths: WineRuntimePaths, dataDirectory: URL, profile: GamePerformanceProfile) async throws -> URL {
+    func prepare(
+        paths: WineRuntimePaths,
+        dataDirectory: URL,
+        profile: GamePerformanceProfile,
+        configure: Bool = true
+    ) async throws -> URL {
         let prefix = dataDirectory.appending(path: "wineprefix")
         try PrivateFilesystem.ensureDirectory(prefix)
         let environment = prefixEnvironment(prefix: prefix, profile: profile)
         let marker = prefix.appending(path: ".mhglauncher-wine-runtime")
-        let identity = paths.wine.path + "\n"
+        let identity = Self.runtimeIdentity(paths: paths)
         let ready = GameFilesystem.regularFile(marker)
             && ((try? marker.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0) <= 1024
             && (try? String(contentsOf: marker, encoding: .utf8)) == identity
+        if !configure && ready { return prefix }
+        let rosetta = try await runner.run(CoreProcessRequest(
+            executable: URL(filePath: "/usr/bin/arch"), arguments: ["-x86_64", "/usr/bin/true"],
+            workingDirectory: nil, environment: environment, logURL: nil
+        ))
+        guard rosetta == 0 else {
+            throw LauncherCoreError(code: "rosetta_missing", message: "请先安装 Rosetta 2 后再启动 Wine")
+        }
         try await stopServer(paths: paths, prefix: prefix)
         if !ready {
-            let rosetta = try await runner.run(CoreProcessRequest(
-                executable: URL(filePath: "/usr/bin/arch"), arguments: ["-x86_64", "/usr/bin/true"],
-                workingDirectory: nil, environment: environment, logURL: nil
-            ))
-            guard rosetta == 0 else {
-                throw LauncherCoreError(code: "rosetta_missing", message: "请先安装 Rosetta 2 后再启动 Wine")
-            }
             let status = try await runner.run(CoreProcessRequest(
                 executable: paths.wineboot, arguments: ["--init"], workingDirectory: nil,
                 environment: environment.merging(["WINEDLLOVERRIDES": "mscoree,mshtml="], uniquingKeysWith: { _, n in n }),
@@ -119,7 +125,7 @@ actor WinePrefixManager {
         }
         try await configureLocale(wine: paths.wine, environment: environment)
         try await configureRetina(wine: paths.wine, environment: environment)
-        try await configureGameLanguage(wine: paths.wine, environment: environment)
+        try await configureGameLanguage(wine: paths.wine, prefix: prefix, environment: environment)
         try await stopServer(paths: paths, prefix: prefix)
         let system32 = prefix.appending(path: "drive_c/windows/system32")
         try PrivateFilesystem.ensureDirectory(system32)
@@ -180,14 +186,82 @@ actor WinePrefixManager {
         )
     }
 
-    private func configureGameLanguage(wine: URL, environment: [String: String]) async throws {
-        for root in ["HKCU\\Software\\miHoYo\\原神", "HKCU\\Software\\miHoYo\\Genshin Impact"] {
+    private func configureGameLanguage(wine: URL, prefix: URL, environment: [String: String]) async throws {
+        let gameKey = "HKCU\\Software\\miHoYo\\原神"
+        let generalData = "GENERAL_DATA_h2389025596"
+        let sdkLanguage = "MIHOYOSDK_CURRENT_LANGUAGE_h2559149783"
+        let queryLog = prefix.appending(path: ".mhglauncher-language-query")
+        defer { try? PrivateFilesystem.removeRegularFileIfPresent(queryLog) }
+        try? PrivateFilesystem.removeRegularFileIfPresent(queryLog)
+        let queryStatus = try await runner.run(CoreProcessRequest(
+            executable: wine,
+            arguments: ["reg", "query", gameKey, "/v", generalData],
+            workingDirectory: nil,
+            environment: environment,
+            logURL: queryLog
+        ))
+        if queryStatus == 0,
+           let output = try? String(contentsOf: queryLog, encoding: .utf8),
+           let hex = Self.binaryValue(in: output) {
             try await runRegistry(
                 wine: wine,
-                arguments: ["reg", "add", root, "/v", "LanguageSettings_LocalAudioLanguage_h882585060", "/t", "REG_DWORD", "/d", "2", "/f"],
-                environment: environment, code: "wine_language_failed", message: "游戏中文语言配置失败"
+                arguments: ["reg", "add", gameKey, "/v", generalData, "/t", "REG_BINARY", "/d", Self.patchGeneralData(hex), "/f"],
+                environment: environment, code: "wine_language_failed", message: "无法写入游戏简体中文语言配置"
             )
         }
+        try await runRegistry(
+            wine: wine,
+            arguments: ["reg", "add", gameKey, "/v", sdkLanguage, "/t", "REG_BINARY", "/d", Self.hex(Data("zh-cn\0".utf8)), "/f"],
+            environment: environment, code: "wine_language_write_failed", message: "无法写入游戏简体中文语言配置"
+        )
+    }
+
+    private static func binaryValue(in output: String) -> String? {
+        let tokens = output.split { $0.isWhitespace }
+        guard let index = tokens.firstIndex(where: { $0.caseInsensitiveCompare("REG_BINARY") == .orderedSame }),
+              tokens.index(after: index) < tokens.endIndex else { return nil }
+        let value = String(tokens[tokens.index(after: index)])
+        guard value.count <= 2_000_000,
+              value.count.isMultiple(of: 2),
+              value.allSatisfy({ $0.isHexDigit }) else { return nil }
+        return value
+    }
+
+    private static func patchGeneralData(_ hex: String) throws -> String {
+        guard let source = data(hex: hex),
+              source.count <= 1_000_000 else {
+            throw LauncherCoreError(code: "game_language_data_invalid", message: "游戏语言配置已损坏，无法安全切换为简体中文")
+        }
+        var trimmed = source
+        while trimmed.last == 0 { trimmed.removeLast() }
+        guard var value = try? JSONSerialization.jsonObject(with: Data(trimmed), options: []) as? [String: Any] else {
+            throw LauncherCoreError(code: "game_language_data_invalid", message: "游戏语言配置已损坏，无法安全切换为简体中文")
+        }
+        value["deviceLanguageType"] = 0
+        value["deviceVoiceLanguageType"] = 0
+        guard var result = try? JSONSerialization.data(withJSONObject: value, options: []) else {
+            throw LauncherCoreError(code: "game_language_data_invalid", message: "游戏语言配置已损坏，无法安全切换为简体中文")
+        }
+        result.append(0)
+        return hex(result)
+    }
+
+    private static func hex(_ data: Data) -> String {
+        data.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func data(hex: String) -> Data? {
+        guard hex.count.isMultiple(of: 2) else { return nil }
+        var result = Data()
+        result.reserveCapacity(hex.count / 2)
+        var index = hex.startIndex
+        while index < hex.endIndex {
+            let next = hex.index(index, offsetBy: 2)
+            guard let byte = UInt8(String(hex[index..<next]), radix: 16) else { return nil }
+            result.append(byte)
+            index = next
+        }
+        return result
     }
 
     private func runRegistry(
@@ -206,7 +280,10 @@ actor WinePrefixManager {
 
     private func prefixEnvironment(prefix: URL, profile: GamePerformanceProfile) -> [String: String] {
         let source = ProcessInfo.processInfo.environment
-        let allowed = ["HOME", "USER", "LOGNAME", "PATH", "TMPDIR", "TMP", "TEMP", "__CF_USER_TEXT_ENCODING"]
+        let allowed = [
+            "HOME", "USER", "LOGNAME", "PATH", "TMPDIR", "TMP", "TEMP",
+            "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "__CF_USER_TEXT_ENCODING"
+        ]
         var result = Dictionary(uniqueKeysWithValues: allowed.compactMap { key in source[key].map { (key, $0) } })
         result.merge([
             "LANG": "zh_CN.UTF-8", "LANGUAGE": "zh_CN:zh", "LC_ALL": "zh_CN.UTF-8",
@@ -215,5 +292,16 @@ actor WinePrefixManager {
             "WINEESYNC": profile == .compatibility ? "1" : "0"
         ], uniquingKeysWith: { _, new in new })
         return result
+    }
+
+    private static func runtimeIdentity(paths: WineRuntimePaths) -> String {
+        let provenance = paths.root.appending(path: "wine/BUILD_PROVENANCE.json")
+        guard GameFilesystem.regularFile(provenance),
+              let values = try? provenance.resourceValues(forKeys: [.fileSizeKey]),
+              (values.fileSize ?? 0) <= 1_048_576,
+              let content = try? String(contentsOf: provenance, encoding: .utf8) else {
+            return paths.wine.path + "\n"
+        }
+        return paths.wine.path + "\n" + content
     }
 }

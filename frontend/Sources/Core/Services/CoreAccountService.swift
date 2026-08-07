@@ -6,12 +6,17 @@ actor CoreAccountService {
         let identity: ProviderIdentity
         let roles: [GameRole]
         let expiresAt: Date
+        let source: String
+        let generation: Int
     }
 
     private let database: CoreDatabase
     private let provider: any GameProvider
     private let keychain: any KeychainStoring
     private var pending: [String: PendingLogin] = [:]
+    private var generation = 0
+    private var reservations: [String: Int] = [:]
+    private var consumedSources = Set<String>()
     private static let maximumPendingLogins = 64
 
     init(database: CoreDatabase, provider: any GameProvider, keychain: any KeychainStoring) {
@@ -55,18 +60,74 @@ actor CoreAccountService {
         return try await roles(aid: account.aid)
     }
 
+    func syncRoles(aid: String, credential: String) async throws -> [GameRole] {
+        guard Self.validAccountID(aid) else {
+            throw LauncherCoreError(code: "account_invalid", message: "账号标识无效")
+        }
+        let target = try await list().first { $0.aid == aid }
+        guard let target else {
+            throw LauncherCoreError(code: "account_missing", message: "账号不存在")
+        }
+        let trimmed = credential.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard Self.validText(trimmed, maximum: 16 * 1024, allowEmpty: false) else {
+            throw LauncherCoreError(code: "credential_invalid", message: "Cookie 凭据无效")
+        }
+        let identity = try await provider.identifyCredential(trimmed)
+        guard identity.aid == target.aid, identity.mid == target.mid else {
+            throw LauncherCoreError(code: "credential_identity_mismatch", message: "凭据与账号身份不匹配")
+        }
+        let incoming = try await provider.roles(credential: identity.credential)
+        guard incoming.count <= 256 else {
+            throw LauncherCoreError(code: "role_payload_too_large", message: "游戏角色数量超出限制")
+        }
+        var identifiers = Set<String>()
+        guard incoming.allSatisfy({
+            Self.validRole($0) && identifiers.insert($0.uid).inserted
+        }) else {
+            throw LauncherCoreError(code: "role_payload_invalid", message: "游戏角色信息无效")
+        }
+        let values = incoming.enumerated().map { index, role in
+            GameRole(
+                uid: role.uid,
+                nickname: role.nickname,
+                region: role.region,
+                level: role.level,
+                selected: index == 0
+            )
+        }
+        try await database.write { db in
+            let selectedUID: String? = try String.fetchOne(
+                db,
+                sql: "SELECT uid FROM roles WHERE account_aid=? AND selected=1",
+                arguments: [aid]
+            )
+            let selected = values.contains { $0.uid == selectedUID }
+                ? selectedUID : values.first?.uid
+            try db.execute(sql: "DELETE FROM roles WHERE account_aid=?", arguments: [aid])
+            for role in values {
+                try db.execute(
+                    sql: "INSERT INTO roles(uid,account_aid,nickname,region,level,selected) VALUES(?,?,?,?,?,?)",
+                    arguments: [role.uid, aid, role.nickname, role.region, role.level, role.uid == selected]
+                )
+            }
+        }
+        return try await roles(aid: aid)
+    }
+
     func selectedRole() async throws -> GameRole? {
         try await roles().first
     }
 
     func createQRSession() async throws -> QRSession {
-        try await provider.createQRSession()
+        let session = try await provider.createQRSession()
+        begin(source: "qr:\(session.id)")
+        return session
     }
 
     func queryQRSession(_ id: String) async throws -> QRResult {
         let (session, identity) = try await provider.queryQRSession(id)
         guard let identity else { return QRResult(session: session, preparedLogin: nil) }
-        let prepared = try await prepare(identity)
+        let prepared = try await prepare(identity, source: "qr:\(id)")
         return QRResult(session: session, preparedLogin: prepared)
     }
 
@@ -75,7 +136,9 @@ actor CoreAccountService {
         guard trimmed.range(of: #"^1\d{10}$"#, options: .regularExpression) != nil else {
             throw LauncherCoreError(code: "mobile_invalid", message: "手机号格式无效")
         }
-        return try await provider.createMobileCaptcha(trimmed)
+        let session = try await provider.createMobileCaptcha(trimmed)
+        begin(source: "mobile:\(trimmed)")
+        return session
     }
 
     func verifyMobileCaptcha(
@@ -102,12 +165,15 @@ actor CoreAccountService {
               request.aigis.map({ Self.validText($0, maximum: 16 * 1024) }) ?? true else {
             throw LauncherCoreError(code: "captcha_invalid", message: "手机号登录信息无效")
         }
-        return try await prepare(provider.loginByMobileCaptcha(MobileLoginRequest(
-            mobile: mobile,
-            captcha: request.captcha,
-            actionType: request.actionType,
-            aigis: request.aigis
-        )))
+        return try await prepare(
+            provider.loginByMobileCaptcha(MobileLoginRequest(
+                mobile: mobile,
+                captcha: request.captcha,
+                actionType: request.actionType,
+                aigis: request.aigis
+            )),
+            source: "mobile:\(mobile)"
+        )
     }
 
     func prepareCookieLogin(_ credential: String) async throws -> PreparedLogin {
@@ -115,14 +181,18 @@ actor CoreAccountService {
         guard Self.validText(trimmed, maximum: 16 * 1024, allowEmpty: false) else {
             throw LauncherCoreError(code: "credential_invalid", message: "Cookie 凭据无效")
         }
-        return try await prepare(provider.identifyCredential(trimmed))
+        let source = "cookie:\(UUID().uuidString)"
+        begin(source: source)
+        return try await prepare(provider.identifyCredential(trimmed), source: source)
     }
 
     func commit(_ transactionID: String) async throws -> LoginCompleteResponse {
         removeExpiredPending()
-        guard let value = pending[transactionID] else {
-            throw LauncherCoreError(code: "login_transaction_missing", message: "登录事务不存在或已过期")
+        guard let value = pending[transactionID], value.generation == generation else {
+            throw LauncherCoreError(code: "login_transaction_invalid", message: "登录事务无效或已过期")
         }
+        pending[transactionID] = nil
+        consumedSources.insert(value.source)
         let key = Self.keychainAccount(aid: value.identity.aid)
         let previous = try keychain.read(account: key)
         do {
@@ -238,7 +308,7 @@ actor CoreAccountService {
         return value
     }
 
-    private func prepare(_ identity: ProviderIdentity) async throws -> PreparedLogin {
+    private func prepare(_ identity: ProviderIdentity, source: String) async throws -> PreparedLogin {
         guard Self.validAccountID(identity.aid), identity.mid.utf8.count <= 256,
               identity.nickname.utf8.count <= 256,
               Self.validText(identity.mid, maximum: 256),
@@ -259,6 +329,23 @@ actor CoreAccountService {
             }
         }
         removeExpiredPending()
+        guard reservations[source] == generation else {
+            throw LauncherCoreError(code: "login_intent_stale", message: "登录请求已被更新的操作取代")
+        }
+        if consumedSources.contains(source) {
+            throw LauncherCoreError(code: "login_consumed", message: "登录事务已使用")
+        }
+        if let existing = pending.first(where: { $0.value.source == source && $0.value.generation == generation }) {
+            return PreparedLogin(
+                transactionId: existing.key,
+                identity: AccountIdentity(
+                    aid: existing.value.identity.aid,
+                    mid: existing.value.identity.mid,
+                    nickname: existing.value.identity.nickname
+                ),
+                roles: existing.value.roles, expiresAt: existing.value.expiresAt
+            )
+        }
         guard pending.count < Self.maximumPendingLogins else {
             throw LauncherCoreError(code: "login_pending_limit", message: "待完成的登录事务过多，请稍后重试")
         }
@@ -273,7 +360,9 @@ actor CoreAccountService {
         }
         let id = UUID().uuidString
         let expiresAt = Date().addingTimeInterval(300)
-        pending[id] = PendingLogin(identity: identity, roles: roles, expiresAt: expiresAt)
+        pending[id] = PendingLogin(
+            identity: identity, roles: roles, expiresAt: expiresAt, source: source, generation: generation
+        )
         return PreparedLogin(
             transactionId: id,
             identity: AccountIdentity(
@@ -358,6 +447,13 @@ actor CoreAccountService {
     private func removeExpiredPending() {
         let now = Date()
         pending = pending.filter { $0.value.expiresAt > now }
+    }
+
+    private func begin(source: String) {
+        generation += 1
+        pending.removeAll(keepingCapacity: true)
+        consumedSources.remove(source)
+        reservations[source] = generation
     }
 
     private nonisolated static func keychainAccount(aid: String) -> String { "account:\(aid)" }

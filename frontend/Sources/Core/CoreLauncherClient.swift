@@ -21,6 +21,7 @@ enum CoreLauncherClient {
                 list: { try await accounts.list() },
                 selected: { try await accounts.selected() },
                 roles: { try await accounts.roles() },
+                syncRoles: { aid, credential in try await accounts.syncRoles(aid: aid, credential: credential) },
                 createQRSession: { try await accounts.createQRSession() },
                 queryQRSession: { try await accounts.queryQRSession($0) },
                 sendMobileCaptcha: { try await accounts.sendMobileCaptcha($0) },
@@ -55,6 +56,7 @@ enum CoreLauncherClient {
                 launch: { try await launches.start($0) },
                 launchEvents: { launches.events($0, after: $1) },
                 stopLaunch: { try await launches.stop($0) },
+                launchRecovery: { await launches.recovery() },
                 runWineTool: { try await launches.runWineTool($0) }
             ),
             companion: CompanionClient(
@@ -68,8 +70,8 @@ enum CoreLauncherClient {
                 importUIGF: { data in
                     await wishTasks.start(kind: "import_uigf") { log in
                         let result = try await wishes.importUIGF(data)
-                        await log("已校验并导入 UIGF 记录", true)
-                        return (["imported": result.inserted, "uid_count": result.uids.count], result.uids)
+                        await log("已校验 \(result.total) 条 UIGF 记录", true)
+                        return (["imported": result.total, "uid_count": result.uids.count], result.uids)
                     }
                 },
                 importGachaURL: { value in
@@ -97,7 +99,7 @@ enum CoreLauncherClient {
                 refreshCharacter: { try await characters.refreshDetail(avatarID: $0) },
                 cacheCharacterAssets: {
                     guard let role = try await accounts.selectedRole() else { return [] }
-                    return try await characters.list(uid: role.uid)
+                    return try await characters.cache(uid: role.uid)
                 }
             ),
             resources: ResourceClient(
@@ -117,10 +119,14 @@ enum CoreLauncherClient {
             cloud: CloudClient(
                 session: { try await cloud.session(uid: $0) },
                 login: { try await cloud.login() },
+                loginWithGachaURL: { url, uid in try await cloud.login(gachaURL: url, expectedUID: uid) },
+                reverify: { url, uid in try await cloud.reverify(gachaURL: url, uid: uid) },
                 uploadWishes: { try await cloud.uploadWishes(uid: $0) },
                 retrieveWishes: { try await cloud.retrieveWishes(uid: $0) },
                 uploadAchievements: { try await cloud.uploadAchievements(uid: $0) },
-                retrieveAchievements: { try await cloud.retrieveAchievements(uid: $0) }
+                retrieveAchievements: { try await cloud.retrieveAchievements(uid: $0) },
+                deleteWishes: { try await cloud.deleteWishes(uid: $0) },
+                revokeSession: { try await cloud.revokeSession(uid: $0) }
             ),
             notifications: NotificationClient(
                 settings: { try await notifications.settings() },

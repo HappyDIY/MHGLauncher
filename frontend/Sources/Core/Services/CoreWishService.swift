@@ -60,7 +60,7 @@ actor CoreWishService {
             guard records.allSatisfy({ $0.uid == role.uid }) else {
                 throw LauncherCoreError(code: "wish_uid_mismatch", message: "祈愿记录与当前 UID 不匹配")
             }
-            let values = records.map { StoredWish(record: $0, uigfType: Self.uigfType(for: $0.gachaType)) }
+            let values = records.map { StoredWish(record: $0, uigfType: Self.uigfType(for: $0)) }
             let added = try await newRecordCount(values)
             try await save(values)
             inserted += added
@@ -71,14 +71,14 @@ actor CoreWishService {
         return inserted
     }
 
-    func importUIGF(_ data: Data) async throws -> (inserted: Int, uids: [String]) {
+    func importUIGF(_ data: Data) async throws -> (inserted: Int, total: Int, uids: [String]) {
         guard data.count <= 64 * 1024 * 1024 else {
             throw LauncherCoreError(code: "uigf_too_large", message: "UIGF 文件大小超出限制")
         }
         let records = try Self.parseUIGF(data)
         let inserted = try await newRecordCount(records)
         try await save(records)
-        return (inserted, Array(Set(records.map(\.record.uid))).sorted())
+        return (inserted, records.count, Array(Set(records.map(\.record.uid))).sorted())
     }
 
     func importGachaURL(_ value: String) async throws -> (inserted: Int, uids: [String]) {
@@ -86,25 +86,29 @@ actor CoreWishService {
               let url = MiHoYoSigning.normalizedGachaURL(input) else {
             throw LauncherCoreError(code: "gacha_url_invalid", message: "抽卡 URL 无效")
         }
-        var values: [StoredWish] = []
+        var inserted = 0
+        var total = 0
+        var uids = Set<String>()
         for try await page in provider.wishes(gachaURL: url) {
             let pageValues = page.map {
-                StoredWish(record: $0, uigfType: Self.uigfType(for: $0.gachaType))
+                StoredWish(record: $0, uigfType: Self.uigfType(for: $0))
             }
-            values += pageValues
-            guard Set(values.map(\.record.uid)).count <= 1 else {
+            total += pageValues.count
+            uids.formUnion(pageValues.map(\.record.uid))
+            guard uids.count <= 1 else {
                 throw LauncherCoreError(code: "gacha_uid_mismatch", message: "抽卡 URL 返回了不一致的 UID")
             }
-            guard values.count <= 200_000 else {
-                throw LauncherCoreError(code: "uigf_too_large", message: "祈愿记录不能超过 200000 条")
+            guard total <= 50_000 else {
+                throw LauncherCoreError(code: "gacha_record_limit", message: "抽卡 URL 返回的记录过多")
             }
+            let added = try await newRecordCount(pageValues)
+            try await save(pageValues)
+            inserted += added
         }
-        guard !values.isEmpty else {
+        guard total > 0, !uids.isEmpty else {
             throw LauncherCoreError(code: "gacha_url_unverified", message: "抽卡 URL 可用，但无法确认 UID")
         }
-        let inserted = try await newRecordCount(values)
-        try await save(values)
-        return (inserted, Array(Set(values.map(\.record.uid))).sorted())
+        return (inserted, uids.sorted())
     }
 
     func clear() async throws -> Int {
@@ -139,7 +143,8 @@ actor CoreWishService {
         guard records.count <= 20_000 else {
             throw LauncherCoreError(code: "cloud_payload_invalid", message: "云端记录格式无效")
         }
-        let values = records.map { StoredWish(record: $0, uigfType: Self.uigfType(for: $0.gachaType)) }
+        try Self.validateCloud(records)
+        let values = records.map { StoredWish(record: $0, uigfType: Self.uigfType(for: $0)) }
         let inserted = try await newRecordCount(values)
         try await save(values)
         return inserted
@@ -150,7 +155,7 @@ actor CoreWishService {
         let note = try await notes.get(uid: uid)
         let statistics = Self.statistics(wishes)
         let ascending = wishes.reversed()
-        let grouped = Dictionary(grouping: ascending, by: \WishRecord.gachaType)
+        let grouped = Dictionary(grouping: ascending, by: Self.uigfType(for:))
         let banners = grouped.keys.sorted().map { type in
             Self.banner(uid: uid, type: type, records: grouped[type] ?? [])
         }
@@ -170,7 +175,7 @@ actor CoreWishService {
         let timezone = uid.hasPrefix("6") ? -5 : uid.hasPrefix("7") ? 1 : 8
         let list: [[String: String]] = wishes.reversed().map { value in
             var item = [
-                "uigf_gacha_type": Self.uigfType(for: value.gachaType),
+                "uigf_gacha_type": Self.uigfType(for: value),
                 "gacha_type": value.gachaType,
                 "item_id": value.itemId,
                 "count": "1",
@@ -244,16 +249,13 @@ actor CoreWishService {
         }
         let gachaTypes: Set<String> = ["100", "200", "301", "302", "400", "500"]
         let uigfTypes: Set<String> = ["100", "200", "301", "302", "500"]
-        let latest = Date().addingTimeInterval(86_400).timeIntervalSince1970
         for value in values {
             let record = value.record
             guard validUID(record.uid),
                   record.id.range(of: #"^\d{1,19}$"#, options: .regularExpression) != nil,
                   gachaTypes.contains(record.gachaType),
                   uigfTypes.contains(value.uigfType),
-                  value.uigfType == record.gachaType
-                    || record.gachaType == "400" && value.uigfType == "301",
-                  !record.itemId.isEmpty, record.itemId.utf8.count <= 128,
+                  record.itemId.utf8.count <= 128,
                   !record.itemId.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
                   record.name.utf8.count <= 512,
                   !record.name.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
@@ -261,17 +263,34 @@ actor CoreWishService {
                   !record.itemType.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
                   (0...5).contains(record.rank),
                   record.time != .distantPast,
-                  record.time.timeIntervalSince1970.isFinite,
-                  record.time.timeIntervalSince1970 >= 946_684_800,
-                  record.time.timeIntervalSince1970 <= latest else {
+                  record.time.timeIntervalSince1970.isFinite else {
                 throw LauncherCoreError(code: "wish_item_invalid", message: "祈愿记录字段无效")
             }
         }
     }
 
+    private nonisolated static func validateCloud(_ values: [WishRecord]) throws {
+        let gachaTypes: Set<String> = ["100", "200", "301", "302", "400", "500"]
+        let uigfTypes: Set<String> = ["100", "200", "301", "302", "500"]
+        for record in values {
+            let uigf = record.uigfGachaType ?? uigfType(for: record.gachaType)
+            guard validUID(record.uid),
+                  record.id.range(of: #"^\d{1,19}$"#, options: .regularExpression) != nil,
+                  gachaTypes.contains(record.gachaType), uigfTypes.contains(uigf),
+                  record.itemId.isEmpty || record.itemId.range(of: #"^\d{1,19}$"#, options: .regularExpression) != nil,
+                  record.name.utf8.count <= 128, record.itemType.utf8.count <= 64,
+                  (1...5).contains(record.rank),
+                  record.time != .distantPast,
+                  record.time.timeIntervalSince1970.isFinite else {
+                throw LauncherCoreError(code: "cloud_payload_invalid", message: "云端记录格式无效")
+            }
+        }
+    }
+
     private nonisolated static func statistics(_ records: [WishRecord]) -> [WishStatistics] {
-        Dictionary(grouping: records, by: \WishRecord.gachaType).keys.sorted().map { type in
-            let group = Dictionary(grouping: records, by: \WishRecord.gachaType)[type] ?? []
+        let grouped = Dictionary(grouping: records, by: Self.uigfType(for:))
+        return grouped.keys.sorted().map { type in
+            let group = grouped[type] ?? []
             let firstFive = group.firstIndex { $0.rank == 5 }
             return WishStatistics(
                 uid: group.first?.uid ?? "",
@@ -364,6 +383,7 @@ actor CoreWishService {
             id: row["id"],
             uid: row["uid"],
             gachaType: row["gacha_type"],
+            uigfGachaType: (row["uigf_gacha_type"] as String?).flatMap(\.nonempty),
             itemId: row["item_id"],
             name: row["name"],
             itemType: row["item_type"],
@@ -377,16 +397,38 @@ actor CoreWishService {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let info = root["info"] as? [String: Any] else { throw uigfError() }
         var groups: [(String, Int, [[String: Any]])] = []
-        if info["uigf_version"] != nil {
-            guard let uid = string(info["uid"]), validUID(uid),
-                  let list = root["list"] as? [[String: Any]] else { throw uigfError() }
+        let legacyMarker = info["uigf_version"]
+        let isLegacy = switch legacyMarker {
+        case nil, is NSNull: false
+        case let value as String: !value.isEmpty
+        case let value as NSNumber: value.boolValue
+        default: true
+        }
+        if isLegacy {
+            guard let legacyVersion = string(legacyMarker),
+                  legacyVersion.range(of: #"^v[23]\."#, options: .regularExpression) != nil,
+                  let uid = string(info["uid"]), validUID(uid) else { throw uigfError() }
+            let list: [[String: Any]]
+            if let rawList = root["list"] {
+                guard let decoded = rawList as? [[String: Any]] else { throw uigfError() }
+                list = decoded
+            } else {
+                list = []
+            }
             groups = [(uid, 8, list)]
         } else {
             guard let version = info["version"] as? String,
-                  ["v4.0", "v4.1", "v4.2"].contains(version),
-                  let accounts = root["hk4e"] as? [[String: Any]], accounts.count <= 100 else {
+                  ["v4.0", "v4.1", "v4.2"].contains(version) else {
                 throw uigfError()
             }
+            let accounts: [[String: Any]]
+            if let rawAccounts = root["hk4e"] {
+                guard let decoded = rawAccounts as? [[String: Any]] else { throw uigfError() }
+                accounts = decoded
+            } else {
+                accounts = []
+            }
+            guard accounts.count <= 100 else { throw uigfError() }
             groups = try accounts.map { account in
                 guard let uid = string(account["uid"]), validUID(uid),
                       let list = account["list"] as? [[String: Any]] else { throw uigfError() }
@@ -411,7 +453,7 @@ actor CoreWishService {
                 }
                 return StoredWish(
                     record: WishRecord(
-                        id: id, uid: uid, gachaType: gacha, itemId: itemID,
+                        id: id, uid: uid, gachaType: gacha, uigfGachaType: uigf, itemId: itemID,
                         name: string(item["name"]) ?? "", itemType: string(item["item_type"]) ?? "",
                         rank: int(item["rank_type"]) ?? 0, time: time, iconUrl: nil
                     ),
@@ -445,6 +487,10 @@ actor CoreWishService {
 
     private nonisolated static func uigfType(for gachaType: String) -> String {
         gachaType == "400" ? "301" : gachaType
+    }
+
+    private nonisolated static func uigfType(for record: WishRecord) -> String {
+        record.uigfGachaType ?? uigfType(for: record.gachaType)
     }
 
     private nonisolated static func rounded(_ value: Double, digits: Int) -> Double {

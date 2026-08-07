@@ -170,6 +170,9 @@ actor SophonProvider {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(branch)
         let envelope: Envelope<BuildData> = try await json(request)
+        guard envelope.data.manifests.allSatisfy({ $0.stats?.keys.contains(version) == true }) else {
+            throw LauncherCoreError(code: "sophon_patch_incomplete", message: "Sophon 差分构建不支持当前版本")
+        }
         let selected = envelope.data.manifests.filter {
             $0.matchingField == "game" || languages.contains($0.matchingField)
         }
@@ -362,6 +365,7 @@ private struct BuildData: Codable, Sendable {
 
 private struct ManifestEntry: Codable, Sendable {
     let matchingField: String
+    let stats: [String: JSONValue]?
     let manifest: ManifestInfo
     let manifestDownload: Download
     let chunkDownload: Download

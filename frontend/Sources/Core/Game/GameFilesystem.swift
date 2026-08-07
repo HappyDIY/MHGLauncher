@@ -3,6 +3,13 @@ import Foundation
 
 enum GameFilesystem {
     private static let maximumVersionFileBytes = 1024 * 1024
+    private static let defaultConfiguration = """[general]
+uapc={\"hk4e_cn\":{\"uapc\":\"\"},\"hyp\":{\"uapc\":\"\"}}
+channel=1
+sub_channel=1
+cps=gw_pc
+game_version={version}
+"""
 
     static func validatedPath(_ input: String) throws -> String {
         let value = input.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -94,6 +101,31 @@ enum GameFilesystem {
             }
         }
         return nil
+    }
+
+    static func ensureConfiguration(root: URL, version: String) throws {
+        guard SophonValidation.isIdentifier(version) else {
+            throw LauncherCoreError(code: "game_config_invalid", message: "游戏版本标识无效")
+        }
+        let url = root.appending(path: "config.ini")
+        guard regularFile(url) else {
+            try writePrivate(
+                Data(defaultConfiguration.replacingOccurrences(of: "{version}", with: version).utf8),
+                to: url
+            )
+            return
+        }
+        let source = try String(contentsOf: url, encoding: .utf8)
+        let line = "game_version=\(version)"
+        let updated: String
+        if let range = source.range(of: #"(?im)^game_version\s*=.*$"#, options: .regularExpression) {
+            var value = source
+            value.replaceSubrange(range, with: line)
+            updated = value
+        } else {
+            updated = source.trimmingCharacters(in: .whitespacesAndNewlines) + "\n" + line + "\n"
+        }
+        if updated != source { try writePrivate(Data(updated.utf8), to: url) }
     }
 
     private static func boundedText(_ url: URL) -> String? {
